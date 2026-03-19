@@ -3,9 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
+import { adjectives, badAdjectives, animals } from '../lib/names';
+
 export default function Home() {
   const [lobbyId, setLobbyId] = useState('');
   const [playerName, setPlayerName] = useState('');
+  const [showBadNames, setShowBadNames] = useState(false);
   const router = useRouter();
 
   // Load saved name on startup
@@ -15,7 +18,7 @@ export default function Home() {
   }, []);
 
   const handleSaveName = () => {
-    const finalName = playerName.trim() || 'Anonymous Player';
+    const finalName = playerName.trim() || `${showBadNames ? badAdjectives[Math.floor(Math.random() * badAdjectives.length)] : adjectives[Math.floor(Math.random() * adjectives.length)]}${animals[Math.floor(Math.random() * animals.length)]}`;
     localStorage.setItem('geoBingoPlayerName', finalName);
   };
 
@@ -41,7 +44,9 @@ export default function Home() {
         
         {/* PLAYER NAME INPUT */}
         <div>
-          <label className="text-sm text-slate-400 font-bold uppercase mb-2 block">Your Name</label>
+          <button className="text-sm text-slate-400 font-bold uppercase mb-2 block" onClick={() => setShowBadNames(!showBadNames)}>
+            {showBadNames ? 'Your badass name' : 'Your name'}
+          </button>
           <input 
             type="text" 
             placeholder="Enter your name..."
