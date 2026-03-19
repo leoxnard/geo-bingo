@@ -6,11 +6,12 @@ import { GoogleMap, useJsApiLoader, StreetViewPanorama } from '@react-google-map
 import { supabase } from '../lib/supabase';
 
 const safeStartCenter = { lat: 48.137154, lng: 11.576124 }; 
-const mapOptions = { streetViewControl: true, mapTypeControl: false, gestureHandling: 'greedy' };
+const mapOptions = { streetViewControl: true, mapTypeControl: false, gestureHandling: 'greedy', fullscreenControl: false };
 const panoOptions = { 
   addressControl: false, 
   showRoadLabels: false, 
-  enableCloseButton: true, 
+  enableCloseButton: false, 
+  fullscreenControl: false,
   visible: false, // Start hidden so we don't block the map
   // position: safeStartCenter // COMMENTED OUT: Caused starting at Marienplatz every time
 };
@@ -33,8 +34,36 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
   const [submittingCategory, setSubmittingCategory] = useState<string | null>(null);
   const [inStreetView, setInStreetView] = useState(false); 
   const [mySubmissions, setMySubmissions] = useState<Submission[]>([]);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   const streetViewRef = useRef<google.maps.StreetViewPanorama | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const toggleFullscreen = async () => {
+    if (!containerRef.current) return;
+    
+    if (!document.fullscreenElement) {
+      try {
+        await containerRef.current.requestFullscreen();
+        setIsFullscreen(true);
+      } catch (err) {
+        console.error("Error attempting to enable fullscreen:", err);
+      }
+    } else {
+      if (document.exitFullscreen) {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   useEffect(() => {
     const fetchMySubmissions = async () => {
@@ -47,6 +76,11 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
   // useCallback prevents infinite loop spamming Google API!
   const onLoad = useCallback((pano: google.maps.StreetViewPanorama) => {
     streetViewRef.current = pano;
+    
+    // Restrict imagery to official outdoor Street View (filters out most user-submitted photos/interiors)
+    // Cast to 'any' since older @types/google.maps might missing 'source' on StreetViewPanoramaOptions
+    pano.setOptions({ source: google.maps.StreetViewSource.OUTDOOR } as any);
+    
     pano.addListener('visible_changed', () => {
       setInStreetView(pano.getVisible());
     });
@@ -94,18 +128,50 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-8rem)] min-h-[600px]">
-      <div className="flex-1 min-h-[400px] h-full border-4 border-slate-700 rounded-2xl overflow-hidden shadow-2xl relative bg-slate-800 absolute-safari-fix">
-        <GoogleMap key={gameId} mapContainerStyle={{ width: '100%', height: '100%' }} mapContainerClassName="w-full h-full absolute inset-0" center={safeStartCenter} zoom={12} options={mapOptions}>
+      <div ref={containerRef} className="flex-1 min-h-[400px] h-full border-4 border-slate-700 rounded-2xl overflow-hidden shadow-2xl relative bg-slate-800 absolute-safari-fix">
+        <GoogleMap key={gameId} mapContainerClassName="google-map-container absolute inset-0" center={safeStartCenter} zoom={12} options={mapOptions}>
           {/* Safely pass onLoad and onUnmount */}
           <StreetViewPanorama options={panoOptions} onLoad={onLoad} onUnmount={onUnmount} />
         </GoogleMap>
+
+        {/* Custom Fullscreen Button */}
+        <button
+          onClick={toggleFullscreen}
+          className="absolute top-2 right-2 z-[1000] w-12 h-12 bg-slate-800/80 hover:bg-slate-700 text-white flex items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-slate-500 font-bold transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm"
+          title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+        >
+          {isFullscreen ? (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+            </svg>
+          )} 
+        </button>
+
+        {inStreetView && (
+          <button
+            onClick={() => streetViewRef.current?.setVisible(false)}
+            className="absolute top-2 left-2 z-[1000] w-12 h-12 bg-red-500/30 hover:bg-red-500 text-white flex items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-red-400 font-bold text-2xl transition-transform hover:scale-105 active:scale-95"
+            title="Exit Street View"
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       {/* Right: Checklist */}
       <div className="w-full lg:w-96 flex flex-col gap-4 bg-slate-800 p-6 rounded-2xl shadow-xl h-full border border-slate-700 overflow-y-auto">
-        <h2 className="text-blue-400 font-bold text-xl mb-2 tracking-wide uppercase">
-          {gameMode === 'bingo' ? 'Bingo Board' : 'Checklist'}
-        </h2>
+        <div className="flex justify-between items-center mb-2 border-b border-slate-700 pb-2">
+          <h2 className="text-blue-400 font-bold text-xl tracking-wide uppercase">
+            {gameMode === 'bingo' ? 'Bingo Board' : 'Checklist'}
+          </h2>
+          <span className="bg-slate-700 text-slate-300 font-bold px-3 py-1 rounded-full text-sm">
+            {mySubmissions.length} / {categories.length}
+          </span>
+        </div>
         
         {gameMode === 'list' ? (
           <ul className="flex flex-col gap-3 flex-1">
@@ -119,11 +185,11 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
                   className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex flex-col gap-2
                     border-slate-600 bg-slate-800 hover:bg-slate-700`}
                 >
-                  <div className="flex flex-col overflow-hidden w-full">
-                    <span className={`truncate font-medium ${foundSub ? 'text-slate-300' : 'text-white'}`}>
+                  <div className="flex justify-between items-center w-full">
+                    <span className={`truncate font-medium flex-1 pr-2 ${foundSub ? 'text-slate-300' : 'text-white'}`}>
                       {cat}
                     </span>
-                    <span className={`text-xs font-bold uppercase mt-1 ${foundSub ? 'text-green-500' : 'text-slate-500'}`}>
+                    <span className={`text-xs font-bold uppercase whitespace-nowrap ${foundSub ? 'text-green-500' : 'text-slate-500'}`}>
                       {foundSub ? 'Found' : 'Pending'}
                     </span>
                   </div>
@@ -162,10 +228,7 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
             })}
           </ul>
         ) : (
-          <div 
-            className="grid gap-2 flex-1 auto-rows-fr" 
-            style={{ gridTemplateColumns: `repeat(${gridSize}, minmax(0, 1fr))` }}
-          >
+          <div className={`grid gap-2 flex-1 auto-rows-fr bingo-grid-${gridSize}`}>
             {categories.map((cat) => {
               const foundSub = mySubmissions.find(s => s.category === cat);
               
