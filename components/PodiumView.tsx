@@ -148,7 +148,8 @@ export default function PodiumView({ gameId }: PodiumViewProps) {
             bingos: bingoCount,
             communityApproval,
             totalYes,
-            totalNo
+            totalNo,
+            rank: 0
           };
         });
 
@@ -156,6 +157,22 @@ export default function PodiumView({ gameId }: PodiumViewProps) {
         playerStats.sort((a, b) => {
           if (b.score !== a.score) return b.score - a.score;
           return b.communityApproval - a.communityApproval;
+        });
+
+        // Calculate Ranks (Dense Ranking to support ties)
+        let currentRank = 1;
+        playerStats.forEach((p, i) => {
+          if (i > 0) {
+            const prev = playerStats[i - 1];
+            if (p.score === prev.score && p.communityApproval === prev.communityApproval) {
+              p.rank = currentRank;
+            } else {
+              currentRank++;
+              p.rank = currentRank;
+            }
+          } else {
+            p.rank = 1;
+          }
         });
         
         setStats(playerStats);
@@ -168,7 +185,9 @@ export default function PodiumView({ gameId }: PodiumViewProps) {
 
   if (loading) return <div className="text-white text-center py-20 text-xl animate-pulse">Calculating Final Scores...</div>;
 
-  const top3 = stats.slice(0, 3);
+  const rank1 = stats.filter(s => s.rank === 1);
+  const rank2 = stats.filter(s => s.rank === 2);
+  const rank3 = stats.filter(s => s.rank === 3);
 
   return (
     <div className="w-full max-w-6xl mx-auto flex flex-col items-center text-white pb-20">
@@ -177,10 +196,14 @@ export default function PodiumView({ gameId }: PodiumViewProps) {
       <div className="flex items-end justify-center gap-4 md:gap-8 h-72 mb-16 mt-12 w-full">
         
         {/* 2nd Place */}
-        {top3[1] && (
+        {rank2.length > 0 && (
           <div className="flex flex-col items-center w-32 md:w-40 animate-[slideUp_1s_ease-out]">
-            <span className="text-xl md:text-2xl font-bold mb-2 truncate w-full text-center">{top3[1].name}</span>
-            <span className="text-slate-400 mb-4 font-bold bg-slate-800 px-4 py-1 rounded-full">{top3[1].score} Pts</span>
+            <div className="flex flex-col items-center mb-2 w-full">
+              {rank2.map(p => (
+                <span key={p.id} className="text-xl md:text-2xl font-bold truncate w-full text-center" title={p.name}>{p.name}</span>
+              ))}
+            </div>
+            <span className="text-slate-400 mb-4 font-bold bg-slate-800 px-4 py-1 rounded-full">{rank2[0].score} Pts</span>
             <div className="w-full bg-slate-300 h-32 rounded-t-2xl flex justify-center items-start pt-6 shadow-[0_0_40px_rgba(203,213,225,0.2)]">
               <span className="text-5xl font-black text-slate-500">2</span>
             </div>
@@ -188,10 +211,14 @@ export default function PodiumView({ gameId }: PodiumViewProps) {
         )}
 
         {/* 1st Place */}
-        {top3[0] && (
+        {rank1.length > 0 && (
           <div className="flex flex-col items-center w-40 md:w-48 animate-[slideUp_0.8s_ease-out]">
-            <span className="text-2xl md:text-3xl font-black text-yellow-400 mb-2 truncate w-full text-center">{top3[0].name}</span>
-            <span className="text-yellow-200 mb-4 font-bold bg-yellow-900/50 px-5 py-1 rounded-full">{top3[0].score} Pts</span>
+            <div className="flex flex-col items-center mb-2 w-full">
+              {rank1.map(p => (
+                <span key={p.id} className="text-2xl md:text-3xl font-black text-yellow-400 truncate w-full text-center" title={p.name}>{p.name}</span>
+              ))}
+            </div>
+            <span className="text-yellow-200 mb-4 font-bold bg-yellow-900/50 px-5 py-1 rounded-full">{rank1[0].score} Pts</span>
             <div className="w-full bg-yellow-400 h-48 rounded-t-2xl flex justify-center items-start pt-6 shadow-[0_0_60px_rgba(250,204,21,0.4)] relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-white/20 to-transparent"></div>
               <span className="text-6xl font-black text-yellow-600 relative z-10">1</span>
@@ -200,10 +227,14 @@ export default function PodiumView({ gameId }: PodiumViewProps) {
         )}
 
         {/* 3rd Place */}
-        {top3[2] && (
+        {rank3.length > 0 && (
           <div className="flex flex-col items-center w-32 md:w-40 animate-[slideUp_1.2s_ease-out]">
-            <span className="text-xl md:text-2xl font-bold mb-2 truncate w-full text-center">{top3[2].name}</span>
-            <span className="text-amber-600 mb-4 font-bold bg-amber-900/30 px-4 py-1 rounded-full">{top3[2].score} Pts</span>
+            <div className="flex flex-col items-center mb-2 w-full">
+              {rank3.map(p => (
+                <span key={p.id} className="text-xl md:text-2xl font-bold truncate w-full text-center" title={p.name}>{p.name}</span>
+              ))}
+            </div>
+            <span className="text-amber-600 mb-4 font-bold bg-amber-900/30 px-4 py-1 rounded-full">{rank3[0].score} Pts</span>
             <div className="w-full bg-amber-700 h-24 rounded-t-2xl flex justify-center items-start pt-6 shadow-[0_0_40px_rgba(180,83,9,0.2)]">
               <span className="text-5xl font-black text-amber-900">3</span>
             </div>
@@ -224,7 +255,7 @@ export default function PodiumView({ gameId }: PodiumViewProps) {
               {/* Header: Rank & Name */}
               <div className="flex justify-between items-center border-b border-slate-800 pb-4">
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl font-black text-slate-600">#{index + 1}</span>
+                  <span className="text-2xl font-black text-slate-600">#{player.rank}</span>
                   <span className="font-bold text-xl text-blue-400">{player.name}</span>
                 </div>
                 <span className="bg-blue-600 px-4 py-1 rounded-lg text-lg font-bold text-white shadow-lg">

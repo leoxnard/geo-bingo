@@ -24,3 +24,15 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Dynamic Grid columns for Bingo Boards */
+.bingo-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.bingo-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.bingo-grid-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.bingo-grid-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+
+/* Map container styling */
+.google-map-container {
+  width: 100%;
+  height: 100%;
+}
