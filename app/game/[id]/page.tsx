@@ -23,7 +23,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
   // Game state
   const [status, setStatus] = useState<GameStatus>('lobby');
-  const [categories, setCategories] = useState<string[]>(['Yellow Car', 'Wheelchair', 'Gas Station', 'Dog', 'Cat', 'School', 'Church', 'Police', 'Fire Station']);
+  const [categories, setCategories] = useState<string[]>([]);
   const [newCategory, setNewCategory] = useState('');
   const [randomLang, setRandomLang] = useState<'german' | 'english'>('german');
   const [randomCount, setRandomCount] = useState<number | ''>(4);
