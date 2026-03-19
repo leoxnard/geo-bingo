@@ -50,10 +50,29 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [currentLink, setCurrentLink] = useState('');
+
+  useEffect(() => {
+    setCurrentLink(window.location.href);
+  }, []);
 
   const showToast = (message: string) => {
     setToastMessage(message);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const handleCopyGameId = () => {
+    navigator.clipboard.writeText(gameId);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 800);
+  };
+
+  const handleCopyGameLink = () => {
+    navigator.clipboard.writeText(currentLink);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 800);
   };
 
   // The definitive engine (Setup Identity, Game, Players)
