@@ -29,8 +29,8 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
   });
 
-  const [selectedCategory, setSelectedCategory] = useState(categories[0]);
-  const [loading, setLoading] = useState(false);
+  
+  const [submittingCategory, setSubmittingCategory] = useState<string | null>(null);
   const [inStreetView, setInStreetView] = useState(false); 
   const [mySubmissions, setMySubmissions] = useState<Submission[]>([]);
   
@@ -56,21 +56,21 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
     streetViewRef.current = null;
   }, []);
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (targetCategory: string) => {
     if (!streetViewRef.current || !inStreetView) return;
-    setLoading(true);
+    setSubmittingCategory(targetCategory);
     const position = streetViewRef.current.getPosition();
     const pov = streetViewRef.current.getPov();
-    if (!position) { setLoading(false); return; }
+    if (!position) { setSubmittingCategory(null); return; }
 
     const submissionData = {
-      game_id: gameId, player_id: playerId, category: selectedCategory,
+      game_id: gameId, player_id: playerId, category: targetCategory,
       lat: parseFloat(position.lat().toFixed(6)), lng: parseFloat(position.lng().toFixed(6)),
       heading: parseFloat(pov.heading.toFixed(2)), pitch: parseFloat(pov.pitch.toFixed(2)),
       zoom: streetViewRef.current.getZoom() || 1
     };
 
-    const existingSub = mySubmissions.find(s => s.category === selectedCategory);
+    const existingSub = mySubmissions.find(s => s.category === targetCategory);
     if (existingSub) {
       await supabase.from('submissions').update(submissionData).eq('id', existingSub.id);
       setMySubmissions(prev => prev.map(s => s.id === existingSub.id ? { ...s, ...submissionData } : s));
@@ -78,12 +78,11 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
       const { data } = await supabase.from('submissions').insert([submissionData]).select().single();
       if (data) setMySubmissions(prev => [...prev, data]);
     }
-    setLoading(false);
+    setSubmittingCategory(null);
   };
 
   const jumpToLocation = (sub: Submission) => {
     if (!streetViewRef.current) return;
-    setSelectedCategory(sub.category);
     streetViewRef.current.setPosition({ lat: sub.lat, lng: sub.lng });
     streetViewRef.current.setPov({ heading: sub.heading, pitch: sub.pitch });
     streetViewRef.current.setZoom(sub.zoom);
@@ -112,14 +111,13 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
           <ul className="flex flex-col gap-3 flex-1">
             {categories.map((cat) => {
               const foundSub = mySubmissions.find(s => s.category === cat);
-              const isSelected = selectedCategory === cat;
+              
 
               return (
                 <li 
                   key={cat} 
-                  className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex justify-between items-center
-                    ${isSelected ? 'border-blue-500 bg-slate-700' : 'border-slate-600 bg-slate-800 hover:bg-slate-700'}`}
-                  onClick={() => setSelectedCategory(cat)}
+                  className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex flex-col gap-2
+                    border-slate-600 bg-slate-800 hover:bg-slate-700`}
                 >
                   <div className="flex flex-col overflow-hidden w-full">
                     <span className={`truncate font-medium ${foundSub ? 'text-slate-300' : 'text-white'}`}>
@@ -130,14 +128,35 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
                     </span>
                   </div>
                   
-                  {foundSub && (
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); jumpToLocation(foundSub); }}
-                      className="bg-slate-600 hover:bg-slate-500 text-xs px-3 py-2 text-white font-bold rounded shadow uppercase ml-2"
-                    >
-                      View
-                    </button>
-                  )}
+                  <div className="flex justify-between items-center gap-2 mt-1">
+                    {!foundSub ? (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleSubmit(cat); }}
+                        disabled={submittingCategory === cat || !inStreetView}
+                        className={`flex-1 text-[11px] px-2 py-2 font-bold rounded shadow uppercase transition-all
+                          ${!inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-500 text-white'}`}
+                      >
+                        {submittingCategory === cat ? 'Saving...' : !inStreetView ? 'Enter Streetview' : 'Save'}
+                      </button>
+                    ) : (
+                      <>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleSubmit(cat); }}
+                          disabled={submittingCategory === cat || !inStreetView}
+                          className={`flex-1 text-[10px] px-2 py-2 font-bold rounded shadow uppercase transition-all
+                            ${!inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-amber-600 hover:bg-amber-500 text-white'}`}
+                        >
+                           {submittingCategory === cat ? '...' : !inStreetView ? 'Enter SV' : 'Overwrite'}
+                        </button>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); jumpToLocation(foundSub); }}
+                          className="flex-[0.5] bg-slate-600 hover:bg-slate-500 text-[10px] px-2 py-2 text-white font-bold rounded shadow uppercase"
+                        >
+                          View
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </li>
               );
             })}
@@ -149,44 +168,54 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
           >
             {categories.map((cat) => {
               const foundSub = mySubmissions.find(s => s.category === cat);
-              const isSelected = selectedCategory === cat;
+              
 
               return (
                 <div 
                   key={cat} 
                   title={cat}
-                  className={`relative p-2 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-center items-center text-center overflow-hidden
-                    ${isSelected ? 'border-blue-500 bg-slate-700' : 'border-slate-600 bg-slate-800 hover:bg-slate-700'}
-                    ${foundSub ? 'opacity-80' : ''}`}
-                  onClick={() => setSelectedCategory(cat)}
+                  className={`relative p-2 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-center items-center text-center overflow-hidden pb-8
+                    border-slate-600 bg-slate-800 hover:bg-slate-700
+                    ${foundSub ? 'opacity-90' : ''}`}
                 >
-                  <span className={`text-xs sm:text-sm font-bold leading-tight line-clamp-3 break-words ${foundSub ? 'text-green-400' : 'text-white'}`}>
+                  <span className={`text-[10px] sm:text-xs font-bold leading-tight line-clamp-2 break-words mt-1 ${foundSub ? 'text-green-400' : 'text-white'}`}>
                     {cat}
                   </span>
-                  {foundSub && (
-                    <div className="absolute inset-0 bg-green-900/20 flex flex-col justify-end items-center pb-1">
+
+                  <div className="absolute bottom-1 w-[90%] left-[5%] flex gap-1 z-10">
+                     {!foundSub ? (
                        <button 
-                        onClick={(e) => { e.stopPropagation(); jumpToLocation(foundSub); }}
-                        className="bg-slate-800/80 hover:bg-slate-700 text-[10px] px-2 py-1 text-white rounded mt-1"
-                      >
-                        SEE
-                      </button>
-                    </div>
-                  )}
+                         onClick={(e) => { e.stopPropagation(); handleSubmit(cat); }}
+                         disabled={submittingCategory === cat || !inStreetView}
+                         className={`w-full text-[8px] py-1 font-bold rounded uppercase transition-all
+                           ${!inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed opacity-50' : 'bg-green-600 hover:bg-green-500 text-white'}`}
+                       >
+                         {submittingCategory === cat ? '...' : 'Save'}
+                       </button>
+                     ) : (
+                       <>
+                         <button 
+                           onClick={(e) => { e.stopPropagation(); handleSubmit(cat); }}
+                           disabled={submittingCategory === cat || !inStreetView}
+                           className={`flex-1 text-[8px] py-1 font-bold rounded uppercase transition-all
+                             ${!inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed opacity-50' : 'bg-amber-600 hover:bg-amber-500 text-white'}`}
+                         >
+                           {submittingCategory === cat ? '...' : '+'}
+                         </button>
+                         <button 
+                           onClick={(e) => { e.stopPropagation(); jumpToLocation(foundSub); }}
+                           className="flex-1 bg-slate-600 hover:bg-slate-500 text-[8px] py-1 text-white font-bold rounded uppercase"
+                         >
+                           View
+                         </button>
+                       </>
+                     )}
+                  </div>
                 </div>
               );
             })}
           </div>
         )}
-
-        <button 
-          onClick={handleSubmit}
-          disabled={loading || !inStreetView}
-          className={`font-bold py-4 rounded-xl transition-all shadow-lg mt-4 uppercase tracking-wider
-            ${!inStreetView ? 'bg-slate-600 cursor-not-allowed text-slate-400' : 'bg-green-600 hover:bg-green-500 text-white'}`}
-        >
-          {!inStreetView ? 'Enter Street View' : loading ? 'Saving...' : 'Save'}
-        </button>
       </div>
     </div>
   );
