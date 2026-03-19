@@ -25,7 +25,7 @@ export const categoriesEn = [
   'One-way street sign', 'No-parking sign', 'Speed limit 30 sign', 
   'No-trucks sign', 'Children sign', 'School bus', 'Directional arrow', 
   '30 km/h zone sign', 'Speed limit 50 sign', 'Paid parking zone', 
-  'No-stopping sign', 'Merge sign', 'Exit sign', 'Around the corner', 
+  'No-stopping sign', 'Merge sign', 'Exit sign', 'Right turn sign', 
   'Construction ahead sign', 'Right of way sign', 'Zebra crossing', 
   'Bike lane', 'Pedestrian zone', 'Dumpster', 'Street lamp'
 ];
@@ -57,7 +57,7 @@ export const categoriesDe = [
   'Einbahnstraßenschild', 'Parken-verboten Schild', 'Höchstgeschwindigkeit 30', 
   'Verbot für LKW', 'Kinder-Schild', 'Schulbus', 'Richtungspfeil', 
   '30 km/h Zone', 'Tempo 50', 'Parkraumbewirtschaftung', 
-  'Halteverbot', 'Einordnen', 'Ausfahrt', 'Rund um die Ecke', 
+  'Halteverbot', 'Einordnen', 'Ausfahrt', 'Rechtsabbiegen', 
   'Baustelle voraus', 'Vorfahrtsschild', 'Zebrastreifen', 
   'Fahrradweg', 'Fußgängerzone', 'Müllcontainer', 'Straßenlaterne'
 ];

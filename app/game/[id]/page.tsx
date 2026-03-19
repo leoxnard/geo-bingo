@@ -26,7 +26,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
   const [categories, setCategories] = useState<string[]>(['Yellow Car', 'Wheelchair', 'Gas Station', 'Dog', 'Cat', 'School', 'Church', 'Police', 'Fire Station']);
   const [newCategory, setNewCategory] = useState('');
   const [randomLang, setRandomLang] = useState<'german' | 'english'>('german');
-  const [randomCount, setRandomCount] = useState<number | ''>(9);
+  const [randomCount, setRandomCount] = useState<number | ''>(4);
   const [isHost, setIsHost] = useState(false);
   const [gameHostId, setGameHostId] = useState<string>(''); // NEW
   const [timeLimit, setTimeLimit] = useState(300); // 5 minutes standard
@@ -104,7 +104,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
       if (!gameData) {
         const { error } = await supabase.from('games').insert([{ 
-          id: gameId, status: 'lobby', categories: ['Yellow Car', 'Wheelchair', 'Gas Station', 'Dog', 'Cat', 'School', 'Church', 'Police', 'Fire Station'], ready_players: [], time_limit: 300, host_id: currentPlayerId, banned_players: [],
+          id: gameId, status: 'lobby', categories: [], ready_players: [], time_limit: 300, host_id: currentPlayerId, banned_players: [],
           game_mode: 'list', grid_size: 3, bingo_target: 3
         }]);
         if (!error) {
@@ -297,7 +297,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
       if (gameMode === 'bingo') {
         const remaining = (gridSize * gridSize) - categories.length;
         if (remaining <= 0) {
-          showToast(`Das Bingo-Feld ist bereits voll!`);
+          showToast(`Maximal ${gridSize * gridSize} words allowed for this Bingo grid!`);
           return;
         }
         if (count > remaining) count = remaining;
@@ -383,6 +383,11 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
   };
 
   const handleStartGame = async () => {
+    if (categories.length === 0) {
+      showToast('Please add at least one category to start the game.');
+      return;
+    }
+
     if (gameMode === 'bingo') {
       const neededCount = gridSize * gridSize;
       if (categories.length < neededCount) {
@@ -473,12 +478,12 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
   if (status === 'lobby') {
     return (
       <div className="min-h-screen flex flex-col items-center p-10 bg-slate-900 text-white relative">
-          <button 
+        <button 
           onClick={() => router.push('/')}
           className="absolute top-6 left-6 text-slate-400 hover:text-white flex items-center gap-2 font-medium transition-colors p-2 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700"
-          >
-            <FaArrowLeft /> Home
-          </button>
+        >
+          <FaArrowLeft /> Home
+        </button>
         {renderToast()}
         <h1 className="text-4xl font-bold text-slate mb-8 tracking-tighter">Geo Bingo</h1>
 
@@ -538,8 +543,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             {/* Time Slider with proper Accessibility */}
             <div className="mb-8 p-4 bg-slate-900 rounded-lg">
               <label htmlFor="time-limit-range" className="flex justify-between font-bold mb-2 cursor-pointer">
-                <span>Zeitlimit</span>
-                <span className="text-blue-400">{timeLimit / 60} Minuten</span>
+                <span>Time Limit</span>
+                <span className="text-blue-400">{timeLimit / 60} Minutes</span>
               </label>
               <input 
                 id="time-limit-range"
@@ -550,14 +555,14 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 className="w-full cursor-pointer accent-blue-500"
                 title="Adjust the game time limit in minutes"
               />
-              {!isHost && <p className="text-xs text-slate-500 mt-2 italic">Nur der Host kann die Zeit ändern.</p>}
+              {!isHost && <p className="text-xs text-slate-500 mt-2 italic">Only the host can adjust the time limit.</p>}
             </div>
 
-            <h3 className="font-bold mb-2 text-slate-300 flex justify-between items-center">
-              <span>Bingo Categories</span>
+            <h3 className="text-xl font-bold mb-2 text-slate-300 flex justify-between items-center">
+              <span>Categories</span>
               <div className="flex gap-2 items-center">
-                <span className="text-sm font-normal text-slate-400 bg-slate-900 px-3 py-1 rounded-full">
-                  {categories.length} {gameMode === 'bingo' ? `/ ${gridSize * gridSize} max.` : 'Words'}
+                <span className={`text-sm font-normal ${categories.length === 0 || (gameMode === 'bingo' && categories.length < gridSize * gridSize) ? 'text-red-400' : 'text-slate-400'} bg-slate-900 px-3 py-1 rounded-full`}>
+                  {categories.length} {gameMode === 'bingo' ? `/ ${gridSize * gridSize}` : 'Words'}
                 </span>
                 {isHost && (
                   <button 
@@ -573,8 +578,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
             {gameMode === 'bingo' ? (
               <div 
-                className="grid gap-2 mb-4" 
-                style={{ gridTemplateColumns: `repeat(${gridSize}, minmax(0, 1fr))` }}
+                className={`grid gap-3 mb-6 bingo-grid-${gridSize}`}
               >
                 {Array.from({ length: Math.max(gridSize * gridSize, categories.length) }).map((_, i) => {
                   const cat = categories[i];
@@ -657,10 +661,15 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     <label htmlFor="random-count" className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Count</label>
                     <input 
                       id="random-count"
-                      type="number" 
-                      min="1" max="50" 
+                      type="text" 
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       value={randomCount} 
-                      onChange={e => setRandomCount(e.target.value === '' ? '' : Number(e.target.value))}
+                      onChange={e => {
+                        const val = e.target.value.replace(/[^0-9]/g, '');
+                        if (val === '') setRandomCount('');
+                        else setRandomCount(Number(val));
+                      }}
                       className="h-[42px] px-2 rounded-lg bg-slate-900 border border-slate-600 text-white outline-none text-center font-bold"
                       title="Number of random words"
                     />
@@ -681,15 +690,15 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                   <div className="flex flex-col justify-end">
                     <button 
                       onClick={addRandomCategories} 
-                      className="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg font-bold h-[42px] whitespace-nowrap shadow-md transition-all uppercase text-sm tracking-wider"
+                      className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg font-bold h-[42px] whitespace-nowrap shadow-md transition-all text-sm tracking-wider"
                     >
-                      + Random
+                      Random
                     </button>
                   </div>
                 </div>
               </>
             )}
-</div>
+          </div>
 
           <div className="flex flex-col gap-6 w-full lg:w-80">
             {/* Invite Box */}
@@ -729,9 +738,9 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                   </button>
                 </div>
               </div>
-          </div>
+            </div>
 
-          {/* Player List */}
+            {/* Player List */}
             <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 h-fit">
             <h2 className="text-xl font-semibold mb-4 text-slate-300">Players ({players.length})</h2>
             <ul className="space-y-3">
@@ -767,7 +776,11 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             </ul>
 
             {isHost ? (
-              <button onClick={handleStartGame} className="w-full bg-green-600 hover:bg-green-500 py-4 rounded-xl font-bold mt-8 tracking-wider uppercase">
+              <button 
+                onClick={handleStartGame} 
+                disabled={categories.length === 0}
+                className={`w-full py-4 rounded-xl font-bold mt-8 tracking-wider uppercase ${categories.length === 0 ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-500'}`}
+              >
                 START GAME
               </button>
             ) : (
@@ -775,6 +788,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 Waiting for host...
               </div>
             )}
+            </div>
           </div>
         </div>
       </div>
@@ -787,7 +801,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
       <div className="min-h-screen p-4 bg-slate-900">
         {renderToast()}
         <div className="flex justify-between items-center mb-4 w-full max-w-[95%] xl:max-w-[90vw] mx-auto text-white">
-          <h1 className="text-2xl font-bold text-blue-400">Hunt in Progress 🌍</h1>
+          <h1 className="text-2xl font-bold text-blue-400">Hunt in Progress</h1>
           
           {/* Timer Display */}
           <div className="text-3xl font-black bg-slate-800 px-6 py-2 rounded-xl border border-slate-700 shadow-lg tracking-wider">
