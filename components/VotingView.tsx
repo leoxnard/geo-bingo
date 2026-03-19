@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import SafeImage from './SafeImage';
 
 interface Submission {
   id: string;
@@ -89,7 +90,7 @@ export default function VotingView({ gameId, isHost, categories, playerId, total
           className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 cursor-zoom-out"
           onClick={() => setZoomedImage(null)}
         >
-          <img 
+          <SafeImage 
             src={zoomedImage} 
             alt="Zoomed location" 
             className="w-auto h-auto max-w-[95vw] max-h-[90vh] object-contain rounded-2xl shadow-2xl border-4 border-slate-700" 
@@ -104,15 +105,30 @@ export default function VotingView({ gameId, isHost, categories, playerId, total
       <div className="w-full lg:w-64 flex flex-col gap-2">
         <h2 className="text-xl font-bold text-slate-400 mb-4 uppercase tracking-wider">Categories</h2>
         {categories.map(cat => {
-          const count = submissions.filter(s => s.category === cat).length;
+          const categorySubs = submissions.filter(s => s.category === cat);
+          const count = categorySubs.length;
+          
+          let badgeColor = "bg-slate-700 text-slate-400"; // Default for 0 submissions
+          if (count > 0) {
+            const isFinished = categorySubs.every(sub => {
+              if (sub.player_id === playerId) return true; // you don't vote on your own
+              return sub.votes && sub.votes[playerId] !== undefined;
+            });
+            // light red/gray if unfinished, green/gray if finished
+            badgeColor = isFinished ? "bg-green-900/50 text-green-400 border border-green-800/50" : "bg-red-900/50 text-red-400 border border-red-800/50";
+          }
+
           return (
             <button
               key={cat} onClick={() => setActiveCategory(cat)}
-              className={`text-left px-4 py-3 rounded-xl font-medium transition-all ${
+              className={`text-left px-4 py-3 rounded-xl font-medium transition-all flex justify-between items-center ${
                 activeCategory === cat ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
               }`}
             >
-              {cat} <span className="float-right bg-slate-900 px-2 rounded text-xs py-1">{count}</span>
+              <span className="truncate pr-2">{cat}</span>
+              <span className={`px-2 rounded text-xs py-1 whitespace-nowrap ${badgeColor}`}>
+                {count}
+              </span>
             </button>
           );
         })}
@@ -172,7 +188,7 @@ export default function VotingView({ gameId, isHost, categories, playerId, total
                     className="w-full h-48 bg-slate-800 relative cursor-zoom-in group"
                     onClick={() => setZoomedImage(`https://maps.googleapis.com/maps/api/streetview?size=1200x800&location=${sub.lat},${sub.lng}&heading=${sub.heading}&pitch=${sub.pitch}&fov=${getFov(sub.zoom)}&key=${apiKey}&return_error_code=true`)}
                   >
-                    <img 
+                    <SafeImage 
                       src={`https://maps.googleapis.com/maps/api/streetview?size=600x400&location=${sub.lat},${sub.lng}&heading=${sub.heading}&pitch=${sub.pitch}&fov=${getFov(sub.zoom)}&key=${apiKey}&return_error_code=true`}
                       alt="Found location"
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
