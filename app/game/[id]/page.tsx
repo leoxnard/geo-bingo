@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, use, useEffect, useRef } from 'react';
+import { FaRegCopy, FaCopy, FaTimes, FaArrowLeft } from "react-icons/fa";
 import { useRouter } from 'next/navigation';
 import StreetView from '../../../components/StreetView';
 import VotingView from '../../../components/VotingView';
@@ -452,19 +453,15 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
   // --- VIEW 1: LOBBY ---
   if (status === 'lobby') {
     return (
-      <div className="min-h-screen flex flex-col items-center p-10 bg-slate-900 text-white">
-        {renderToast()}
-        <div className="flex items-center gap-4 mb-2">
-          <h1 className="text-4xl font-bold text-blue-400">Lobby: {gameId}</h1>
+      <div className="min-h-screen flex flex-col items-center p-10 bg-slate-900 text-white relative">
           <button 
-            onClick={() => navigator.clipboard.writeText(gameId)}
-            className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-all"
-            title="Copy Code"
+          onClick={() => router.push('/')}
+          className="absolute top-6 left-6 text-slate-400 hover:text-white flex items-center gap-2 font-medium transition-colors p-2 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700"
           >
-            📋
+            <FaArrowLeft /> Home
           </button>
-        </div>
-        <p className="text-slate-400 mb-8">Share this ID to invite friends!</p>
+        {renderToast()}
+        <h1 className="text-4xl font-bold text-slate mb-8 tracking-tighter">Geo Bingo</h1>
 
         <div className="flex flex-col lg:flex-row gap-6 w-full max-w-4xl">
           
@@ -479,7 +476,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 disabled={!isHost}
                 className={`flex-1 py-2 rounded-md font-bold transition-all ${gameMode === 'list' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
               >
-                Normal (Liste)
+                List
               </button>
               <button 
                 onClick={() => updateGameModeInfo({ game_mode: 'bingo' })}
@@ -583,10 +580,10 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                           {isHost && (
                             <button 
                               onClick={() => removeCategory(cat)} 
-                              className="absolute top-1 right-1 text-red-400 hover:text-red-300 font-bold leading-none px-1"
+                              className="absolute top-1 right-1 text-red-400 hover:text-red-300 font-bold leading-none px-1 rounded-full bg-slate-800 hover:bg-slate-700 transition-opacity opacity-0 group-hover:opacity-100"
                               title="Remove word"
                             >
-                              &times;
+                              <FaTimes />
                             </button>
                           )}
                         </>
@@ -600,22 +597,17 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             ) : (
               <ul className="mb-4 space-y-2">
                 {categories.map((cat, i) => {
-                  const isDragging = draggedIndex === i;
                   return (
                     <li 
                       key={i} 
                       className={`bg-slate-700 p-3 rounded-lg flex justify-between items-center border border-slate-600 italic transition-all
-                        ${isHost ? 'cursor-grab active:cursor-grabbing hover:bg-slate-600' : ''}
-                        ${isDragging ? 'opacity-50 scale-[0.98] border-blue-500' : ''}
                       `}
-                      draggable={isHost}
-                      onDragStart={(e) => handleDragStart(e, i)}
-                      onDragOver={handleDragOver}
-                      onDrop={(e) => handleDrop(e, i)}
                     >
                       <span>{cat}</span>
                       {isHost && (
-                        <button onClick={() => removeCategory(cat)} className="text-red-400 hover:text-red-300 font-bold px-2">X</button>
+                        <button onClick={() => removeCategory(cat)} className="text-red-400 hover:text-red-300 font-bold px-2 rounded-full bg-slate-800 hover:bg-slate-700 p-2" title="Remove word">
+                          <FaTimes />
+                        </button>
                       )}
                     </li>
                   );
@@ -678,10 +670,50 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 </div>
               </>
             )}
+</div>
+
+          <div className="flex flex-col gap-6 w-full lg:w-80">
+            {/* Invite Box */}
+            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 h-fit">
+              <h2 className="text-xl font-semibold mb-4 text-slate-300">Invite Friends</h2>
+              
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 p-2 rounded-lg">
+                  <span className="text-sm font-bold text-slate-400 w-12 tracking-widest">ID:</span>
+                  <span className="flex-1 font-mono text-slate-300 text-lg">{gameId}</span>
+                  <button 
+                    onClick={handleCopyGameId}
+                    className={`
+                      p-2 rounded-md outline-none
+                      transition-all duration-300 ease-in-out
+                      ${copied ? 'bg-green-600/40 text-green-400' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}
+                    `}
+                    title="Copy Code"
+                  >
+                    {copied ? <FaCopy /> : <FaRegCopy />}
+                  </button>
+                </div>
+                
+                <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 p-2 rounded-lg">
+                  <span className="text-sm font-bold text-slate-400 w-12 tracking-widest">Link:</span>
+                  <span className="flex-1 font-mono text-slate-300 truncate">{currentLink || '...'}</span>
+                  <button 
+                    onClick={handleCopyGameLink}
+                    className={`
+                      p-2 rounded-md outline-none
+                      transition-all duration-300 ease-in-out
+                      ${copiedLink ? 'bg-green-600/40 text-green-400' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}
+                    `}
+                    title="Copy Link"
+                  >
+                    {copiedLink ? <FaCopy /> : <FaRegCopy />}
+                  </button>
+                </div>
+              </div>
           </div>
 
           {/* Player List */}
-          <div className="bg-slate-800 p-6 rounded-xl w-full lg:w-80 border border-slate-700 h-fit">
+            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 h-fit">
             <h2 className="text-xl font-semibold mb-4 text-slate-300">Players ({players.length})</h2>
             <ul className="space-y-3">
               {players.map(p => (
@@ -690,8 +722,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     className={`w-2 h-2 rounded-full animate-pulse ${onlinePlayers.includes(p.id) ? 'bg-green-500' : 'bg-orange-500'}`}
                     title={onlinePlayers.includes(p.id) ? 'Online' : 'Verbindung verloren'}
                   ></div>
-                  <span className={`flex-1 truncate ${p.id === gameHostId ? 'font-black text-blue-400' : 'font-medium'}`}>
-                    {p.name} {p.id === playerId ? '(You)' : ''} {p.id === gameHostId ? '(Host)' : ''}
+                  <span className={`flex-1 truncate ${p.id === playerId ? 'text-green-400' : 'text-white'}`}>
+                    {p.name} {p.id === gameHostId ? '(Host)' : ''}
                   </span>
                   {isHost && p.id !== playerId && (
                     <div className="flex gap-1">
