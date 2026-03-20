@@ -34,6 +34,9 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [timeLimit, setTimeLimit] = useState(300); // 5 minutes standard
   
     const categoryInputRef = useRef<HTMLInputElement>(null);
+    const selfNameInputRef = useRef<HTMLInputElement>(null);
+    const [isEditingSelfName, setIsEditingSelfName] = useState(false);
+    const [selfNameInput, setSelfNameInput] = useState('');
   
     // Bingo Mode State
     const [gameMode, setGameMode] = useState<'list' | 'bingo'>('list');
@@ -76,6 +79,20 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         setTimeout(() => setToastMessage(null), 3500);
     };
 
+    useEffect(() => {
+        const currentName = players.find((p) => p.id === playerId)?.name;
+        if (!isEditingSelfName && currentName) {
+            setSelfNameInput(currentName);
+        }
+    }, [players, playerId, isEditingSelfName]);
+
+    useEffect(() => {
+        if (isEditingSelfName) {
+            selfNameInputRef.current?.focus();
+            selfNameInputRef.current?.select();
+        }
+    }, [isEditingSelfName]);
+
     const handleCopyGameId = () => {
         navigator.clipboard.writeText(gameId);
         setCopied(true);
@@ -88,13 +105,22 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         setTimeout(() => setCopiedLink(false), 800);
     };
 
-    const handleRenameSelf = async () => {
+    const saveSelfName = async () => {
         if (!playerId) return;
 
         const currentName = players.find((p) => p.id === playerId)?.name || localStorage.getItem('geoBingoPlayerName') || '';
-        const nextName = window.prompt('Enter your new name:', currentName)?.trim();
+        const nextName = selfNameInput.trim();
 
-        if (!nextName || nextName === currentName) return;
+        if (!nextName) {
+            setSelfNameInput(currentName);
+            setIsEditingSelfName(false);
+            return;
+        }
+
+        if (nextName === currentName) {
+            setIsEditingSelfName(false);
+            return;
+        }
 
         localStorage.setItem('geoBingoPlayerName', nextName);
         setPlayers((prev) => prev.map((p) => (p.id === playerId ? { ...p, name: nextName } : p)));
@@ -105,7 +131,21 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             return;
         }
 
+        setIsEditingSelfName(false);
         showToast('Name updated.');
+    };
+
+    const handleRenameSelf = async () => {
+        if (!playerId) return;
+
+        if (!isEditingSelfName) {
+            const currentName = players.find((p) => p.id === playerId)?.name || localStorage.getItem('geoBingoPlayerName') || '';
+            setSelfNameInput(currentName);
+            setIsEditingSelfName(true);
+            return;
+        }
+
+        await saveSelfName();
     };
 
     const handleLeaveLobby = () => {
@@ -873,15 +913,51 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                                                 title={onlinePlayers.includes(p.id) ? 'Online' : 'Verbindung verloren'}
                                             ></div>
                                             <div className="flex-1 min-w-0 flex items-center gap-2">
-                                                <span className={`flex-1 truncate ${p.id === playerId ? 'text-green-400' : 'text-white'}`}>
-                                                    {p.name} {p.id === gameHostId ? '(Host)' : ''}
-                                                </span>
+                                                {p.id === playerId ? (
+                                                    <>
+                                                        {isEditingSelfName ? (
+                                                            <>
+                                                                <input
+                                                                    ref={selfNameInputRef}
+                                                                    type="text"
+                                                                    value={selfNameInput}
+                                                                    onChange={(e) => setSelfNameInput(e.target.value)}
+                                                                    readOnly={!isEditingSelfName}
+                                                                    onKeyDown={(e) => {
+                                                                        if (e.key === 'Enter') {
+                                                                            void saveSelfName();
+                                                                        }
+                                                                        if (e.key === 'Escape') {
+                                                                            setSelfNameInput(p.name);
+                                                                            setIsEditingSelfName(false);
+                                                                        }
+                                                                    }}
+                                                                    onBlur={() => {
+                                                                        if (isEditingSelfName) {
+                                                                            void saveSelfName();
+                                                                        }
+                                                                    }}
+                                                                    className="flex-1 min-w-0 truncate bg-transparent border-b border-indigo-400 text-white outline-none"
+                                                                    title="Your player name"
+                                                                />
+                                                            </>
+                                                        ) : (
+                                                            <span className="flex-1 truncate text-green-400">
+                                                                {p.name} {p.id === gameHostId ? '(Host)' : ''}
+                                                            </span>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <span className="flex-1 truncate text-white">
+                                                        {p.name} {p.id === gameHostId ? '(Host)' : ''}
+                                                    </span>
+                                                )}
                                                 {p.id === playerId && (
                                                     <button
                                                         type="button"
                                                         onClick={handleRenameSelf}
                                                         className="text-slate-400 hover:text-white transition-colors p-1 rounded"
-                                                        title="Rename yourself"
+                                                        title={isEditingSelfName ? 'Save name' : 'Edit name'}
                                                     >
                                                         <FaRegEdit className="text-xs" />
                                                     </button>
