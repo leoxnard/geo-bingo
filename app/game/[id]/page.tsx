@@ -31,9 +31,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [isHost, setIsHost] = useState(false);
     const [gameHostId, setGameHostId] = useState<string>('');
     const [timeLimit, setTimeLimit] = useState(300);  
-    const selfNameInputRef = useRef<HTMLInputElement>(null);
-    const [isEditingSelfName, setIsEditingSelfName] = useState(false);
-    const [selfNameInput, setSelfNameInput] = useState('');
   
     // Bingo Mode State
     const [gameMode, setGameMode] = useState<'list' | 'bingo'>('list');
@@ -56,64 +53,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const showToast = (message: string) => {
         setToastMessage(message);
         setTimeout(() => setToastMessage(null), 3500);
-    };
-
-    useEffect(() => {
-        const currentName = players.find((p) => p.id === playerId)?.name;
-        if (!isEditingSelfName && currentName) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect
-            setSelfNameInput(currentName);
-        }
-    }, [players, playerId, isEditingSelfName]);
-
-    useEffect(() => {
-        if (isEditingSelfName) {
-            selfNameInputRef.current?.focus();
-            selfNameInputRef.current?.select();
-        }
-    }, [isEditingSelfName]);
-
-    const saveSelfName = async () => {
-        if (!playerId) return;
-
-        const currentName = players.find((p) => p.id === playerId)?.name || localStorage.getItem('geoBingoPlayerName') || '';
-        const nextName = selfNameInput.trim();
-
-        if (!nextName) {
-            setSelfNameInput(currentName);
-            setIsEditingSelfName(false);
-            return;
-        }
-
-        if (nextName === currentName) {
-            setIsEditingSelfName(false);
-            return;
-        }
-
-        localStorage.setItem('geoBingoPlayerName', nextName);
-        setPlayers((prev) => prev.map((p) => (p.id === playerId ? { ...p, name: nextName } : p)));
-
-        const { error } = await supabase.from('players').update({ name: nextName }).eq('id', playerId);
-        if (error) {
-            showToast('Could not update name. Please try again.');
-            return;
-        }
-
-        setIsEditingSelfName(false);
-        showToast('Name updated.');
-    };
-
-    const handleRenameSelf = async () => {
-        if (!playerId) return;
-
-        if (!isEditingSelfName) {
-            const currentName = players.find((p) => p.id === playerId)?.name || localStorage.getItem('geoBingoPlayerName') || '';
-            setSelfNameInput(currentName);
-            setIsEditingSelfName(true);
-            return;
-        }
-
-        await saveSelfName();
     };
 
     const updateGameModeInfo = async (updates: { game_mode?: string; grid_size?: number; bingo_target?: number }) => {
@@ -461,14 +400,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 players={players}
                 onlinePlayers={onlinePlayers}
                 playerId={playerId}
-                isEditingSelfName={isEditingSelfName}
-                setIsEditingSelfName={setIsEditingSelfName}
-                selfNameInputRef={selfNameInputRef}
-                selfNameInput={selfNameInput}
-                setSelfNameInput={setSelfNameInput}
-                saveSelfName={saveSelfName}
                 gameHostId={gameHostId}
-                handleRenameSelf={handleRenameSelf}
                 makeHost={makeHost}
                 kickPlayer={kickPlayer}
                 banPlayer={banPlayer}
@@ -476,6 +408,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 router={router}
                 supabase={supabase}
                 updateStatus={updateStatus}
+                setPlayers={setPlayers}
             />
         );
     }

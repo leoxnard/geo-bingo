@@ -24,14 +24,7 @@ interface LobbyViewProps {
     players: Player[];
     onlinePlayers: string[];
     playerId: string;
-    isEditingSelfName: boolean;
-    setIsEditingSelfName: (val: boolean) => void;
-    selfNameInputRef: React.RefObject<HTMLInputElement | null>;
-    selfNameInput: string;
-    setSelfNameInput: (val: string) => void;
-    saveSelfName: () => void;
     gameHostId: string;
-    handleRenameSelf: () => void;
     makeHost: (id: string) => void;
     kickPlayer: (id: string) => void;
     banPlayer: (id: string) => void;
@@ -41,6 +34,7 @@ interface LobbyViewProps {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     supabase: any;
     updateStatus: (nextStatus: GameStatus) => Promise<void>;
+    setPlayers: (players: Player[] | ((prev: Player[]) => Player[])) => void;
 }
 
 const shuffle = <T,>(array: T[]): T[] => {
@@ -56,9 +50,8 @@ export default function LobbyView({
     renderToast, gameMode, isHost, gridSize, bingoTarget, updateGameModeInfo,
     timeLimit, updateTimeLimit, categories,
     gameId, players, onlinePlayers,
-    playerId, isEditingSelfName, setIsEditingSelfName, selfNameInputRef,
-    selfNameInput, setSelfNameInput, saveSelfName, gameHostId, handleRenameSelf,
-    makeHost, kickPlayer, banPlayer, showToast, router, supabase, updateStatus
+    playerId, gameHostId,
+    makeHost, kickPlayer, banPlayer, showToast, router, supabase, updateStatus, setPlayers
 }: LobbyViewProps) {
 
     const [bingoBoardMode, setBingoBoardMode] = useState<'shared' | 'individual'>('shared');
@@ -71,6 +64,10 @@ export default function LobbyView({
     const [copied, setCopied] = useState(false);
     const [copiedLink, setCopiedLink] = useState(false);
     const [currentLink, setCurrentLink] = useState('');
+
+    const [isEditingSelfName, setIsEditingSelfName] = useState(false);
+    const [selfNameInput, setSelfNameInput] = useState('');
+    const selfNameInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         setCurrentLink(window.location.href);
@@ -210,6 +207,64 @@ export default function LobbyView({
     
         setDraggedIndex(null);
         await supabase.from('games').update({ categories: updated }).eq('id', gameId);
+    };
+
+    useEffect(() => {
+        const currentName = players.find((p) => p.id === playerId)?.name;
+        if (!isEditingSelfName && currentName) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            setSelfNameInput(currentName);
+        }
+    }, [players, playerId, isEditingSelfName]);
+
+    useEffect(() => {
+        if (isEditingSelfName) {
+            selfNameInputRef.current?.focus();
+            selfNameInputRef.current?.select();
+        }
+    }, [isEditingSelfName]);
+
+    const saveSelfName = async () => {
+        if (!playerId) return;
+
+        const currentName = players.find((p) => p.id === playerId)?.name || localStorage.getItem('geoBingoPlayerName') || '';
+        const nextName = selfNameInput.trim();
+
+        if (!nextName) {
+            setSelfNameInput(currentName);
+            setIsEditingSelfName(false);
+            return;
+        }
+
+        if (nextName === currentName) {
+            setIsEditingSelfName(false);
+            return;
+        }
+
+        localStorage.setItem('geoBingoPlayerName', nextName);
+        setPlayers((prev) => prev.map((p) => (p.id === playerId ? { ...p, name: nextName } : p)));
+
+        const { error } = await supabase.from('players').update({ name: nextName }).eq('id', playerId);
+        if (error) {
+            showToast('Could not update name. Please try again.');
+            return;
+        }
+
+        setIsEditingSelfName(false);
+        showToast('Name updated.');
+    };
+
+    const handleRenameSelf = async () => {
+        if (!playerId) return;
+
+        if (!isEditingSelfName) {
+            const currentName = players.find((p) => p.id === playerId)?.name || localStorage.getItem('geoBingoPlayerName') || '';
+            setSelfNameInput(currentName);
+            setIsEditingSelfName(true);
+            return;
+        }
+
+        await saveSelfName();
     };
 
     const handleStartGame = async () => {
