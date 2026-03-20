@@ -261,17 +261,24 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
           <div className={`grid gap-2 flex-1 auto-rows-fr bingo-grid-${gridSize}`}>
             {categories.map((cat) => {
               const foundSub = mySubmissions.find(s => s.category === cat);
-              
+              const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+              const fov = foundSub?.zoom ? 180 / Math.pow(2, foundSub.zoom) : 90;
+              const bgStyle = foundSub ? {
+                backgroundImage: `url(https://maps.googleapis.com/maps/api/streetview?size=400x400&location=${foundSub.lat},${foundSub.lng}&heading=${foundSub.heading}&pitch=${foundSub.pitch}&fov=${fov}&key=${apiKey})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+              } : {};
 
               return (
                 <div 
                   key={cat} 
                   title={cat}
+                  style={bgStyle}
                   className={`relative p-2 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-center items-center text-center overflow-hidden pb-12
-                    border-slate-600 bg-slate-800 hover:bg-slate-700
-                    ${foundSub ? 'opacity-90' : ''}`}
+                    border-slate-600 ${foundSub ? 'text-white border-green-500' : 'bg-slate-800 hover:bg-slate-700'}`}
                 >
-                  <span className={`${getSidebarTextSizeClass()} font-bold leading-tight line-clamp-2 [hyphens:auto] [word-break:break-word] mt-1 ${foundSub ? 'text-green-400' : 'text-white'}`}>
+                  {foundSub && <div className="absolute inset-0 bg-black/40 z-0"></div>}
+                  <span className={`relative z-10 ${getSidebarTextSizeClass()} font-bold leading-tight line-clamp-2 [hyphens:auto] [word-break:break-word] mt-1 ${foundSub ? 'text-green-400 drop-shadow-md' : 'text-white'}`}>
                     {cat}
                   </span>
                   
