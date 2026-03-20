@@ -580,14 +580,14 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         return (
             <div className="min-h-screen flex flex-col items-center p-10 bg-slate-900 text-white relative">
                 {renderToast()}
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-12">
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-12 hidden sm:flex">
                     <Image 
                         src="/mappin.and.ellipse.png"
                         alt="Geo Bingo Logo"
                         loading="eager"
-                        width={80}
-                        height={80}
-                        className={"w-auto h-auto drop-shadow-[0_0_15px_rgba(96,165,250,0.5)] transform-gpu transition-transform hidden sm:block"}
+                        width={60}
+                        height={60}
+                        className={"w-auto h-auto drop-shadow-[0_0_15px_rgba(96,165,250,0.5)] transform-gpu transition-transform"}
                     />
                     <h1 className="text-6xl font-bold text-indigo-400 tracking-tighter">GEO BINGO</h1>
                 </div>
@@ -810,9 +810,10 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                                     <div className="flex flex-col justify-end">
                                         <button 
                                             onClick={addRandomCategories} 
-                                            className="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg font-bold h-[42px] whitespace-nowrap shadow-md transition-all text-sm tracking-wider"
+                                            className="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg font-bold h-[42px] whitespace-nowrap shadow-md transition-all tracking-wider"
                                         >
-                                            Random
+                                            <span className="hidden sm:inline">Add Random</span>
+                                            <span className="sm:hidden">+</span>
                                         </button>
                                     </div>
                                 </div>
@@ -872,9 +873,9 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                                                 title={onlinePlayers.includes(p.id) ? 'Online' : 'Verbindung verloren'}
                                             ></div>
                                             <div className="flex-1 min-w-0 flex items-center gap-2">
-                                            <span className={`flex-1 truncate ${p.id === playerId ? 'text-green-400' : 'text-white'}`}>
-                                                {p.name} {p.id === gameHostId ? '(Host)' : ''}
-                                            </span>
+                                                <span className={`flex-1 truncate ${p.id === playerId ? 'text-green-400' : 'text-white'}`}>
+                                                    {p.name} {p.id === gameHostId ? '(Host)' : ''}
+                                                </span>
                                                 {p.id === playerId && (
                                                     <button
                                                         type="button"
@@ -949,7 +950,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             <div className="min-h-screen p-4 bg-slate-900">
                 {renderToast()}
                 <div className="flex justify-between items-center mb-4 w-full max-w-[95%] xl:max-w-[90vw] mx-auto text-white">
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 hidden sm:flex">
                         <Image 
                             src="/mappin.and.ellipse.png"
                             alt="Geo Bingo Logo"
@@ -961,7 +962,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                         <h1 className="text-2xl font-bold text-indigo-400">Hunt in Progress</h1>
                     </div>
           
-                    <div className="flex items-stretch gap-3 sm:gap-6">
+                    <div className="flex items-stretch gap-3 sm:gap-6 w-full sm:w-auto">
                         {/* Timer Display */}
                         <div className="flex items-center justify-center text-xl sm:text-3xl font-black bg-slate-800 px-3 sm:px-6 rounded-lg sm:rounded-xl border border-slate-700 shadow-lg tracking-wider py-1.5 sm:py-2">
                             {timeLeft <= 60 ? (
@@ -971,8 +972,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                             )}
                         </div>
             
-                        <div className="flex items-stretch gap-2 sm:gap-4">
-                            <span className="text-slate-400 font-medium hidden md:flex items-center">
+                        <div className="ml-auto flex items-stretch justify-end gap-2 sm:gap-4">
+                            <span className="flex items-center text-slate-400 font-medium">
                                 Votes to end:&nbsp;<strong className="text-white">{readyPlayers.length} / {votesNeeded}</strong>
                             </span>
                             <button 

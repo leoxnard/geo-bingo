@@ -51,7 +51,7 @@ export default function Home() {
                     height={80}
                     className="w-auto h-auto drop-shadow-[0_0_15px_rgba(96,165,250,0.5)] transform-gpu transition-transform"
                 />
-                <h1 className="text-6xl font-bold text-indigo-400 tracking-tighter">GEO BINGO</h1>
+                <h1 className="text-6xl font-bold text-indigo-400 tracking-tighter hidden sm:block">GEO BINGO</h1>
             </div>
       
             <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700 w-full max-w-md flex flex-col gap-6">

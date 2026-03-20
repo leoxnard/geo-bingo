@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import SafeImage from './SafeImage';
-import { TbMinusVertical } from 'react-icons/tb';
 
 interface Submission {
   id: string;
