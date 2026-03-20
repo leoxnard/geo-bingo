@@ -40,7 +40,10 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
     const [inStreetView, setInStreetView] = useState(false); 
     const [mySubmissions, setMySubmissions] = useState<Submission[]>([]);
     const [isFullscreen, setIsFullscreen] = useState(false);
-    const [isMobileLandscape, setIsMobileLandscape] = useState(false);
+    const [isMobileLandscape, setIsMobileLandscape] = useState(() => {
+        if (typeof window === 'undefined') return false;
+        return window.matchMedia('(max-width: 932px) and (orientation: landscape)').matches;
+    });
   
     const streetViewRef = useRef<google.maps.StreetViewPanorama | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -75,7 +78,6 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
         const mql = window.matchMedia('(max-width: 932px) and (orientation: landscape)');
         const onChange = (e: MediaQueryListEvent) => setIsMobileLandscape(e.matches);
 
-        setIsMobileLandscape(mql.matches);
         mql.addEventListener('change', onChange);
         return () => mql.removeEventListener('change', onChange);
     }, []);
@@ -92,7 +94,7 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
     const onLoad = useCallback((pano: google.maps.StreetViewPanorama) => {
         streetViewRef.current = pano;
     
-        pano.setOptions({ source: google.maps.StreetViewSource.OUTDOOR } as any);
+        pano.setOptions({ source: google.maps.StreetViewSource.OUTDOOR });
     
         pano.addListener('visible_changed', () => {
             setInStreetView(pano.getVisible());
