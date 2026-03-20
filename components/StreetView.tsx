@@ -6,7 +6,8 @@ import { GoogleMap, useJsApiLoader, StreetViewPanorama } from '@react-google-map
 import { supabase } from '../lib/supabase';
 import { FaEye, FaCamera } from 'react-icons/fa';
 
-const safeStartCenter = { lat: 48.137154, lng: 11.576124 }; 
+const safeStartCenter = { lat: 20, lng: 0 };
+const initialWorldZoom = 1.5;
 const mapOptions = { streetViewControl: true, mapTypeControl: false, gestureHandling: 'greedy', fullscreenControl: false, zoomControl: false };
 const panoOptions = { 
     addressControl: false, 
@@ -172,28 +173,30 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
     return (
         <div className={`flex gap-6 ${isIPhoneLandscape ? 'flex-row h-[calc(100dvh-7rem)] min-h-0' : 'flex-col lg:flex-row h-[calc(100vh-8rem)] min-h-[600px]'}`}>
             <div ref={containerRef} className={`${isIPhoneLandscape ? 'basis-[58%] min-h-0 h-full' : 'flex-1 min-h-[400px] h-full'} border-4 border-slate-700 rounded-2xl overflow-hidden shadow-2xl relative bg-slate-800 absolute-safari-fix`}>
-                <GoogleMap key={gameId} mapContainerClassName="google-map-container absolute inset-0" center={safeStartCenter} zoom={12} options={mapOptions}>
+                <GoogleMap key={gameId} mapContainerClassName="google-map-container absolute inset-0" center={safeStartCenter} zoom={initialWorldZoom} options={mapOptions}>
                     {/* Safely pass onLoad and onUnmount */}
                     <StreetViewPanorama options={panoOptions} onLoad={onLoad} onUnmount={onUnmount} />
                 </GoogleMap>
 
                 {/* Custom Fullscreen Button */}
-                <button
-                    type="button"
-                    onClick={toggleFullscreen}
-                    className="absolute top-2 right-2 z-[1000] hidden sm:flex w-12 h-12 bg-slate-800/30 hover:bg-slate-700/80 text-white items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-slate-500 font-bold transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm"
-                    title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
-                >
-                    {isFullscreen ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
-                        </svg>
-                    ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
-                        </svg>
-                    )} 
-                </button>
+                {!isIPhoneLandscape && (
+                    <button
+                        type="button"
+                        onClick={toggleFullscreen}
+                        className="absolute top-2 right-2 z-[1000] hidden sm:flex w-12 h-12 bg-slate-800/30 hover:bg-slate-700/80 text-white items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-slate-500 font-bold transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm"
+                        title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+                    >
+                        {isFullscreen ? (
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
+                            </svg>
+                        ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+                            </svg>
+                        )} 
+                    </button>
+                )}
 
                 {inStreetView && (
                     <button
