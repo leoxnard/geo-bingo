@@ -39,6 +39,7 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
     const [inStreetView, setInStreetView] = useState(false); 
     const [mySubmissions, setMySubmissions] = useState<Submission[]>([]);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [isIPhoneLandscape, setIsIPhoneLandscape] = useState(false);
   
     const streetViewRef = useRef<google.maps.StreetViewPanorama | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -67,6 +68,15 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
         };
         document.addEventListener('fullscreenchange', handleFullscreenChange);
         return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    }, []);
+
+    useEffect(() => {
+        const mql = window.matchMedia('(max-width: 932px) and (orientation: landscape)');
+        const onChange = (e: MediaQueryListEvent) => setIsIPhoneLandscape(e.matches);
+
+        setIsIPhoneLandscape(mql.matches);
+        mql.addEventListener('change', onChange);
+        return () => mql.removeEventListener('change', onChange);
     }, []);
 
     useEffect(() => {
@@ -160,8 +170,8 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
 
 
     return (
-        <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-8rem)] min-h-[600px]">
-            <div ref={containerRef} className="flex-1 min-h-[400px] h-full border-4 border-slate-700 rounded-2xl overflow-hidden shadow-2xl relative bg-slate-800 absolute-safari-fix">
+        <div className={`flex gap-6 ${isIPhoneLandscape ? 'flex-row h-[calc(100dvh-7rem)] min-h-0' : 'flex-col lg:flex-row h-[calc(100vh-8rem)] min-h-[600px]'}`}>
+            <div ref={containerRef} className={`${isIPhoneLandscape ? 'basis-[58%] min-h-0 h-full' : 'flex-1 min-h-[400px] h-full'} border-4 border-slate-700 rounded-2xl overflow-hidden shadow-2xl relative bg-slate-800 absolute-safari-fix`}>
                 <GoogleMap key={gameId} mapContainerClassName="google-map-container absolute inset-0" center={safeStartCenter} zoom={12} options={mapOptions}>
                     {/* Safely pass onLoad and onUnmount */}
                     <StreetViewPanorama options={panoOptions} onLoad={onLoad} onUnmount={onUnmount} />
@@ -198,7 +208,7 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
             </div>
 
             {/* Right: Checklist */}
-            <div className={`w-full ${getSidebarWidthClass()} flex flex-col gap-4 bg-slate-800 p-6 rounded-2xl shadow-xl h-full border border-slate-700 overflow-y-auto transition-all`}>
+            <div className={`${isIPhoneLandscape ? 'basis-[42%] max-w-[42%]' : `w-full ${getSidebarWidthClass()}`} flex flex-col gap-4 bg-slate-800 p-6 rounded-2xl shadow-xl h-full border border-slate-700 overflow-y-auto transition-all`}>
                 <div className="flex justify-between items-center mb-2 border-b border-slate-700 pb-2 hidden sm:flex">
                     <h2 className="text-indigo-400 font-bold text-xl tracking-wide uppercase">
                         {gameMode === 'bingo' ? 'Bingo Board' : 'Checklist'}
