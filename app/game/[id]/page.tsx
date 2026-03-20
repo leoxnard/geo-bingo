@@ -1,21 +1,22 @@
 'use client';
 
 import { useState, use, useEffect, useRef, useCallback } from 'react';
-import { FaRegCopy, FaCopy, FaTimes, FaRegEdit } from "react-icons/fa";
 import { useRouter } from 'next/navigation';
 import StreetView from '../../../components/StreetView';
 import VotingView from '../../../components/VotingView';
 import PodiumView from '../../../components/PodiumView';
+import LobbyView from '../../../components/LobbyView';
 import { supabase } from '../../../lib/supabase';
 import { adjectives, animals } from '../../../lib/names';
-import Image from 'next/image';
+import { IoIosWarning } from "react-icons/io";
+
 
 type GameStatus = 'lobby' | 'playing' | 'voting' | 'finished';
 
 interface Player {
-  id: string;
-  name: string;
-  bingo_board?: string[];
+    id: string;
+    name: string;
+    bingo_board?: string[];
 }
 
 const shuffle = <T,>(array: T[]): T[] => {
@@ -404,13 +405,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         return () => clearInterval(timerId);
     }, [status, timeLimit, isHost, gameId, updateStatus, gameLoaded]);
 
-    // Format the time for display
-    const formatTime = (seconds: number) => {
-        const m = Math.floor(seconds / 60);
-        const s = seconds % 60;
-        return `${m}:${s.toString().padStart(2, '0')}`;
-    };
-
     // --- ACTIONS ---
     const clearCategories = async () => {
         if (isHost) {
@@ -651,31 +645,16 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         }
     };
 
-    const handleVoteEndRound = async () => {
-        const updatedReadyPlayers = [...readyPlayers, playerId];
-        const votesNeeded = players.length;
-
-        if (updatedReadyPlayers.length >= votesNeeded) {
-            // End the round for everyone immediately
-            await supabase.from('games').update({ 
-                ready_players: updatedReadyPlayers, 
-                status: 'voting' 
-            }).eq('id', gameId);
-        } else {
-            // Just record the player's vote
-            await supabase.from('games').update({ ready_players: updatedReadyPlayers }).eq('id', gameId);
-        }
+    const handleFinishGame = async () => {
+        await supabase.from('games').update({ status: 'finished' }).eq('id', gameId);
     };
-
-    const hasVotedToEnd = readyPlayers.includes(playerId);
-    const votesNeeded = players.length; // All players
 
     const renderToast = () => (
         <div 
             className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] transition-all duration-300 ${toastMessage ? 'translate-y-0 opacity-100' : '-translate-y-20 opacity-0 pointer-events-none'}`}
         >
             <div className="bg-slate-800 border-b-4 border-red-500 text-white px-6 py-4 rounded-xl shadow-2xl font-bold flex items-center gap-3">
-                <span className="text-red-500 text-2xl leading-none">⚠️</span>
+                <span className="text-red-500 text-2xl leading-none"><IoIosWarning /></span>
                 <span>{toastMessage}</span>
             </div>
         </div>
@@ -684,568 +663,101 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     // --- VIEW 1: LOBBY ---
     if (status === 'lobby') {
         return (
-            <div className="min-h-screen flex flex-col items-center p-10 bg-slate-900 text-white relative">
-                {renderToast()}
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-12 hidden sm:flex">
-                    <Image 
-                        src="/mappin.and.ellipse.png"
-                        alt="Geo Bingo Logo"
-                        loading="eager"
-                        width={60}
-                        height={60}
-                        className={"w-auto h-auto drop-shadow-[0_0_15px_rgba(96,165,250,0.5)] transform-gpu transition-transform"}
-                    />
-                    <h1 className="text-6xl font-bold text-indigo-400 tracking-tighter">GEO BINGO</h1>
-                </div>
-
-                <div className="flex flex-col lg:flex-row gap-6 w-full max-w-5xl">
-          
-                    {/* Settings (Categories, Time) */}
-                    <div className="bg-slate-800 p-6 rounded-xl flex-1 border border-slate-700 h-fit">
-                        <h2 className="text-xl font-semibold mb-4 text-slate-300">Settings</h2>
-            
-                        {/* Game Mode Selection */}
-                        <div className="mb-2 flex bg-slate-900 rounded-lg p-1">
-                            <button 
-                                onClick={() => updateGameModeInfo({ game_mode: 'list' })}
-                                disabled={!isHost}
-                                className={`flex-1 py-2 rounded-md font-bold transition-all ${gameMode === 'list' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
-                            >
-                                List
-                            </button>
-                            <button 
-                                onClick={() => updateGameModeInfo({ game_mode: 'bingo' })}
-                                disabled={!isHost}
-                                className={`flex-1 py-2 rounded-md font-bold transition-all ${gameMode === 'bingo' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
-                            >
-                                Bingo Grid
-                            </button>
-                        </div>
-
-                        {gameMode === 'list' && (
-                            // add description for list mode
-                            <p className="mb-6 p-2 pt-0 rounded-lg text-sm text-slate-400">
-                                In List mode, players will see a simple list of categories. The game ends when the timer runs out or all players vote to end. Great for quick sessions and smaller groups!
-                            </p>
-                        )}
-
-                        {gameMode === 'bingo' && (
-                            // add description for bingo mode
-                            <p className="mb-6 p-2 pt-0 rounded-lg text-sm text-slate-400">
-                                In Bingo Grid mode, players receive a grid of categories. Players recieve extra points for completing rows or columns of a length defined by the host. The game ends when the timer runs out or all players vote to end. Perfect for longer sessions and adds a fun strategic layer!
-                            </p>
-                        )}
-
-                        {gameMode === 'bingo' && (
-                            <div className="mb-6 p-4 bg-slate-900 rounded-lg flex flex-col gap-4">
-                                <div>
-                                    <label htmlFor="grid-size-range" className="flex justify-between font-bold mb-2 text-sm cursor-pointer">
-                                        <span>Grid Size ({gridSize}x{gridSize})</span>
-                                    </label>
-                                    <input 
-                                        id="grid-size-range"
-                                        title="Adjust the grid size"
-                                        type="range" min="2" max="5" step="1" value={gridSize} disabled={!isHost} 
-                                        onChange={(e) => updateGameModeInfo({ grid_size: parseInt(e.target.value) })}
-                                        className="w-full accent-indigo-500" 
-                                    />
-                                </div>
-                                <div>
-                                    <label htmlFor="bingo-target-range" className="flex justify-between font-bold mb-2 text-sm cursor-pointer">
-                                        <span>Bingo Length ({bingoTarget})</span>
-                                    </label>
-                                    <input 
-                                        id="bingo-target-range"
-                                        title="Adjust the required length for a Bingo"
-                                        type="range" min="2" max={gridSize} step="1" value={bingoTarget} disabled={!isHost}
-                                        onChange={(e) => updateGameModeInfo({ bingo_target: parseInt(e.target.value) })}
-                                        className="w-full accent-indigo-500" 
-                                    />
-                                </div>
-                                <div>
-                                    <label className="flex justify-between font-bold mb-2 text-sm">
-                                        <span>Bingo Board Mode</span>
-                                    </label>
-                                    <div className="flex bg-slate-900 rounded-lg p-1">
-                                        <button 
-                                            onClick={() => setBingoBoardMode('shared')}
-                                            disabled={!isHost}
-                                            className={`flex-1 py-2 text-sm rounded-md font-bold transition-all ${bingoBoardMode === 'shared' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
-                                        >
-                                            Shared
-                                        </button>
-                                        <button 
-                                            onClick={() => setBingoBoardMode('individual')}
-                                            disabled={!isHost}
-                                            className={`flex-1 py-2 text-sm rounded-md font-bold transition-all ${bingoBoardMode === 'individual' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
-                                        >
-                                            Individual
-                                        </button>
-                                    </div>
-                                    <p className="mt-2 text-xs text-slate-400 text-center min-h-[16px]">
-                                        {bingoBoardMode === 'shared' && 'Same board for all players.'}
-                                        {bingoBoardMode === 'individual' && 'Different words and positions for each player.'}
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Time Slider with proper Accessibility */}
-                        <div className="mb-8 p-4 bg-slate-900 rounded-lg">
-                            <label htmlFor="time-limit-range" className="flex justify-between font-bold mb-2 cursor-pointer">
-                                <span>Time Limit</span>
-                                <span className="text-indigo-400">{timeLimit / 60} Minutes</span>
-                            </label>
-                            <input 
-                                id="time-limit-range"
-                                type="range" min="1" max="15" step="1"
-                                value={timeLimit / 60}
-                                disabled={!isHost}
-                                onChange={(e) => updateTimeLimit(parseInt(e.target.value))}
-                                className="w-full cursor-pointer accent-indigo-500"
-                                title="Adjust the game time limit in minutes"
-                            />
-                            {!isHost && <p className="text-xs text-slate-500 mt-2 italic">Only the host can adjust the time limit.</p>}
-                        </div>
-
-                        <h3 className="text-xl font-bold mb-2 text-slate-300 flex justify-between items-center">
-                            <span>Categories</span>
-                            <div className="flex gap-2 items-center">
-                                <span className={`text-sm font-normal ${categories.length === 0 || (gameMode === 'bingo' && categories.length < gridSize * gridSize) ? 'text-red-400' : 'text-slate-400'} bg-slate-900 px-3 py-1 rounded-full`}>
-                                    {gameMode === 'bingo' && bingoBoardMode === 'shared' ? `${Math.min(categories.length, gridSize * gridSize)} / ${gridSize * gridSize}` : `${categories.length} Words`}
-                                </span>
-                                {isHost && (
-                                    <button 
-                                        onClick={clearCategories}
-                                        className="text-xs font-bold text-slate-400 bg-slate-800 hover:bg-slate-700 hover:text-white px-3 py-1 rounded-full ml-1"
-                                        title="Clear all categories"
-                                    >
-                                        Clear
-                                    </button>
-                                )}
-                            </div>
-                        </h3>
-
-                        {gameMode === 'bingo' && bingoBoardMode === 'shared' ? (
-                            <div 
-                                className={`grid gap-3 mb-6 bingo-grid-${gridSize}`}
-                            >
-                                {Array.from({ length: Math.max(gridSize * gridSize, categories.length) }).map((_, i) => {
-                                    const cat = categories[i];
-                                    const isDragging = draggedIndex === i;
-                                    return (
-                                        <div 
-                                            key={i} 
-                                            className={`relative flex items-center justify-center p-2 rounded-lg border text-center ${getSidebarTextSizeClass()} min-h-[60px] [hyphens:auto] [hyphenate-character:'-'] break-all  transition-all
-                        ${cat ? 'bg-slate-700 border-slate-600' : 'bg-slate-800/50 border-dashed border-slate-600/50 text-slate-500'}
-                        ${isHost && cat ? 'cursor-grab active:cursor-grabbing hover:bg-slate-600' : ''}
-                        ${isHost && !cat ? 'cursor-default' : ''}
-                        ${isDragging ? 'opacity-50 scale-95 border-indigo-500' : ''}
-                        ${i >= gridSize * gridSize ? 'hidden' : ''}
-                      `}
-                                            draggable={isHost && !!cat}
-                                            onDragStart={(e) => handleDragStart(e, i)}
-                                            onDragOver={handleDragOver}
-                                            onDrop={(e) => handleDrop(e, i)}
-                                        >
-                                            {cat ? (
-                                                <>
-                                                    <span className="italic">{cat}</span>
-                                                    {isHost && (
-                                                        <button 
-                                                            onClick={() => removeCategory(cat)} 
-                                                            className="absolute top-1 right-1 text-red-400 hover:text-red-300 font-bold p-0.5 rounded-full bg-slate-800 hover:bg-slate-700 transition-opacity"
-                                                            title="Remove word"
-                                                        >
-                                                            <FaTimes />
-                                                        </button>
-                                                    )}
-                                                </>
-                                            ) : (
-                                                <span>Empty</span>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        ) : (
-                            <ul className="mb-4 space-y-2">
-                                {categories.map((cat, i) => {
-                                    return (
-                                        <li 
-                                            key={i} 
-                                            className={`bg-slate-700 p-3 rounded-lg flex justify-between items-center border border-slate-600 italic transition-all
-                      `}
-                                        >
-                                            <span>{cat}</span>
-                                            {isHost && (
-                                                <button onClick={() => removeCategory(cat)} className="text-red-400 hover:text-red-300 font-bold rounded-full bg-slate-800 hover:bg-slate-700 p-2" title="Remove word">
-                                                    <FaTimes />
-                                                </button>
-                                            )}
-                                        </li>
-                                    );
-                                })}
-                            </ul>
-                        )}
-                        {isHost && (
-                            <>
-                                <div className="flex gap-2">
-                                    <input 
-                                        type="text" 
-                                        ref={categoryInputRef}
-                                        value={newCategory} 
-                                        onChange={(e) => setNewCategory(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                addCategory();
-                                            }
-                                        }}
-                                        placeholder="Custom category..."
-                                        className="flex-1 p-3 rounded-lg bg-slate-900 border border-slate-600 text-white outline-none focus:border-indigo-500"
-                                    />
-                                    <button onClick={addCategory} className="bg-indigo-600 hover:bg-indigo-500 px-6 rounded-lg font-bold">Add</button>
-                                </div>
-                
-                                <div className="flex gap-3 mt-4 bg-slate-700/40 p-4 rounded-xl border border-slate-600">
-                                    <div className="flex flex-col gap-1 w-13">
-                                        <label htmlFor="random-count" className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Count</label>
-                                        <input 
-                                            id="random-count"
-                                            type="text" 
-                                            inputMode="numeric"
-                                            pattern="[0-9]*"
-                                            value={randomCount} 
-                                            onChange={e => {
-                                                const val = e.target.value.replace(/[^0-9]/g, '');
-                                                if (val === '') setRandomCount('');
-                                                else setRandomCount(Number(val));
-                                            }}
-                                            className="h-[42px] px-2 rounded-lg bg-slate-900 border border-slate-600 text-white outline-none text-center font-bold"
-                                            title="Number of random words"
-                                        />
-                                    </div>
-                                    <div className="flex flex-col gap-1 flex-1">
-                                        <label htmlFor="random-lang" className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Language</label>
-                                        <select 
-                                            id="random-lang"
-                                            value={randomLang} 
-                                            onChange={e => setRandomLang(e.target.value as 'german' | 'english')}
-                                            className="h-[42px] px-2 rounded-lg bg-slate-900 border border-slate-600 text-white outline-none font-bold cursor-pointer"
-                                            title="Language for random words"
-                                        >
-                                            <option value="german">German</option>
-                                            <option value="english">English</option>
-                                        </select>
-                                    </div>
-                                    <div className="flex flex-col justify-end">
-                                        <button 
-                                            onClick={addRandomCategories} 
-                                            className="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg font-bold h-[42px] whitespace-nowrap shadow-md transition-all tracking-wider"
-                                        >
-                                            <span className="hidden sm:inline">Add Random</span>
-                                            <span className="sm:hidden">+</span>
-                                        </button>
-                                    </div>
-                                </div>
-                            </>
-                        )}
-                    </div>
-
-                    <div className="flex flex-col gap-6 w-full lg:w-80">
-                        {/* Invite Box */}
-                        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 h-fit">
-                            <h2 className="text-xl font-semibold mb-4 text-slate-300">Invite Friends</h2>
-              
-                            <div className="space-y-3">
-                                <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 p-2 rounded-lg">
-                                    <span className="text-sm font-bold text-slate-400 w-12 tracking-widest">ID:</span>
-                                    <span className="flex-1 font-mono text-slate-300 text-lg">{gameId}</span>
-                                    <button 
-                                        onClick={handleCopyGameId}
-                                        className={`
-                      p-2 rounded-md outline-none
-                      transition-all duration-300 ease-in-out
-                      ${copied ? 'bg-green-600/40 text-green-400' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}
-                    `}
-                                        title="Copy Code"
-                                    >
-                                        {copied ? <FaCopy /> : <FaRegCopy />}
-                                    </button>
-                                </div>
-                
-                                <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 p-2 rounded-lg">
-                                    <span className="text-sm font-bold text-slate-400 w-12 tracking-widest">Link:</span>
-                                    <span className="flex-1 font-mono text-slate-300 truncate">{currentLink || '...'}</span>
-                                    <button 
-                                        onClick={handleCopyGameLink}
-                                        className={`
-                      p-2 rounded-md outline-none
-                      transition-all duration-300 ease-in-out
-                      ${copiedLink ? 'bg-green-600/40 text-green-400' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}
-                    `}
-                                        title="Copy Link"
-                                    >
-                                        {copiedLink ? <FaCopy /> : <FaRegCopy />}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Player List */}
-                        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 h-fit">
-                            <h2 className="text-xl font-semibold mb-4 text-slate-300">Players ({players.length})</h2>
-                            <ul className="space-y-3">
-                                {players.map(p => (
-                                    <li key={p.id} className="flex flex-col gap-2 bg-slate-900 p-3 rounded-lg border border-slate-700">
-                                        <div className="flex items-center gap-3">
-                                            <div 
-                                                className={`min-w-[8px] h-2 rounded-full animate-pulse ${onlinePlayers.includes(p.id) ? 'bg-green-500' : 'bg-orange-500'}`}
-                                                title={onlinePlayers.includes(p.id) ? 'Online' : 'Verbindung verloren'}
-                                            ></div>
-                                            <div className="flex-1 min-w-0 flex items-center gap-2">
-                                                {p.id === playerId ? (
-                                                    <>
-                                                        {isEditingSelfName ? (
-                                                            <>
-                                                                <input
-                                                                    ref={selfNameInputRef}
-                                                                    type="text"
-                                                                    value={selfNameInput}
-                                                                    onChange={(e) => setSelfNameInput(e.target.value)}
-                                                                    readOnly={!isEditingSelfName}
-                                                                    onKeyDown={(e) => {
-                                                                        if (e.key === 'Enter') {
-                                                                            void saveSelfName();
-                                                                        }
-                                                                        if (e.key === 'Escape') {
-                                                                            setSelfNameInput(p.name);
-                                                                            setIsEditingSelfName(false);
-                                                                        }
-                                                                    }}
-                                                                    onBlur={() => {
-                                                                        if (isEditingSelfName) {
-                                                                            void saveSelfName();
-                                                                        }
-                                                                    }}
-                                                                    className="flex-1 min-w-0 truncate bg-transparent border-b border-indigo-400 text-white outline-none"
-                                                                    title="Your player name"
-                                                                />
-                                                            </>
-                                                        ) : (
-                                                            <span className="flex-1 truncate text-green-400">
-                                                                {p.name} {p.id === gameHostId ? '(Host)' : ''}
-                                                            </span>
-                                                        )}
-                                                    </>
-                                                ) : (
-                                                    <span className="flex-1 truncate text-white">
-                                                        {p.name} {p.id === gameHostId ? '(Host)' : ''}
-                                                    </span>
-                                                )}
-                                                {p.id === playerId && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleRenameSelf}
-                                                        className="text-slate-400 hover:text-white transition-colors p-1 rounded"
-                                                        title={isEditingSelfName ? 'Save name' : 'Edit name'}
-                                                    >
-                                                        <FaRegEdit className="text-xs" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                        {isHost && p.id !== playerId && (
-                                            <div className="flex gap-2 w-full mt-1 border-t border-slate-800 pt-2">
-                                                <button 
-                                                    onClick={() => makeHost(p.id)} 
-                                                    className="text-xs flex-[2] justify-center bg-indigo-900/50 text-indigo-400 hover:bg-indigo-600 hover:text-white px-3 py-2 sm:py-1 rounded transition-colors"
-                                                    title="Transfer host privileges to this player"
-                                                >
-                                                    Make Host
-                                                </button>
-                                                <button 
-                                                    onClick={() => kickPlayer(p.id)} 
-                                                    className="text-xs flex-1 justify-center bg-orange-900/50 text-orange-400 hover:bg-orange-600 hover:text-white px-3 py-2 sm:py-1 rounded transition-colors"
-                                                    title="Remove player (can rejoin)"
-                                                >
-                                                    Kick
-                                                </button>
-                                                <button 
-                                                    onClick={() => banPlayer(p.id)} 
-                                                    className="text-xs flex-1 justify-center bg-red-900/50 text-red-400 hover:bg-red-600 hover:text-white px-3 py-2 sm:py-1 rounded transition-colors"
-                                                    title="Ban player (permanent kick)"
-                                                >
-                                                    Ban
-                                                </button>
-                                            </div>
-                                        )}
-                                    </li>
-                                ))}
-                            </ul>
-
-                            {isHost ? (
-                                <button 
-                                    onClick={handleStartGame} 
-                                    disabled={categories.length === 0}
-                                    className={`w-full py-4 rounded-xl font-bold mt-8 tracking-wider uppercase ${categories.length === 0 ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-500'}`}
-                                >
-                                    START GAME
-                                </button>
-                            ) : (
-                                <div className="w-full bg-slate-700 text-slate-400 text-center py-4 rounded-xl font-bold mt-8 uppercase">
-                                    Waiting for host...
-                                </div>
-                            )}
-            
-                            <button 
-                                onClick={handleLeaveLobby}
-                                className="w-full py-3 rounded-xl font-bold mt-3 border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
-                            >
-                                LEAVE LOBBY
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <LobbyView
+                renderToast = {renderToast}
+                gameMode={gameMode}
+                updateGameModeInfo={updateGameModeInfo}
+                isHost={isHost}
+                gridSize={gridSize}
+                bingoTarget={bingoTarget}
+                bingoBoardMode={bingoBoardMode}
+                setBingoBoardMode={setBingoBoardMode}
+                timeLimit={timeLimit}
+                updateTimeLimit={updateTimeLimit}
+                categories={categories}
+                clearCategories={clearCategories}
+                getSidebarTextSizeClass={getSidebarTextSizeClass}
+                draggedIndex={draggedIndex}
+                handleDragStart={handleDragStart}
+                handleDragOver={handleDragOver}
+                handleDrop={handleDrop}
+                removeCategory={removeCategory}
+                categoryInputRef={categoryInputRef}
+                newCategory={newCategory}
+                setNewCategory={setNewCategory}
+                addCategory={addCategory}
+                randomCount={randomCount}
+                setRandomCount={setRandomCount}
+                randomLang={randomLang}
+                setRandomLang={setRandomLang}
+                addRandomCategories={addRandomCategories}
+                gameId={gameId}
+                handleCopyGameId={handleCopyGameId}
+                copied={copied}
+                currentLink={currentLink}
+                handleCopyGameLink={handleCopyGameLink}
+                copiedLink={copiedLink}
+                players={players}
+                onlinePlayers={onlinePlayers}
+                playerId={playerId}
+                isEditingSelfName={isEditingSelfName}
+                setIsEditingSelfName={setIsEditingSelfName}
+                selfNameInputRef={selfNameInputRef}
+                selfNameInput={selfNameInput}
+                setSelfNameInput={setSelfNameInput}
+                saveSelfName={saveSelfName}
+                gameHostId={gameHostId}
+                handleRenameSelf={handleRenameSelf}
+                makeHost={makeHost}
+                kickPlayer={kickPlayer}
+                banPlayer={banPlayer}
+                handleStartGame={handleStartGame}
+                handleLeaveLobby={handleLeaveLobby}
+            />
         );
     }
 
     // --- VIEW 2: PLAYING ---
     if (status === 'playing') {
         return (
-            <div className="min-h-screen p-4 bg-slate-900">
-                {renderToast()}
-                <div className="flex justify-between items-center mb-4 w-full max-w-[95%] xl:max-w-[90vw] mx-auto text-white">
-                    <div className="flex items-center gap-4 hidden sm:flex">
-                        <Image 
-                            src="/mappin.and.ellipse.png"
-                            alt="Geo Bingo Logo"
-                            loading="eager"
-                            width={40}
-                            height={40}
-                            className="w-auto h-auto drop-shadow-[0_0_10px_rgba(96,165,250,0.5)] transform-gpu"
-                        />
-                        <h1 className="text-2xl font-bold text-indigo-400">Hunt in Progress</h1>
-                    </div>
-          
-                    <div className="flex items-stretch gap-3 sm:gap-6 w-full sm:w-auto">
-                        {/* Timer Display */}
-                        <div className="flex items-center justify-center text-xl sm:text-3xl font-black bg-slate-800 px-3 sm:px-6 rounded-lg sm:rounded-xl border border-slate-700 shadow-lg tracking-wider py-1.5 sm:py-2">
-                            {timeLeft <= 60 ? (
-                                <span className="text-red-500 animate-pulse">{formatTime(timeLeft)}</span>
-                            ) : (
-                                <span className="text-white">{formatTime(timeLeft)}</span>
-                            )}
-                        </div>
-            
-                        <div className="ml-auto flex items-stretch justify-end gap-2 sm:gap-4">
-                            <span className="flex items-center text-slate-400 font-medium">
-                                Votes to end:&nbsp;<strong className="text-white">{readyPlayers.length} / {votesNeeded}</strong>
-                            </span>
-                            <button 
-                                onClick={handleVoteEndRound}
-                                disabled={hasVotedToEnd}
-                                className={`flex items-center justify-center whitespace-nowrap px-3 sm:px-6 rounded-lg font-bold transition-all uppercase text-[10px] sm:text-sm shadow-lg
-                  ${hasVotedToEnd ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-red-600 hover:bg-red-500 text-white'}`}
-                            >
-                                {hasVotedToEnd ? 'Wait...' : 'End Vote'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-        
-                <div className="w-full max-w-[95%] xl:max-w-[90vw] mx-auto">
-                    {playerId && (
-                        <StreetView 
-                            categories={gameMode === 'bingo' ? (players.find(p => p.id === playerId)?.bingo_board || categories) : categories} 
-                            gameId={gameId} 
-                            playerId={playerId}
-                            gameMode={gameMode}
-                            gridSize={gridSize}
-                        />
-                    )}
-                </div>
-            </div>
+            <StreetView
+                categories={categories}
+                gameId={gameId}
+                playerId={playerId}
+                gameMode={gameMode}
+                gridSize={gridSize}
+                renderToast={renderToast}
+                timeLeft={timeLeft}
+                readyPlayers={readyPlayers}
+                players={players}
+            />
+
         );
     }
-
-    const handleFinishGame = async () => {
-        await supabase.from('games').update({ status: 'finished' }).eq('id', gameId);
-    };
 
     // --- VIEW 3: VOTING ---
     if (status === 'voting') {
         return (
-            <div className="min-h-screen flex flex-col items-center p-4 bg-slate-900 text-white">
-                {renderToast()}
-                <div className="w-full max-w-[95%] xl:max-w-[90vw] flex justify-between items-center mb-8 mt-4">
-                    <div className="flex items-center gap-4">
-                        <Image 
-                            src="/mappin.and.ellipse.png"
-                            alt="Geo Bingo Logo"
-                            loading="eager"
-                            width={50}
-                            height={50}
-                            className="w-auto h-auto drop-shadow-[0_0_10px_rgba(96,165,250,0.5)] transform-gpu hidden sm:block"
-                        />
-                        <h1 className="text-4xl font-black uppercase tracking-widest text-indigo-400">Voting Phase</h1>
-                    </div>
-                </div>
-
-                <div className="w-full max-w-[95%] xl:max-w-[90vw]">
-                    <VotingView 
-                        gameId={gameId} 
-                        isHost={isHost} 
-                        categories={categories} 
-                        playerId={playerId} 
-                        totalPlayers={players.length} 
-                        onFinishGame={handleFinishGame}
-                    />
-                </div>
-            </div>
+            <VotingView
+                gameId={gameId}
+                isHost={isHost}
+                categories={categories}
+                playerId={playerId}
+                players={players}
+                onFinishGame={handleFinishGame}
+                renderToast={renderToast}
+            />
         );
     }
 
     // --- VIEW 4: PODIUM (FINISHED) ---
     if (status === 'finished') {
         return (
-            <div className="min-h-screen flex flex-col items-center p-4 bg-slate-900 text-white">
-                {renderToast()}
-                <div className="w-full max-w-5xl flex justify-between items-center mb-4 mt-4">
-                    <div className="flex items-center gap-4">
-                        <Image 
-                            src="/mappin.and.ellipse.png"
-                            alt="Geo Bingo Logo"
-                            loading="eager"
-                            width={50}
-                            height={50}
-                            className="w-auto h-auto drop-shadow-[0_0_10px_rgba(96,165,250,0.5)] transform-gpu hidden sm:block"
-                        />
-                        <h1 className="text-4xl font-black uppercase tracking-widest text-indigo-400">Final Results</h1>
-                    </div>
-                    {isHost ? (
-                        <button 
-                            onClick={async () => {
-                                // Delete old submissions for the new round
-                                await supabase.from('submissions').delete().eq('game_id', gameId);
-                                // Status zurück auf Lobby setzen
-                                const { error } = await supabase.from('games').update({ status: 'lobby', ready_players: [] }).eq('id', gameId);
-                                if (error) console.error("Error returning to lobby:", error);
-                            }}
-                            className="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 rounded-lg transition-all uppercase text-sm tracking-wide shadow-lg"
-                        >
-                            Back to Lobby
-                        </button>
-                    ) : (
-                        <div className="text-slate-400 italic font-medium bg-slate-800 px-6 py-3 rounded-lg border border-slate-700">
-                            Waiting for Host...
-                        </div>
-                    )}
-                </div>
-
-                <PodiumView gameId={gameId} />
-            </div>
+            <PodiumView
+                gameId={gameId}
+                renderToast={renderToast}
+                isHost={isHost}
+            />
         );
     }
 }
