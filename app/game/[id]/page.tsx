@@ -539,7 +539,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                         <h2 className="text-xl font-semibold mb-4 text-slate-300">Settings</h2>
             
                         {/* Game Mode Selection */}
-                        <div className="mb-6 flex bg-slate-900 rounded-lg p-1">
+                        <div className="mb-2 flex bg-slate-900 rounded-lg p-1">
                             <button 
                                 onClick={() => updateGameModeInfo({ game_mode: 'list' })}
                                 disabled={!isHost}
@@ -555,6 +555,20 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                                 Bingo Grid
                             </button>
                         </div>
+
+                        {gameMode === 'list' && (
+                            // add description for list mode
+                            <p className="mb-6 p-2 pt-0 rounded-lg text-sm text-slate-400">
+                                In List mode, players will see a simple list of categories. The game ends when the timer runs out or all players vote to end. Great for quick sessions and smaller groups!
+                            </p>
+                        )}
+
+                        {gameMode === 'bingo' && (
+                            // add description for bingo mode
+                            <p className="mb-6 p-2 pt-0 rounded-lg text-sm text-slate-400">
+                                In Bingo Grid mode, players receive a grid of categories. Players recieve extra points for completing rows or columns of a length defined by the host. The game ends when the timer runs out or all players vote to end. Perfect for longer sessions and adds a fun strategic layer!
+                            </p>
+                        )}
 
                         {gameMode === 'bingo' && (
                             <div className="mb-6 p-4 bg-slate-900 rounded-lg flex flex-col gap-4">

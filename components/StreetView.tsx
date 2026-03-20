@@ -126,6 +126,13 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
         setInStreetView(true);
     };
 
+    const handleBingoTileClick = (cat: string) => {
+        // On iPhone/small screens, tapping the full tile submits/overwrites.
+        if (window.matchMedia('(max-width: 639px)').matches) {
+            handleSubmit(cat);
+        }
+    };
+
     if (!isLoaded) return <div className="h-screen flex items-center justify-center text-indigo-400">Loading Maps...</div>;
 
     // Dynamically size sidebar to avoid Tailwind JIT compiling issues
@@ -192,7 +199,7 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
 
             {/* Right: Checklist */}
             <div className={`w-full ${getSidebarWidthClass()} flex flex-col gap-4 bg-slate-800 p-6 rounded-2xl shadow-xl h-full border border-slate-700 overflow-y-auto transition-all`}>
-                <div className="flex justify-between items-center mb-2 border-b border-slate-700 pb-2">
+                <div className="flex justify-between items-center mb-2 border-b border-slate-700 pb-2 hidden sm:flex">
                     <h2 className="text-indigo-400 font-bold text-xl tracking-wide uppercase">
                         {gameMode === 'bingo' ? 'Bingo Board' : 'Checklist'}
                     </h2>
@@ -275,15 +282,16 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
                                     key={cat} 
                                     title={cat}
                                     style={bgStyle}
-                                    className={`relative p-2 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-center items-center text-center overflow-hidden pb-12
+                                    onClick={() => handleBingoTileClick(cat)}
+                                    className={`relative p-2 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-center items-center text-center overflow-hidden pb-2 sm:pb-12
                     border-slate-600 ${foundSub ? 'text-white border-green-500' : 'bg-slate-800 hover:bg-slate-700'}`}
                                 >
                                     {foundSub && <div className="absolute inset-0 bg-black/40 z-0"></div>}
-                                    <span className={`relative z-10 ${getSidebarTextSizeClass()} font-bold leading-tight line-clamp-2 [hyphens:auto] [word-break:break-word] mt-1 ${foundSub ? 'text-green-400 drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)]' : 'text-white'}`}>
+                                    <span className={`relative z-10 ${getSidebarTextSizeClass()} font-bold leading-tight line-clamp-2 [hyphens:auto] [word-break:break-word] mt-0 sm:mt-1 ${foundSub ? 'drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)]' : 'text-white'}`}>
                                         {cat}
                                     </span>
                   
-                                    <div className="absolute bottom-2 w-[90%] left-[5%] h-[25%] max-h-12 flex flex-row justify-center gap-2 z-10">
+                                    <div className="absolute bottom-2 w-[90%] left-[5%] h-[25%] max-h-12 hidden sm:flex flex-row justify-center gap-2 z-10">
                                         {!foundSub ? (
                                             <button 
                                                 type="button"

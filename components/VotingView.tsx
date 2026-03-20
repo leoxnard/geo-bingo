@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import SafeImage from './SafeImage';
+import { TbMinusVertical } from 'react-icons/tb';
 
 interface Submission {
   id: string;
@@ -62,8 +63,12 @@ export default function VotingView({ gameId, isHost, categories, playerId, total
         await supabase.from('submissions').update({ votes: newVotes }).eq('id', sub.id);
     };
 
-    const activeSubmissions = submissions.filter(s => s.category === activeCategory);
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    const navigableCategories = categories.filter(cat => submissions.some(s => s.category === cat));
+    const currentCategory = navigableCategories.includes(activeCategory)
+        ? activeCategory
+        : (navigableCategories[0] ?? activeCategory);
+    const activeSubmissions = submissions.filter(s => s.category === currentCategory);
 
     // Convert JS API Zoom to Static API FOV (Field of View)
     // Zoom 1 = 90 FOV, Zoom 2 = 45 FOV, etc. Max FOV allowed by Google is 120.
@@ -82,6 +87,20 @@ export default function VotingView({ gameId, isHost, categories, playerId, total
         });
     });
 
+    const goToPrevCategory = () => {
+        if (navigableCategories.length <= 1) return;
+        const currentIndex = navigableCategories.indexOf(currentCategory);
+        const prevIndex = currentIndex <= 0 ? navigableCategories.length - 1 : currentIndex - 1;
+        setActiveCategory(navigableCategories[prevIndex]);
+    };
+
+    const goToNextCategory = () => {
+        if (navigableCategories.length <= 1) return;
+        const currentIndex = navigableCategories.indexOf(currentCategory);
+        const nextIndex = currentIndex === -1 || currentIndex >= navigableCategories.length - 1 ? 0 : currentIndex + 1;
+        setActiveCategory(navigableCategories[nextIndex]);
+    };
+
     return (
         <div className="w-full flex flex-col lg:flex-row gap-8 text-white">
             {/* FULLSCREEN IMAGE MODAL */}
@@ -96,7 +115,7 @@ export default function VotingView({ gameId, isHost, categories, playerId, total
                         className="w-auto h-auto max-w-[95vw] max-h-[90vh] object-contain rounded-2xl shadow-2xl border-4 border-slate-700" 
                     />
                     <div className="absolute top-8 right-8 text-white font-bold bg-slate-900/50 px-4 py-2 rounded-full backdrop-blur-sm">
-                        Click anywhere to close
+                        Click to close
                     </div>
                 </div>
             )}
@@ -104,7 +123,7 @@ export default function VotingView({ gameId, isHost, categories, playerId, total
             {/* LEFT: Category Selection */}
             <div className="w-full lg:w-64 flex flex-col gap-2">
                 <h2 className="text-xl font-bold text-slate-400 mb-4 uppercase tracking-wider">Categories</h2>
-                {categories.map(cat => {
+                {navigableCategories.map(cat => {
                     const categorySubs = submissions.filter(s => s.category === cat);
                     const count = categorySubs.length;
           
@@ -122,7 +141,7 @@ export default function VotingView({ gameId, isHost, categories, playerId, total
                         <button
                             key={cat} onClick={() => setActiveCategory(cat)}
                             className={`text-left px-4 py-3 rounded-xl font-medium transition-all flex justify-between items-center ${
-                                activeCategory === cat ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                                currentCategory === cat ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
                             }`}
                         >
                             <span className="truncate pr-2">{cat}</span>
@@ -160,74 +179,97 @@ export default function VotingView({ gameId, isHost, categories, playerId, total
 
             {/* RIGHT: Image Gallery & Voting */}
             <div className="flex-1 bg-slate-800 p-6 rounded-2xl border border-slate-700 min-h-[500px] overflow-y-auto">
-                <h2 className="text-2xl font-bold text-indigo-400 mb-6 border-b border-slate-700 pb-4">
-                    Reviewing: <span className="text-white">{activeCategory}</span>
-                </h2>
-
-                {activeSubmissions.length === 0 ? (
-                    <div className="text-center text-slate-500 py-20 font-medium">No one found this category.</div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                        {activeSubmissions.map(sub => {
-                            const votesMap = sub.votes || {};
-                            const yesVotes = Object.values(votesMap).filter(v => v === true).length;
-                            const noVotes = Object.values(votesMap).filter(v => v === false).length;
-                            const totalVotesCast = yesVotes + noVotes;
-                            const myVote = votesMap[playerId];
-
-                            const statusOverlay = (
-                                <div className="absolute top-2 right-2 bg-indigo-600 px-3 py-1 rounded shadow uppercase font-bold text-xs">
-                                    {yesVotes} Points
-                                </div>
-                            );
-
-                            return (
-                                <div key={sub.id} className="bg-slate-900 rounded-xl overflow-hidden border border-slate-700 shadow-xl relative">
-                                    {/* Photo with dynamic FOV (Zoom) */}
-                                    <div 
-                                        className="w-full h-48 bg-slate-800 relative cursor-zoom-in group"
-                                        onClick={() => setZoomedImage(`https://maps.googleapis.com/maps/api/streetview?size=1200x800&location=${sub.lat},${sub.lng}&heading=${sub.heading}&pitch=${sub.pitch}&fov=${getFov(sub.zoom)}&key=${apiKey}&return_error_code=true`)}
-                                    >
-                                        <SafeImage 
-                                            src={`https://maps.googleapis.com/maps/api/streetview?size=600x400&location=${sub.lat},${sub.lng}&heading=${sub.heading}&pitch=${sub.pitch}&fov=${getFov(sub.zoom)}&key=${apiKey}&return_error_code=true`}
-                                            alt="Found location"
-                                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                        />
-                                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                                            <span className="text-white font-bold bg-black/50 px-3 py-1 rounded-full text-sm">🔍 Enlarge</span>
-                                        </div>
-                                        {statusOverlay}
-                                    </div>
-
-                                    <div className="p-4">
-                                        <p className="text-lg font-bold text-slate-200 mb-2">
-                                            <span className="text-indigo-400">{playersMap[sub.player_id] || 'Unknown'}</span>
-                                        </p>
-                    
-                                        <div className="w-full h-2 bg-slate-700 rounded overflow-hidden flex mb-4">
-                                            {/* Voting percentage based on totalPlayers - 1 */}
-                                            <div className="bg-green-500 h-full" style={{ width: `${totalVotesCast ? (yesVotes/Math.max(1, totalPlayers - 1))*100 : 0}%` }}></div>
-                                            <div className="bg-red-500 h-full" style={{ width: `${totalVotesCast ? (noVotes/Math.max(1, totalPlayers - 1))*100 : 0}%` }}></div>
-                                        </div>
-
-                                        <div className="flex gap-2">
-                                            {playerId === sub.player_id ? (
-                                                <div className="flex-1 py-2 text-center text-slate-500 text-xs font-bold uppercase border border-slate-700 rounded bg-slate-800">
-                                                    Your Submission
-                                                </div>
-                                            ) : (
-                                                <>
-                                                    <button onClick={() => handleVote(sub, true)} className={`flex-1 py-2 rounded font-bold uppercase text-xs border transition-all ${myVote === true ? 'bg-green-600 border-green-500 text-white' : 'bg-transparent border-slate-600 text-slate-400 hover:border-green-500 hover:text-green-500'}`}>Yes</button>
-                                                    <button onClick={() => handleVote(sub, false)} className={`flex-1 py-2 rounded font-bold uppercase text-xs border transition-all ${myVote === false ? 'bg-red-600 border-red-500 text-white' : 'bg-transparent border-slate-600 text-slate-400 hover:border-red-500 hover:text-red-500'}`}>No</button>
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
+                <div className="mb-6 border-b border-slate-700 pb-4 flex items-center justify-between gap-3">
+                    <h2 className="text-2xl font-bold text-indigo-400 min-w-0">
+                        Reviewing:
+                        <span className="block sm:inline text-white break-words sm:ml-2">{currentCategory}</span>
+                    </h2>
+                    <div className="flex items-center shrink-0 rounded-xl border border-slate-600 bg-slate-900 overflow-hidden">
+                        <button
+                            type="button"
+                            onClick={goToPrevCategory}
+                            disabled={navigableCategories.length <= 1}
+                            className="p-3 hover:bg-slate-700 text-white font-bold disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
+                            title="Previous category"
+                            aria-label="Previous category"
+                        >
+                            <span className="text-lg leading-none">&lt;</span>
+                        </button>
+                        <span className="text-slate-500 select-none" aria-hidden="true">
+                            |
+                        </span>
+                        <button
+                            type="button"
+                            onClick={goToNextCategory}
+                            disabled={navigableCategories.length <= 1}
+                            className="p-3 hover:bg-slate-700 text-white font-bold disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
+                            title="Next category"
+                            aria-label="Next category"
+                        >
+                            <span className="text-lg leading-none">&gt;</span>
+                        </button>
                     </div>
-                )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {activeSubmissions.map(sub => {
+                        const votesMap = sub.votes || {};
+                        const yesVotes = Object.values(votesMap).filter(v => v === true).length;
+                        const noVotes = Object.values(votesMap).filter(v => v === false).length;
+                        const totalVotesCast = yesVotes + noVotes;
+                        const myVote = votesMap[playerId];
+
+                        const statusOverlay = (
+                            <div className="absolute top-2 right-2 bg-indigo-600 px-3 py-1 rounded shadow uppercase font-bold text-xs">
+                                {yesVotes} Points
+                            </div>
+                        );
+
+                        return (
+                            <div key={sub.id} className="bg-slate-900 rounded-xl overflow-hidden border border-slate-700 shadow-xl relative">
+                                {/* Photo with dynamic FOV (Zoom) */}
+                                <div 
+                                    className="w-full h-48 bg-slate-800 relative cursor-zoom-in group"
+                                    onClick={() => setZoomedImage(`https://maps.googleapis.com/maps/api/streetview?size=1200x800&location=${sub.lat},${sub.lng}&heading=${sub.heading}&pitch=${sub.pitch}&fov=${getFov(sub.zoom)}&key=${apiKey}&return_error_code=true`)}
+                                >
+                                    <SafeImage 
+                                        src={`https://maps.googleapis.com/maps/api/streetview?size=600x400&location=${sub.lat},${sub.lng}&heading=${sub.heading}&pitch=${sub.pitch}&fov=${getFov(sub.zoom)}&key=${apiKey}&return_error_code=true`}
+                                        alt="Found location"
+                                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                    />
+                                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                        <span className="text-white font-bold bg-black/50 px-3 py-1 rounded-full text-sm">🔍 Enlarge</span>
+                                    </div>
+                                    {statusOverlay}
+                                </div>
+
+                                <div className="p-4">
+                                    <p className="text-lg font-bold text-slate-200 mb-2">
+                                        <span className="text-indigo-400">{playersMap[sub.player_id] || 'Unknown'}</span>
+                                    </p>
+                
+                                    <div className="w-full h-2 bg-slate-700 rounded overflow-hidden flex mb-4">
+                                        {/* Voting percentage based on totalPlayers - 1 */}
+                                        <div className="bg-green-500 h-full" style={{ width: `${totalVotesCast ? (yesVotes/Math.max(1, totalPlayers - 1))*100 : 0}%` }}></div>
+                                        <div className="bg-red-500 h-full" style={{ width: `${totalVotesCast ? (noVotes/Math.max(1, totalPlayers - 1))*100 : 0}%` }}></div>
+                                    </div>
+
+                                    <div className="flex gap-2">
+                                        {playerId === sub.player_id ? (
+                                            <div className="flex-1 py-2 text-center text-slate-500 text-xs font-bold uppercase border border-slate-700 rounded bg-slate-800">
+                                                Your Submission
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <button onClick={() => handleVote(sub, true)} className={`flex-1 py-2 rounded font-bold uppercase text-xs border transition-all ${myVote === true ? 'bg-green-600 border-green-500 text-white' : 'bg-transparent border-slate-600 text-slate-400 hover:border-green-500 hover:text-green-500'}`}>Yes</button>
+                                                <button onClick={() => handleVote(sub, false)} className={`flex-1 py-2 rounded font-bold uppercase text-xs border transition-all ${myVote === false ? 'bg-red-600 border-red-500 text-white' : 'bg-transparent border-slate-600 text-slate-400 hover:border-red-500 hover:text-red-500'}`}>No</button>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
             </div>
         </div>
     );
