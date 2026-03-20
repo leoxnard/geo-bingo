@@ -55,6 +55,17 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
   const [copiedLink, setCopiedLink] = useState(false);
   const [currentLink, setCurrentLink] = useState('');
 
+  const getSidebarTextSizeClass = () => {
+    if (gameMode !== 'bingo') return '';
+    switch (gridSize) {
+      case 2: return 'text-base sm:text-xl';
+      case 3: return 'text-xs sm:text-xl';
+      case 4: return 'text-xs sm:text-base';
+      case 5: return 'text-[10px] sm:text-sm';
+      default: return 'text-xs sm:text-xl';
+    }
+  };
+
   useEffect(() => {
     setCurrentLink(window.location.href);
   }, []);
@@ -121,14 +132,18 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         setReadyPlayers(gameData.ready_players || []);
         setBannedPlayers(gameData.banned_players || []);
         setTimeLimit(gameData.time_limit || 300);
-        setGameHostId(gameData.host_id || ''); // Speichere den Host für die UI
+        setGameHostId(gameData.host_id || '');
         setGameMode(gameData.game_mode || 'list');
         setGridSize(gameData.grid_size || 3);
         setBingoTarget(gameData.bingo_target || 3);
         
         // Restore host status if they refresh the page
-        if (localStorage.getItem(`geoBingoHost_${gameId}`) === 'true' || gameData.host_id === currentPlayerId) {
-          setIsHost(true);
+        const isActuallyHost = gameData.host_id === currentPlayerId;
+        setIsHost(isActuallyHost);
+        if (isActuallyHost) {
+          localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
+        } else {
+          localStorage.removeItem(`geoBingoHost_${gameId}`);
         }
       }
 
@@ -174,7 +189,16 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
           setReadyPlayers(payload.new.ready_players || []);
           setBannedPlayers(payload.new.banned_players || []);
           setTimeLimit(payload.new.time_limit || 300);
-          setGameHostId(payload.new.host_id || '');
+          
+          const newHostId = payload.new.host_id || '';
+          setGameHostId(newHostId);
+          setIsHost(newHostId === currentPlayerId);
+          if (newHostId === currentPlayerId) {
+            localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
+          } else {
+            localStorage.removeItem(`geoBingoHost_${gameId}`);
+          }
+
           setGameMode(payload.new.game_mode || 'list');
           setGridSize(payload.new.grid_size || 3);
           setBingoTarget(payload.new.bingo_target || 3);
@@ -372,8 +396,14 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
   const updateGameModeInfo = async (updates: { game_mode?: string; grid_size?: number; bingo_target?: number }) => {
     if (!isHost) return;
     if (updates.game_mode) setGameMode(updates.game_mode as 'list' | 'bingo');
-    if (updates.grid_size) setGridSize(updates.grid_size);
     if (updates.bingo_target) setBingoTarget(updates.bingo_target);
+    if (updates.grid_size) {
+        setGridSize(updates.grid_size);
+        if (updates.grid_size < bingoTarget) {
+          setBingoTarget(updates.grid_size);
+          updates.bingo_target = updates.grid_size;
+        }
+    }
     await supabase.from('games').update(updates).eq('id', gameId);
   };
 
@@ -420,6 +450,15 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         const updatedReady = readyPlayers.filter(id => id !== idToKick);
         await supabase.from('games').update({ ready_players: updatedReady }).eq('id', gameId);
       }
+    }
+  };
+
+  const makeHost = async (newHostId: string) => {
+    if (isHost) {
+      await supabase.from("games").update({ host_id: newHostId }).eq("id", gameId);
+      setIsHost(false);
+      localStorage.removeItem(`geoBingoHost_${gameId}`);
+      showToast("You are no longer the host.");
     }
   };
 
@@ -479,12 +518,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
   if (status === 'lobby') {
     return (
       <div className="min-h-screen flex flex-col items-center p-10 bg-slate-900 text-white relative">
-        <button 
-          onClick={() => router.push('/')}
-          className="absolute top-6 left-6 text-slate-400 hover:text-white flex items-center gap-2 font-medium transition-colors p-2 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700"
-        >
-          <FaArrowLeft /> Home
-        </button>
         {renderToast()}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-12">
           <Image 
@@ -492,12 +525,12 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             alt="Geo Bingo Logo"
             width={80}
             height={80}
-            className="w-auto h-auto drop-shadow-[0_0_15px_rgba(96,165,250,0.5)] transform-gpu transition-transform"
+            className={"w-auto h-auto drop-shadow-[0_0_15px_rgba(96,165,250,0.5)] transform-gpu transition-transform hidden sm:block"}
           />
           <h1 className="text-6xl font-bold text-indigo-400 tracking-tighter">GEO BINGO</h1>
         </div>
 
-        <div className="flex flex-col lg:flex-row gap-6 w-full max-w-4xl">
+        <div className="flex flex-col lg:flex-row gap-6 w-full max-w-5xl">
           
           {/* Settings (Categories, Time) */}
           <div className="bg-slate-800 p-6 rounded-xl flex-1 border border-slate-700 h-fit">
@@ -572,7 +605,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
               <span>Categories</span>
               <div className="flex gap-2 items-center">
                 <span className={`text-sm font-normal ${categories.length === 0 || (gameMode === 'bingo' && categories.length < gridSize * gridSize) ? 'text-red-400' : 'text-slate-400'} bg-slate-900 px-3 py-1 rounded-full`}>
-                  {categories.length} {gameMode === 'bingo' ? `/ ${gridSize * gridSize}` : 'Words'}
+                  {gameMode === 'bingo' ? `${Math.min(categories.length, gridSize * gridSize)} / ${gridSize * gridSize}` : `${categories.length} Words`}
                 </span>
                 {isHost && (
                   <button 
@@ -596,11 +629,12 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                   return (
                     <div 
                       key={i} 
-                      className={`relative flex items-center justify-center p-2 rounded-lg border text-center text-sm min-h-[60px] break-words transition-all
+                      className={`relative flex items-center justify-center p-2 rounded-lg border text-center ${getSidebarTextSizeClass()} min-h-[60px] [hyphens:auto] [hyphenate-character:'-'] break-all  transition-all
                         ${cat ? 'bg-slate-700 border-slate-600' : 'bg-slate-800/50 border-dashed border-slate-600/50 text-slate-500'}
                         ${isHost && cat ? 'cursor-grab active:cursor-grabbing hover:bg-slate-600' : ''}
                         ${isHost && !cat ? 'cursor-default' : ''}
                         ${isDragging ? 'opacity-50 scale-95 border-indigo-500' : ''}
+                        ${i >= gridSize * gridSize ? 'hidden' : ''}
                       `}
                       draggable={isHost && !!cat}
                       onDragStart={(e) => handleDragStart(e, i)}
@@ -667,7 +701,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 </div>
                 
                 <div className="flex gap-3 mt-4 bg-slate-700/40 p-4 rounded-xl border border-slate-600">
-                  <div className="flex flex-col gap-1 w-20">
+                  <div className="flex flex-col gap-1 w-13">
                     <label htmlFor="random-count" className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Count</label>
                     <input 
                       id="random-count"
@@ -755,26 +789,35 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             <h2 className="text-xl font-semibold mb-4 text-slate-300">Players ({players.length})</h2>
             <ul className="space-y-3">
               {players.map(p => (
-                <li key={p.id} className="flex items-center gap-3 bg-slate-900 p-2 rounded-lg border border-slate-700">
-                  <div 
-                    className={`w-2 h-2 rounded-full animate-pulse ${onlinePlayers.includes(p.id) ? 'bg-green-500' : 'bg-orange-500'}`}
-                    title={onlinePlayers.includes(p.id) ? 'Online' : 'Verbindung verloren'}
-                  ></div>
-                  <span className={`flex-1 truncate ${p.id === playerId ? 'text-green-400' : 'text-white'}`}>
-                    {p.name} {p.id === gameHostId ? '(Host)' : ''}
-                  </span>
+                <li key={p.id} className="flex flex-col gap-2 bg-slate-900 p-3 rounded-lg border border-slate-700">
+                  <div className="flex items-center gap-3">
+                    <div 
+                      className={`min-w-[8px] h-2 rounded-full animate-pulse ${onlinePlayers.includes(p.id) ? 'bg-green-500' : 'bg-orange-500'}`}
+                      title={onlinePlayers.includes(p.id) ? 'Online' : 'Verbindung verloren'}
+                    ></div>
+                    <span className={`flex-1 truncate ${p.id === playerId ? 'text-green-400' : 'text-white'}`}>
+                      {p.name} {p.id === gameHostId ? '(Host)' : ''}
+                    </span>
+                  </div>
                   {isHost && p.id !== playerId && (
-                    <div className="flex gap-1">
+                    <div className="flex gap-2 w-full mt-1 border-t border-slate-800 pt-2">
+                      <button 
+                        onClick={() => makeHost(p.id)} 
+                        className="text-xs flex-[2] justify-center bg-indigo-900/50 text-indigo-400 hover:bg-indigo-600 hover:text-white px-3 py-2 sm:py-1 rounded transition-colors"
+                        title="Transfer host privileges to this player"
+                      >
+                        Make Host
+                      </button>
                       <button 
                         onClick={() => kickPlayer(p.id)} 
-                        className="text-xs bg-orange-900/50 text-orange-400 hover:bg-orange-600 hover:text-white px-2 py-1 rounded"
+                        className="text-xs flex-1 justify-center bg-orange-900/50 text-orange-400 hover:bg-orange-600 hover:text-white px-3 py-2 sm:py-1 rounded transition-colors"
                         title="Remove player (can rejoin)"
                       >
                         Kick
                       </button>
                       <button 
                         onClick={() => banPlayer(p.id)} 
-                        className="text-xs bg-red-900/50 text-red-400 hover:bg-red-600 hover:text-white px-2 py-1 rounded"
+                        className="text-xs flex-1 justify-center bg-red-900/50 text-red-400 hover:bg-red-600 hover:text-white px-3 py-2 sm:py-1 rounded transition-colors"
                         title="Ban player (permanent kick)"
                       >
                         Ban
@@ -798,6 +841,13 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 Waiting for host...
               </div>
             )}
+            
+            <button 
+              onClick={() => router.push('/')}
+              className="w-full py-3 rounded-xl font-bold mt-3 border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+            >
+              LEAVE LOBBY
+            </button>
             </div>
           </div>
         </div>
@@ -822,27 +872,29 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             <h1 className="text-2xl font-bold text-indigo-400">Hunt in Progress</h1>
           </div>
           
-          {/* Timer Display */}
-          <div className="text-3xl font-black bg-slate-800 px-6 py-2 rounded-xl border border-slate-700 shadow-lg tracking-wider">
-            {timeLeft <= 60 ? (
-              <span className="text-red-500 animate-pulse">{formatTime(timeLeft)}</span>
-            ) : (
-              <span className="text-white">{formatTime(timeLeft)}</span>
-            )}
-          </div>
-          
-          <div className="flex items-center gap-4">
-            <span className="text-slate-400 font-medium hidden md:inline-block">
-              Votes to end: <strong className="text-white">{readyPlayers.length} / {votesNeeded}</strong>
-            </span>
-            <button 
-              onClick={handleVoteEndRound}
-              disabled={hasVotedToEnd}
-              className={`px-6 py-3 rounded-lg font-bold transition-all uppercase text-sm shadow-lg
-                ${hasVotedToEnd ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-red-600 hover:bg-red-500 text-white'}`}
-            >
-              {hasVotedToEnd ? 'Waiting...' : 'Vote to end'}
-            </button>
+          <div className="flex items-stretch gap-3 sm:gap-6">
+            {/* Timer Display */}
+            <div className="flex items-center justify-center text-xl sm:text-3xl font-black bg-slate-800 px-3 sm:px-6 rounded-lg sm:rounded-xl border border-slate-700 shadow-lg tracking-wider py-1.5 sm:py-2">
+              {timeLeft <= 60 ? (
+                <span className="text-red-500 animate-pulse">{formatTime(timeLeft)}</span>
+              ) : (
+                <span className="text-white">{formatTime(timeLeft)}</span>
+              )}
+            </div>
+            
+            <div className="flex items-stretch gap-2 sm:gap-4">
+              <span className="text-slate-400 font-medium hidden md:flex items-center">
+                Votes to end:&nbsp;<strong className="text-white">{readyPlayers.length} / {votesNeeded}</strong>
+              </span>
+              <button 
+                onClick={handleVoteEndRound}
+                disabled={hasVotedToEnd}
+                className={`flex items-center justify-center whitespace-nowrap px-3 sm:px-6 rounded-lg font-bold transition-all uppercase text-[10px] sm:text-sm shadow-lg
+                  ${hasVotedToEnd ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-red-600 hover:bg-red-500 text-white'}`}
+              >
+                {hasVotedToEnd ? 'Wait...' : 'End Vote'}
+              </button>
+            </div>
           </div>
         </div>
         

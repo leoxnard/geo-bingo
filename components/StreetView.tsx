@@ -7,19 +7,22 @@ import { supabase } from '../lib/supabase';
 import { FaEye, FaCamera } from 'react-icons/fa';
 
 const safeStartCenter = { lat: 48.137154, lng: 11.576124 }; 
-const mapOptions = { streetViewControl: true, mapTypeControl: false, gestureHandling: 'greedy', fullscreenControl: false };
+const mapOptions = { streetViewControl: true, mapTypeControl: false, gestureHandling: 'greedy', fullscreenControl: false, zoomControl: false };
 const panoOptions = { 
   addressControl: false, 
   showRoadLabels: false, 
   enableCloseButton: false, 
   fullscreenControl: false,
-  visible: false, // Start hidden so we don't block the map
-  // position: safeStartCenter // COMMENTED OUT: Caused starting at Marienplatz every time
+  zoomControl: false,
+  panControl: false,
+  linksControl: false,
+  visible: false,
 };
 
 interface Submission {
   id: string; category: string; lat: number; lng: number; heading: number; pitch: number; zoom: number;
 }
+
 interface StreetViewProps {
   categories: string[]; gameId: string; playerId: string; 
   gameMode?: 'list' | 'bingo'; gridSize?: number;
@@ -163,7 +166,7 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
         <button
           type="button"
           onClick={toggleFullscreen}
-          className="absolute top-2 right-2 z-[1000] w-12 h-12 bg-slate-800/80 hover:bg-slate-700 text-white flex items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-slate-500 font-bold transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm"
+          className="absolute top-2 right-2 z-[1000] hidden sm:flex w-12 h-12 bg-slate-800/30 hover:bg-slate-700/80 text-white items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-slate-500 font-bold transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm"
           title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
         >
           {isFullscreen ? (
@@ -181,7 +184,7 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
           <button
             type="button"
             onClick={() => streetViewRef.current?.setVisible(false)}
-            className="absolute top-2 left-2 z-[1000] w-12 h-12 bg-red-500/30 hover:bg-red-500 text-white flex items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-red-400 font-bold text-2xl transition-transform hover:scale-105 active:scale-95"
+            className="absolute top-2 left-2 z-[1000] w-12 h-12 bg-red-500/30 hover:bg-red-500/80 text-white flex items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-red-400 font-bold text-2xl transition-transform hover:scale-105 active:scale-95"
             title="Exit Street View"
           >
             ✕
@@ -278,7 +281,7 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
                     border-slate-600 ${foundSub ? 'text-white border-green-500' : 'bg-slate-800 hover:bg-slate-700'}`}
                 >
                   {foundSub && <div className="absolute inset-0 bg-black/40 z-0"></div>}
-                  <span className={`relative z-10 ${getSidebarTextSizeClass()} font-bold leading-tight line-clamp-2 [hyphens:auto] [word-break:break-word] mt-1 ${foundSub ? 'text-green-400 drop-shadow-md' : 'text-white'}`}>
+                  <span className={`relative z-10 ${getSidebarTextSizeClass()} font-bold leading-tight line-clamp-2 [hyphens:auto] [word-break:break-word] mt-1 ${foundSub ? 'text-green-400 drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)]' : 'text-white'}`}>
                     {cat}
                   </span>
                   
@@ -300,7 +303,7 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
                            type="button"
                            title="View submission"
                            onClick={(e) => { e.stopPropagation(); jumpToLocation(foundSub); }}
-                           className="flex-1 h-full bg-slate-600 hover:bg-slate-500 text-white font-bold rounded-lg uppercase flex justify-center items-center"
+                           className="hidden sm:flex flex-1 h-full bg-slate-600 hover:bg-slate-500 text-white font-bold rounded-lg uppercase justify-center items-center"
                          >
                            <FaEye className="h-[60%] w-auto" />
                          </button>

@@ -175,7 +175,7 @@ export default function VotingView({ gameId, isHost, categories, playerId, total
               const totalVotesCast = yesVotes + noVotes;
               const myVote = votesMap[playerId];
 
-              let statusOverlay = (
+              const statusOverlay = (
                 <div className="absolute top-2 right-2 bg-indigo-600 px-3 py-1 rounded shadow uppercase font-bold text-xs">
                   {yesVotes} Points
                 </div>
