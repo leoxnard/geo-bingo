@@ -18,6 +18,15 @@ interface Player {
   bingo_board?: string[];
 }
 
+const shuffle = <T,>(array: T[]): T[] => {
+    const newArr = [...array];
+    for (let i = newArr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+    }
+    return newArr;
+};
+
 export default function GameRoom({ params }: { params: Promise<{ id: string }> }) {
     const unwrappedParams = use(params);
     const gameId = unwrappedParams.id;
@@ -30,9 +39,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [randomLang, setRandomLang] = useState<'german' | 'english'>('german');
     const [randomCount, setRandomCount] = useState<number | ''>(4);
     const [isHost, setIsHost] = useState(false);
-    const [gameHostId, setGameHostId] = useState<string>(''); // NEW
-    const [timeLimit, setTimeLimit] = useState(300); // 5 minutes standard
-  
+    const [gameHostId, setGameHostId] = useState<string>('');
+    const [timeLimit, setTimeLimit] = useState(300);  
     const categoryInputRef = useRef<HTMLInputElement>(null);
     const selfNameInputRef = useRef<HTMLInputElement>(null);
     const [isEditingSelfName, setIsEditingSelfName] = useState(false);
@@ -42,6 +50,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [gameMode, setGameMode] = useState<'list' | 'bingo'>('list');
     const [gridSize, setGridSize] = useState(3);
     const [bingoTarget, setBingoTarget] = useState(3);
+    const [bingoBoardMode, setBingoBoardMode] = useState<'shared' | 'individual'>('shared');
   
     // Players & Voting
     const [playerId, setPlayerId] = useState<string>('');
@@ -51,7 +60,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [bannedPlayers, setBannedPlayers] = useState<string[]>([]);
     const [gameLoaded, setGameLoaded] = useState(false);
 
-    const [timeLeft, setTimeLeft] = useState<number>(timeLimit);
+    const [timeLeft, setTimeLeft] = useState<number>(0);
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
     const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -537,18 +546,58 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             return;
         }
 
+        const generateBoards = async (neededCount: number): Promise<boolean> => {
+            try {
+                // Option 1: Everyone gets the same board in the same order
+                if (bingoBoardMode === 'shared') {
+                    const board = categories.slice(0, neededCount);
+                    const { error } = await supabase
+                        .from('players')
+                        .update({ bingo_board: board })
+                        .eq('game_id', gameId);
+                    
+                    if (error) throw error;
+                } 
+                
+                // Option 2: Everyone different order and different words
+                else if (bingoBoardMode === 'individual') {
+                    const { data: playersData, error: fetchError } = await supabase
+                        .from('players')
+                        .select('id')
+                        .eq('game_id', gameId);
+
+                    if (fetchError || !playersData) throw fetchError;
+
+                    const promises = playersData.map((player) => {
+                        const individualBoard = shuffle([...categories]).slice(0, neededCount);
+
+                        return supabase
+                            .from('players')
+                            .update({ bingo_board: individualBoard })
+                            .eq('id', player.id);
+                    });
+
+                    const results = await Promise.all(promises);
+                    
+                    const firstError = results.find(r => r.error);
+                    if (firstError) throw firstError.error;
+                }
+
+                return true;
+            } catch (err) {
+                console.error("Board generation failed:", err);
+                return false;
+            }
+        };
+
         if (gameMode === 'bingo') {
             const neededCount = gridSize * gridSize;
             if (categories.length < neededCount) {
                 showToast(`Please add at least ${neededCount} categories (current: ${categories.length}).`);
                 return;
             }
-            // Generate a distinct shuffled board for EACH player
-            const promises = players.map(p => {
-                const shuffledPool = [...categories].sort(() => Math.random() - 0.5).slice(0, neededCount);
-                return supabase.from('players').update({ bingo_board: shuffledPool }).eq('id', p.id);
-            });
-            await Promise.all(promises);
+            const success = await generateBoards(neededCount);
+            if (!success) return; 
         }
         updateStatus('playing');
     };
@@ -713,6 +762,31 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                                         className="w-full accent-indigo-500" 
                                     />
                                 </div>
+                                <div>
+                                    <label className="flex justify-between font-bold mb-2 text-sm">
+                                        <span>Bingo Board Mode</span>
+                                    </label>
+                                    <div className="flex bg-slate-900 rounded-lg p-1">
+                                        <button 
+                                            onClick={() => setBingoBoardMode('shared')}
+                                            disabled={!isHost}
+                                            className={`flex-1 py-2 text-sm rounded-md font-bold transition-all ${bingoBoardMode === 'shared' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                                        >
+                                            Shared
+                                        </button>
+                                        <button 
+                                            onClick={() => setBingoBoardMode('individual')}
+                                            disabled={!isHost}
+                                            className={`flex-1 py-2 text-sm rounded-md font-bold transition-all ${bingoBoardMode === 'individual' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                                        >
+                                            Individual
+                                        </button>
+                                    </div>
+                                    <p className="mt-2 text-xs text-slate-400 text-center min-h-[16px]">
+                                        {bingoBoardMode === 'shared' && 'Same board for all players.'}
+                                        {bingoBoardMode === 'individual' && 'Different words and positions for each player.'}
+                                    </p>
+                                </div>
                             </div>
                         )}
 
@@ -738,7 +812,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                             <span>Categories</span>
                             <div className="flex gap-2 items-center">
                                 <span className={`text-sm font-normal ${categories.length === 0 || (gameMode === 'bingo' && categories.length < gridSize * gridSize) ? 'text-red-400' : 'text-slate-400'} bg-slate-900 px-3 py-1 rounded-full`}>
-                                    {gameMode === 'bingo' ? `${Math.min(categories.length, gridSize * gridSize)} / ${gridSize * gridSize}` : `${categories.length} Words`}
+                                    {gameMode === 'bingo' && bingoBoardMode === 'shared' ? `${Math.min(categories.length, gridSize * gridSize)} / ${gridSize * gridSize}` : `${categories.length} Words`}
                                 </span>
                                 {isHost && (
                                     <button 
@@ -752,7 +826,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                             </div>
                         </h3>
 
-                        {gameMode === 'bingo' ? (
+                        {gameMode === 'bingo' && bingoBoardMode === 'shared' ? (
                             <div 
                                 className={`grid gap-3 mb-6 bingo-grid-${gridSize}`}
                             >
