@@ -253,7 +253,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         const presenceChannel = supabase.channel(`presence-${gameId}`);
     
         presenceChannel
-            .on('presence', { event: 'sync' }, () => {
+            .on('presence', { event: 'sync' }, async () => {
                 const state = presenceChannel.presenceState();
                 const onlineIds: string[] = [];
                 for (const id in state) {
@@ -262,7 +262,35 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                         if (presence.player_id) onlineIds.push(presence.player_id);
                     });
                 }
-                setOnlinePlayers(onlineIds);
+                const uniqueOnlineIds = Array.from(new Set(onlineIds));
+                setOnlinePlayers(uniqueOnlineIds);
+
+                // If host disconnects (but still exists in players table), reassign host to next online player.
+                const { data: liveGame } = await supabase
+                    .from('games')
+                    .select('host_id, status')
+                    .eq('id', gameId)
+                    .single();
+
+                if (!liveGame || liveGame.status !== 'lobby') return;
+                if (!liveGame.host_id || uniqueOnlineIds.includes(liveGame.host_id)) return;
+
+                const { data: lobbyPlayers } = await supabase
+                    .from('players')
+                    .select('id')
+                    .eq('game_id', gameId);
+
+                const nextHostId = (lobbyPlayers || [])
+                    .map((p: { id: string }) => p.id)
+                    .find((id) => uniqueOnlineIds.includes(id));
+
+                if (!nextHostId) return;
+
+                await supabase
+                    .from('games')
+                    .update({ host_id: nextHostId })
+                    .eq('id', gameId)
+                    .eq('host_id', liveGame.host_id);
             })
             .subscribe(async (status) => {
                 if (status === 'SUBSCRIBED') {
