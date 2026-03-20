@@ -603,7 +603,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                           {isHost && (
                             <button 
                               onClick={() => removeCategory(cat)} 
-                              className="absolute top-1 right-1 text-red-400 hover:text-red-300 font-bold leading-none px-1 rounded-full bg-slate-800 hover:bg-slate-700 transition-opacity opacity-0 group-hover:opacity-100"
+                              className="absolute top-1 right-1 text-red-400 hover:text-red-300 font-bold p-0.5 rounded-full bg-slate-800 hover:bg-slate-700 transition-opacity"
                               title="Remove word"
                             >
                               <FaTimes />
@@ -628,7 +628,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     >
                       <span>{cat}</span>
                       {isHost && (
-                        <button onClick={() => removeCategory(cat)} className="text-red-400 hover:text-red-300 font-bold px-2 rounded-full bg-slate-800 hover:bg-slate-700 p-2" title="Remove word">
+                        <button onClick={() => removeCategory(cat)} className="text-red-400 hover:text-red-300 font-bold rounded-full bg-slate-800 hover:bg-slate-700 p-2" title="Remove word">
                           <FaTimes />
                         </button>
                       )}
