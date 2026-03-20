@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, use, useEffect, useRef, useCallback } from 'react';
-import { FaRegCopy, FaCopy, FaTimes } from "react-icons/fa";
+import { FaRegCopy, FaCopy, FaTimes, FaRegEdit } from "react-icons/fa";
 import { useRouter } from 'next/navigation';
 import StreetView from '../../../components/StreetView';
 import VotingView from '../../../components/VotingView';
@@ -86,6 +86,31 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         navigator.clipboard.writeText(currentLink);
         setCopiedLink(true);
         setTimeout(() => setCopiedLink(false), 800);
+    };
+
+    const handleRenameSelf = async () => {
+        if (!playerId) return;
+
+        const currentName = players.find((p) => p.id === playerId)?.name || localStorage.getItem('geoBingoPlayerName') || '';
+        const nextName = window.prompt('Enter your new name:', currentName)?.trim();
+
+        if (!nextName || nextName === currentName) return;
+
+        localStorage.setItem('geoBingoPlayerName', nextName);
+        setPlayers((prev) => prev.map((p) => (p.id === playerId ? { ...p, name: nextName } : p)));
+
+        const { error } = await supabase.from('players').update({ name: nextName }).eq('id', playerId);
+        if (error) {
+            showToast('Could not update name. Please try again.');
+            return;
+        }
+
+        showToast('Name updated.');
+    };
+
+    const handleLeaveLobby = () => {
+        localStorage.setItem('geoBingoLastLobbyId', gameId);
+        router.push('/');
     };
 
     // The definitive engine (Setup Identity, Game, Players)
@@ -818,9 +843,21 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                                                 className={`min-w-[8px] h-2 rounded-full animate-pulse ${onlinePlayers.includes(p.id) ? 'bg-green-500' : 'bg-orange-500'}`}
                                                 title={onlinePlayers.includes(p.id) ? 'Online' : 'Verbindung verloren'}
                                             ></div>
+                                            <div className="flex-1 min-w-0 flex items-center gap-2">
                                             <span className={`flex-1 truncate ${p.id === playerId ? 'text-green-400' : 'text-white'}`}>
                                                 {p.name} {p.id === gameHostId ? '(Host)' : ''}
                                             </span>
+                                                {p.id === playerId && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleRenameSelf}
+                                                        className="text-slate-400 hover:text-white transition-colors p-1 rounded"
+                                                        title="Rename yourself"
+                                                    >
+                                                        <FaRegEdit className="text-xs" />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                         {isHost && p.id !== playerId && (
                                             <div className="flex gap-2 w-full mt-1 border-t border-slate-800 pt-2">
