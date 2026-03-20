@@ -7,6 +7,7 @@ import StreetView from '../../../components/StreetView';
 import VotingView from '../../../components/VotingView';
 import PodiumView from '../../../components/PodiumView';
 import { supabase } from '../../../lib/supabase';
+import { adjectives, animals } from '../../../lib/names';
 import Image from 'next/image';
 
 type GameStatus = 'lobby' | 'playing' | 'voting' | 'finished';
@@ -103,7 +104,13 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
         const initializeRoom = async () => {
             // Name still comes from localStorage so you don't have to retype it
-            const playerName = localStorage.getItem('geoBingoPlayerName') || 'Unknown Player';
+            const storedName = localStorage.getItem('geoBingoPlayerName') || '';
+            const playerName = storedName.trim() && storedName !== 'Unknown Player'
+                ? storedName
+                : `${adjectives[Math.floor(Math.random() * adjectives.length)]}${animals[Math.floor(Math.random() * animals.length)]}`;
+            if (!storedName.trim() || storedName === 'Unknown Player') {
+                localStorage.setItem('geoBingoPlayerName', playerName);
+            }
 
             // 2. Setup or Load the Game Room
             const { data: gameData } = await supabase.from('games').select('*').eq('id', gameId).single();
