@@ -7,6 +7,7 @@ import StreetView from '../../../components/StreetView';
 import VotingView from '../../../components/VotingView';
 import PodiumView from '../../../components/PodiumView';
 import { supabase } from '../../../lib/supabase';
+import Image from 'next/image';
 
 type GameStatus = 'lobby' | 'playing' | 'voting' | 'finished';
 
@@ -485,7 +486,16 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
           <FaArrowLeft /> Home
         </button>
         {renderToast()}
-        <h1 className="text-4xl font-bold text-slate mb-8 tracking-tighter">Geo Bingo</h1>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-12">
+          <Image 
+            src="/mappin.and.ellipse.png"
+            alt="Geo Bingo Logo"
+            width={80}
+            height={80}
+            className="w-auto h-auto drop-shadow-[0_0_15px_rgba(96,165,250,0.5)] transform-gpu transition-transform"
+          />
+          <h1 className="text-6xl font-bold text-indigo-400 tracking-tighter">GEO BINGO</h1>
+        </div>
 
         <div className="flex flex-col lg:flex-row gap-6 w-full max-w-4xl">
           
@@ -498,14 +508,14 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
               <button 
                 onClick={() => updateGameModeInfo({ game_mode: 'list' })}
                 disabled={!isHost}
-                className={`flex-1 py-2 rounded-md font-bold transition-all ${gameMode === 'list' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                className={`flex-1 py-2 rounded-md font-bold transition-all ${gameMode === 'list' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
               >
                 List
               </button>
               <button 
                 onClick={() => updateGameModeInfo({ game_mode: 'bingo' })}
                 disabled={!isHost}
-                className={`flex-1 py-2 rounded-md font-bold transition-all ${gameMode === 'bingo' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                className={`flex-1 py-2 rounded-md font-bold transition-all ${gameMode === 'bingo' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
               >
                 Bingo Grid
               </button>
@@ -522,7 +532,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     title="Adjust the grid size"
                     type="range" min="2" max="5" step="1" value={gridSize} disabled={!isHost} 
                     onChange={(e) => updateGameModeInfo({ grid_size: parseInt(e.target.value) })}
-                    className="w-full accent-blue-500" 
+                    className="w-full accent-indigo-500" 
                   />
                 </div>
                 <div>
@@ -534,7 +544,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     title="Adjust the required length for a Bingo"
                     type="range" min="2" max={gridSize} step="1" value={bingoTarget} disabled={!isHost}
                     onChange={(e) => updateGameModeInfo({ bingo_target: parseInt(e.target.value) })}
-                    className="w-full accent-blue-500" 
+                    className="w-full accent-indigo-500" 
                   />
                 </div>
               </div>
@@ -544,7 +554,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             <div className="mb-8 p-4 bg-slate-900 rounded-lg">
               <label htmlFor="time-limit-range" className="flex justify-between font-bold mb-2 cursor-pointer">
                 <span>Time Limit</span>
-                <span className="text-blue-400">{timeLimit / 60} Minutes</span>
+                <span className="text-indigo-400">{timeLimit / 60} Minutes</span>
               </label>
               <input 
                 id="time-limit-range"
@@ -552,7 +562,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 value={timeLimit / 60}
                 disabled={!isHost}
                 onChange={(e) => updateTimeLimit(parseInt(e.target.value))}
-                className="w-full cursor-pointer accent-blue-500"
+                className="w-full cursor-pointer accent-indigo-500"
                 title="Adjust the game time limit in minutes"
               />
               {!isHost && <p className="text-xs text-slate-500 mt-2 italic">Only the host can adjust the time limit.</p>}
@@ -590,7 +600,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                         ${cat ? 'bg-slate-700 border-slate-600' : 'bg-slate-800/50 border-dashed border-slate-600/50 text-slate-500'}
                         ${isHost && cat ? 'cursor-grab active:cursor-grabbing hover:bg-slate-600' : ''}
                         ${isHost && !cat ? 'cursor-default' : ''}
-                        ${isDragging ? 'opacity-50 scale-95 border-blue-500' : ''}
+                        ${isDragging ? 'opacity-50 scale-95 border-indigo-500' : ''}
                       `}
                       draggable={isHost && !!cat}
                       onDragStart={(e) => handleDragStart(e, i)}
@@ -651,9 +661,9 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                       }
                     }}
                     placeholder="Custom category..."
-                    className="flex-1 p-3 rounded-lg bg-slate-900 border border-slate-600 text-white outline-none focus:border-blue-500"
+                    className="flex-1 p-3 rounded-lg bg-slate-900 border border-slate-600 text-white outline-none focus:border-indigo-500"
                   />
-                  <button onClick={addCategory} className="bg-blue-600 hover:bg-blue-500 px-6 rounded-lg font-bold">Add</button>
+                  <button onClick={addCategory} className="bg-indigo-600 hover:bg-indigo-500 px-6 rounded-lg font-bold">Add</button>
                 </div>
                 
                 <div className="flex gap-3 mt-4 bg-slate-700/40 p-4 rounded-xl border border-slate-600">
@@ -690,7 +700,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                   <div className="flex flex-col justify-end">
                     <button 
                       onClick={addRandomCategories} 
-                      className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg font-bold h-[42px] whitespace-nowrap shadow-md transition-all text-sm tracking-wider"
+                      className="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg font-bold h-[42px] whitespace-nowrap shadow-md transition-all text-sm tracking-wider"
                     >
                       Random
                     </button>
@@ -801,7 +811,16 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
       <div className="min-h-screen p-4 bg-slate-900">
         {renderToast()}
         <div className="flex justify-between items-center mb-4 w-full max-w-[95%] xl:max-w-[90vw] mx-auto text-white">
-          <h1 className="text-2xl font-bold text-blue-400">Hunt in Progress</h1>
+          <div className="flex items-center gap-4">
+            <Image 
+              src="/mappin.and.ellipse.png"
+              alt="Geo Bingo Logo"
+              width={40}
+              height={40}
+              className="w-auto h-auto drop-shadow-[0_0_10px_rgba(96,165,250,0.5)] transform-gpu"
+            />
+            <h1 className="text-2xl font-bold text-indigo-400">Hunt in Progress</h1>
+          </div>
           
           {/* Timer Display */}
           <div className="text-3xl font-black bg-slate-800 px-6 py-2 rounded-xl border border-slate-700 shadow-lg tracking-wider">
@@ -852,7 +871,16 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
       <div className="min-h-screen flex flex-col items-center p-4 bg-slate-900 text-white">
         {renderToast()}
         <div className="w-full max-w-[95%] xl:max-w-[90vw] flex justify-between items-center mb-8 mt-4">
-          <h1 className="text-4xl font-black uppercase tracking-widest text-blue-400">Voting Phase</h1>
+          <div className="flex items-center gap-4">
+            <Image 
+              src="/mappin.and.ellipse.png"
+              alt="Geo Bingo Logo"
+              width={50}
+              height={50}
+              className="w-auto h-auto drop-shadow-[0_0_10px_rgba(96,165,250,0.5)] transform-gpu hidden sm:block"
+            />
+            <h1 className="text-4xl font-black uppercase tracking-widest text-indigo-400">Voting Phase</h1>
+          </div>
         </div>
 
         <div className="w-full max-w-[95%] xl:max-w-[90vw]">
@@ -875,7 +903,16 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
       <div className="min-h-screen flex flex-col items-center p-4 bg-slate-900 text-white">
         {renderToast()}
         <div className="w-full max-w-5xl flex justify-between items-center mb-4 mt-4">
-          <h1 className="text-4xl font-black uppercase tracking-widest text-blue-400">Final Results</h1>
+          <div className="flex items-center gap-4">
+            <Image 
+              src="/mappin.and.ellipse.png"
+              alt="Geo Bingo Logo"
+              width={50}
+              height={50}
+              className="w-auto h-auto drop-shadow-[0_0_10px_rgba(96,165,250,0.5)] transform-gpu hidden sm:block"
+            />
+            <h1 className="text-4xl font-black uppercase tracking-widest text-indigo-400">Final Results</h1>
+          </div>
           {isHost ? (
             <button 
               onClick={async () => {
@@ -885,7 +922,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 const { error } = await supabase.from('games').update({ status: 'lobby', ready_players: [] }).eq('id', gameId);
                 if (error) console.error("Error returning to lobby:", error);
               }}
-              className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-lg transition-all uppercase text-sm tracking-wide shadow-lg"
+              className="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 rounded-lg transition-all uppercase text-sm tracking-wide shadow-lg"
             >
               Back to Lobby
             </button>

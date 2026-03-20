@@ -122,7 +122,7 @@ export default function VotingView({ gameId, isHost, categories, playerId, total
             <button
               key={cat} onClick={() => setActiveCategory(cat)}
               className={`text-left px-4 py-3 rounded-xl font-medium transition-all flex justify-between items-center ${
-                activeCategory === cat ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                activeCategory === cat ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
               }`}
             >
               <span className="truncate pr-2">{cat}</span>
@@ -140,14 +140,14 @@ export default function VotingView({ gameId, isHost, categories, playerId, total
               <p className="text-xs text-slate-400 font-bold uppercase mb-1">
                 Progress:
               </p>
-              <p className="text-lg font-black text-blue-400">
+              <p className="text-lg font-black text-indigo-400">
                 {playersWhoFinishedVoting.length} / {totalPlayers} <span className="text-sm font-normal text-slate-400">done</span>
               </p>
             </div>
             
             <button 
               onClick={onFinishGame}
-              className="font-bold py-4 rounded-xl uppercase tracking-wide shadow-lg transition-all bg-purple-600 hover:bg-purple-500 text-white"
+              className="font-bold py-4 rounded-xl uppercase tracking-wide shadow-lg transition-all bg-green-600 hover:bg-green-500 text-white"
             >
               Show Podium
             </button>
@@ -160,7 +160,7 @@ export default function VotingView({ gameId, isHost, categories, playerId, total
 
       {/* RIGHT: Image Gallery & Voting */}
       <div className="flex-1 bg-slate-800 p-6 rounded-2xl border border-slate-700 min-h-[500px] overflow-y-auto">
-        <h2 className="text-2xl font-bold text-blue-400 mb-6 border-b border-slate-700 pb-4">
+        <h2 className="text-2xl font-bold text-indigo-400 mb-6 border-b border-slate-700 pb-4">
           Reviewing: <span className="text-white">{activeCategory}</span>
         </h2>
 
@@ -176,7 +176,7 @@ export default function VotingView({ gameId, isHost, categories, playerId, total
               const myVote = votesMap[playerId];
 
               let statusOverlay = (
-                <div className="absolute top-2 right-2 bg-blue-600 px-3 py-1 rounded shadow uppercase font-bold text-xs">
+                <div className="absolute top-2 right-2 bg-indigo-600 px-3 py-1 rounded shadow uppercase font-bold text-xs">
                   {yesVotes} Points
                 </div>
               );
@@ -201,7 +201,7 @@ export default function VotingView({ gameId, isHost, categories, playerId, total
 
                   <div className="p-4">
                     <p className="text-lg font-bold text-slate-200 mb-2">
-                      <span className="text-blue-400">{playersMap[sub.player_id] || 'Unknown'}</span>
+                      <span className="text-indigo-400">{playersMap[sub.player_id] || 'Unknown'}</span>
                     </p>
                     
                     <div className="w-full h-2 bg-slate-700 rounded overflow-hidden flex mb-4">

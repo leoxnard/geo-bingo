@@ -125,7 +125,7 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
     setInStreetView(true);
   };
 
-  if (!isLoaded) return <div className="h-screen flex items-center justify-center text-blue-400">Loading Maps...</div>;
+  if (!isLoaded) return <div className="h-screen flex items-center justify-center text-indigo-400">Loading Maps...</div>;
 
   // Dynamically size sidebar to avoid Tailwind JIT compiling issues
   const getSidebarWidthClass = () => {
@@ -192,7 +192,7 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
       {/* Right: Checklist */}
       <div className={`w-full ${getSidebarWidthClass()} flex flex-col gap-4 bg-slate-800 p-6 rounded-2xl shadow-xl h-full border border-slate-700 overflow-y-auto transition-all`}>
         <div className="flex justify-between items-center mb-2 border-b border-slate-700 pb-2">
-          <h2 className="text-blue-400 font-bold text-xl tracking-wide uppercase">
+          <h2 className="text-indigo-400 font-bold text-xl tracking-wide uppercase">
             {gameMode === 'bingo' ? 'Bingo Board' : 'Checklist'}
           </h2>
           <span className="bg-slate-700 text-slate-300 font-bold px-3 py-1 rounded-full text-sm">

@@ -256,9 +256,9 @@ export default function PodiumView({ gameId }: PodiumViewProps) {
               <div className="flex justify-between items-center border-b border-slate-800 pb-4">
                 <div className="flex items-center gap-3">
                   <span className="text-2xl font-black text-slate-600">#{player.rank}</span>
-                  <span className="font-bold text-xl text-blue-400">{player.name}</span>
+                  <span className="font-bold text-xl text-indigo-400">{player.name}</span>
                 </div>
-                <span className="bg-blue-600 px-4 py-1 rounded-lg text-lg font-bold text-white shadow-lg">
+                <span className="bg-indigo-600 px-4 py-1 rounded-lg text-lg font-bold text-white shadow-lg">
                   {player.score} Pts
                 </span>
               </div>

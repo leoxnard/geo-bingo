@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 
 import { adjectives, badAdjectives, animals } from '../lib/names';
 
@@ -38,7 +39,16 @@ export default function Home() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-24 bg-slate-900 text-white">
-      <h1 className="text-6xl font-bold mb-8 text-blue-400 tracking-tighter">GEO BINGO</h1>
+      <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-12 hover">
+        <Image 
+          src="/mappin.and.ellipse.png"
+          alt="Geo Bingo Logo"
+          width={80}
+          height={80}
+          className="w-auto h-auto drop-shadow-[0_0_15px_rgba(96,165,250,0.5)] transform-gpu transition-transform"
+        />
+        <h1 className="text-6xl font-bold text-indigo-400 tracking-tighter">GEO BINGO</h1>
+      </div>
       
       <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700 w-full max-w-md flex flex-col gap-6">
         
@@ -50,7 +60,7 @@ export default function Home() {
           <input 
             type="text" 
             placeholder="Enter your name..."
-            className="w-full p-4 rounded-xl bg-slate-900 border border-slate-600 focus:outline-none focus:border-blue-500 text-white font-medium text-lg"
+            className="w-full p-4 rounded-xl bg-slate-900 border border-slate-600 focus:outline-none focus:border-indigo-500 text-white font-medium text-lg"
             value={playerName}
             onChange={(e) => setPlayerName(e.target.value)}
           />
@@ -60,7 +70,7 @@ export default function Home() {
 
         <button 
           onClick={createGame}
-          className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl transition-all tracking-wide uppercase"
+          className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-xl transition-all tracking-wide uppercase"
         >
           Create New Game
         </button>
@@ -71,7 +81,7 @@ export default function Home() {
           <input 
             type="text" 
             placeholder="Enter Lobby ID..."
-            className="p-4 rounded-xl bg-slate-700 border border-slate-600 focus:outline-none focus:border-blue-500 text-white font-medium"
+            className="p-4 rounded-xl bg-slate-700 border border-slate-600 focus:outline-none focus:border-indigo-500 text-white font-medium"
             value={lobbyId}
             onChange={(e) => setLobbyId(e.target.value)}
           />
