@@ -1,4 +1,4 @@
-import React from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { FaRegCopy, FaCopy, FaTimes, FaRegEdit } from "react-icons/fa";
 
@@ -8,6 +8,8 @@ interface Player {
     bingo_board?: string[];
 }
 
+type GameStatus = 'lobby' | 'playing' | 'voting' | 'finished';
+
 interface LobbyViewProps {
     renderToast: () => React.ReactNode;
     gameMode: 'list' | 'bingo';
@@ -15,39 +17,16 @@ interface LobbyViewProps {
     isHost: boolean;
     gridSize: number;
     bingoTarget: number;
-    bingoBoardMode: 'shared' | 'individual';
-    setBingoBoardMode: (val: 'shared' | 'individual') => void;
     timeLimit: number;
     updateTimeLimit: (minutes: number) => void;
     categories: string[];
-    clearCategories: () => void;
-    getSidebarTextSizeClass: () => string;
-    draggedIndex: number | null;
-    handleDragStart: (e: React.DragEvent, index: number) => void;
-    handleDragOver: (e: React.DragEvent) => void;
-    handleDrop: (e: React.DragEvent, targetIndex: number) => void;
-    removeCategory: (cat: string) => void;
-    categoryInputRef: React.RefObject<HTMLInputElement | null>;
-    newCategory: string;
-    setNewCategory: (val: string) => void;
-    addCategory: () => void;
-    randomCount: number | '';
-    setRandomCount: (val: number | '') => void;
-    randomLang: 'german' | 'english';
-    setRandomLang: (val: 'german' | 'english') => void;
-    addRandomCategories: () => void;
     gameId: string;
-    handleCopyGameId: () => void;
-    copied: boolean;
-    currentLink: string;
-    handleCopyGameLink: () => void;
-    copiedLink: boolean;
     players: Player[];
     onlinePlayers: string[];
     playerId: string;
     isEditingSelfName: boolean;
     setIsEditingSelfName: (val: boolean) => void;
-    selfNameInputRef: any;
+    selfNameInputRef: React.RefObject<HTMLInputElement | null>;
     selfNameInput: string;
     setSelfNameInput: (val: string) => void;
     saveSelfName: () => void;
@@ -56,22 +35,246 @@ interface LobbyViewProps {
     makeHost: (id: string) => void;
     kickPlayer: (id: string) => void;
     banPlayer: (id: string) => void;
-    handleStartGame: () => void;
-    handleLeaveLobby: () => void;
+    showToast : (message: string) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    router: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    supabase: any;
+    updateStatus: (nextStatus: GameStatus) => Promise<void>;
 }
 
+const shuffle = <T,>(array: T[]): T[] => {
+    const newArr = [...array];
+    for (let i = newArr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+    }
+    return newArr;
+};
+
 export default function LobbyView({
-    renderToast, gameMode, updateGameModeInfo, isHost, gridSize, bingoTarget,
-    bingoBoardMode, setBingoBoardMode, timeLimit, updateTimeLimit, categories,
-    clearCategories, getSidebarTextSizeClass, draggedIndex, handleDragStart,
-    handleDragOver, handleDrop, removeCategory, categoryInputRef, newCategory,
-    setNewCategory, addCategory, randomCount, setRandomCount, randomLang,
-    setRandomLang, addRandomCategories, gameId, handleCopyGameId, copied,
-    currentLink, handleCopyGameLink, copiedLink, players, onlinePlayers,
+    renderToast, gameMode, isHost, gridSize, bingoTarget, updateGameModeInfo,
+    timeLimit, updateTimeLimit, categories,
+    gameId, players, onlinePlayers,
     playerId, isEditingSelfName, setIsEditingSelfName, selfNameInputRef,
     selfNameInput, setSelfNameInput, saveSelfName, gameHostId, handleRenameSelf,
-    makeHost, kickPlayer, banPlayer, handleStartGame, handleLeaveLobby
+    makeHost, kickPlayer, banPlayer, showToast, router, supabase, updateStatus
 }: LobbyViewProps) {
+
+    const [bingoBoardMode, setBingoBoardMode] = useState<'shared' | 'individual'>('shared');
+    const [newCategory, setNewCategory] = useState('');
+    const [randomLang, setRandomLang] = useState<'german' | 'english'>('german');
+    const [randomCount, setRandomCount] = useState<number | ''>(4);
+    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+    
+    const categoryInputRef = useRef<HTMLInputElement>(null);
+    const [copied, setCopied] = useState(false);
+    const [copiedLink, setCopiedLink] = useState(false);
+    const [currentLink, setCurrentLink] = useState('');
+
+    useEffect(() => {
+        setCurrentLink(window.location.href);
+    }, []);
+
+    const getSidebarTextSizeClass = () => {
+        if (gameMode !== 'bingo') return '';
+        switch (gridSize) {
+        case 2: return 'text-base sm:text-xl';
+        case 3: return 'text-xs sm:text-xl';
+        case 4: return 'text-xs sm:text-base';
+        case 5: return 'text-[10px] sm:text-sm';
+        default: return 'text-xs sm:text-xl';
+        }
+    };
+
+    const handleCopyGameId = () => {
+        navigator.clipboard.writeText(gameId);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 800);
+    };
+
+    const handleCopyGameLink = () => {
+        navigator.clipboard.writeText(currentLink);
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 800);
+    };
+
+    const handleLeaveLobby = () => {
+        localStorage.setItem('geoBingoLastLobbyId', gameId);
+        router.push('/');
+    };
+
+    const addRandomCategories = async () => {
+        if (!isHost) return;
+        try {
+            const { categoriesDe, categoriesEn } = await import('../lib/categories');
+            const allWords = randomLang === 'german' ? categoriesDe : categoriesEn;
+        
+            // Shuffle array
+            const shuffled = [...allWords].sort(() => 0.5 - Math.random());
+        
+            // Pick top N words that are not already in categories
+            let count = Number(randomCount) || 1; // Default to 1 if empty
+        
+            if (gameMode === 'bingo') {
+                const remaining = (gridSize * gridSize) - categories.length;
+                if (remaining <= 0) {
+                    showToast(`Maximal ${gridSize * gridSize} words allowed for this Bingo grid!`);
+                    return;
+                }
+                if (count > remaining) count = remaining;
+            }
+
+            const availableWords = shuffled.filter(w => !categories.map(c => c.toLowerCase()).includes(w.toLowerCase()));
+            const selectedWords = availableWords.slice(0, count);
+
+            if (selectedWords.length > 0) {
+                const updated = [...categories, ...selectedWords];
+                await supabase.from('games').update({ categories: updated }).eq('id', gameId);
+            } else {
+                showToast("Not enough new words available!");
+            }
+        } catch (err) {
+            console.error("Error fetching random words", err);
+            showToast("Error loading random words.");
+        }
+    };
+
+    const addCategory = async () => {
+        const trimmedCat = newCategory.trim();
+        if (trimmedCat !== '' && isHost) {
+            if (gameMode === 'bingo' && categories.length >= gridSize * gridSize) {
+                showToast(`Maximal ${gridSize * gridSize} words allowed for this Bingo grid!`);
+                return;
+            }
+            if (categories.some(c => c.toLowerCase() === trimmedCat.toLowerCase())) {
+                showToast("This category already exists!");
+                return;
+            }
+            const updated = [...categories, trimmedCat];
+            await supabase.from('games').update({ categories: updated }).eq('id', gameId);
+            setNewCategory('');
+        
+            // Fokus zurück ins Eingabefeld setzen
+            setTimeout(() => {
+                categoryInputRef.current?.focus();
+            }, 50);
+        }
+    };
+
+    const removeCategory = async (catToRemove: string) => {
+        if (isHost && categories.length > 0) {
+            const updated = categories.filter(c => c !== catToRemove);
+            await supabase.from('games').update({ categories: updated }).eq('id', gameId);
+        }
+    };
+
+    const clearCategories = async () => {
+        if (isHost) {
+            await supabase.from('games').update({ categories: [] }).eq('id', gameId);
+        }
+    };
+
+    const handleDragStart = (e: React.DragEvent, index: number) => {
+        if (!isHost) return;
+        setDraggedIndex(index);
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        if (!isHost) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    };
+
+    const handleDrop = async (e: React.DragEvent, targetIndex: number) => {
+        if (!isHost) return;
+        e.preventDefault();
+        if (draggedIndex === null || draggedIndex === targetIndex) return;
+    
+        const updated = [...categories];
+        // Wenn das Ziel-Element außerhalb der Liste ist, ignoriere es
+        if (draggedIndex >= updated.length) return;
+
+        if (targetIndex >= updated.length) {
+            // If you drag to an empty field (only relevant in Bingo Grid)
+            // then simply append the element to the end of the existing words.
+            const [draggedItem] = updated.splice(draggedIndex, 1);
+            updated.push(draggedItem);
+        } else {
+            // Swappen / Vertauschen der Elemente wenn beide existieren
+            const temp = updated[draggedIndex];
+            updated[draggedIndex] = updated[targetIndex];
+            updated[targetIndex] = temp;
+        }
+    
+        setDraggedIndex(null);
+        await supabase.from('games').update({ categories: updated }).eq('id', gameId);
+    };
+
+    const handleStartGame = async () => {
+        if (categories.length === 0) {
+            showToast('Please add at least one category to start the game.');
+            return;
+        }
+
+        const generateBoards = async (neededCount: number): Promise<boolean> => {
+            try {
+                // Option 1: Everyone gets the same board in the same order
+                if (bingoBoardMode === 'shared') {
+                    const board = categories.slice(0, neededCount);
+                    const { error } = await supabase
+                        .from('players')
+                        .update({ bingo_board: board })
+                        .eq('game_id', gameId);
+                    
+                    if (error) throw error;
+                } 
+                
+                // Option 2: Everyone different order and different words
+                else if (bingoBoardMode === 'individual') {
+                    const { data: playersData, error: fetchError } = await supabase
+                        .from('players')
+                        .select('id')
+                        .eq('game_id', gameId);
+
+                    if (fetchError || !playersData) throw fetchError;
+
+                    const promises = playersData.map((player: { id: string }) => {
+                        const individualBoard = shuffle([...categories]).slice(0, neededCount);
+
+                        return supabase
+                            .from('players')
+                            .update({ bingo_board: individualBoard })
+                            .eq('id', player.id);
+                    });
+
+                    const results = await Promise.all(promises);
+                    
+                    const firstError = results.find(r => r.error);
+                    if (firstError) throw firstError.error;
+                }
+
+                return true;
+            } catch (err) {
+                console.error("Board generation failed:", err);
+                return false;
+            }
+        };
+
+        if (gameMode === 'bingo') {
+            const neededCount = gridSize * gridSize;
+            if (categories.length < neededCount) {
+                showToast(`Please add at least ${neededCount} categories (current: ${categories.length}).`);
+                return;
+            }
+            const success = await generateBoards(neededCount);
+            if (!success) return; 
+        }
+        updateStatus('playing');
+    };
+
+
     return (
         <div className="min-h-screen flex flex-col items-center p-10 bg-slate-900 text-white relative">
             {renderToast()}

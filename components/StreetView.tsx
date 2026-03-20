@@ -136,6 +136,7 @@ export default function StreetView({
     const onLoad = useCallback((pano: google.maps.StreetViewPanorama) => {
         streetViewRef.current = pano;
     
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         pano.setOptions({ source: google.maps.StreetViewSource.OUTDOOR } as any);
     
         pano.addListener('visible_changed', () => {

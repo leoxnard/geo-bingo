@@ -19,15 +19,6 @@ interface Player {
     bingo_board?: string[];
 }
 
-const shuffle = <T,>(array: T[]): T[] => {
-    const newArr = [...array];
-    for (let i = newArr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
-    }
-    return newArr;
-};
-
 export default function GameRoom({ params }: { params: Promise<{ id: string }> }) {
     const unwrappedParams = use(params);
     const gameId = unwrappedParams.id;
@@ -36,13 +27,10 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     // Game state
     const [status, setStatus] = useState<GameStatus>('lobby');
     const [categories, setCategories] = useState<string[]>([]);
-    const [newCategory, setNewCategory] = useState('');
-    const [randomLang, setRandomLang] = useState<'german' | 'english'>('german');
-    const [randomCount, setRandomCount] = useState<number | ''>(4);
+    
     const [isHost, setIsHost] = useState(false);
     const [gameHostId, setGameHostId] = useState<string>('');
     const [timeLimit, setTimeLimit] = useState(300);  
-    const categoryInputRef = useRef<HTMLInputElement>(null);
     const selfNameInputRef = useRef<HTMLInputElement>(null);
     const [isEditingSelfName, setIsEditingSelfName] = useState(false);
     const [selfNameInput, setSelfNameInput] = useState('');
@@ -51,7 +39,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [gameMode, setGameMode] = useState<'list' | 'bingo'>('list');
     const [gridSize, setGridSize] = useState(3);
     const [bingoTarget, setBingoTarget] = useState(3);
-    const [bingoBoardMode, setBingoBoardMode] = useState<'shared' | 'individual'>('shared');
   
     // Players & Voting
     const [playerId, setPlayerId] = useState<string>('');
@@ -62,28 +49,9 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [gameLoaded, setGameLoaded] = useState(false);
 
     const [timeLeft, setTimeLeft] = useState<number>(0);
-    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
     const [toastMessage, setToastMessage] = useState<string | null>(null);
-    const [copied, setCopied] = useState(false);
-    const [copiedLink, setCopiedLink] = useState(false);
-    const [currentLink, setCurrentLink] = useState('');
     const timeUpTriggeredRef = useRef(false);
-
-    const getSidebarTextSizeClass = () => {
-        if (gameMode !== 'bingo') return '';
-        switch (gridSize) {
-        case 2: return 'text-base sm:text-xl';
-        case 3: return 'text-xs sm:text-xl';
-        case 4: return 'text-xs sm:text-base';
-        case 5: return 'text-[10px] sm:text-sm';
-        default: return 'text-xs sm:text-xl';
-        }
-    };
-
-    useEffect(() => {
-        setCurrentLink(window.location.href);
-    }, []);
 
     const showToast = (message: string) => {
         setToastMessage(message);
@@ -93,6 +61,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     useEffect(() => {
         const currentName = players.find((p) => p.id === playerId)?.name;
         if (!isEditingSelfName && currentName) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setSelfNameInput(currentName);
         }
     }, [players, playerId, isEditingSelfName]);
@@ -103,18 +72,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             selfNameInputRef.current?.select();
         }
     }, [isEditingSelfName]);
-
-    const handleCopyGameId = () => {
-        navigator.clipboard.writeText(gameId);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 800);
-    };
-
-    const handleCopyGameLink = () => {
-        navigator.clipboard.writeText(currentLink);
-        setCopiedLink(true);
-        setTimeout(() => setCopiedLink(false), 800);
-    };
 
     const saveSelfName = async () => {
         if (!playerId) return;
@@ -159,9 +116,18 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         await saveSelfName();
     };
 
-    const handleLeaveLobby = () => {
-        localStorage.setItem('geoBingoLastLobbyId', gameId);
-        router.push('/');
+    const updateGameModeInfo = async (updates: { game_mode?: string; grid_size?: number; bingo_target?: number }) => {
+        if (!isHost) return;
+        if (updates.game_mode) setGameMode(updates.game_mode as 'list' | 'bingo');
+        if (updates.bingo_target) setBingoTarget(updates.bingo_target);
+        if (updates.grid_size) {
+            setGridSize(updates.grid_size);
+            if (updates.grid_size < bingoTarget) {
+                setBingoTarget(updates.grid_size);
+                updates.bingo_target = updates.grid_size;
+            }
+        }
+        await supabase.from('games').update(updates).eq('id', gameId);
     };
 
     // The definitive engine (Setup Identity, Game, Players)
@@ -173,6 +139,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             localId = crypto.randomUUID();
             sessionStorage.setItem('geoBingoSessionUUID', localId);
         }
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setPlayerId(localId);
 
         // Save ID into a constant so scope definitely propagates down to handleUnload
@@ -406,194 +373,10 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     }, [status, timeLimit, isHost, gameId, updateStatus, gameLoaded]);
 
     // --- ACTIONS ---
-    const clearCategories = async () => {
-        if (isHost) {
-            await supabase.from('games').update({ categories: [] }).eq('id', gameId);
-        }
-    };
-
-    const addCategory = async () => {
-        const trimmedCat = newCategory.trim();
-        if (trimmedCat !== '' && isHost) {
-            if (gameMode === 'bingo' && categories.length >= gridSize * gridSize) {
-                showToast(`Maximal ${gridSize * gridSize} words allowed for this Bingo grid!`);
-                return;
-            }
-            if (categories.some(c => c.toLowerCase() === trimmedCat.toLowerCase())) {
-                showToast("This category already exists!");
-                return;
-            }
-            const updated = [...categories, trimmedCat];
-            await supabase.from('games').update({ categories: updated }).eq('id', gameId);
-            setNewCategory('');
-      
-            // Fokus zurück ins Eingabefeld setzen
-            setTimeout(() => {
-                categoryInputRef.current?.focus();
-            }, 50);
-        }
-    };
-
-    const addRandomCategories = async () => {
-        if (!isHost) return;
-        try {
-            const { categoriesDe, categoriesEn } = await import('../../../lib/categories');
-            const allWords = randomLang === 'german' ? categoriesDe : categoriesEn;
-      
-            // Shuffle array
-            const shuffled = [...allWords].sort(() => 0.5 - Math.random());
-      
-            // Pick top N words that are not already in categories
-            let count = Number(randomCount) || 1; // Default to 1 if empty
-      
-            if (gameMode === 'bingo') {
-                const remaining = (gridSize * gridSize) - categories.length;
-                if (remaining <= 0) {
-                    showToast(`Maximal ${gridSize * gridSize} words allowed for this Bingo grid!`);
-                    return;
-                }
-                if (count > remaining) count = remaining;
-            }
-
-            const availableWords = shuffled.filter(w => !categories.map(c => c.toLowerCase()).includes(w.toLowerCase()));
-            const selectedWords = availableWords.slice(0, count);
-
-            if (selectedWords.length > 0) {
-                const updated = [...categories, ...selectedWords];
-                await supabase.from('games').update({ categories: updated }).eq('id', gameId);
-            } else {
-                showToast("Not enough new words available!");
-            }
-        } catch (err) {
-            console.error("Error fetching random words", err);
-            showToast("Error loading random words.");
-        }
-    };
-
-    const removeCategory = async (catToRemove: string) => {
-        if (isHost && categories.length > 0) {
-            const updated = categories.filter(c => c !== catToRemove);
-            await supabase.from('games').update({ categories: updated }).eq('id', gameId);
-        }
-    };
-
-    const handleDragStart = (e: React.DragEvent, index: number) => {
-        if (!isHost) return;
-        setDraggedIndex(index);
-        e.dataTransfer.effectAllowed = 'move';
-    };
-
-    const handleDragOver = (e: React.DragEvent) => {
-        if (!isHost) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-    };
-
-    const handleDrop = async (e: React.DragEvent, targetIndex: number) => {
-        if (!isHost) return;
-        e.preventDefault();
-        if (draggedIndex === null || draggedIndex === targetIndex) return;
-    
-        const updated = [...categories];
-        // Wenn das Ziel-Element außerhalb der Liste ist, ignoriere es
-        if (draggedIndex >= updated.length) return;
-
-        if (targetIndex >= updated.length) {
-            // If you drag to an empty field (only relevant in Bingo Grid)
-            // then simply append the element to the end of the existing words.
-            const [draggedItem] = updated.splice(draggedIndex, 1);
-            updated.push(draggedItem);
-        } else {
-            // Swappen / Vertauschen der Elemente wenn beide existieren
-            const temp = updated[draggedIndex];
-            updated[draggedIndex] = updated[targetIndex];
-            updated[targetIndex] = temp;
-        }
-    
-        setDraggedIndex(null);
-        await supabase.from('games').update({ categories: updated }).eq('id', gameId);
-    };
-
     const updateTimeLimit = async (minutes: number) => {
         const seconds = minutes * 60;
         setTimeLimit(seconds);
         await supabase.from('games').update({ time_limit: seconds }).eq('id', gameId);
-    };
-
-    const updateGameModeInfo = async (updates: { game_mode?: string; grid_size?: number; bingo_target?: number }) => {
-        if (!isHost) return;
-        if (updates.game_mode) setGameMode(updates.game_mode as 'list' | 'bingo');
-        if (updates.bingo_target) setBingoTarget(updates.bingo_target);
-        if (updates.grid_size) {
-            setGridSize(updates.grid_size);
-            if (updates.grid_size < bingoTarget) {
-                setBingoTarget(updates.grid_size);
-                updates.bingo_target = updates.grid_size;
-            }
-        }
-        await supabase.from('games').update(updates).eq('id', gameId);
-    };
-
-    const handleStartGame = async () => {
-        if (categories.length === 0) {
-            showToast('Please add at least one category to start the game.');
-            return;
-        }
-
-        const generateBoards = async (neededCount: number): Promise<boolean> => {
-            try {
-                // Option 1: Everyone gets the same board in the same order
-                if (bingoBoardMode === 'shared') {
-                    const board = categories.slice(0, neededCount);
-                    const { error } = await supabase
-                        .from('players')
-                        .update({ bingo_board: board })
-                        .eq('game_id', gameId);
-                    
-                    if (error) throw error;
-                } 
-                
-                // Option 2: Everyone different order and different words
-                else if (bingoBoardMode === 'individual') {
-                    const { data: playersData, error: fetchError } = await supabase
-                        .from('players')
-                        .select('id')
-                        .eq('game_id', gameId);
-
-                    if (fetchError || !playersData) throw fetchError;
-
-                    const promises = playersData.map((player) => {
-                        const individualBoard = shuffle([...categories]).slice(0, neededCount);
-
-                        return supabase
-                            .from('players')
-                            .update({ bingo_board: individualBoard })
-                            .eq('id', player.id);
-                    });
-
-                    const results = await Promise.all(promises);
-                    
-                    const firstError = results.find(r => r.error);
-                    if (firstError) throw firstError.error;
-                }
-
-                return true;
-            } catch (err) {
-                console.error("Board generation failed:", err);
-                return false;
-            }
-        };
-
-        if (gameMode === 'bingo') {
-            const neededCount = gridSize * gridSize;
-            if (categories.length < neededCount) {
-                showToast(`Please add at least ${neededCount} categories (current: ${categories.length}).`);
-                return;
-            }
-            const success = await generateBoards(neededCount);
-            if (!success) return; 
-        }
-        updateStatus('playing');
     };
 
     const kickPlayer = async (idToKick: string) => {
@@ -666,37 +449,14 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             <LobbyView
                 renderToast = {renderToast}
                 gameMode={gameMode}
-                updateGameModeInfo={updateGameModeInfo}
                 isHost={isHost}
                 gridSize={gridSize}
                 bingoTarget={bingoTarget}
-                bingoBoardMode={bingoBoardMode}
-                setBingoBoardMode={setBingoBoardMode}
+                updateGameModeInfo={updateGameModeInfo}
                 timeLimit={timeLimit}
                 updateTimeLimit={updateTimeLimit}
                 categories={categories}
-                clearCategories={clearCategories}
-                getSidebarTextSizeClass={getSidebarTextSizeClass}
-                draggedIndex={draggedIndex}
-                handleDragStart={handleDragStart}
-                handleDragOver={handleDragOver}
-                handleDrop={handleDrop}
-                removeCategory={removeCategory}
-                categoryInputRef={categoryInputRef}
-                newCategory={newCategory}
-                setNewCategory={setNewCategory}
-                addCategory={addCategory}
-                randomCount={randomCount}
-                setRandomCount={setRandomCount}
-                randomLang={randomLang}
-                setRandomLang={setRandomLang}
-                addRandomCategories={addRandomCategories}
                 gameId={gameId}
-                handleCopyGameId={handleCopyGameId}
-                copied={copied}
-                currentLink={currentLink}
-                handleCopyGameLink={handleCopyGameLink}
-                copiedLink={copiedLink}
                 players={players}
                 onlinePlayers={onlinePlayers}
                 playerId={playerId}
@@ -711,8 +471,10 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 makeHost={makeHost}
                 kickPlayer={kickPlayer}
                 banPlayer={banPlayer}
-                handleStartGame={handleStartGame}
-                handleLeaveLobby={handleLeaveLobby}
+                showToast={showToast}
+                router={router}
+                supabase={supabase}
+                updateStatus={updateStatus}
             />
         );
     }
