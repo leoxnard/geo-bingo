@@ -7,7 +7,12 @@ import Image from 'next/image';
 import { adjectives, badAdjectives, animals } from '../lib/names';
 
 export default function Home() {
-    const [lobbyId, setLobbyId] = useState('');
+    const [lobbyId, setLobbyId] = useState<string>(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('geoBingoLastLobbyId') || '';
+        }
+        return '';
+    });
     const [showBadNames, setShowBadNames] = useState(false);
     const router = useRouter();
     const [playerName, setPlayerName] = useState<string>(() => {

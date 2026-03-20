@@ -903,7 +903,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                             )}
             
                             <button 
-                                onClick={() => router.push('/')}
+                                onClick={handleLeaveLobby}
                                 className="w-full py-3 rounded-xl font-bold mt-3 border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
                             >
                                 LEAVE LOBBY
