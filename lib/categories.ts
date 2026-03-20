@@ -27,7 +27,14 @@ export const categoriesEn = [
   '30 km/h zone sign', 'Speed limit 50 sign', 'Paid parking zone', 
   'No-stopping sign', 'Merge sign', 'Exit sign', 'Right turn sign', 
   'Construction ahead sign', 'Right of way sign', 'Zebra crossing', 
-  'Bike lane', 'Pedestrian zone', 'Dumpster', 'Street lamp'
+  'Bike lane', 'Pedestrian zone', 'Dumpster', 'Street lamp',
+  'Unlimited sign', 'Pool', 'Red car', 'Yellow car', 'Green car', 'Blue car', 'White car', 'Black car',
+  'Silver car', 'Orange car', 'Purple car', 'Brown car', 'Pink car', 'Gray cars',
+  'Tractor', 'Motorcycle', 'Scooter', 'Bus', 'RV', 'Camper van', 'Delivery van',
+  'Tram', 'Subway sign', 'Train station sign', 'Ferry', 'Sailboat', 'Yacht', 'Canoe', 
+  'Kayak', 'Inflatable boat', 'Steamboat', 'Fishing boat', 
+  'Police boat', 'Fire boat', 'Rescue boat', 'Submarine', 'Helicopter', 'Person on phone',
+  'Waving person', 'Musician', 'Artist'
 ];
 
 export const categoriesDe = [
@@ -35,13 +42,13 @@ export const categoriesDe = [
   'Bank', 'Briefkasten', 'Bushaltestelle', 'Straßenbahn', 'Fußgängerüberweg', 
   'Parkuhr', 'Handy', 'Hund', 'Katze', 'Mensch', 'Kinderwagen', 
   'Einkaufstasche', 'Regenschirm', 'Jacke', 'Hut', 'Brille', 'Rucksack', 
-  'Koffer', 'Wagen', 'LKW', 'Bus', 'Polizeiauto', 'Feuerwehr', 
+  'Koffer', 'LKW', 'Bus', 'Polizeiauto', 'Feuerwehr', 
   'Bäckerei', 'Supermarkt', 'Apotheke', 'Bankgebäude', 'Restaurant', 
   'Café', 'Zahnarzt', 'Friseur', 'Blumenladen', 'Buchhandlung', 
   'Kino', 'Theater', 'Hotel', 'Autohaus', 'Tankstelle', 
   'Waschstraße', 'Schule', 'Kindergarten', 'Kirche', 'Moschee', 'Garten', 
   'Zaun', 'Tor', 'Stuhl', 'Tisch', 'Blumentopf', 'Flagge', 'Poster', 
-  'Graffiti', 'Handy-Laden', 'Boutique', 'Schuhgeschäft', 'Sportgeschäft', 
+  'Graffiti', 'Handy-Laden', 'Schuhgeschäft', 'Sportgeschäft', 
   'Drogerie', 'Post', 'Telefonzelle', 'Kaugummiautomat', 
   'Zeitungskiosk', 'Straßenmusiker', 'Jogger', 'Radfahrer', 'Skater', 
   'Rollstuhl', 'Trolley', 'Werkzeugkasten', 'Leiter', 'Baustelle', 
@@ -55,9 +62,16 @@ export const categoriesDe = [
   'Luftballon', 'Papierkorb', 'Glascontainer', 'Altpapier', 'Parkschild', 
   'Spielplatz', 'Schaukel', 'Rutsche', 'Sandkasten', 'Klettergerüst', 'Ampel', 
   'Einbahnstraßenschild', 'Parken-verboten Schild', 'Höchstgeschwindigkeit 30', 
-  'Verbot für LKW', 'Kinder-Schild', 'Schulbus', 'Richtungspfeil', 
+  'Verbot für LKW', 'Spielstrassenschild', 'Schulbus', 'Richtungspfeil', 
   '30 km/h Zone', 'Tempo 50', 'Parkraumbewirtschaftung', 
   'Halteverbot', 'Einordnen', 'Ausfahrt', 'Rechtsabbiegen', 
   'Baustelle voraus', 'Vorfahrtsschild', 'Zebrastreifen', 
-  'Fahrradweg', 'Fußgängerzone', 'Müllcontainer', 'Straßenlaterne'
+  'Fahrradweg', 'Fußgängerzone', 'Müllcontainer', 'Straßenlaterne', 'Unbegrenzt Schild',
+  'Pool', 'Rotes Auto', 'Gelbes Auto', 'Grünes Auto', 'Blaues Auto', 'Weißes Auto', 'Schwarzes Auto',
+  'Silbernes Auto', 'Oranges Auto', 'Lila Auto', 'Braunes Auto', 'Pinkes Auto', 'Grau Autos',
+  'Traktor', 'Motorrad', 'Roller', 'Bus', 'Wohnmobil', 'Wohnwagen', 'Lieferwagen',
+  'Straßenbahn', 'U-Bahn Schild', 'S-Bahn Schild', 'Fähre', 'Segelboot', 'Yacht', 'Kanu', 
+  'Kajak', 'Ruderboot', 'Schlauchboot', 'Dampfer', 'Fischkutter', 
+  'Polizeiboot', 'Feuerwehrboot', 'Rettungsboot', 'U-Boot', 'Helikopter', 'Telefonierender Mensch',
+  'Winkender Mensch', 'Musiker', 'Künstler'
 ];
