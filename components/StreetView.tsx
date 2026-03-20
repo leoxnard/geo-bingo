@@ -4,6 +4,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { GoogleMap, useJsApiLoader, StreetViewPanorama } from '@react-google-maps/api';
 import { supabase } from '../lib/supabase';
+import { FaEye, FaCamera } from 'react-icons/fa';
 
 const safeStartCenter = { lat: 48.137154, lng: 11.576124 }; 
 const mapOptions = { streetViewControl: true, mapTypeControl: false, gestureHandling: 'greedy', fullscreenControl: false };
@@ -126,6 +127,30 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
 
   if (!isLoaded) return <div className="h-screen flex items-center justify-center text-blue-400">Loading Maps...</div>;
 
+  // Dynamically size sidebar to avoid Tailwind JIT compiling issues
+  const getSidebarWidthClass = () => {
+    if (gameMode !== 'bingo') return 'lg:w-96';
+    switch (gridSize) {
+      case 2: return 'lg:w-[400px]';
+      case 3: return 'lg:w-[500px]';
+      case 4: return 'lg:w-[600px]';
+      case 5: return 'lg:w-[700px]';
+      default: return 'lg:w-[400px]';
+    }
+  };
+
+  const getSidebarTextSizeClass = () => {
+    if (gameMode !== 'bingo') return '';
+    switch (gridSize) {
+      case 2: return 'text-base sm:text-xl';
+      case 3: return 'text-xs sm:text-xl';
+      case 4: return 'text-[10px] sm:text-base';
+      case 5: return 'text-[8px] sm:text-sm';
+      default: return 'text-xs sm:text-xl';
+    }
+  };
+
+
   return (
     <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-8rem)] min-h-[600px]">
       <div ref={containerRef} className="flex-1 min-h-[400px] h-full border-4 border-slate-700 rounded-2xl overflow-hidden shadow-2xl relative bg-slate-800 absolute-safari-fix">
@@ -136,6 +161,7 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
 
         {/* Custom Fullscreen Button */}
         <button
+          type="button"
           onClick={toggleFullscreen}
           className="absolute top-2 right-2 z-[1000] w-12 h-12 bg-slate-800/80 hover:bg-slate-700 text-white flex items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-slate-500 font-bold transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm"
           title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
@@ -153,6 +179,7 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
 
         {inStreetView && (
           <button
+            type="button"
             onClick={() => streetViewRef.current?.setVisible(false)}
             className="absolute top-2 left-2 z-[1000] w-12 h-12 bg-red-500/30 hover:bg-red-500 text-white flex items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-red-400 font-bold text-2xl transition-transform hover:scale-105 active:scale-95"
             title="Exit Street View"
@@ -163,7 +190,7 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
       </div>
 
       {/* Right: Checklist */}
-      <div className="w-full lg:w-96 flex flex-col gap-4 bg-slate-800 p-6 rounded-2xl shadow-xl h-full border border-slate-700 overflow-y-auto">
+      <div className={`w-full ${getSidebarWidthClass()} flex flex-col gap-4 bg-slate-800 p-6 rounded-2xl shadow-xl h-full border border-slate-700 overflow-y-auto transition-all`}>
         <div className="flex justify-between items-center mb-2 border-b border-slate-700 pb-2">
           <h2 className="text-blue-400 font-bold text-xl tracking-wide uppercase">
             {gameMode === 'bingo' ? 'Bingo Board' : 'Checklist'}
@@ -197,6 +224,7 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
                   <div className="flex justify-between items-center gap-2 mt-1">
                     {!foundSub ? (
                       <button 
+                        type="button"
                         onClick={(e) => { e.stopPropagation(); handleSubmit(cat); }}
                         disabled={submittingCategory === cat || !inStreetView}
                         className={`flex-1 text-[11px] px-2 py-2 font-bold rounded shadow uppercase transition-all
@@ -207,6 +235,7 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
                     ) : (
                       <>
                         <button 
+                          type="button"
                           onClick={(e) => { e.stopPropagation(); handleSubmit(cat); }}
                           disabled={submittingCategory === cat || !inStreetView}
                           className={`flex-1 text-[10px] px-2 py-2 font-bold rounded shadow uppercase transition-all
@@ -215,6 +244,7 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
                            {submittingCategory === cat ? '...' : !inStreetView ? 'Enter SV' : 'Overwrite'}
                         </button>
                         <button 
+                          type="button"
                           onClick={(e) => { e.stopPropagation(); jumpToLocation(foundSub); }}
                           className="flex-[0.5] bg-slate-600 hover:bg-slate-500 text-[10px] px-2 py-2 text-white font-bold rounded shadow uppercase"
                         >
@@ -237,39 +267,45 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
                 <div 
                   key={cat} 
                   title={cat}
-                  className={`relative p-2 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-center items-center text-center overflow-hidden pb-8
+                  className={`relative p-2 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-center items-center text-center overflow-hidden pb-12
                     border-slate-600 bg-slate-800 hover:bg-slate-700
                     ${foundSub ? 'opacity-90' : ''}`}
                 >
-                  <span className={`text-[10px] sm:text-xs font-bold leading-tight line-clamp-2 break-words mt-1 ${foundSub ? 'text-green-400' : 'text-white'}`}>
+                  <span className={`${getSidebarTextSizeClass()} font-bold leading-tight line-clamp-2 [hyphens:auto] [word-break:break-word] mt-1 ${foundSub ? 'text-green-400' : 'text-white'}`}>
                     {cat}
                   </span>
-
-                  <div className="absolute bottom-1 w-[90%] left-[5%] flex gap-1 z-10">
+                  
+                  <div className="absolute bottom-2 w-[90%] left-[5%] h-[25%] max-h-12 flex flex-row justify-center gap-2 z-10">
                      {!foundSub ? (
                        <button 
+                         type="button"
+                         title="Add submission"
                          onClick={(e) => { e.stopPropagation(); handleSubmit(cat); }}
                          disabled={submittingCategory === cat || !inStreetView}
-                         className={`w-full text-[8px] py-1 font-bold rounded uppercase transition-all
+                         className={`w-full h-full font-bold rounded-lg uppercase transition-all flex justify-center items-center
                            ${!inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed opacity-50' : 'bg-green-600 hover:bg-green-500 text-white'}`}
                        >
-                         {submittingCategory === cat ? '...' : 'Save'}
+                         {submittingCategory === cat ? '...' : <FaCamera className="h-[60%] w-auto" />}
                        </button>
                      ) : (
                        <>
                          <button 
-                           onClick={(e) => { e.stopPropagation(); handleSubmit(cat); }}
-                           disabled={submittingCategory === cat || !inStreetView}
-                           className={`flex-1 text-[8px] py-1 font-bold rounded uppercase transition-all
-                             ${!inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed opacity-50' : 'bg-amber-600 hover:bg-amber-500 text-white'}`}
+                           type="button"
+                           title="View submission"
+                           onClick={(e) => { e.stopPropagation(); jumpToLocation(foundSub); }}
+                           className="flex-1 h-full bg-slate-600 hover:bg-slate-500 text-white font-bold rounded-lg uppercase flex justify-center items-center"
                          >
-                           {submittingCategory === cat ? '...' : '+'}
+                           <FaEye className="h-[60%] w-auto" />
                          </button>
                          <button 
-                           onClick={(e) => { e.stopPropagation(); jumpToLocation(foundSub); }}
-                           className="flex-1 bg-slate-600 hover:bg-slate-500 text-[8px] py-1 text-white font-bold rounded uppercase"
+                           type="button"
+                           title="Overwrite submission"
+                           onClick={(e) => { e.stopPropagation(); handleSubmit(cat); }}
+                           disabled={submittingCategory === cat || !inStreetView}
+                           className={`flex-1 h-full font-bold rounded-lg uppercase transition-all flex justify-center items-center
+                             ${!inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed opacity-50' : 'bg-amber-600 hover:bg-amber-500 text-white'}`}
                          >
-                           View
+                           {submittingCategory === cat ? '...' : <FaCamera className="h-[60%] w-auto" />}
                          </button>
                        </>
                      )}
