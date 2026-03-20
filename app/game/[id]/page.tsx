@@ -350,11 +350,12 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         // Playing phase: restore existing deadline across reloads or create a new one.
         const tick = () => {
             const now = Date.now();
-            const storedEnd = Number(localStorage.getItem(timerStorageKey));
-            const validStoredEnd = Number.isFinite(storedEnd) && storedEnd > now;
-            const endTs = validStoredEnd ? storedEnd : now + (timeLimit * 1000);
+            const rawStored = localStorage.getItem(timerStorageKey);
+            const hasValidStored = rawStored !== null && !isNaN(Number(rawStored));
+            
+            const endTs = hasValidStored ? Number(rawStored) : now + (timeLimit * 1000);
 
-            if (!validStoredEnd) {
+            if (!hasValidStored) {
                 localStorage.setItem(timerStorageKey, String(endTs));
             }
 
