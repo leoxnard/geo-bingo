@@ -94,7 +94,7 @@ export default function StreetView({ categories, gameId, playerId, gameMode = 'l
     const onLoad = useCallback((pano: google.maps.StreetViewPanorama) => {
         streetViewRef.current = pano;
     
-        pano.setOptions({ source: google.maps.StreetViewSource.OUTDOOR });
+        pano.setOptions({ source: google.maps.StreetViewSource.OUTDOOR } as any);
     
         pano.addListener('visible_changed', () => {
             setInStreetView(pano.getVisible());
