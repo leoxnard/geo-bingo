@@ -49,15 +49,16 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [onlinePlayers, setOnlinePlayers] = useState<string[]>([]);
     const [readyPlayers, setReadyPlayers] = useState<string[]>([]);
     const [bannedPlayers, setBannedPlayers] = useState<string[]>([]);
+    const [gameLoaded, setGameLoaded] = useState(false);
 
-    const [timeLeft, setTimeLeft] = useState<number>(0);
-    const [timerInitialized, setTimerInitialized] = useState(false);
+    const [timeLeft, setTimeLeft] = useState<number>(timeLimit);
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
     const [toastMessage, setToastMessage] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
     const [copiedLink, setCopiedLink] = useState(false);
     const [currentLink, setCurrentLink] = useState('');
+    const timeUpTriggeredRef = useRef(false);
 
     const getSidebarTextSizeClass = () => {
         if (gameMode !== 'bingo') return '';
@@ -231,6 +232,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             }
       
             fetchPlayers();
+            setGameLoaded(true);
         };
 
         const fetchPlayers = async () => {
@@ -353,30 +355,45 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
     // --- TIMER LOGIC ---
     useEffect(() => {
-    // 1. Initialize timer when game starts
-        if (status === 'playing' && !timerInitialized) {
-            setTimeLeft(timeLimit);
-            setTimerInitialized(true);
+        if (!gameLoaded) return;
+
+        const timerStorageKey = `geoBingoTimerEnd_${gameId}`;
+        const clearTimerState = () => {
+            localStorage.removeItem(timerStorageKey);
+            timeUpTriggeredRef.current = false;
+            setTimeLeft(0);
+        };
+
+        // Non-playing phases always clear persisted timer so a new round starts fresh.
+        if (status !== 'playing') {
+            clearTimerState();
             return;
         }
 
-        // 2. Countdown and Auto-End Logic
-        if (status === 'playing' && timerInitialized) {
-            if (timeLeft > 0) {
-                const timerId = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
-                return () => clearInterval(timerId);
-            } 
-            // Auto-End if time runs out and we're the host (to prevent multiple updates from clients)
-            else if (timeLeft === 0 && isHost) {
-                updateStatus('voting');
-            }
-        }
+        // Playing phase: restore existing deadline across reloads or create a new one.
+        const tick = () => {
+            const now = Date.now();
+            const storedEnd = Number(localStorage.getItem(timerStorageKey));
+            const validStoredEnd = Number.isFinite(storedEnd) && storedEnd > now;
+            const endTs = validStoredEnd ? storedEnd : now + (timeLimit * 1000);
 
-        // 3. Reset, if we go back to the lobby
-        if (status === 'lobby') {
-            setTimerInitialized(false);
-        }
-    }, [status, timeLeft, timeLimit, isHost, timerInitialized, updateStatus]);
+            if (!validStoredEnd) {
+                localStorage.setItem(timerStorageKey, String(endTs));
+            }
+
+            const left = Math.max(0, Math.ceil((endTs - now) / 1000));
+            setTimeLeft(left);
+
+            if (left === 0 && isHost && !timeUpTriggeredRef.current) {
+                timeUpTriggeredRef.current = true;
+                void updateStatus('voting');
+            }
+        };
+
+        tick();
+        const timerId = setInterval(tick, 1000);
+        return () => clearInterval(timerId);
+    }, [status, timeLimit, isHost, gameId, updateStatus, gameLoaded]);
 
     // Format the time for display
     const formatTime = (seconds: number) => {
