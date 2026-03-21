@@ -2,12 +2,13 @@
 
 
 import { useState, useRef, useEffect } from 'react';
-import Image from 'next/image';
+import { GeoBingoLogo } from './utils/Elements';
 import { FaRegCopy, FaCopy, FaTimes, FaRegEdit, FaUndo } from "react-icons/fa";
 import { GoogleMap, useJsApiLoader, PolygonF, MarkerF, InfoWindowF } from '@react-google-maps/api';
 
 import { insertPoint } from './utils/mapUtils';
 import { FullscreenButton } from './utils/Elements';
+import { validatePolygon } from './utils/Functions';
 
 interface Player {
     id: string;
@@ -191,24 +192,6 @@ export default function LobbyView({
         case 4: return 'text-xs sm:text-base';
         case 5: return 'text-[10px] sm:text-sm';
         default: return 'text-xs sm:text-xl';
-        }
-    };
-
-    const toggleFullscreen = async () => {
-        if (!containerRef.current) return;
-    
-        if (!document.fullscreenElement) {
-            try {
-                await containerRef.current.requestFullscreen();
-                setIsFullscreen(true);
-            } catch (err) {
-                console.error("Error attempting to enable fullscreen:", err);
-            }
-        } else {
-            if (document.exitFullscreen) {
-                await document.exitFullscreen();
-                setIsFullscreen(false);
-            }
         }
     };
 
@@ -398,36 +381,20 @@ export default function LobbyView({
             return;
         }
 
-        if (polyString && polyString !== '[]') {
+        if (polyString && polyString !== '[]' && polyString !== null) {
             try {
                 const points = JSON.parse(polyString);
                 if (!Array.isArray(points) || points.length < 3) {
-                    showToast('Please draw at least 3 points for your restricted map area.');
+                    showToast('Please draw at least 3 points for your game area.');
                     return;
                 }
                 
                 // Geographical Validation
                 if (actualStart !== 'open-world' && window.google) {
-                    let startLat, startLng;
-                    
-                    const recommended = RECOMMENDED_STARTS.find(r => r.name === actualStart);
-                    if (recommended) {
-                        startLat = recommended.lat;
-                        startLng = recommended.lng;
-                    } else if (actualStart.startsWith('{')) {
-                        const parsed = JSON.parse(actualStart);
-                        startLat = parsed.lat;
-                        startLng = parsed.lng;
-                    }
-
-                    if (startLat !== undefined && startLng !== undefined) {
-                        const point = new google.maps.LatLng(startLat, startLng);
-                        const polygon = new google.maps.Polygon({ paths: points });
-                        
-                        if (!google.maps.geometry.poly.containsLocation(point, polygon)) {
-                            showToast('Error: The chosen starting point is outside the restricted movement boundary!');
-                            return;
-                        }
+                    const startCoords = JSON.parse(actualStart);
+                    if (!validatePolygon(startCoords.lat, startCoords.lng, polyString)) {
+                        showToast('Error: The chosen starting point is outside the game area!');
+                        return;
                     }
                 }
             } catch (err) {
@@ -532,14 +499,7 @@ export default function LobbyView({
         <div className="min-h-screen flex flex-col items-center p-10 bg-slate-900 text-white relative">
             {renderToast()}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-12 hidden sm:flex">
-                <Image 
-                    src="/mappin.and.ellipse.png"
-                    alt="Geo Bingo Logo"
-                    loading="eager"
-                    width={60}
-                    height={60}
-                    className={"w-auto h-auto drop-shadow-[0_0_15px_rgba(96,165,250,0.5)] transform-gpu transition-transform"}
-                />
+                <GeoBingoLogo size={60} />
                 <h1 className="text-6xl font-bold text-indigo-400 tracking-tighter">GEO BINGO</h1>
             </div>
 
@@ -784,7 +744,7 @@ export default function LobbyView({
                                                 />
                                             ))}
                                         </GoogleMap>
-                                        <FullscreenButton isFullscreen={isFullscreen} toggleFullscreen={toggleFullscreen} />
+                                        <FullscreenButton isFullscreen={isFullscreen} containerRef={containerRef} setIsFullscreen={setIsFullscreen} />
                                     </div>
                                 )}
                             </div>

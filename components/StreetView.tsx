@@ -5,9 +5,8 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { GoogleMap, useJsApiLoader, StreetViewPanorama, Polygon } from '@react-google-maps/api';
 import { supabase } from '../lib/supabase';
 import { FaEye, FaCamera } from 'react-icons/fa';
-import Image from 'next/image';
 
-import { FullscreenButton } from './utils/Elements';
+import { FullscreenButton, GeoBingoLogo } from './utils/Elements';
 
 const safeStartCenter = { lat:30, lng: 10 };
 const initialWorldZoom = 2.4;
@@ -110,24 +109,6 @@ export default function StreetView({
             }
         } catch (error) {
             console.error("Failed to vote:", error);
-        }
-    };
-
-    const toggleFullscreen = async () => {
-        if (!containerRef.current) return;
-    
-        if (!document.fullscreenElement) {
-            try {
-                await containerRef.current.requestFullscreen();
-                setIsFullscreen(true);
-            } catch (err) {
-                console.error("Error attempting to enable fullscreen:", err);
-            }
-        } else {
-            if (document.exitFullscreen) {
-                await document.exitFullscreen();
-                setIsFullscreen(false);
-            }
         }
     };
 
@@ -390,14 +371,7 @@ export default function StreetView({
             {renderToast()}
             <div className="flex justify-between items-center mb-4 w-full max-w-[95%] xl:max-w-[90vw] mx-auto text-white">
                 <div className="flex items-center gap-4 hidden sm:flex">
-                    <Image 
-                        src="/mappin.and.ellipse.png"
-                        alt="Geo Bingo Logo"
-                        loading="eager"
-                        width={40}
-                        height={40}
-                        className="w-auto h-auto drop-shadow-[0_0_10px_rgba(96,165,250,0.5)] transform-gpu"
-                    />
+                    <GeoBingoLogo size={40} />
                     <h1 className="text-2xl font-bold text-indigo-400">Hunt in Progress</h1>
                 </div>
         
@@ -458,7 +432,7 @@ export default function StreetView({
 
                             {/* Custom Fullscreen Button */}
                             {!isMobileLandscape && (
-                                <FullscreenButton isFullscreen={isFullscreen} toggleFullscreen={toggleFullscreen} />
+                                <FullscreenButton isFullscreen={isFullscreen} containerRef={containerRef} setIsFullscreen={setIsFullscreen} />
                             )}
 
                             {inStreetView && startingPoint === 'open-world' && (

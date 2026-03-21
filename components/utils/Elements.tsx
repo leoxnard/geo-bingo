@@ -1,15 +1,39 @@
 'use client';
 
+
+import Image from 'next/image';
+
+
+const toggleFullscreen = async (containerRef: React.RefObject<HTMLDivElement | null>, setIsFullscreen: React.Dispatch<React.SetStateAction<boolean>>) => {
+    if (!containerRef.current) return;
+
+    if (!document.fullscreenElement) {
+        try {
+            await containerRef.current.requestFullscreen();
+            setIsFullscreen(true);
+        } catch (err) {
+            console.error("Error attempting to enable fullscreen:", err);
+        }
+    } else {
+        if (document.exitFullscreen) {
+            await document.exitFullscreen();
+            setIsFullscreen(false);
+        }
+    }
+};
+
 interface FullscreenButtonProps {
     isFullscreen: boolean;
-    toggleFullscreen: () => void;
+    containerRef: React.RefObject<HTMLDivElement | null>;
+    setIsFullscreen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-export const FullscreenButton = ({ isFullscreen, toggleFullscreen }: FullscreenButtonProps) => {
+export const FullscreenButton = ({ isFullscreen, containerRef, setIsFullscreen }: FullscreenButtonProps) => {
+
     return (
         <button
             type="button"
-            onClick={toggleFullscreen}
+            onClick={() => toggleFullscreen(containerRef, setIsFullscreen)}
             className="absolute top-2 right-2 z-[1000] hidden sm:flex w-12 h-12 bg-slate-800/30 hover:bg-slate-700/80 text-white items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-slate-500 font-bold transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm"
             title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
         >
@@ -23,5 +47,18 @@ export const FullscreenButton = ({ isFullscreen, toggleFullscreen }: FullscreenB
                 </svg>
             )} 
         </button>
+    );
+};
+
+export const GeoBingoLogo = ({ size = 60, className = "" }: { size?: number, className?: string }) => {
+    return (
+        <Image 
+            src="/mappin.and.ellipse.png"
+            alt="Geo Bingo Logo"
+            loading="eager"
+            width={size}
+            height={size}
+            className={`w-auto h-auto drop-shadow-[0_0_15px_rgba(96,165,250,0.5)] transform-gpu transition-transform ${className}`}
+        />
     );
 };

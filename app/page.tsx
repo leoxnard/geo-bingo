@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
+import { GeoBingoLogo } from '@/components/utils/Elements';
 
 import { adjectives, badAdjectives, animals } from '../lib/names';
 
@@ -44,13 +44,7 @@ export default function Home() {
     return (
         <main className="flex min-h-screen flex-col items-center justify-center p-24 bg-slate-900 text-white">
             <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-12 hover">
-                <Image 
-                    src="/mappin.and.ellipse.png"
-                    alt="Geo Bingo Logo"
-                    width={80}
-                    height={80}
-                    className="w-auto h-auto drop-shadow-[0_0_15px_rgba(96,165,250,0.5)] transform-gpu transition-transform"
-                />
+                <GeoBingoLogo size={80} className="animate-pulse" />
                 <h1 className="text-6xl font-bold text-indigo-400 tracking-tighter hidden sm:block">GEO BINGO</h1>
             </div>
       

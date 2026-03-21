@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import Image from 'next/image';
+import { GeoBingoLogo } from './utils/Elements';
 
 interface PodiumViewProps {
     gameId: string;
@@ -230,14 +230,7 @@ export default function PodiumView({
             {renderToast()}
             <div className="w-full max-w-5xl flex justify-between items-center mb-4 mt-4">
                 <div className="flex items-center gap-4">
-                    <Image 
-                        src="/mappin.and.ellipse.png"
-                        alt="Geo Bingo Logo"
-                        loading="eager"
-                        width={50}
-                        height={50}
-                        className="w-auto h-auto drop-shadow-[0_0_10px_rgba(96,165,250,0.5)] transform-gpu hidden sm:block"
-                    />
+                    <GeoBingoLogo size={50} className="hidden sm:block" />
                     <h1 className="text-4xl font-black uppercase tracking-widest text-indigo-400">Results</h1>
                 </div>
                 {isHost ? (

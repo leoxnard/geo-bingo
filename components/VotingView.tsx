@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import SafeImage from './SafeImage';
-import Image from 'next/image';
+import { GeoBingoLogo, FullscreenButton } from './utils/Elements';
 import { GoogleMap, useJsApiLoader, OverlayViewF, OverlayView, StreetViewPanorama, MarkerF } from '@react-google-maps/api';
 
 const LIBRARIES: ("places" | "geometry" | "drawing" | "visualization" | "marker")[] = ['places', 'geometry'];
@@ -71,24 +71,6 @@ export default function VotingView({
         googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
         libraries: LIBRARIES
     });
-
-    const toggleFullscreen = async () => {
-        if (!containerRef.current) return;
-    
-        if (!document.fullscreenElement) {
-            try {
-                await containerRef.current.requestFullscreen();
-                setIsFullscreen(true);
-            } catch (err) {
-                console.error("Error attempting to enable fullscreen:", err);
-            }
-        } else {
-            if (document.exitFullscreen) {
-                await document.exitFullscreen();
-                setIsFullscreen(false);
-            }
-        }
-    };
     
     useEffect(() => {
         const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
@@ -210,14 +192,7 @@ export default function VotingView({
             {renderToast()}
             <div className="w-full max-w-[95%] xl:max-w-[90vw] flex justify-between items-center mb-8 mt-4">
                 <div className="flex items-center gap-4">
-                    <Image 
-                        src="/mappin.and.ellipse.png"
-                        alt="Geo Bingo Logo"
-                        loading="eager"
-                        width={30}
-                        height={30}
-                        className="w-auto h-auto drop-shadow-[0_0_10px_rgba(96,165,250,0.5)] transform-gpu hidden sm:block"
-                    />
+                    <GeoBingoLogo size={30} className="hidden sm:block" />
                     <h1 className="text-4xl font-black uppercase tracking-widest text-indigo-400">Voting</h1>
                 </div>
             </div>
@@ -424,23 +399,7 @@ export default function VotingView({
                                         );
                                     })}
                                 </GoogleMap>
-                                
-                                <button
-                                    type="button"
-                                    onClick={toggleFullscreen}
-                                    className="absolute top-2 right-2 z-[5] hidden sm:flex w-12 h-12 bg-slate-800/30 hover:bg-slate-700/80 text-white items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-slate-500 font-bold transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm"
-                                    title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
-                                >
-                                    {isFullscreen ? (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                            <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
-                                        </svg>
-                                    ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
-                                        </svg>
-                                    )}
-                                </button>
+                                <FullscreenButton isFullscreen={isFullscreen} containerRef={containerRef} setIsFullscreen={setIsFullscreen} />
                             </div>
                         )}
 
