@@ -238,7 +238,7 @@ export default function PodiumView({
                         height={50}
                         className="w-auto h-auto drop-shadow-[0_0_10px_rgba(96,165,250,0.5)] transform-gpu hidden sm:block"
                     />
-                    <h1 className="text-4xl font-black uppercase tracking-widest text-indigo-400">Final Results</h1>
+                    <h1 className="text-4xl font-black uppercase tracking-widest text-indigo-400">Results</h1>
                 </div>
                 {isHost ? (
                     <button 

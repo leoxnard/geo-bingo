@@ -57,9 +57,13 @@ interface StreetViewProps {
 export default function StreetView({ 
     myBoard, gameId, playerId, gameMode = 'list', teamMode = 'ffa', gridSize = 3, startingPoint = 'open-world', renderToast, timeLeft, readyPlayers, players
 }: StreetViewProps) {
+
+    const [libraries] = useState<("places" | "geometry")[]>(['places', 'geometry']);
+    
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
         googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+        libraries // Use the state here
     });
 
   

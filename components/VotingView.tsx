@@ -1,9 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import SafeImage from './SafeImage';
 import Image from 'next/image';
+import { GoogleMap, useJsApiLoader, OverlayViewF, OverlayView, StreetViewPanorama, MarkerF } from '@react-google-maps/api';
+
+const LIBRARIES: ("places" | "geometry" | "drawing" | "visualization" | "marker")[] = ['places', 'geometry'];
 
 interface Submission {
   id: string;
@@ -42,15 +45,53 @@ export default function VotingView({
     const [submissions, setSubmissions] = useState<Submission[]>([]);
     const [playersMap, setPlayersMap] = useState<Record<string, string>>({});
     const [activeCategory, setActiveCategory] = useState(categories[0]);
-    const [zoomedImage, setZoomedImage] = useState<string | null>(null); // For image enlargement
+    const [viewedSubmission, setViewedSubmission] = useState<Submission | null>(null); // For street view look-up
+    const [mapCenter, setMapCenter] = useState<{lat: number, lng: number}>({ lat: 50, lng: 10 });
+    
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [hoveredSubId, setHoveredSubId] = useState<string | null>(null);
+    
+    const { isLoaded } = useJsApiLoader({
+        id: 'google-map-script', // Muss absolut identisch mit anderen Stellen sein
+        googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+        libraries: LIBRARIES
+    });
+
+    const toggleFullscreen = async () => {
+        if (!containerRef.current) return;
+        if (!document.fullscreenElement) {
+            try { await containerRef.current.requestFullscreen(); setIsFullscreen(true); } catch (err) {}
+        } else {
+            if (document.exitFullscreen) { document.exitFullscreen(); setIsFullscreen(false); }
+        }
+    };
+    
+    useEffect(() => {
+        const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    }, []);
 
     const totalPlayers = players.length;
 
     useEffect(() => {
         const fetchData = async () => {
+            // 1. Fetch Submissions
             const { data: subData } = await supabase.from('submissions').select('*').eq('game_id', gameId);
-            if (subData) setSubmissions(subData);
+            if (subData) {
+                setSubmissions(subData);
+                
+                // Auto-select the first category that has at least one submission
+                const firstPopulatedCat = categories.find(cat => 
+                    subData.some((s: Submission) => s.category === cat)
+                );
+                if (firstPopulatedCat) {
+                    setActiveCategory(firstPopulatedCat);
+                }
+            }
 
+            // 2. Fetch Players
             const { data: playerData } = await supabase.from('players').select('id, name').eq('game_id', gameId);
             if (playerData) {
                 const pMap: Record<string, string> = {};
@@ -58,17 +99,21 @@ export default function VotingView({
                 setPlayersMap(pMap);
             }
         };
+        
         fetchData();
 
+        // 3. Setup Realtime Subscription
         const channel = supabase.channel(`voting-${gameId}`)
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'submissions', filter: `game_id=eq.${gameId}` }, 
                 (payload) => {
-                    setSubmissions(prev => prev.map(s => s.id === payload.new.id ? { ...s, votes: payload.new.votes, is_valid: payload.new.is_valid } : s));
+                    setSubmissions(prev => prev.map(s => 
+                        s.id === payload.new.id ? { ...s, votes: payload.new.votes, is_valid: payload.new.is_valid } : s
+                    ));
                 }
             ).subscribe();
 
         return () => { supabase.removeChannel(channel); };
-    }, [gameId]);
+    }, [gameId, categories]);
 
     const handleVote = async (sub: Submission, voteIsYes: boolean) => {
         const newVotes = { ...sub.votes, [playerId]: voteIsYes };
@@ -77,10 +122,9 @@ export default function VotingView({
     };
 
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    const navigableCategories = categories.filter(cat => submissions.some(s => s.category === cat));
-    const currentCategory = navigableCategories.includes(activeCategory)
+    const currentCategory = categories.includes(activeCategory)
         ? activeCategory
-        : (navigableCategories[0] ?? activeCategory);
+        : (categories[0] ?? activeCategory);
     const activeSubmissions = submissions.filter(s => s.category === currentCategory);
 
     // Convert JS API Zoom to Static API FOV (Field of View)
@@ -89,6 +133,14 @@ export default function VotingView({
         const validZoom = zoom || 1;
         return Math.min(120, Math.max(10, 180 / Math.pow(2, validZoom)));
     };
+
+    useEffect(() => {
+        if (activeSubmissions.length > 0) {
+            const avgLat = activeSubmissions.reduce((sum, sub) => sum + sub.lat, 0) / activeSubmissions.length;
+            const avgLng = activeSubmissions.reduce((sum, sub) => sum + sub.lng, 0) / activeSubmissions.length;
+            setMapCenter({ lat: avgLat, lng: avgLng });
+        }
+    }, [currentCategory]);
 
     // Check how many players have voted on EVERYTHING
     const playersWhoFinishedVoting = Object.keys(playersMap).filter(pId => {
@@ -105,17 +157,17 @@ export default function VotingView({
     });
 
     const goToPrevCategory = () => {
-        if (navigableCategories.length <= 1) return;
-        const currentIndex = navigableCategories.indexOf(currentCategory);
-        const prevIndex = currentIndex <= 0 ? navigableCategories.length - 1 : currentIndex - 1;
-        setActiveCategory(navigableCategories[prevIndex]);
+        if (categories.length <= 1) return;
+        const currentIndex = categories.indexOf(currentCategory);
+        const prevIndex = currentIndex <= 0 ? categories.length - 1 : currentIndex - 1;
+        setActiveCategory(categories[prevIndex]);
     };
 
     const goToNextCategory = () => {
-        if (navigableCategories.length <= 1) return;
-        const currentIndex = navigableCategories.indexOf(currentCategory);
-        const nextIndex = currentIndex === -1 || currentIndex >= navigableCategories.length - 1 ? 0 : currentIndex + 1;
-        setActiveCategory(navigableCategories[nextIndex]);
+        if (categories.length <= 1) return;
+        const currentIndex = categories.indexOf(currentCategory);
+        const nextIndex = currentIndex === -1 || currentIndex >= categories.length - 1 ? 0 : currentIndex + 1;
+        setActiveCategory(categories[nextIndex]);
     };
 
     return (
@@ -127,29 +179,74 @@ export default function VotingView({
                         src="/mappin.and.ellipse.png"
                         alt="Geo Bingo Logo"
                         loading="eager"
-                        width={50}
-                        height={50}
+                        width={30}
+                        height={30}
                         className="w-auto h-auto drop-shadow-[0_0_10px_rgba(96,165,250,0.5)] transform-gpu hidden sm:block"
                     />
-                    <h1 className="text-4xl font-black uppercase tracking-widest text-indigo-400">Voting Phase</h1>
+                    <h1 className="text-4xl font-black uppercase tracking-widest text-indigo-400">Voting</h1>
                 </div>
             </div>
 
             <div className="w-full max-w-[95%] xl:max-w-[90vw]">
                 <div className="w-full flex flex-col lg:flex-row gap-8 text-white">
-                    {/* FULLSCREEN IMAGE MODAL */}
-                    {zoomedImage && (
-                        <div 
-                            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 cursor-zoom-out"
-                            onClick={() => setZoomedImage(null)}
-                        >
-                            <SafeImage 
-                                src={zoomedImage} 
-                                alt="Zoomed location" 
-                                className="w-auto h-auto max-w-[95vw] max-h-[90vh] object-contain rounded-2xl shadow-2xl border-4 border-slate-700" 
-                            />
-                            <div className="absolute top-8 right-8 text-white font-bold bg-slate-900/50 px-4 py-2 rounded-full backdrop-blur-sm">
-                                Click to close
+                    {/* FULLSCREEN STREET VIEW MODAL */}
+                    {viewedSubmission && (
+                        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-0 md:p-8">
+                            <div className="relative w-full h-full rounded-2xl overflow-hidden border-4 border-slate-700 shadow-2xl">
+                                {isLoaded && (
+                                    <GoogleMap
+                                        mapContainerClassName="w-full h-full"
+                                        center={{ lat: viewedSubmission.lat, lng: viewedSubmission.lng }}
+                                        zoom={1}
+                                        options={{
+                                            streetViewControl: false,
+                                            mapTypeControl: false,
+                                            gestureHandling: 'greedy',
+                                            fullscreenControl: false,
+                                            zoomControl: false,
+                                            keyboardShortcuts: true,
+                                            draggable: true,
+                                            scrollwheel: true,
+                                            disableDoubleClickZoom: false
+                                        }}
+                                    >
+                                        <StreetViewPanorama 
+                                            key={viewedSubmission.id} 
+                                            options={{
+                                                position: { lat: viewedSubmission.lat, lng: viewedSubmission.lng },
+                                                pov: { 
+                                                    heading: viewedSubmission.heading, 
+                                                    pitch: viewedSubmission.pitch 
+                                                },
+                                                zoom: viewedSubmission.zoom,
+                                                
+                                                visible: true,
+                                                addressControl: false,
+                                                showRoadLabels: false,
+                                                enableCloseButton: false,
+                                                fullscreenControl: false,
+                                                zoomControl: false,
+                                                panControl: false,
+                                                linksControl: false,
+                                                clickToGo: false,
+                                                scrollwheel: true,
+                                                disableDoubleClickZoom: false
+                                            }}
+                                        />
+                                    </GoogleMap>
+                                )}
+                                
+                                <button
+                                    onClick={() => setViewedSubmission(null)}
+                                    className="absolute top-4 left-4 z-[1000] w-12 h-12 bg-red-500/30 hover:bg-red-500/80 text-white flex items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-red-400 font-bold text-2xl transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm"
+                                    title="Exit Street View"
+                                >
+                                    ✕
+                                </button>
+                                
+                                <div className="absolute top-4 right-4 z-[1000] text-white font-bold bg-slate-900/60 px-4 py-2 rounded-full backdrop-blur-sm border border-slate-700">
+                                    Reviewing: <span className="text-indigo-400">{playersMap[viewedSubmission.player_id] || 'Unknown'}</span>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -157,28 +254,38 @@ export default function VotingView({
                     {/* LEFT: Category Selection */}
                     <div className="w-full lg:w-64 flex flex-col gap-2">
                         <h2 className="text-xl font-bold text-slate-400 mb-4 uppercase tracking-wider">Categories</h2>
-                        {navigableCategories.map(cat => {
+                        {categories.map(cat => {
                             const categorySubs = submissions.filter(s => s.category === cat);
                             const count = categorySubs.length;
-                
-                            let badgeColor = "bg-slate-700 text-slate-400"; // Default for 0 submissions
+                            const isDisabled = count === 0;
+
+                            let badgeColor = "bg-slate-800 text-slate-400"; 
                             if (count > 0) {
                                 const isFinished = categorySubs.every(sub => {
                                     const subPlayerTeam = players.find(p => p.id === sub.player_id)?.team;
                                     const myTeam = players.find(p => p.id === playerId)?.team;
-                                    if (sub.player_id === playerId || (teamMode === 'teams' && subPlayerTeam !== undefined && subPlayerTeam === myTeam)) return true; // you don't vote on your own or team's 
+                                    if (sub.player_id === playerId || (teamMode === 'teams' && subPlayerTeam !== undefined && subPlayerTeam === myTeam)) return true;
                                     return sub.votes && sub.votes[playerId] !== undefined;
                                 });
-                                // light red/gray if unfinished, green/gray if finished
-                                badgeColor = isFinished ? "bg-green-900/50 text-green-400 border border-green-800/50" : "bg-red-900/50 text-red-400 border border-red-800/50";
+                                badgeColor = isFinished 
+                                    ? "bg-green-900/50 text-green-400 border border-green-800/50" 
+                                    : "bg-red-900/50 text-red-400 border border-red-800/50";
                             }
+
+                            // Determine button style
+                            const baseStyle = "text-left px-4 py-3 rounded-xl font-medium transition-all flex justify-between items-center";
+                            const stateStyle = isDisabled
+                                ? "bg-slate-800/40 text-slate-600 cursor-not-allowed opacity-50"
+                                : currentCategory === cat
+                                    ? "bg-indigo-600 text-white shadow-lg cursor-default"
+                                    : "bg-slate-800 text-slate-400 hover:bg-slate-700 cursor-pointer";
 
                             return (
                                 <button
-                                    key={cat} onClick={() => setActiveCategory(cat)}
-                                    className={`text-left px-4 py-3 rounded-xl font-medium transition-all flex justify-between items-center ${
-                                        currentCategory === cat ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                                    }`}
+                                    key={cat}
+                                    onClick={() => !isDisabled && setActiveCategory(cat)}
+                                    disabled={isDisabled}
+                                    className={`${baseStyle} ${stateStyle}`}
                                 >
                                     <span className="truncate pr-2">{cat}</span>
                                     <span className={`px-2 rounded text-xs py-1 whitespace-nowrap ${badgeColor}`}>
@@ -224,7 +331,7 @@ export default function VotingView({
                                 <button
                                     type="button"
                                     onClick={goToPrevCategory}
-                                    disabled={navigableCategories.length <= 1}
+                                    disabled={categories.length <= 1}
                                     className="p-3 hover:bg-slate-700 text-white font-bold disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
                                     title="Previous category"
                                     aria-label="Previous category"
@@ -237,7 +344,7 @@ export default function VotingView({
                                 <button
                                     type="button"
                                     onClick={goToNextCategory}
-                                    disabled={navigableCategories.length <= 1}
+                                    disabled={categories.length <= 1}
                                     className="p-3 hover:bg-slate-700 text-white font-bold disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
                                     title="Next category"
                                     aria-label="Next category"
@@ -246,6 +353,72 @@ export default function VotingView({
                                 </button>
                             </div>
                         </div>
+
+                        {/* Map View of all submissions for the current category */}
+                        {isLoaded && activeSubmissions.length > 0 && (
+                            <div ref={containerRef} className="w-full h-64 md:h-96 mb-8 rounded-2xl overflow-hidden shadow-xl border-2 border-slate-700 relative">
+                                <GoogleMap
+                                    mapContainerClassName="w-full h-full"
+                                    zoom={2}
+                                    center={mapCenter}
+                                    options={{ 
+                                        mapId: "VOTING_MAP_ID",
+                                        streetViewControl: false, 
+                                        mapTypeControl: false, 
+                                        gestureHandling: 'greedy', 
+                                        fullscreenControl: false, 
+                                        zoomControl: false,
+                                        keyboardShortcuts: true,
+                                        draggable: true,
+                                        scrollwheel: true,
+                                        disableDoubleClickZoom: false
+                                    }}
+                                >
+                                    {activeSubmissions.map(sub => {
+                                        const playerName = playersMap[sub.player_id] || 'Unknown Player';
+                                        return (
+                                            <MarkerF
+                                                key={sub.id} 
+                                                position={{ lat: sub.lat, lng: sub.lng }}
+                                                onMouseOver={() => setHoveredSubId(sub.id)}
+                                                onMouseOut={() => setHoveredSubId(null)}
+                                                onClick={() => setViewedSubmission(sub)}
+                                            >
+                                                {hoveredSubId === sub.id && (
+                                                    <OverlayViewF
+                                                        position={{ lat: sub.lat, lng: sub.lng }}
+                                                        mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                                                    >
+                                                        <div className="bg-slate-800 border border-slate-600 text-white p-2 rounded-lg shadow-xl -translate-y-12 -translate-x-1/2 whitespace-nowrap">
+                                                            <p className="font-bold text-sm">{playersMap[sub.player_id]}</p>
+                                                            <div className="text-xs text-indigo-400">{sub.category}</div>
+                                                        </div>
+                                                    </OverlayViewF>
+                                                )}
+                                            </MarkerF>
+                                        );
+                                    })}
+                                </GoogleMap>
+                                
+                                <button
+                                    type="button"
+                                    onClick={toggleFullscreen}
+                                    className="absolute top-2 right-2 z-[5] hidden sm:flex w-12 h-12 bg-slate-800/30 hover:bg-slate-700/80 text-white items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-slate-500 font-bold transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm"
+                                    title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+                                >
+                                    {isFullscreen ? (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
+                                        </svg>
+                                    ) : (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+                                        </svg>
+                                    )}
+                                </button>
+                            </div>
+                        )}
+
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                             {activeSubmissions.map(sub => {
                                 const votesMap = sub.votes || {};
@@ -264,16 +437,16 @@ export default function VotingView({
                                     <div key={sub.id} className="bg-slate-900 rounded-xl overflow-hidden border border-slate-700 shadow-xl relative">
                                         {/* Photo with dynamic FOV (Zoom) */}
                                         <div 
-                                            className="w-full h-48 bg-slate-800 relative cursor-zoom-in group"
-                                            onClick={() => setZoomedImage(`https://maps.googleapis.com/maps/api/streetview?size=1200x800&location=${sub.lat},${sub.lng}&heading=${sub.heading}&pitch=${sub.pitch}&fov=${getFov(sub.zoom)}&key=${apiKey}&return_error_code=true`)}
+                                            className="w-full h-48 bg-slate-800 relative cursor-pointer group"
+                                            onClick={() => setViewedSubmission(sub)}
                                         >
                                             <SafeImage 
                                                 src={`https://maps.googleapis.com/maps/api/streetview?size=600x400&location=${sub.lat},${sub.lng}&heading=${sub.heading}&pitch=${sub.pitch}&fov=${getFov(sub.zoom)}&key=${apiKey}&return_error_code=true`}
                                                 alt="Found location"
                                                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                                             />
-                                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                                                <span className="text-white font-bold bg-black/50 px-3 py-1 rounded-full text-sm">🔍 Enlarge</span>
+                                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none z-10">
+                                                <span className="text-white font-bold bg-black/50 px-3 py-1 rounded-full text-sm">Explore</span>
                                             </div>
                                             {statusOverlay}
                                         </div>
