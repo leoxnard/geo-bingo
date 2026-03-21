@@ -1,6 +1,13 @@
+'use client';
+
+
 import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
-import { FaRegCopy, FaCopy, FaTimes, FaRegEdit } from "react-icons/fa";
+import { FaRegCopy, FaCopy, FaTimes, FaRegEdit, FaUndo } from "react-icons/fa";
+import { GoogleMap, useJsApiLoader, PolygonF, MarkerF, InfoWindowF } from '@react-google-maps/api';
+
+import { insertPoint } from './utils/mapUtils';
+import { FullscreenButton } from './utils/Elements';
 
 interface Player {
     id: string;
@@ -17,7 +24,7 @@ interface LobbyViewProps {
     teamMode: 'ffa' | 'teams';
     bingoBoardMode: 'shared' | 'individual';
     startingPoint: string;
-    updateGameModeInfo: (updates: { game_mode?: string; team_mode?: string; grid_size?: number; bingo_board_mode?: 'shared' | 'individual'; starting_point?: string }) => void;
+    updateGameModeInfo: (updates: { game_mode?: string; team_mode?: string; grid_size?: number; bingo_board_mode?: 'shared' | 'individual'; starting_point?: string; gameBoundary?: string | null }) => void;
     isHost: boolean;
     gridSize: number;
     timeLimit: number;
@@ -52,19 +59,27 @@ const shuffle = <T,>(array: T[]): T[] => {
 const teamColors = ['bg-indigo-500', 'bg-rose-500', 'bg-emerald-500', 'bg-amber-500'];
 const teamNames = ['Blue Team', 'Red Team', 'Green Team', 'Yellow Team'];
 
+const RECOMMENDED_STARTS = [
+    { name: 'New York', lat: 40.7570095, lng: -73.9859724 },
+    { name: 'Paris', lat: 48.853586, lng: 2.349171 },
+    { name: 'Tokyo', lat: 35.658537, lng: 139.700240 }
+];
+
 export default function LobbyView({
     renderToast, gameMode, teamMode, isHost, gridSize, updateGameModeInfo,
-    bingoBoardMode, startingPoint,
+    bingoBoardMode, startingPoint, gameBoundary,
     timeLimit, updateTimeLimit, categories,
     gameId, players, onlinePlayers,
     playerId, gameHostId,
     makeHost, kickPlayer, banPlayer, showToast, router, supabase, updateStatus, setPlayers
-}: LobbyViewProps) {
+}: LobbyViewProps & { gameBoundary?: string | null }) {
 
     const [newCategory, setNewCategory] = useState('');
     const [randomLang, setRandomLang] = useState<'german' | 'english'>('german');
     const [randomCount, setRandomCount] = useState<number | ''>(4);
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
     
     const categoryInputRef = useRef<HTMLInputElement>(null);
     const [copied, setCopied] = useState(false);
@@ -74,6 +89,95 @@ export default function LobbyView({
     const [isEditingSelfName, setIsEditingSelfName] = useState(false);
     const [selfNameInput, setSelfNameInput] = useState('');
     const selfNameInputRef = useRef<HTMLInputElement>(null);
+
+    const mapOptopns = {
+        streetViewControl: isHost,
+        mapTypeControl: false,
+        gestureHandling: isHost ? 'greedy' : 'none',
+        draggableCursor: isHost ? 'crosshair' : 'default',
+        mapId: 'GEO_BINGO_MAP_LOBBY',
+        clickableIcons: false,
+        fullscreenControl: false,
+        cameraControl: false,
+    };
+
+    const [mapLibraries] = useState<("places" | "geometry")[]>(['places', 'geometry']);
+
+    const { isLoaded, loadError } = useJsApiLoader({
+        id: 'google-map-script',
+        googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+        libraries: mapLibraries
+    });
+
+    // Map instances & overrides
+    const actualStart = startingPoint || 'open-world';
+    const polyString = gameBoundary || '';
+    const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
+    const [hoveredLocation, setHoveredLocation] = useState<{lat: number, lng: number} | null>(null);
+
+    const [mapCenter, setMapCenter] = useState({ lat: 20, lng: 0 });
+    const [mapZoom, setMapZoom] = useState(2);
+    const hasInitializedMap = useRef(false);
+
+    const [draftPolygonPoints, setDraftPolygonPoints] = useState<{lat: number, lng: number}[]>([]);
+
+    // Intercept Pegman Drop
+    useEffect(() => {
+        if (!mapInstance || !isHost) return;
+        const sv = mapInstance.getStreetView();
+        const listener = google.maps.event.addListener(sv, 'visible_changed', () => {
+            if (sv.getVisible()) {
+                // Prevent actually entering Street View
+                sv.setVisible(false);
+                const pos = sv.getPosition();
+                if (pos) {
+                    updateGameModeInfo({
+                        starting_point: JSON.stringify({ lat: pos.lat(), lng: pos.lng() }),
+                        gameBoundary: JSON.stringify(draftPolygonPoints)
+                    });
+                }
+            }
+        });
+        return () => {
+            google.maps.event.removeListener(listener);
+        };
+    }, [mapInstance, isHost, updateGameModeInfo, showToast]);
+
+    useEffect(() => {
+        if (polyString && polyString !== '[]') { 
+            try {
+                const points = JSON.parse(polyString);
+                if (Array.isArray(points)) {
+                    setDraftPolygonPoints(points);
+                    if (points.length === 3) {
+                        let minX = points[0].lat, maxX = points[0].lat;
+                        let minY = points[0].lng, maxY = points[0].lng;
+                        for (let i = 1; i < points.length; i++) {
+                            if (points[i].lat < minX) minX = points[i].lat;
+                            if (points[i].lat > maxX) maxX = points[i].lat;
+                            if (points[i].lng < minY) minY = points[i].lng;
+                            if (points[i].lng > maxY) maxY = points[i].lng;
+                        }
+                        const polyCenter = { lat: (minX + maxX)/2, lng: (minY + maxY)/2 };
+                        
+                        const latDiff = maxX - minX;
+                        const lngDiff = maxY - minY;
+                        const maxDiff = Math.max(latDiff, lngDiff);
+                        const calculatedZoom = maxDiff > 0 ? Math.floor(Math.log2(360 / maxDiff)) - 0.5 : 12;
+                        const polyZoom = Math.min(Math.max(calculatedZoom, 1), 18);
+
+                        setMapCenter(polyCenter);
+                        setMapZoom(polyZoom);
+                        hasInitializedMap.current = true;
+                    }
+                }
+            } catch (e) {
+                console.error("Invalid polygon data", e);
+            }
+        } else {
+            setDraftPolygonPoints([]);
+        }
+    }, [polyString]);
 
     useEffect(() => {
         setCurrentLink(window.location.href);
@@ -89,6 +193,32 @@ export default function LobbyView({
         default: return 'text-xs sm:text-xl';
         }
     };
+
+    const toggleFullscreen = async () => {
+        if (!containerRef.current) return;
+    
+        if (!document.fullscreenElement) {
+            try {
+                await containerRef.current.requestFullscreen();
+                setIsFullscreen(true);
+            } catch (err) {
+                console.error("Error attempting to enable fullscreen:", err);
+            }
+        } else {
+            if (document.exitFullscreen) {
+                await document.exitFullscreen();
+                setIsFullscreen(false);
+            }
+        }
+    };
+
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setIsFullscreen(!!document.fullscreenElement);
+        };
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    }, []);
 
     const handleCopyGameId = () => {
         navigator.clipboard.writeText(gameId);
@@ -113,9 +243,7 @@ export default function LobbyView({
             const { categoriesDe, categoriesEn } = await import('../lib/categories');
             const allWords = randomLang === 'german' ? categoriesDe : categoriesEn;
         
-            // Shuffle array
             const shuffled = shuffle(allWords);
-
             const availableWords = shuffled.filter(w => !categories.map(c => c.toLowerCase()).includes(w.toLowerCase()));
             const selectedWords = availableWords.slice(0, parseInt(String(randomCount)) > 0 ? parseInt(String(randomCount)) : 0);
 
@@ -146,7 +274,6 @@ export default function LobbyView({
             await supabase.from('games').update({ categories: updated }).eq('id', gameId);
             setNewCategory('');
         
-            // Fokus zurück ins Eingabefeld setzen
             setTimeout(() => {
                 categoryInputRef.current?.focus();
             }, 50);
@@ -184,16 +311,12 @@ export default function LobbyView({
         if (draggedIndex === null || draggedIndex === targetIndex) return;
     
         const updated = [...categories];
-        // Wenn das Ziel-Element außerhalb der Liste ist, ignoriere es
         if (draggedIndex >= updated.length) return;
 
         if (targetIndex >= updated.length) {
-            // If you drag to an empty field (only relevant in Bingo Grid)
-            // then simply append the element to the end of the existing words.
             const [draggedItem] = updated.splice(draggedIndex, 1);
             updated.push(draggedItem);
         } else {
-            // Swappen / Vertauschen der Elemente wenn beide existieren
             const temp = updated[draggedIndex];
             updated[draggedIndex] = updated[targetIndex];
             updated[targetIndex] = temp;
@@ -206,7 +329,6 @@ export default function LobbyView({
     useEffect(() => {
         const currentName = players.find((p) => p.id === playerId)?.name;
         if (!isEditingSelfName && currentName) {
-             
             setSelfNameInput(currentName);
         }
     }, [players, playerId, isEditingSelfName]);
@@ -271,10 +393,48 @@ export default function LobbyView({
     };
 
     const handleStartGame = async () => {
-        console.log("DEBUG: handleStartGame called");
         if (categories.length === 0) {
             showToast('Please add at least one category to start the game.');
             return;
+        }
+
+        if (polyString && polyString !== '[]') {
+            try {
+                const points = JSON.parse(polyString);
+                if (!Array.isArray(points) || points.length < 3) {
+                    showToast('Please draw at least 3 points for your restricted map area.');
+                    return;
+                }
+                
+                // Geographical Validation
+                if (actualStart !== 'open-world' && window.google) {
+                    let startLat, startLng;
+                    
+                    const recommended = RECOMMENDED_STARTS.find(r => r.name === actualStart);
+                    if (recommended) {
+                        startLat = recommended.lat;
+                        startLng = recommended.lng;
+                    } else if (actualStart.startsWith('{')) {
+                        const parsed = JSON.parse(actualStart);
+                        startLat = parsed.lat;
+                        startLng = parsed.lng;
+                    }
+
+                    if (startLat !== undefined && startLng !== undefined) {
+                        const point = new google.maps.LatLng(startLat, startLng);
+                        const polygon = new google.maps.Polygon({ paths: points });
+                        
+                        if (!google.maps.geometry.poly.containsLocation(point, polygon)) {
+                            showToast('Error: The chosen starting point is outside the restricted movement boundary!');
+                            return;
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('Invalid custom area map.');
+                return;
+            }
         }
 
         const generateBoards = async (neededCount: number): Promise<boolean> => {
@@ -288,7 +448,6 @@ export default function LobbyView({
                     if (fetchError || !playersData) throw fetchError;
 
                     if (bingoBoardMode === 'individual') {
-                        // Teams get different words but team get the same words
                         const teamBoards = new Map();
                         
                         const promises = playersData.map((player: { id: string; team: number | null }) => {
@@ -308,7 +467,6 @@ export default function LobbyView({
                         if (results.some(r => r.error)) throw results.find(r => r.error)?.error;
 
                     } else {
-                        // Teams get the same words in the same order
                         const sharedBoard = categories.slice(0, neededCount);
                         
                         const { error } = await supabase
@@ -319,7 +477,6 @@ export default function LobbyView({
                         if (error) throw error;
                     }
                 }
-                // Option 1: Everyone gets the same board in the same order
                 else if (bingoBoardMode === 'shared') {
                     const board = categories.slice(0, neededCount);
                     const { error } = await supabase
@@ -329,8 +486,6 @@ export default function LobbyView({
                     
                     if (error) throw error;
                 } 
-                
-                // Option 2: Everyone different order and different words
                 else if (bingoBoardMode === 'individual') {
                     const { data: playersData, error: fetchError } = await supabase
                         .from('players')
@@ -372,7 +527,6 @@ export default function LobbyView({
         }
         updateStatus('playing');
     };
-
 
     return (
         <div className="min-h-screen flex flex-col items-center p-10 bg-slate-900 text-white relative">
@@ -432,14 +586,12 @@ export default function LobbyView({
                     </div>
 
                     {gameMode === 'list' && (
-                        // add description for list mode
                         <p className="mb-6 p-2 pt-0 rounded-lg text-sm text-slate-400">
                             In List mode, players will see a simple list of categories. The game ends when the timer runs out or all players vote to end. Great for quick sessions and smaller groups!
                         </p>
                     )}
 
                     {gameMode === 'bingo' && (
-                        // add description for bingo mode
                         <p className="mb-6 p-2 pt-0 rounded-lg text-sm text-slate-400">
                             In Bingo Grid mode, players receive a grid of categories. Players recieve extra points for completing rows or columns of a length defined by the host. The game ends when the timer runs out or all players vote to end. Perfect for longer sessions and adds a fun strategic layer!
                         </p>
@@ -505,31 +657,176 @@ export default function LobbyView({
                         {!isHost && <p className="text-xs text-slate-500 mt-2 italic">Only the host can adjust the time limit.</p>}
                     </div>
 
-                    {/* Starting Point Dropdown */}
+                    {/* Integrated Map Area */}
                     <div className="mb-8 p-4 bg-slate-900 rounded-lg border border-slate-800 shadow-inner">
-                        <label htmlFor="starting-point-select" className="block font-bold mb-2 cursor-pointer text-slate-200">
-                            Starting Point
-                        </label>
-                        <div className="relative">
-                            <select
-                                id="starting-point-select"
-                                value={startingPoint}
-                                onChange={(e) => updateGameModeInfo({ starting_point: e.target.value })}
-                                disabled={!isHost}
-                                className={`w-full appearance-none p-3 pr-10 bg-slate-800 border border-slate-700 rounded-lg text-white font-medium focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all ${!isHost ? 'opacity-70 cursor-not-allowed' : 'hover:border-slate-600 cursor-pointer'}`}
-                            >
-                                <option value="open-world">Open World (Default)</option>
-                                <option value="new-york">New York</option>
-                                <option value="paris">Paris</option>
-                                <option value="tokyo">Tokyo</option>
-                            </select>
-                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
-                                <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-                            </div>
+                        <div className="flex justify-between items-center mb-2">
+                            <label className="block font-bold cursor-pointer text-slate-200">
+                                Starting Location & Game Boundary
+                            </label>
                         </div>
-                        <p className="mt-2 text-xs text-slate-400">
-                            {startingPoint === 'open-world' ? 'Players start with the world map and can drop Pegman anywhere.' : 'Players spawn directly inside the selected city and cannot leave Street View.'}
+                        
+                        <p className="mt-2 text-xs text-slate-400 mb-4">
+                            Left-click the map to draw movement boundaries. Drop the Pegman to set a custom starting point, or select a recommended city marker. If no starting point is set, players start in the open world.
                         </p>
+
+                        <div className="mt-4 flex flex-col gap-2">
+                            <div className="h-[400px] min-h-[400px] w-full rounded-lg overflow-hidden border border-slate-700 relative bg-slate-800/50 flex flex-col items-center justify-center">
+                                {!isLoaded && <div className="text-slate-400">Loading map configuration...</div>}
+                                {isLoaded && (
+                                    <div ref={containerRef} className="absolute inset-0 w-full h-full">
+                                        <GoogleMap
+                                            onLoad={(map) => setMapInstance(map)}
+                                            mapContainerStyle={{ width: '100%', height: '100%' }}
+                                            center={mapCenter}
+                                            zoom={mapZoom}
+                                            onClick={(e) => {
+                                                if (!isHost || !e.latLng) return;
+                                                const newPoint = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+                                                const newPoints = insertPoint(newPoint, draftPolygonPoints);
+                                                setDraftPolygonPoints(newPoints);
+                                                updateGameModeInfo({ gameBoundary: JSON.stringify(newPoints) });
+                                            }}
+                                            options={mapOptopns}
+                                        >
+                                            {/* Recommended Markers */}
+                                            {RECOMMENDED_STARTS.map(loc => (
+                                                <MarkerF
+                                                    key={loc.name}
+                                                    position={{ lat: loc.lat, lng: loc.lng }}
+                                                    onClick={() => isHost && updateGameModeInfo({
+                                                        starting_point: `{"lat": ${loc.lat}, "lng": ${loc.lng}}`,
+                                                        gameBoundary: JSON.stringify(draftPolygonPoints)
+                                                    })}
+                                                    onMouseOver={() => setHoveredLocation({ lat: loc.lat, lng: loc.lng })}
+                                                    onMouseOut={() => setHoveredLocation(null)}
+                                                    options={{
+                                                        opacity: actualStart === loc.name ? 1 : 0.4,
+                                                        icon: {
+                                                            path: window.google ? google.maps.SymbolPath.CIRCLE : 0,
+                                                            scale: 7,
+                                                            fillColor: actualStart === loc.name ? '#4f46e5' : '#ffffff',
+                                                            fillOpacity: 1,
+                                                            strokeColor: '#4f46e5',
+                                                            strokeWeight: 2,
+                                                        }
+                                                    }}
+                                                />
+                                            ))}
+
+                                            {/* Custom Drop Marker */}
+                                            {actualStart.startsWith('{') && (
+                                                <MarkerF
+                                                    position={JSON.parse(actualStart)}
+                                                    onMouseOver={() => setHoveredLocation(JSON.parse(actualStart))}
+                                                    onMouseOut={() => setHoveredLocation(null)}
+                                                    options={{
+                                                        icon: {
+                                                            path: window.google ? google.maps.SymbolPath.CIRCLE : 0,
+                                                            scale: 8,
+                                                            fillColor: '#10b981',
+                                                            fillOpacity: 1,
+                                                            strokeColor: '#059669',
+                                                            strokeWeight: 2,
+                                                        }
+                                                    }}
+                                                />
+                                            )}
+
+                                            {/* Hover Preview Box */}
+                                            {hoveredLocation && (
+                                                <InfoWindowF 
+                                                    position={hoveredLocation} 
+                                                    options={{ 
+                                                        disableAutoPan: true,
+                                                        // Offset the box 40 pixels up so it doesn't cover the marker
+                                                        pixelOffset: window.google ? new window.google.maps.Size(0, -40) : undefined
+                                                    }}
+                                                >
+                                                    {/* pointer-events-none prevents the box from stealing mouse focus */}
+                                                    <div className="p-1 pointer-events-none">
+                                                        <img
+                                                            src={`https://maps.googleapis.com/maps/api/streetview?size=240x120&location=${hoveredLocation.lat},${hoveredLocation.lng}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`}
+                                                            alt="Street View Preview"
+                                                            className="w-[240px] h-[120px] rounded object-cover"
+                                                        />
+                                                    </div>
+                                                </InfoWindowF>
+                                            )}
+
+                                            {draftPolygonPoints.length > 0 && (
+                                                <PolygonF
+                                                    paths={draftPolygonPoints}
+                                                    options={{
+                                                        fillColor: '#6366f1',
+                                                        fillOpacity: 0.35,
+                                                        strokeColor: '#4f46e5',
+                                                        strokeOpacity: 0.8,
+                                                        strokeWeight: 2,
+                                                        clickable: false,
+                                                    }}
+                                                />
+                                            )}
+                                            {draftPolygonPoints.map((point, idx) => (
+                                                <MarkerF
+                                                    key={`poly-${idx}`}
+                                                    position={point}
+                                                    options={{
+                                                        clickable: false,
+                                                        icon: {
+                                                            path: window.google ? google.maps.SymbolPath.CIRCLE : 0,
+                                                            scale: 4,
+                                                            fillColor: '#ffffff',
+                                                            fillOpacity: 1,
+                                                            strokeColor: '#4f46e5',
+                                                            strokeWeight: 2,
+                                                        }
+                                                    }}
+                                                />
+                                            ))}
+                                        </GoogleMap>
+                                        <FullscreenButton isFullscreen={isFullscreen} toggleFullscreen={toggleFullscreen} />
+                                    </div>
+                                )}
+                            </div>
+                            
+                            {isHost && (
+                                <div className="flex flex-col sm:flex-row justify-between items-center w-full text-sm text-slate-400 gap-2 mt-2">
+                                    {/* Left Side: Reset Start Point */}
+                                    <button
+                                        onClick={() => updateGameModeInfo({ starting_point: 'open-world' })}
+                                        disabled={actualStart === 'open-world'}
+                                        className="px-3 py-1 bg-indigo-900 border border-indigo-700 hover:bg-indigo-800 text-slate-200 rounded flex gap-2 items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:border-slate-700 disabled:text-slate-500"
+                                    >
+                                        Reset Start
+                                    </button>
+
+                                    {/* Right Side: Game Boundary Controls */}
+                                    <div className="flex gap-2">
+                                        <button 
+                                            onClick={() => {
+                                                const newPoints = draftPolygonPoints.slice(0, -1);
+                                                setDraftPolygonPoints(newPoints);
+                                                updateGameModeInfo({ gameBoundary: JSON.stringify(newPoints) });
+                                            }}
+                                            disabled={draftPolygonPoints.length === 0}
+                                            className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded flex gap-2 items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-slate-700"
+                                        >
+                                            <FaUndo /> Undo Point
+                                        </button>
+                                        <button 
+                                            onClick={() => {
+                                                setDraftPolygonPoints([]);
+                                                updateGameModeInfo({ gameBoundary: '[]' });
+                                            }}
+                                            disabled={draftPolygonPoints.length === 0}
+                                            className="px-3 py-1 bg-rose-900 border border-rose-700 hover:bg-rose-800 text-slate-200 rounded flex gap-2 items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            Reset Area
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     <h3 className="text-xl font-bold mb-2 text-slate-300 flex justify-between items-center">

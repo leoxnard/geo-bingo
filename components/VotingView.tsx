@@ -8,6 +8,20 @@ import { GoogleMap, useJsApiLoader, OverlayViewF, OverlayView, StreetViewPanoram
 
 const LIBRARIES: ("places" | "geometry" | "drawing" | "visualization" | "marker")[] = ['places', 'geometry'];
 
+const mapOptions = {
+    mapId: "VOTING_MAP_ID",
+    streetViewControl: false, 
+    mapTypeControl: false, 
+    gestureHandling: 'greedy', 
+    fullscreenControl: false, 
+    zoomControl: false,
+    keyboardShortcuts: true,
+    draggable: true,
+    scrollwheel: true,
+    disableDoubleClickZoom: false,
+    cameraControl: false,
+}
+
 interface Submission {
   id: string;
   player_id: string;
@@ -138,9 +152,15 @@ export default function VotingView({
         if (activeSubmissions.length > 0) {
             const avgLat = activeSubmissions.reduce((sum, sub) => sum + sub.lat, 0) / activeSubmissions.length;
             const avgLng = activeSubmissions.reduce((sum, sub) => sum + sub.lng, 0) / activeSubmissions.length;
-            setMapCenter({ lat: avgLat, lng: avgLng });
+            setMapCenter(prev => {
+                // Prevent infinite update loops by checking if the coordinate changed
+                if (Math.abs(prev.lat - avgLat) < 0.000001 && Math.abs(prev.lng - avgLng) < 0.000001) {
+                    return prev;
+                }
+                return { lat: avgLat, lng: avgLng };
+            });
         }
-    }, [currentCategory]);
+    }, [currentCategory, activeSubmissions]);
 
     // Check how many players have voted on EVERYTHING
     const playersWhoFinishedVoting = Object.keys(playersMap).filter(pId => {
@@ -157,17 +177,19 @@ export default function VotingView({
     });
 
     const goToPrevCategory = () => {
-        if (categories.length <= 1) return;
-        const currentIndex = categories.indexOf(currentCategory);
-        const prevIndex = currentIndex <= 0 ? categories.length - 1 : currentIndex - 1;
-        setActiveCategory(categories[prevIndex]);
+        const validCategories = categories.filter(cat => submissions.some(s => s.category === cat));
+        if (validCategories.length <= 1) return;
+        const currentIndex = validCategories.indexOf(currentCategory);
+        const prevIndex = currentIndex <= 0 ? validCategories.length - 1 : currentIndex - 1;
+        setActiveCategory(validCategories[prevIndex]);
     };
 
     const goToNextCategory = () => {
-        if (categories.length <= 1) return;
-        const currentIndex = categories.indexOf(currentCategory);
-        const nextIndex = currentIndex === -1 || currentIndex >= categories.length - 1 ? 0 : currentIndex + 1;
-        setActiveCategory(categories[nextIndex]);
+        const validCategories = categories.filter(cat => submissions.some(s => s.category === cat));
+        if (validCategories.length <= 1) return;
+        const currentIndex = validCategories.indexOf(currentCategory);
+        const nextIndex = currentIndex >= validCategories.length - 1 ? 0 : currentIndex + 1;
+        setActiveCategory(validCategories[nextIndex]);
     };
 
     return (
@@ -361,18 +383,7 @@ export default function VotingView({
                                     mapContainerClassName="w-full h-full"
                                     zoom={2}
                                     center={mapCenter}
-                                    options={{ 
-                                        mapId: "VOTING_MAP_ID",
-                                        streetViewControl: false, 
-                                        mapTypeControl: false, 
-                                        gestureHandling: 'greedy', 
-                                        fullscreenControl: false, 
-                                        zoomControl: false,
-                                        keyboardShortcuts: true,
-                                        draggable: true,
-                                        scrollwheel: true,
-                                        disableDoubleClickZoom: false
-                                    }}
+                                    options={mapOptions}
                                 >
                                     {activeSubmissions.map(sub => {
                                         const playerName = playersMap[sub.player_id] || 'Unknown Player';

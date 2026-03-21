@@ -1,16 +1,24 @@
 'use client';
 
 
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { GoogleMap, useJsApiLoader, StreetViewPanorama } from '@react-google-maps/api';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { GoogleMap, useJsApiLoader, StreetViewPanorama, Polygon } from '@react-google-maps/api';
 import { supabase } from '../lib/supabase';
 import { FaEye, FaCamera } from 'react-icons/fa';
 import Image from 'next/image';
 
-const safeStartCenter = { lat: 20, lng: 0 };
-const initialWorldZoom = 1.5;
-const mapOptions = { streetViewControl: true, mapTypeControl: false, gestureHandling: 'greedy', fullscreenControl: false, zoomControl: false };
-const restrictedMapOptions = { streetViewControl: false, mapTypeControl: false, gestureHandling: 'none', fullscreenControl: false, zoomControl: false, keyboardShortcuts: false };
+import { FullscreenButton } from './utils/Elements';
+
+const safeStartCenter = { lat:30, lng: 10 };
+const initialWorldZoom = 2.4;
+const mapOptions = {
+    streetViewControl: true,
+    mapTypeControl: false,
+    gestureHandling: 'greedy',
+    fullscreenControl: false,
+    zoomControl: false,
+    cameraControl: false,
+};
 
 const panoOptions = { 
     addressControl: false, 
@@ -21,12 +29,6 @@ const panoOptions = {
     panControl: false,
     linksControl: false,
     visible: false,
-};
-
-const STARTING_POSITIONS: Record<string, { lat: number; lng: number }> = {
-    'new-york': { lat: 40.7570095, lng: -73.9859724 },
-    'paris': { lat: 48.853586, lng: 2.349171 },
-    'tokyo': { lat: 35.658537, lng: 139.700240 }
 };
 
 interface Submission {
@@ -48,14 +50,16 @@ interface StreetViewProps {
     teamMode?: 'ffa' | 'teams';
     gridSize?: number;
     startingPoint?: string;
+    gameBoundary?: string | null;
     renderToast: () => React.ReactNode;
+    showToast : (message: string) => void;
     timeLeft: number;
     readyPlayers: string[];
     players: Player[];
 }
 
 export default function StreetView({ 
-    myBoard, gameId, playerId, gameMode = 'list', teamMode = 'ffa', gridSize = 3, startingPoint = 'open-world', renderToast, timeLeft, readyPlayers, players
+    myBoard, gameId, playerId, gameMode = 'list', teamMode = 'ffa', gridSize = 3, startingPoint = 'open-world', gameBoundary = null, renderToast, showToast, timeLeft, readyPlayers, players
 }: StreetViewProps) {
 
     const [libraries] = useState<("places" | "geometry")[]>(['places', 'geometry']);
@@ -78,6 +82,8 @@ export default function StreetView({
   
     const streetViewRef = useRef<google.maps.StreetViewPanorama | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const lastValidPositionRef = useRef<google.maps.LatLng | null>(null);
+    const customPolygonRef = useRef<google.maps.Polygon | null>(null);
 
     const hasVotedToEnd = readyPlayers.includes(playerId);
     const votesNeeded = players.length; // All players
@@ -183,18 +189,62 @@ export default function StreetView({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         pano.setOptions({ source: google.maps.StreetViewSource.OUTDOOR } as any);
     
-        if (startingPoint && startingPoint !== 'open-world' && STARTING_POSITIONS[startingPoint]) {
-            pano.setPosition(STARTING_POSITIONS[startingPoint]);
+        const polyString = gameBoundary || '';
+
+        if (startingPoint === 'open-world') {
+            pano.setPosition(safeStartCenter);
+            if (polyString && polyString !== '[]' && polyString !== 'null') {
+                try {
+                    const points = JSON.parse(polyString);
+                    if (Array.isArray(points) && points.length >= 3) {
+                        let minX = points[0].lat, maxX = points[0].lat;
+                        let minY = points[0].lng, maxY = points[0].lng;
+                        for (let i = 1; i < points.length; i++) {
+                            if (points[i].lat < minX) minX = points[i].lat;
+                            if (points[i].lat > maxX) maxX = points[i].lat;
+                            if (points[i].lng < minY) minY = points[i].lng;
+                            if (points[i].lng > maxY) maxY = points[i].lng;
+                        }
+                        
+                        customPolygonRef.current = new google.maps.Polygon({ paths: points });
+                    }
+                } catch (e) {
+                    console.error("Invalid custom poly bounds:", e);
+                }
+            }
+        } else {
+            const parsedStart = JSON.parse(startingPoint) as { lat: number; lng: number };
+            const googleStartingPoint = new google.maps.LatLng(parsedStart.lat, parsedStart.lng);
+            pano.setPosition(googleStartingPoint);
             pano.setVisible(true);
             setInStreetView(true);
+            lastValidPositionRef.current = new google.maps.LatLng(parsedStart.lat, parsedStart.lng);
         }
 
+
+        pano.addListener('position_changed', () => {
+            const pos = pano.getPosition();
+            if (!pos) return;
+            
+            // Revert movement if outside custom boundary!
+            if (customPolygonRef.current) {
+                if (google.maps.geometry.poly.containsLocation(pos, customPolygonRef.current)) {
+                    lastValidPositionRef.current = pos;
+                } else if (lastValidPositionRef.current) {
+                    showToast("You've reached the edge of the allowed area!");
+                    pano.setPosition(lastValidPositionRef.current);
+                } else {
+                    showToast("Please stay within the designated area!");
+                    pano.setVisible(false); // Drop blocked
+                }
+            }
+        });
+
         pano.addListener('visible_changed', () => {
-            if (startingPoint && startingPoint !== 'open-world' && !pano.getVisible()) {
-                // Prevent exiting Street View if restricted
-                pano.setVisible(true);
-            } else {
-                setInStreetView(pano.getVisible());
+            const isVisible = pano.getVisible();
+            setInStreetView(isVisible);
+            if (!isVisible) {
+                lastValidPositionRef.current = null;
             }
         });
     }, [startingPoint]);
@@ -244,6 +294,60 @@ export default function StreetView({
         }
     };
 
+    const parsedStartParams = useMemo(() => {
+        // Default to open-world center if parsing fails, but still try to parse for potential poly gameBoundarys
+        const polyString = gameBoundary || '';
+        let polyPoints: google.maps.LatLngLiteral[] | null = null;
+        let polyCenter = null;
+        let polyZoom = null;
+        
+        if (polyString && polyString !== '[]' && polyString !== 'null') {
+            try {
+                polyPoints = JSON.parse(polyString);
+                if (Array.isArray(polyPoints) && polyPoints.length >= 3) {
+                    let minX = polyPoints[0].lat, maxX = polyPoints[0].lat;
+                    let minY = polyPoints[0].lng, maxY = polyPoints[0].lng;
+                    for (let i = 1; i < polyPoints.length; i++) {
+                        if (polyPoints[i].lat < minX) minX = polyPoints[i].lat;
+                        if (polyPoints[i].lat > maxX) maxX = polyPoints[i].lat;
+                        if (polyPoints[i].lng < minY) minY = polyPoints[i].lng;
+                        if (polyPoints[i].lng > maxY) maxY = polyPoints[i].lng;
+                    }
+                    polyCenter = { lat: (minX + maxX)/2, lng: (minY + maxY)/2 };
+                    
+                    const latDiff = maxX - minX;
+                    const lngDiff = maxY - minY;
+                    const maxDiff = Math.max(latDiff, lngDiff);
+                    const calculatedZoom = maxDiff > 0 ? Math.floor(Math.log2(360 / maxDiff)) + 1 : 12;
+                    polyZoom = Math.min(Math.max(calculatedZoom, 1), 18);
+                }
+            } catch (e) {
+                console.error("Error parsing gameBoundary:", e);
+            }
+        }
+        return { polyPoints, polyCenter, polyZoom };
+    }, [gameBoundary]);
+
+    const { polyPoints, polyCenter, polyZoom } = parsedStartParams;
+
+    const mapCenter = useMemo(() => {
+        // If open world and we have a custom restricted area, center on the area
+        if (startingPoint === 'open-world' && polyCenter) return polyCenter;
+        
+        // Otherwise, default to the safe start center
+        return safeStartCenter;
+    }, [polyCenter, startingPoint]);
+
+    const mapZoom = useMemo(() => {
+        // If open world and we have a custom restricted area, zoom to fit the area
+        if (startingPoint === 'open-world' && polyZoom !== null) return polyZoom;
+        
+        // Otherwise, default to a safe integer zoom level
+        return 2; 
+    }, [polyZoom, startingPoint]);
+
+    const resolvedMapOptions = mapOptions;
+
     if (!isLoaded) return <div className="h-screen flex items-center justify-center text-indigo-400">Loading Maps...</div>;
 
     // Dynamically size sidebar to avoid Tailwind JIT compiling issues
@@ -268,6 +372,7 @@ export default function StreetView({
         default: return 'text-xs sm:text-xl';
         }
     };
+
 
     return (
         <div className="min-h-screen p-4 bg-slate-900">
@@ -317,33 +422,32 @@ export default function StreetView({
                         <div ref={containerRef} className={`${isMobileLandscape ? 'basis-[58%] min-h-0 h-full' : 'flex-1 min-h-[400px] h-full'} border-4 border-slate-700 rounded-2xl overflow-hidden shadow-2xl relative bg-slate-800 absolute-safari-fix`}>
                             <GoogleMap 
                                 key={gameId} 
-                                mapContainerClassName="google-map-container absolute inset-0" 
-                                center={startingPoint !== 'open-world' ? STARTING_POSITIONS[startingPoint] : safeStartCenter} 
-                                zoom={startingPoint !== 'open-world' ? 14 : initialWorldZoom} 
-                                options={startingPoint !== 'open-world' ? restrictedMapOptions : mapOptions}
+                                mapContainerClassName="google-map-container absolute inset-0"
+                                center={mapCenter}
+                                zoom={mapZoom}
+                                options={resolvedMapOptions}
                             >
+                                {/* Draw custom boundary polygon if provided */}
+                                {polyPoints && (
+                                    <Polygon
+                                        paths={polyPoints}
+                                        options={{
+                                            fillColor: '#ef4444',
+                                            fillOpacity: 0.1,
+                                            strokeColor: '#ef4444',
+                                            strokeOpacity: 0.8,
+                                            strokeWeight: 2,
+                                            clickable: false
+                                        }}
+                                    />
+                                )}
                                 {/* Safely pass onLoad and onUnmount */}
                                 <StreetViewPanorama options={panoOptions} onLoad={onLoad} onUnmount={onUnmount} />
                             </GoogleMap>
 
                             {/* Custom Fullscreen Button */}
                             {!isMobileLandscape && (
-                                <button
-                                    type="button"
-                                    onClick={toggleFullscreen}
-                                    className="absolute top-2 right-2 z-[1000] hidden sm:flex w-12 h-12 bg-slate-800/30 hover:bg-slate-700/80 text-white items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-slate-500 font-bold transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm"
-                                    title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
-                                >
-                                    {isFullscreen ? (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                            <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
-                                        </svg>
-                                    ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
-                                        </svg>
-                                    )} 
-                                </button>
+                                <FullscreenButton isFullscreen={isFullscreen} toggleFullscreen={toggleFullscreen} />
                             )}
 
                             {inStreetView && startingPoint === 'open-world' && (
