@@ -10,6 +10,8 @@ import Image from 'next/image';
 const safeStartCenter = { lat: 20, lng: 0 };
 const initialWorldZoom = 1.5;
 const mapOptions = { streetViewControl: true, mapTypeControl: false, gestureHandling: 'greedy', fullscreenControl: false, zoomControl: false };
+const restrictedMapOptions = { streetViewControl: false, mapTypeControl: false, gestureHandling: 'none', fullscreenControl: false, zoomControl: false, keyboardShortcuts: false };
+
 const panoOptions = { 
     addressControl: false, 
     showRoadLabels: false, 
@@ -19,6 +21,12 @@ const panoOptions = {
     panControl: false,
     linksControl: false,
     visible: false,
+};
+
+const STARTING_POSITIONS: Record<string, { lat: number; lng: number }> = {
+    'new-york': { lat: 40.7570095, lng: -73.9859724 },
+    'paris': { lat: 48.853586, lng: 2.349171 },
+    'tokyo': { lat: 35.658537, lng: 139.700240 }
 };
 
 interface Submission {
@@ -39,6 +47,7 @@ interface StreetViewProps {
     gameMode?: 'list' | 'bingo';
     teamMode?: 'ffa' | 'teams';
     gridSize?: number;
+    startingPoint?: string;
     renderToast: () => React.ReactNode;
     timeLeft: number;
     readyPlayers: string[];
@@ -46,7 +55,7 @@ interface StreetViewProps {
 }
 
 export default function StreetView({ 
-    myBoard, gameId, playerId, gameMode = 'list', teamMode = 'ffa', gridSize = 3, renderToast, timeLeft, readyPlayers, players
+    myBoard, gameId, playerId, gameMode = 'list', teamMode = 'ffa', gridSize = 3, startingPoint = 'open-world', renderToast, timeLeft, readyPlayers, players
 }: StreetViewProps) {
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
@@ -170,10 +179,21 @@ export default function StreetView({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         pano.setOptions({ source: google.maps.StreetViewSource.OUTDOOR } as any);
     
+        if (startingPoint && startingPoint !== 'open-world' && STARTING_POSITIONS[startingPoint]) {
+            pano.setPosition(STARTING_POSITIONS[startingPoint]);
+            pano.setVisible(true);
+            setInStreetView(true);
+        }
+
         pano.addListener('visible_changed', () => {
-            setInStreetView(pano.getVisible());
+            if (startingPoint && startingPoint !== 'open-world' && !pano.getVisible()) {
+                // Prevent exiting Street View if restricted
+                pano.setVisible(true);
+            } else {
+                setInStreetView(pano.getVisible());
+            }
         });
-    }, []);
+    }, [startingPoint]);
 
     const onUnmount = useCallback(() => {
         streetViewRef.current = null;
@@ -291,7 +311,13 @@ export default function StreetView({
                 {playerId && (
                     <div className={`flex gap-6 ${isMobileLandscape ? 'flex-row h-[calc(100dvh-7rem)] min-h-0' : 'flex-col lg:flex-row h-[calc(100vh-8rem)] min-h-[600px]'}`}>
                         <div ref={containerRef} className={`${isMobileLandscape ? 'basis-[58%] min-h-0 h-full' : 'flex-1 min-h-[400px] h-full'} border-4 border-slate-700 rounded-2xl overflow-hidden shadow-2xl relative bg-slate-800 absolute-safari-fix`}>
-                            <GoogleMap key={gameId} mapContainerClassName="google-map-container absolute inset-0" center={safeStartCenter} zoom={initialWorldZoom} options={mapOptions}>
+                            <GoogleMap 
+                                key={gameId} 
+                                mapContainerClassName="google-map-container absolute inset-0" 
+                                center={startingPoint !== 'open-world' ? STARTING_POSITIONS[startingPoint] : safeStartCenter} 
+                                zoom={startingPoint !== 'open-world' ? 14 : initialWorldZoom} 
+                                options={startingPoint !== 'open-world' ? restrictedMapOptions : mapOptions}
+                            >
                                 {/* Safely pass onLoad and onUnmount */}
                                 <StreetViewPanorama options={panoOptions} onLoad={onLoad} onUnmount={onUnmount} />
                             </GoogleMap>
@@ -316,7 +342,7 @@ export default function StreetView({
                                 </button>
                             )}
 
-                            {inStreetView && (
+                            {inStreetView && startingPoint === 'open-world' && (
                                 <button
                                     type="button"
                                     onClick={() => streetViewRef.current?.setVisible(false)}

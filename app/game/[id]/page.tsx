@@ -38,6 +38,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [teamMode, setTeamMode] = useState<'ffa' | 'teams'>('ffa');
     const [gridSize, setGridSize] = useState(3);
     const [bingoBoardMode, setBingoBoardMode] = useState<'shared' | 'individual'>('shared');
+    const [startingPoint, setStartingPoint] = useState<string>('open-world');
   
     // Players & Voting
     const [playerId, setPlayerId] = useState<string>('');
@@ -57,12 +58,13 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         setTimeout(() => setToastMessage(null), 3500);
     };
 
-    const updateGameModeInfo = async (updates: { game_mode?: string; team_mode?: string; grid_size?: number; bingo_board_mode?: 'shared' | 'individual' }) => {
+    const updateGameModeInfo = async (updates: { game_mode?: string; team_mode?: string; grid_size?: number; bingo_board_mode?: 'shared' | 'individual'; starting_point?: string }) => {
         if (!isHost) return;
         if (updates.game_mode) setGameMode(updates.game_mode as 'list' | 'bingo');
         if (updates.team_mode) setTeamMode(updates.team_mode as 'ffa' | 'teams');
         if (updates.grid_size) setGridSize(updates.grid_size);
         if (updates.bingo_board_mode) setBingoBoardMode(updates.bingo_board_mode);
+        if (updates.starting_point) setStartingPoint(updates.starting_point);
         await supabase.from('games').update(updates).eq('id', gameId);
     };
 
@@ -103,7 +105,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             if (!gameData) {
                 const { error } = await supabase.from('games').insert([{ 
                     id: gameId, status: 'lobby', categories: [], ready_players: [], time_limit: 300, host_id: currentPlayerId, banned_players: [],
-                    game_mode: 'list', team_mode: 'ffa', grid_size: 3
+                    game_mode: 'list', team_mode: 'ffa', grid_size: 3, starting_point: 'open-world'
                 }]);
                 if (!error) {
                     setIsHost(true);
@@ -120,8 +122,10 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setTimeLimit(gameData.time_limit || 300);
                 setGameHostId(gameData.host_id || '');
                 setGameMode(gameData.game_mode || 'list');
+                setTeamMode(gameData.team_mode || 'ffa');
                 setGridSize(gameData.grid_size || 3);
                 setBingoBoardMode(gameData.bingo_board_mode || 'shared');
+                setStartingPoint(gameData.starting_point || 'open-world');
         
                 // Restore host status if they refresh the page
                 const isActuallyHost = gameData.host_id === currentPlayerId;
@@ -190,6 +194,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     setTeamMode(payload.new.team_mode || 'ffa');
                     setGridSize(payload.new.grid_size || 3);
                     setBingoBoardMode(payload.new.bingo_board_mode || 'shared');
+                    setStartingPoint(payload.new.starting_point || 'open-world');
                 }
             ).subscribe();
 
@@ -391,6 +396,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 isHost={isHost}
                 gridSize={gridSize}
                 bingoBoardMode={bingoBoardMode}
+                startingPoint={startingPoint}
                 updateGameModeInfo={updateGameModeInfo}
                 timeLimit={timeLimit}
                 updateTimeLimit={updateTimeLimit}
@@ -426,6 +432,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 gameMode={gameMode}
                 teamMode={teamMode}
                 gridSize={gridSize}
+                startingPoint={startingPoint}
                 renderToast={renderToast}
                 timeLeft={timeLeft}
                 readyPlayers={readyPlayers}

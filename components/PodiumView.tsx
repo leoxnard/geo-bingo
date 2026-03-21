@@ -98,7 +98,7 @@ export default function PodiumView({
                         let subYes = 0;
                         let subNo = 0;
             
-                        Object.entries(votes).forEach(([voterId, v]) => {
+                        Object.values(votes).forEach((v) => {
                             if (v === true) subYes++;
                             if (v === false) subNo++;
                         });
@@ -217,7 +217,7 @@ export default function PodiumView({
         };
 
         fetchResults();
-    }, [gameId]);
+    }, [gameId, teamMode]);
 
     if (loading) return <div className="text-white text-center py-20 text-xl animate-pulse">Calculating Final Scores...</div>;
 

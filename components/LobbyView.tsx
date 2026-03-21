@@ -16,7 +16,8 @@ interface LobbyViewProps {
     gameMode: 'list' | 'bingo';
     teamMode: 'ffa' | 'teams';
     bingoBoardMode: 'shared' | 'individual';
-    updateGameModeInfo: (updates: { game_mode?: string; team_mode?: string; grid_size?: number; bingo_board_mode?: 'shared' | 'individual' }) => void;
+    startingPoint: string;
+    updateGameModeInfo: (updates: { game_mode?: string; team_mode?: string; grid_size?: number; bingo_board_mode?: 'shared' | 'individual'; starting_point?: string }) => void;
     isHost: boolean;
     gridSize: number;
     timeLimit: number;
@@ -53,7 +54,7 @@ const teamNames = ['Blue Team', 'Red Team', 'Green Team', 'Yellow Team'];
 
 export default function LobbyView({
     renderToast, gameMode, teamMode, isHost, gridSize, updateGameModeInfo,
-    bingoBoardMode,
+    bingoBoardMode, startingPoint,
     timeLimit, updateTimeLimit, categories,
     gameId, players, onlinePlayers,
     playerId, gameHostId,
@@ -502,6 +503,33 @@ export default function LobbyView({
                             title="Adjust the game time limit in minutes"
                         />
                         {!isHost && <p className="text-xs text-slate-500 mt-2 italic">Only the host can adjust the time limit.</p>}
+                    </div>
+
+                    {/* Starting Point Dropdown */}
+                    <div className="mb-8 p-4 bg-slate-900 rounded-lg border border-slate-800 shadow-inner">
+                        <label htmlFor="starting-point-select" className="block font-bold mb-2 cursor-pointer text-slate-200">
+                            Starting Point
+                        </label>
+                        <div className="relative">
+                            <select
+                                id="starting-point-select"
+                                value={startingPoint}
+                                onChange={(e) => updateGameModeInfo({ starting_point: e.target.value })}
+                                disabled={!isHost}
+                                className={`w-full appearance-none p-3 pr-10 bg-slate-800 border border-slate-700 rounded-lg text-white font-medium focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all ${!isHost ? 'opacity-70 cursor-not-allowed' : 'hover:border-slate-600 cursor-pointer'}`}
+                            >
+                                <option value="open-world">Open World (Default)</option>
+                                <option value="new-york">New York</option>
+                                <option value="paris">Paris</option>
+                                <option value="tokyo">Tokyo</option>
+                            </select>
+                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
+                                <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                            </div>
+                        </div>
+                        <p className="mt-2 text-xs text-slate-400">
+                            {startingPoint === 'open-world' ? 'Players start with the world map and can drop Pegman anywhere.' : 'Players spawn directly inside the selected city and cannot leave Street View.'}
+                        </p>
                     </div>
 
                     <h3 className="text-xl font-bold mb-2 text-slate-300 flex justify-between items-center">
