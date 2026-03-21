@@ -259,17 +259,17 @@ export default function PodiumView({
                     </div>
                 )}
             </div>
-            <div className="w-full max-w-6xl mx-auto flex flex-col items-center text-white pb-20">
+            <div className="w-full max-w-6xl mx-auto flex flex-col items-center text-white">
       
                 {/* THE PODIUM */}
-                <div className="flex items-end justify-center gap-4 md:gap-8 h-72 mb-16 mt-12 w-full">
+                <div className="flex items-end justify-center gap-4 md:gap-8 h-65 mb-5 mt-20 w-full">
             
                     {/* 2nd Place */}
                     {rank2.length > 0 && (
                         <div className="flex flex-col items-center w-32 md:w-40 animate-[slideUp_1s_ease-out]">
                             <div className="flex flex-col items-center mb-2 w-full">
                                 {rank2.map(p => (
-                                    <span key={p.id} className="text-xl md:text-2xl font-bold truncate w-full text-center" title={p.name}>{p.name}</span>
+                                    <span key={p.id} className="text-xl md:text-2xl font-bold w-full text-center" title={p.name}>{p.name}</span>
                                 ))}
                             </div>
                             <span className="text-slate-400 mb-4 font-bold bg-slate-800 px-4 py-1 rounded-full">{rank2[0].score} Pts</span>
@@ -284,7 +284,7 @@ export default function PodiumView({
                         <div className="flex flex-col items-center w-40 md:w-48 animate-[slideUp_0.8s_ease-out]">
                             <div className="flex flex-col items-center mb-2 w-full">
                                 {rank1.map(p => (
-                                    <span key={p.id} className="text-2xl md:text-3xl font-black text-yellow-400 truncate w-full text-center" title={p.name}>{p.name}</span>
+                                    <span key={p.id} className="text-2xl md:text-3xl font-black text-yellow-400 w-full text-center" title={p.name}>{p.name}</span>
                                 ))}
                             </div>
                             <span className="text-yellow-200 mb-4 font-bold bg-yellow-900/50 px-5 py-1 rounded-full">{rank1[0].score} Pts</span>
@@ -300,7 +300,7 @@ export default function PodiumView({
                         <div className="flex flex-col items-center w-32 md:w-40 animate-[slideUp_1.2s_ease-out]">
                             <div className="flex flex-col items-center mb-2 w-full">
                                 {rank3.map(p => (
-                                    <span key={p.id} className="text-xl md:text-2xl font-bold truncate w-full text-center" title={p.name}>{p.name}</span>
+                                    <span key={p.id} className="text-xl md:text-2xl font-bold w-full text-center" title={p.name}>{p.name}</span>
                                 ))}
                             </div>
                             <span className="text-amber-600 mb-4 font-bold bg-amber-900/30 px-4 py-1 rounded-full">{rank3[0].score} Pts</span>
