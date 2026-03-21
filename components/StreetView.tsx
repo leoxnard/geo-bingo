@@ -247,7 +247,7 @@ export default function StreetView({
                 lastValidPositionRef.current = null;
             }
         });
-    }, [startingPoint]);
+    }, [startingPoint, gameBoundary, showToast]);
 
     const onUnmount = useCallback(() => {
         streetViewRef.current = null;
@@ -318,7 +318,7 @@ export default function StreetView({
                     const latDiff = maxX - minX;
                     const lngDiff = maxY - minY;
                     const maxDiff = Math.max(latDiff, lngDiff);
-                    const calculatedZoom = maxDiff > 0 ? Math.floor(Math.log2(360 / maxDiff)) + 1 : 12;
+                    const calculatedZoom = maxDiff > 0 ? Math.floor(Math.log2(360 / maxDiff)) + 1 : initialWorldZoom;
                     polyZoom = Math.min(Math.max(calculatedZoom, 1), 18);
                 }
             } catch (e) {

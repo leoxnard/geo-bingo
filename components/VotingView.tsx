@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import SafeImage from './SafeImage';
 import Image from 'next/image';
@@ -60,11 +60,11 @@ export default function VotingView({
     const [playersMap, setPlayersMap] = useState<Record<string, string>>({});
     const [activeCategory, setActiveCategory] = useState(categories[0]);
     const [viewedSubmission, setViewedSubmission] = useState<Submission | null>(null); // For street view look-up
-    const [mapCenter, setMapCenter] = useState<{lat: number, lng: number}>({ lat: 50, lng: 10 });
     
     const [isFullscreen, setIsFullscreen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const [hoveredSubId, setHoveredSubId] = useState<string | null>(null);
+    const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
     
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script', // Muss absolut identisch mit anderen Stellen sein
@@ -74,10 +74,19 @@ export default function VotingView({
 
     const toggleFullscreen = async () => {
         if (!containerRef.current) return;
+    
         if (!document.fullscreenElement) {
-            try { await containerRef.current.requestFullscreen(); setIsFullscreen(true); } catch (err) {}
+            try {
+                await containerRef.current.requestFullscreen();
+                setIsFullscreen(true);
+            } catch (err) {
+                console.error("Error attempting to enable fullscreen:", err);
+            }
         } else {
-            if (document.exitFullscreen) { document.exitFullscreen(); setIsFullscreen(false); }
+            if (document.exitFullscreen) {
+                await document.exitFullscreen();
+                setIsFullscreen(false);
+            }
         }
     };
     
@@ -148,19 +157,18 @@ export default function VotingView({
         return Math.min(120, Math.max(10, 180 / Math.pow(2, validZoom)));
     };
 
+    const targetCenter = useMemo(() => {
+        if (activeSubmissions.length === 0) return null;
+        const avgLat = activeSubmissions.reduce((sum, sub) => sum + sub.lat, 0) / activeSubmissions.length;
+        const avgLng = activeSubmissions.reduce((sum, sub) => sum + sub.lng, 0) / activeSubmissions.length;
+        return { lat: avgLat, lng: avgLng };
+    }, [activeSubmissions]);
+
     useEffect(() => {
-        if (activeSubmissions.length > 0) {
-            const avgLat = activeSubmissions.reduce((sum, sub) => sum + sub.lat, 0) / activeSubmissions.length;
-            const avgLng = activeSubmissions.reduce((sum, sub) => sum + sub.lng, 0) / activeSubmissions.length;
-            setMapCenter(prev => {
-                // Prevent infinite update loops by checking if the coordinate changed
-                if (Math.abs(prev.lat - avgLat) < 0.000001 && Math.abs(prev.lng - avgLng) < 0.000001) {
-                    return prev;
-                }
-                return { lat: avgLat, lng: avgLng };
-            });
+        if (mapInstance && targetCenter) {
+            mapInstance.panTo(targetCenter);
         }
-    }, [currentCategory, activeSubmissions]);
+    }, [targetCenter, mapInstance]);
 
     // Check how many players have voted on EVERYTHING
     const playersWhoFinishedVoting = Object.keys(playersMap).filter(pId => {
@@ -380,13 +388,14 @@ export default function VotingView({
                         {isLoaded && activeSubmissions.length > 0 && (
                             <div ref={containerRef} className="w-full h-64 md:h-96 mb-8 rounded-2xl overflow-hidden shadow-xl border-2 border-slate-700 relative">
                                 <GoogleMap
+                                    onLoad={(map) => setMapInstance(map)}
+                                    onUnmount={() => setMapInstance(null)}
                                     mapContainerClassName="w-full h-full"
                                     zoom={2}
-                                    center={mapCenter}
+                                    center={targetCenter || { lat: 50, lng: 10 }}
                                     options={mapOptions}
                                 >
                                     {activeSubmissions.map(sub => {
-                                        const playerName = playersMap[sub.player_id] || 'Unknown Player';
                                         return (
                                             <MarkerF
                                                 key={sub.id} 

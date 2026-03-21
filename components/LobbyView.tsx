@@ -103,7 +103,7 @@ export default function LobbyView({
 
     const [mapLibraries] = useState<("places" | "geometry")[]>(['places', 'geometry']);
 
-    const { isLoaded, loadError } = useJsApiLoader({
+    const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
         googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
         libraries: mapLibraries
@@ -141,7 +141,7 @@ export default function LobbyView({
         return () => {
             google.maps.event.removeListener(listener);
         };
-    }, [mapInstance, isHost, updateGameModeInfo, showToast]);
+    }, [mapInstance, isHost, updateGameModeInfo, showToast, draftPolygonPoints]);
 
     useEffect(() => {
         if (polyString && polyString !== '[]') { 
