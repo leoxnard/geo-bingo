@@ -135,7 +135,12 @@ export default function VotingView({
                 }
             ).subscribe();
 
-        return () => { supabase.removeChannel(channel); };
+        return () => { 
+            const cleanup = async () => {
+                await supabase.removeChannel(channel);
+            };
+            cleanup();
+        };
     }, [gameId, categories]);
 
     const handleVote = async (sub: Submission, voteIsYes: boolean) => {

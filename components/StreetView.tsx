@@ -99,15 +99,17 @@ export default function StreetView({
         const updatedReadyPlayers = [...readyPlayers, playerId];
         const votesNeeded = players.length;
 
-        if (updatedReadyPlayers.length >= votesNeeded) {
-            // End the round for everyone immediately
-            await supabase.from('games').update({ 
-                ready_players: updatedReadyPlayers, 
-                status: 'voting' 
-            }).eq('id', gameId);
-        } else {
-            // Just record the player's vote
-            await supabase.from('games').update({ ready_players: updatedReadyPlayers }).eq('id', gameId);
+        try {
+            if (updatedReadyPlayers.length >= votesNeeded) {
+                await supabase.from('games').update({ 
+                    ready_players: updatedReadyPlayers, 
+                    status: 'voting' 
+                }).eq('id', gameId);
+            } else {
+                await supabase.from('games').update({ ready_players: updatedReadyPlayers }).eq('id', gameId);
+            }
+        } catch (error) {
+            console.error("Failed to vote:", error);
         }
     };
 
@@ -178,7 +180,12 @@ export default function StreetView({
                 }
             ).subscribe();
 
-        return () => { supabase.removeChannel(channel); };
+        return () => { 
+            const cleanup = async () => {
+                await supabase.removeChannel(channel);
+            };
+            cleanup();
+        };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [gameId, playerId, teamMode, players.length]);
 
@@ -187,7 +194,7 @@ export default function StreetView({
         streetViewRef.current = pano;
     
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        pano.setOptions({ source: google.maps.StreetViewSource.OUTDOOR } as any);
+        pano.setOptions({ source: google.maps.StreetViewSource.GOOGLE } as any);
     
         const polyString = gameBoundary || '';
 
@@ -250,7 +257,11 @@ export default function StreetView({
     }, [startingPoint, gameBoundary, showToast]);
 
     const onUnmount = useCallback(() => {
-        streetViewRef.current = null;
+        if (streetViewRef.current) {
+            google.maps.event.clearInstanceListeners(streetViewRef.current);
+            streetViewRef.current.setVisible(false);
+            streetViewRef.current = null;
+        }
     }, []);
 
     const handleSubmit = async (targetCategory: string) => {
