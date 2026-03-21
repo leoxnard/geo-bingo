@@ -6,6 +6,7 @@ interface Player {
     id: string;
     name: string;
     bingo_board?: string[];
+    team?: number;
 }
 
 type GameStatus = 'lobby' | 'playing' | 'voting' | 'finished';
@@ -13,13 +14,15 @@ type GameStatus = 'lobby' | 'playing' | 'voting' | 'finished';
 interface LobbyViewProps {
     renderToast: () => React.ReactNode;
     gameMode: 'list' | 'bingo';
-    updateGameModeInfo: (updates: { game_mode?: string; grid_size?: number; bingo_target?: number }) => void;
+    teamMode: 'ffa' | 'teams';
+    bingoBoardMode: 'shared' | 'individual';
+    updateGameModeInfo: (updates: { game_mode?: string; team_mode?: string; grid_size?: number; bingo_board_mode?: 'shared' | 'individual' }) => void;
     isHost: boolean;
     gridSize: number;
-    bingoTarget: number;
     timeLimit: number;
     updateTimeLimit: (minutes: number) => void;
     categories: string[];
+    setCategories: (categories: string[] | ((prev: string[]) => string[])) => void;
     gameId: string;
     players: Player[];
     onlinePlayers: string[];
@@ -46,15 +49,18 @@ const shuffle = <T,>(array: T[]): T[] => {
     return newArr;
 };
 
+const teamColors = ['bg-indigo-500', 'bg-rose-500', 'bg-emerald-500', 'bg-amber-500'];
+const teamNames = ['Blue Team', 'Red Team', 'Green Team', 'Yellow Team'];
+
 export default function LobbyView({
-    renderToast, gameMode, isHost, gridSize, bingoTarget, updateGameModeInfo,
-    timeLimit, updateTimeLimit, categories,
+    renderToast, gameMode, teamMode, isHost, gridSize, updateGameModeInfo,
+    bingoBoardMode,
+    timeLimit, updateTimeLimit, categories, setCategories,
     gameId, players, onlinePlayers,
     playerId, gameHostId,
     makeHost, kickPlayer, banPlayer, showToast, router, supabase, updateStatus, setPlayers
 }: LobbyViewProps) {
 
-    const [bingoBoardMode, setBingoBoardMode] = useState<'shared' | 'individual'>('shared');
     const [newCategory, setNewCategory] = useState('');
     const [randomLang, setRandomLang] = useState<'german' | 'english'>('german');
     const [randomCount, setRandomCount] = useState<number | ''>(4);
@@ -108,22 +114,10 @@ export default function LobbyView({
             const allWords = randomLang === 'german' ? categoriesDe : categoriesEn;
         
             // Shuffle array
-            const shuffled = [...allWords].sort(() => 0.5 - Math.random());
-        
-            // Pick top N words that are not already in categories
-            let count = Number(randomCount) || 1; // Default to 1 if empty
-        
-            if (gameMode === 'bingo') {
-                const remaining = (gridSize * gridSize) - categories.length;
-                if (remaining <= 0) {
-                    showToast(`Maximal ${gridSize * gridSize} words allowed for this Bingo grid!`);
-                    return;
-                }
-                if (count > remaining) count = remaining;
-            }
+            const shuffled = shuffle(allWords);
 
             const availableWords = shuffled.filter(w => !categories.map(c => c.toLowerCase()).includes(w.toLowerCase()));
-            const selectedWords = availableWords.slice(0, count);
+            const selectedWords = availableWords.slice(0, parseInt(String(randomCount)) > 0 ? parseInt(String(randomCount)) : 0);
 
             if (selectedWords.length > 0) {
                 const updated = [...categories, ...selectedWords];
@@ -212,7 +206,7 @@ export default function LobbyView({
     useEffect(() => {
         const currentName = players.find((p) => p.id === playerId)?.name;
         if (!isEditingSelfName && currentName) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect
+             
             setSelfNameInput(currentName);
         }
     }, [players, playerId, isEditingSelfName]);
@@ -267,7 +261,17 @@ export default function LobbyView({
         await saveSelfName();
     };
 
+    const handleUpdateSelfTeam = async (teamIndex: number) => {
+        if (!playerId) return;
+        setPlayers((prev) => prev.map((p) => (p.id === playerId ? { ...p, team: teamIndex } : p)));
+        const { error } = await supabase.from('players').update({ team: teamIndex }).eq('id', playerId);
+        if (error) {
+            showToast('Could not update team. Please try again.');
+        }
+    };
+
     const handleStartGame = async () => {
+        console.log("DEBUG: handleStartGame called");
         if (categories.length === 0) {
             showToast('Please add at least one category to start the game.');
             return;
@@ -275,8 +279,48 @@ export default function LobbyView({
 
         const generateBoards = async (neededCount: number): Promise<boolean> => {
             try {
+                if (teamMode === 'teams') {
+                    const { data: playersData, error: fetchError } = await supabase
+                        .from('players')
+                        .select('id, team')
+                        .eq('game_id', gameId);
+
+                    if (fetchError || !playersData) throw fetchError;
+
+                    if (bingoBoardMode === 'individual') {
+                        // Teams get different words but team get the same words
+                        const teamBoards = new Map();
+                        
+                        const promises = playersData.map((player: { id: string; team: number | null }) => {
+                            const teamId = player.team || 0;
+                            if (!teamBoards.has(teamId)) {
+                                teamBoards.set(teamId, shuffle([...categories]).slice(0, neededCount));
+                            }
+                            const board = teamBoards.get(teamId);
+
+                            return supabase
+                                .from('players')
+                                .update({ bingo_board: board })
+                                .eq('id', player.id);
+                        });
+
+                        const results = await Promise.all(promises);
+                        if (results.some(r => r.error)) throw results.find(r => r.error)?.error;
+
+                    } else {
+                        // Teams get the same words in the same order
+                        const sharedBoard = categories.slice(0, neededCount);
+                        
+                        const { error } = await supabase
+                            .from('players')
+                            .update({ bingo_board: sharedBoard })
+                            .eq('game_id', gameId);
+                        
+                        if (error) throw error;
+                    }
+                }
                 // Option 1: Everyone gets the same board in the same order
-                if (bingoBoardMode === 'shared') {
+                else if (bingoBoardMode === 'shared') {
                     const board = categories.slice(0, neededCount);
                     const { error } = await supabase
                         .from('players')
@@ -356,16 +400,34 @@ export default function LobbyView({
                         <button 
                             onClick={() => updateGameModeInfo({ game_mode: 'list' })}
                             disabled={!isHost}
-                            className={`flex-1 py-2 rounded-md font-bold transition-all ${gameMode === 'list' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                            className={`flex-1 py-2 rounded-md font-bold transition-all ${gameMode === 'list' ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow' : 'text-slate-400 hover:text-white'}`}
                         >
                             List
                         </button>
                         <button 
                             onClick={() => updateGameModeInfo({ game_mode: 'bingo' })}
                             disabled={!isHost}
-                            className={`flex-1 py-2 rounded-md font-bold transition-all ${gameMode === 'bingo' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                            className={`flex-1 py-2 rounded-md font-bold transition-all ${gameMode === 'bingo' ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow' : 'text-slate-400 hover:text-white'}`}
                         >
                             Bingo Grid
+                        </button>
+                    </div>
+
+                    {/* Team Mode Selection */}
+                    <div className="mb-2 flex bg-slate-900 rounded-lg p-1">
+                        <button 
+                            onClick={() => updateGameModeInfo({ team_mode: 'ffa' })}
+                            disabled={!isHost}
+                            className={`flex-1 py-2 rounded-md font-bold transition-all text-sm ${teamMode === 'ffa' ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                        >
+                            All against all
+                        </button>
+                        <button 
+                            onClick={() => updateGameModeInfo({ team_mode: 'teams' })}
+                            disabled={!isHost}
+                            className={`flex-1 py-2 rounded-md font-bold transition-all text-sm ${teamMode === 'teams' ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                        >
+                            Teams
                         </button>
                     </div>
 
@@ -398,31 +460,19 @@ export default function LobbyView({
                                 />
                             </div>
                             <div>
-                                <label htmlFor="bingo-target-range" className="flex justify-between font-bold mb-2 text-sm cursor-pointer">
-                                    <span>Bingo Length ({bingoTarget})</span>
-                                </label>
-                                <input 
-                                    id="bingo-target-range"
-                                    title="Adjust the required length for a Bingo"
-                                    type="range" min="2" max={gridSize} step="1" value={bingoTarget} disabled={!isHost}
-                                    onChange={(e) => updateGameModeInfo({ bingo_target: parseInt(e.target.value) })}
-                                    className="w-full accent-indigo-500" 
-                                />
-                            </div>
-                            <div>
                                 <label className="flex justify-between font-bold mb-2 text-sm">
                                     <span>Bingo Board Mode</span>
                                 </label>
                                 <div className="flex bg-slate-900 rounded-lg p-1">
                                     <button 
-                                        onClick={() => setBingoBoardMode('shared')}
+                                        onClick={() => updateGameModeInfo({ bingo_board_mode: 'shared' })}
                                         disabled={!isHost}
                                         className={`flex-1 py-2 text-sm rounded-md font-bold transition-all ${bingoBoardMode === 'shared' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
                                     >
                                         Shared
                                     </button>
                                     <button 
-                                        onClick={() => setBingoBoardMode('individual')}
+                                        onClick={() => updateGameModeInfo({ bingo_board_mode: 'individual' })}
                                         disabled={!isHost}
                                         className={`flex-1 py-2 text-sm rounded-md font-bold transition-all ${bingoBoardMode === 'individual' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
                                     >
@@ -702,6 +752,27 @@ export default function LobbyView({
                                             )}
                                         </div>
                                     </div>
+                                    {teamMode === 'teams' && (
+                                        <div className="flex items-center justify-between mt-1 border-t border-slate-800 pt-2 pb-1">
+                                            <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Team</span>
+                                            {p.id === playerId ? (
+                                                <div className="flex gap-2">
+                                                    {teamColors.map((color, idx) => (
+                                                        <button 
+                                                            key={idx} 
+                                                            onClick={() => handleUpdateSelfTeam(idx)} 
+                                                            className={`w-5 h-5 rounded-full border-2 transition-all shadow-sm ${color} ${(p.team || 0) === idx ? 'border-white opacity-100 scale-110' : 'border-slate-800 opacity-40 hover:opacity-100 hover:scale-110'}`} 
+                                                            title={teamNames[idx]}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className={`text-[10px] px-2 py-0.5 rounded text-white shadow-sm font-bold ${teamColors[p.team || 0]}`}>
+                                                    {teamNames[p.team || 0]}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                     {isHost && p.id !== playerId && (
                                         <div className="flex gap-2 w-full mt-1 border-t border-slate-800 pt-2">
                                             <button 

@@ -8,6 +8,7 @@ interface PodiumViewProps {
     gameId: string;
     renderToast: () => React.ReactNode;
     isHost: boolean;
+    teamMode: 'ffa' | 'teams';
 }
 
 interface PlayerStat {
@@ -23,7 +24,7 @@ interface PlayerStat {
 }
 
 export default function PodiumView({ 
-    gameId, renderToast, isHost
+    gameId, renderToast, isHost, teamMode
 }: PodiumViewProps) {
     const [stats, setStats] = useState<PlayerStat[]>([]);
     const [loading, setLoading] = useState(true);
@@ -31,18 +32,58 @@ export default function PodiumView({
 
     useEffect(() => {
         const fetchResults = async () => {
-            const { data: game } = await supabase.from('games').select('game_mode, grid_size, bingo_target').eq('id', gameId).single();
-            const { data: players } = await supabase.from('players').select('id, name, bingo_board').eq('game_id', gameId);
+            const { data: game } = await supabase.from('games').select('game_mode, grid_size').eq('id', gameId).single();
+            const { data: players } = await supabase.from('players').select('id, name, bingo_board, team').eq('game_id', gameId);
             const { data: submissions } = await supabase.from('submissions').select('*').eq('game_id', gameId);
 
             const fetchedGameMode = game?.game_mode || 'list';
             setGameMode(fetchedGameMode);
             const gridSize = game?.grid_size || 3;
-            const bingoTarget = game?.bingo_target || 3;
 
             if (players && submissions) {
-                const playerStats = players.map(player => {
-                    const playerSubs = submissions.filter(s => s.player_id === player.id);
+                // Determine entities to score: if teamMode === 'teams', group by team (if team is assigned, e.g. team >= 0)
+                // We'll create an array of "virtual players" which are either individuals or teams
+                interface ScoreEntity {
+                    id: string; // "team-0" or player id
+                    name: string;
+                    members: typeof players; // all players in this entity
+                    bingo_board?: string[]; // board from first member
+                }
+                
+                const entities: ScoreEntity[] = [];
+                
+                if (teamMode === 'teams') {
+                    const teamsMap = new Map<number, ScoreEntity>();
+                    players.forEach(p => {
+                        const t = p.team ?? -1;
+                        if (t >= 0) {
+                            if (!teamsMap.has(t)) {
+                                const teamNames = ['Blue Team', 'Red Team', 'Green Team', 'Yellow Team'];
+                                teamsMap.set(t, {
+                                    id: `team-${t}`,
+                                    name: teamNames[t] || `Team ${t + 1}`,
+                                    members: [p],
+                                    bingo_board: p.bingo_board
+                                });
+                            } else {
+                                const entity = teamsMap.get(t)!;
+                                entity.members.push(p);
+                                entity.name = entity.members.map(m => m.name).join(' & ');
+                            }
+                        } else {
+                            entities.push({ id: p.id, name: p.name, members: [p], bingo_board: p.bingo_board });
+                        }
+                    });
+                    entities.push(...Array.from(teamsMap.values()));
+                } else {
+                    players.forEach(p => {
+                        entities.push({ id: p.id, name: p.name, members: [p], bingo_board: p.bingo_board });
+                    });
+                }
+
+                const playerStats = entities.map(entity => {
+                    const memberIds = entity.members.map(m => m.id);
+                    const entitySubs = submissions.filter(s => memberIds.includes(s.player_id));
           
                     let score = 0;
                     let totalYes = 0;
@@ -52,12 +93,12 @@ export default function PodiumView({
                     const validCategories: string[] = [];
 
                     // Check every submission to calculate points and stats
-                    playerSubs.forEach(sub => {
+                    entitySubs.forEach(sub => {
                         const votes = sub.votes || {};
                         let subYes = 0;
                         let subNo = 0;
             
-                        Object.values(votes).forEach(v => {
+                        Object.entries(votes).forEach(([voterId, v]) => {
                             if (v === true) subYes++;
                             if (v === false) subNo++;
                         });
@@ -75,8 +116,8 @@ export default function PodiumView({
 
                     // Check for Bingos
                     let bingoCount = 0;
-                    if (fetchedGameMode === 'bingo' && player.bingo_board && player.bingo_board.length >= gridSize * gridSize) {
-                        const board = player.bingo_board;
+                    if (fetchedGameMode === 'bingo' && entity.bingo_board && entity.bingo_board.length >= gridSize * gridSize) {
+                        const board = entity.bingo_board;
             
                         // Map flat array to 2D grid boolean array indicating validity
                         const grid: boolean[][] = [];
@@ -89,7 +130,7 @@ export default function PodiumView({
                             grid.push(row);
                         }
 
-                        // Function to count consecutive true sequences of length >= bingoTarget
+                        // Function to count FULL lines (rows, cols, diagonals)
                         const checkLines = () => {
                             let bingosFound = 0;
 
@@ -97,38 +138,16 @@ export default function PodiumView({
                                 let r = rStart;
                                 let c = cStart;
                                 let count = 0;
-                                // Get the maximum length of this line within bounds
+                                
                                 while (r >= 0 && r < gridSize && c >= 0 && c < gridSize) {
+                                    if (!grid[r][c]) return 0; // If any cell in the line is false, it's not a full bingo
                                     count++;
                                     r += rDir;
                                     c += cDir;
                                 }
-                
-                                // If the total sequence is smaller than bingoTarget, return 0
-                                if (count < bingoTarget) return 0;
-
-                                let lines = 0;
-                                let currentStreak = 0;
-                
-                                // We shouldn't double-count overlapping bingos on the exact same line,
-                                // usually users mean: streak of 5 with target 3 = 1 bingo.
-                                // Or maybe they prefer overlapping bingos?
-                                // Let's count completely distinct blocks, e.g., streak of 6 for target 3 = 2 bingos.
-                                for (let step = 0; step < count; step++) {
-                                    const curR = rStart + step * rDir;
-                                    const curC = cStart + step * cDir;
-                                    if (grid[curR][curC]) {
-                                        currentStreak++;
-                                        if (currentStreak === bingoTarget) {
-                                            lines++;
-                                            // Reset streak so that a streak of 6 gives exactly 2 bingos
-                                            currentStreak = 0; 
-                                        }
-                                    } else {
-                                        currentStreak = 0;
-                                    }
-                                }
-                                return lines;
+                                
+                                // Return 1 if the very end of the bounds was reached, effectively meaning it's a full edge-to-edge bingo
+                                return count === gridSize ? 1 : 0;
                             };
 
                             // Check all Rows
@@ -149,7 +168,7 @@ export default function PodiumView({
                         };
 
                         bingoCount = checkLines();
-                        score += bingoCount * bingoTarget; // add extra points equal to bingo target for every bingo found
+                        score += bingoCount * gridSize; // add extra points equal to full grid size for every bingo found
                     }
 
                     const totalCommunityVotes = totalYes + totalNo;
@@ -158,8 +177,8 @@ export default function PodiumView({
                         : 0;
 
                     return {
-                        id: player.id,
-                        name: player.name,
+                        id: entity.id,
+                        name: entity.name,
                         score, 
                         totalFound: validCategories.length,
                         bingos: bingoCount,

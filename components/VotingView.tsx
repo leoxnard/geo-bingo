@@ -22,6 +22,7 @@ interface Player {
     id: string;
     name: string;
     bingo_board?: string[];
+    team?: number;
 }
 
 interface VotingViewProps {
@@ -30,12 +31,13 @@ interface VotingViewProps {
     categories: string[];
     playerId: string;
     players: Player[];
+    teamMode: 'ffa' | 'teams';
     onFinishGame: () => void;
     renderToast: () => React.ReactNode;
 }
 
 export default function VotingView({ 
-    gameId, isHost, categories, playerId, players, onFinishGame, renderToast
+    gameId, isHost, categories, playerId, players, teamMode, onFinishGame, renderToast
 }: VotingViewProps) {
     const [submissions, setSubmissions] = useState<Submission[]>([]);
     const [playersMap, setPlayersMap] = useState<Record<string, string>>({});
@@ -90,9 +92,13 @@ export default function VotingView({
 
     // Check how many players have voted on EVERYTHING
     const playersWhoFinishedVoting = Object.keys(playersMap).filter(pId => {
-    // A player is finished if they have a vote mapped in EVERY submission (except their own)
+        const voterTeam = players.find(p => p.id === pId)?.team;
+        // A player is finished if they have a vote mapped in EVERY submission (except their team's)
         return submissions.every(sub => {
-            if (sub.player_id === pId) return true; // Don't vote on own submissions
+            const subPlayerTeam = players.find(p => p.id === sub.player_id)?.team;
+            // Don't vote on own submissions or teammate's submissions (if teams mode)
+            if (pId === sub.player_id || (teamMode === 'teams' && voterTeam !== undefined && voterTeam === subPlayerTeam)) return true;
+            
             const voteMap = sub.votes || {};
             return voteMap[pId] !== undefined; // They voted Yes or No
         });
@@ -158,7 +164,9 @@ export default function VotingView({
                             let badgeColor = "bg-slate-700 text-slate-400"; // Default for 0 submissions
                             if (count > 0) {
                                 const isFinished = categorySubs.every(sub => {
-                                    if (sub.player_id === playerId) return true; // you don't vote on your own
+                                    const subPlayerTeam = players.find(p => p.id === sub.player_id)?.team;
+                                    const myTeam = players.find(p => p.id === playerId)?.team;
+                                    if (sub.player_id === playerId || (teamMode === 'teams' && subPlayerTeam !== undefined && subPlayerTeam === myTeam)) return true; // you don't vote on your own or team's 
                                     return sub.votes && sub.votes[playerId] !== undefined;
                                 });
                                 // light red/gray if unfinished, green/gray if finished
@@ -276,22 +284,33 @@ export default function VotingView({
                                             </p>
                         
                                             <div className="w-full h-2 bg-slate-700 rounded overflow-hidden flex mb-4">
-                                                {/* Voting percentage based on totalPlayers - 1 */}
-                                                <div className="bg-green-500 h-full" style={{ width: `${totalVotesCast ? (yesVotes/Math.max(1, totalPlayers - 1))*100 : 0}%` }}></div>
-                                                <div className="bg-red-500 h-full" style={{ width: `${totalVotesCast ? (noVotes/Math.max(1, totalPlayers - 1))*100 : 0}%` }}></div>
+                                                {/* Voting percentage based on eligible voters */}
+                                                <div className="bg-green-500 h-full" style={{ width: `${totalVotesCast ? (yesVotes/totalVotesCast)*100 : 0}%` }}></div>
+                                                <div className="bg-red-500 h-full" style={{ width: `${totalVotesCast ? (noVotes/totalVotesCast)*100 : 0}%` }}></div>
                                             </div>
 
                                             <div className="flex gap-2">
-                                                {playerId === sub.player_id ? (
-                                                    <div className="flex-1 py-2 text-center text-slate-500 text-xs font-bold uppercase border border-slate-700 rounded bg-slate-800">
-                                                        Your Submission
-                                                    </div>
-                                                ) : (
-                                                    <>
-                                                        <button onClick={() => handleVote(sub, true)} className={`flex-1 py-2 rounded font-bold uppercase text-xs border transition-all ${myVote === true ? 'bg-green-600 border-green-500 text-white' : 'bg-transparent border-slate-600 text-slate-400 hover:border-green-500 hover:text-green-500'}`}>Yes</button>
-                                                        <button onClick={() => handleVote(sub, false)} className={`flex-1 py-2 rounded font-bold uppercase text-xs border transition-all ${myVote === false ? 'bg-red-600 border-red-500 text-white' : 'bg-transparent border-slate-600 text-slate-400 hover:border-red-500 hover:text-red-500'}`}>No</button>
-                                                    </>
-                                                )}
+                                                {(() => {
+                                                    const subTeam = players.find(p => p.id === sub.player_id)?.team;
+                                                    const myTeam = players.find(p => p.id === playerId)?.team;
+                                                    const isMySubmission = playerId === sub.player_id;
+                                                    const isMyTeamSubmission = teamMode === 'teams' && subTeam !== undefined && subTeam === myTeam;
+                                                    
+                                                    if (isMySubmission || isMyTeamSubmission) {
+                                                        return (
+                                                            <div className="flex-1 py-2 text-center text-slate-500 text-xs font-bold uppercase border border-slate-700 rounded bg-slate-800">
+                                                                {isMySubmission ? 'Your Submission' : 'Team Submission'}
+                                                            </div>
+                                                        );
+                                                    }
+                                                    
+                                                    return (
+                                                        <>
+                                                            <button onClick={() => handleVote(sub, true)} className={`flex-1 py-2 rounded font-bold uppercase text-xs border transition-all ${myVote === true ? 'bg-green-600 border-green-500 text-white' : 'bg-transparent border-slate-600 text-slate-400 hover:border-green-500 hover:text-green-500'}`}>Yes</button>
+                                                            <button onClick={() => handleVote(sub, false)} className={`flex-1 py-2 rounded font-bold uppercase text-xs border transition-all ${myVote === false ? 'bg-red-600 border-red-500 text-white' : 'bg-transparent border-slate-600 text-slate-400 hover:border-red-500 hover:text-red-500'}`}>No</button>
+                                                        </>
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
                                     </div>

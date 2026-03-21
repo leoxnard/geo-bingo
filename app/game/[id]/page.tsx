@@ -17,6 +17,7 @@ interface Player {
     id: string;
     name: string;
     bingo_board?: string[];
+    team?: number;
 }
 
 export default function GameRoom({ params }: { params: Promise<{ id: string }> }) {
@@ -34,8 +35,9 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
   
     // Bingo Mode State
     const [gameMode, setGameMode] = useState<'list' | 'bingo'>('list');
+    const [teamMode, setTeamMode] = useState<'ffa' | 'teams'>('ffa');
     const [gridSize, setGridSize] = useState(3);
-    const [bingoTarget, setBingoTarget] = useState(3);
+    const [bingoBoardMode, setBingoBoardMode] = useState<'shared' | 'individual'>('shared');
   
     // Players & Voting
     const [playerId, setPlayerId] = useState<string>('');
@@ -55,17 +57,12 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         setTimeout(() => setToastMessage(null), 3500);
     };
 
-    const updateGameModeInfo = async (updates: { game_mode?: string; grid_size?: number; bingo_target?: number }) => {
+    const updateGameModeInfo = async (updates: { game_mode?: string; team_mode?: string; grid_size?: number; bingo_board_mode?: 'shared' | 'individual' }) => {
         if (!isHost) return;
         if (updates.game_mode) setGameMode(updates.game_mode as 'list' | 'bingo');
-        if (updates.bingo_target) setBingoTarget(updates.bingo_target);
-        if (updates.grid_size) {
-            setGridSize(updates.grid_size);
-            if (updates.grid_size < bingoTarget) {
-                setBingoTarget(updates.grid_size);
-                updates.bingo_target = updates.grid_size;
-            }
-        }
+        if (updates.team_mode) setTeamMode(updates.team_mode as 'ffa' | 'teams');
+        if (updates.grid_size) setGridSize(updates.grid_size);
+        if (updates.bingo_board_mode) setBingoBoardMode(updates.bingo_board_mode);
         await supabase.from('games').update(updates).eq('id', gameId);
     };
 
@@ -106,7 +103,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             if (!gameData) {
                 const { error } = await supabase.from('games').insert([{ 
                     id: gameId, status: 'lobby', categories: [], ready_players: [], time_limit: 300, host_id: currentPlayerId, banned_players: [],
-                    game_mode: 'list', grid_size: 3, bingo_target: 3
+                    game_mode: 'list', team_mode: 'ffa', grid_size: 3
                 }]);
                 if (!error) {
                     setIsHost(true);
@@ -124,7 +121,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setGameHostId(gameData.host_id || '');
                 setGameMode(gameData.game_mode || 'list');
                 setGridSize(gameData.grid_size || 3);
-                setBingoTarget(gameData.bingo_target || 3);
+                setBingoBoardMode(gameData.bingo_board_mode || 'shared');
         
                 // Restore host status if they refresh the page
                 const isActuallyHost = gameData.host_id === currentPlayerId;
@@ -152,7 +149,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         };
 
         const fetchPlayers = async () => {
-            const { data } = await supabase.from('players').select('id, name, bingo_board').eq('game_id', gameId);
+            const { data } = await supabase.from('players').select('id, name, bingo_board, team').eq('game_id', gameId);
             if (data) {
                 setPlayers(data);
                 // If the current player is no longer in the DB, they were kicked.
@@ -190,8 +187,9 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     }
 
                     setGameMode(payload.new.game_mode || 'list');
+                    setTeamMode(payload.new.team_mode || 'ffa');
                     setGridSize(payload.new.grid_size || 3);
-                    setBingoTarget(payload.new.bingo_target || 3);
+                    setBingoBoardMode(payload.new.bingo_board_mode || 'shared');
                 }
             ).subscribe();
 
@@ -389,13 +387,15 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             <LobbyView
                 renderToast = {renderToast}
                 gameMode={gameMode}
+                teamMode={teamMode}
                 isHost={isHost}
                 gridSize={gridSize}
-                bingoTarget={bingoTarget}
+                bingoBoardMode={bingoBoardMode}
                 updateGameModeInfo={updateGameModeInfo}
                 timeLimit={timeLimit}
                 updateTimeLimit={updateTimeLimit}
                 categories={categories}
+                setCategories={setCategories}
                 gameId={gameId}
                 players={players}
                 onlinePlayers={onlinePlayers}
@@ -415,12 +415,17 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
     // --- VIEW 2: PLAYING ---
     if (status === 'playing') {
+        const currentPlayer = players.find(p => p.id === playerId);
+        const myBoard = currentPlayer?.bingo_board && currentPlayer.bingo_board.length > 0 
+            ? currentPlayer.bingo_board 
+            : categories;
         return (
             <StreetView
-                categories={categories}
+                myBoard={myBoard}
                 gameId={gameId}
                 playerId={playerId}
                 gameMode={gameMode}
+                teamMode={teamMode}
                 gridSize={gridSize}
                 renderToast={renderToast}
                 timeLeft={timeLeft}
@@ -440,6 +445,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 categories={categories}
                 playerId={playerId}
                 players={players}
+                teamMode={teamMode}
                 onFinishGame={handleFinishGame}
                 renderToast={renderToast}
             />
@@ -453,6 +459,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 gameId={gameId}
                 renderToast={renderToast}
                 isHost={isHost}
+                teamMode={teamMode}
             />
         );
     }

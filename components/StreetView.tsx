@@ -29,13 +29,15 @@ interface Player {
     id: string;
     name: string;
     bingo_board?: string[];
+    team?: number;
 }
 
 interface StreetViewProps {
-    categories: string[]; 
-    gameId: string; 
-    playerId: string; 
-    gameMode?: 'list' | 'bingo'; 
+    myBoard: string[];
+    gameId: string;
+    playerId: string;
+    gameMode?: 'list' | 'bingo';
+    teamMode?: 'ffa' | 'teams';
     gridSize?: number;
     renderToast: () => React.ReactNode;
     timeLeft: number;
@@ -44,7 +46,7 @@ interface StreetViewProps {
 }
 
 export default function StreetView({ 
-    categories, gameId, playerId, gameMode = 'list', gridSize = 3, renderToast, timeLeft, readyPlayers, players
+    myBoard, gameId, playerId, gameMode = 'list', teamMode = 'ffa', gridSize = 3, renderToast, timeLeft, readyPlayers, players
 }: StreetViewProps) {
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
@@ -125,12 +127,41 @@ export default function StreetView({
     }, []);
 
     useEffect(() => {
+        const myTeam = players.find(p => p.id === playerId)?.team ?? -1;
+        const teamIds = teamMode === 'teams' ? players.filter(p => p.team === myTeam).map(p => p.id) : [playerId];
+
         const fetchMySubmissions = async () => {
-            const { data } = await supabase.from('submissions').select('*').eq('game_id', gameId).eq('player_id', playerId);
+            const { data } = await supabase.from('submissions').select('*').eq('game_id', gameId).in('player_id', teamIds);
             if (data) setMySubmissions(data);
         };
         fetchMySubmissions();
-    }, [gameId, playerId]);
+
+        const channel = supabase.channel(`team-submissions-${gameId}-${playerId}`)
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'submissions', filter: `game_id=eq.${gameId}` }, 
+                (payload) => {
+                    const newSub = payload.new as Submission;
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    if (teamIds.includes((newSub as any).player_id)) {
+                        setMySubmissions(prev => {
+                            if (prev.find(s => s.id === newSub.id)) return prev;
+                            return [...prev, newSub];
+                        });
+                    }
+                }
+            )
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'submissions', filter: `game_id=eq.${gameId}` }, 
+                (payload) => {
+                    const updatedSub = payload.new as Submission;
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    if (teamIds.includes((updatedSub as any).player_id)) {
+                        setMySubmissions(prev => prev.map(s => s.id === updatedSub.id ? { ...s, ...updatedSub } : s));
+                    }
+                }
+            ).subscribe();
+
+        return () => { supabase.removeChannel(channel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [gameId, playerId, teamMode, players.length]);
 
     // useCallback prevents infinite loop spamming Google API!
     const onLoad = useCallback((pano: google.maps.StreetViewPanorama) => {
@@ -304,13 +335,13 @@ export default function StreetView({
                                     {gameMode === 'bingo' ? 'Bingo Board' : 'Checklist'}
                                 </h2>
                                 <span className="bg-slate-700 text-slate-300 font-bold px-3 py-1 rounded-full text-sm">
-                                    {mySubmissions.length} / {categories.length}
+                                    {mySubmissions.length} / {myBoard.length}
                                 </span>
                             </div>
                     
                             {gameMode === 'list' ? (
                                 <ul className="flex flex-col gap-3 flex-1">
-                                    {categories.map((cat) => {
+                                    {myBoard.map((cat) => {
                                         const foundSub = mySubmissions.find(s => s.category === cat);
                         
 
@@ -367,7 +398,7 @@ export default function StreetView({
                                 </ul>
                             ) : (
                                 <div className={`grid gap-2 flex-1 auto-rows-fr bingo-grid-${gridSize}`}>
-                                    {categories.map((cat) => {
+                                    {myBoard.map((cat) => {
                                         const foundSub = mySubmissions.find(s => s.category === cat);
                                         const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
                                         const fov = foundSub?.zoom ? 180 / Math.pow(2, foundSub.zoom) : 90;
