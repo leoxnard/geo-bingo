@@ -32,7 +32,7 @@ interface VotingViewProps {
     playerId: string;
     players: Player[];
     teamMode: 'ffa' | 'teams';
-    onFinishGame: () => void;
+    onFinishGame: () => Promise<void> | void;
     renderToast: () => React.ReactNode;
 }
 

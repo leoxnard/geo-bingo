@@ -395,7 +395,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 timeLimit={timeLimit}
                 updateTimeLimit={updateTimeLimit}
                 categories={categories}
-                setCategories={setCategories}
                 gameId={gameId}
                 players={players}
                 onlinePlayers={onlinePlayers}

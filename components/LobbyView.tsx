@@ -22,7 +22,6 @@ interface LobbyViewProps {
     timeLimit: number;
     updateTimeLimit: (minutes: number) => void;
     categories: string[];
-    setCategories: (categories: string[] | ((prev: string[]) => string[])) => void;
     gameId: string;
     players: Player[];
     onlinePlayers: string[];
@@ -55,7 +54,7 @@ const teamNames = ['Blue Team', 'Red Team', 'Green Team', 'Yellow Team'];
 export default function LobbyView({
     renderToast, gameMode, teamMode, isHost, gridSize, updateGameModeInfo,
     bingoBoardMode,
-    timeLimit, updateTimeLimit, categories, setCategories,
+    timeLimit, updateTimeLimit, categories,
     gameId, players, onlinePlayers,
     playerId, gameHostId,
     makeHost, kickPlayer, banPlayer, showToast, router, supabase, updateStatus, setPlayers
