@@ -14,7 +14,7 @@ interface LobbySettingsProps {
         game_mode?: string; 
         team_mode?: string; 
         grid_size?: number; 
-        bingo_board_mode?: 'shared' | 'individual' 
+        bingo_board_mode?: 'shared' | 'individual';
     }) => void;
     updateTimeLimit: (minutes: number) => void;
 }

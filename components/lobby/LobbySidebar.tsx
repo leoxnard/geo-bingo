@@ -32,11 +32,11 @@ interface LobbySidebarProps {
 }
 
 const darkTeamColors = [
-    'bg-rose-950/40 border-rose-900/50 text-rose-200',
     'bg-emerald-950/40 border-emerald-900/50 text-emerald-200',
     'bg-amber-950/40 border-amber-900/50 text-amber-200',
-    'bg-purple-950/40 border-purple-900/50 text-purple-200',
     'bg-cyan-950/40 border-cyan-900/50 text-cyan-200',
+    'bg-slate-950/40 border-slate-900/50 text-slate-200',
+    'bg-rose-950/40 border-rose-900/50 text-rose-200',
     'bg-indigo-950/40 border-indigo-900/50 text-indigo-200',
 ];
 const teamNames = ['Team Alpha', 'Team Bravo', 'Team Charlie', 'Team Delta', 'Team Echo', 'Team Foxtrot'];

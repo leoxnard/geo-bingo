@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import Image from 'next/image';
 import { useJsApiLoader } from '@react-google-maps/api';
 
+import { shuffle } from '../utils/Functions';
+
 // Sub-components
 import LobbySettings from './LobbySettings';
 import LobbyMap from './LobbyMap';
