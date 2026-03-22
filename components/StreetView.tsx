@@ -349,6 +349,7 @@ export default function StreetView({
         case 3: return 'lg:w-[500px]';
         case 4: return 'lg:w-[600px]';
         case 5: return 'lg:w-[700px]';
+        case 6: return 'lg:w-[800px]';
         default: return 'lg:w-[400px]';
         }
     };
@@ -360,6 +361,7 @@ export default function StreetView({
         case 3: return 'text-xs sm:text-xl';
         case 4: return 'text-[10px] sm:text-base';
         case 5: return 'text-[8px] sm:text-sm';
+        case 6: return 'text-[7px] sm:text-sm'; 
         default: return 'text-xs sm:text-xl';
         }
     };
@@ -416,9 +418,9 @@ export default function StreetView({
                                     <Polygon
                                         paths={polyPoints}
                                         options={{
-                                            fillColor: '#ef4444',
-                                            fillOpacity: 0.1,
-                                            strokeColor: '#ef4444',
+                                            fillColor: '#4c0082',
+                                            fillOpacity: 0.2,
+                                            strokeColor: '#4c0082',
                                             strokeOpacity: 0.8,
                                             strokeWeight: 2,
                                             clickable: false
@@ -462,48 +464,70 @@ export default function StreetView({
                                     {myBoard.map((cat) => {
                                         const foundSub = mySubmissions.find(s => s.category === cat);
                                         
+                                        const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+                                        const fov = foundSub?.zoom ? 180 / Math.pow(2, foundSub.zoom) : 90;
+                                        
+                                        let bgStyle = {};
+                                        if (foundSub) {
+                                            let safeHeading = foundSub.heading % 360;
+                                            if (safeHeading < 0) safeHeading += 360;
+
+                                            bgStyle = {
+                                                backgroundImage: `url(https://maps.googleapis.com/maps/api/streetview?size=600x600&location=${foundSub.lat},${foundSub.lng}&heading=${safeHeading}&pitch=${foundSub.pitch}&fov=${fov}&key=${apiKey})`,
+                                                backgroundSize: 'cover',
+                                                backgroundPosition: 'center center',
+                                            };
+                                        }
+
                                         return (
                                             <li 
                                                 key={cat} 
-                                                className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex flex-col gap-2
-                                border-slate-600 bg-slate-800 hover:bg-slate-700`}
+                                                style={bgStyle}
+                                                className={`relative overflow-hidden p-3 rounded-xl border border-slate-600 transition-all cursor-pointer flex flex-col gap-2 ${foundSub ? 'shadow-md' : 'bg-slate-800 hover:bg-slate-700/30'}`}
                                             >
-                                                <div className="flex justify-between items-center w-full">
-                                                    <span className={`truncate font-medium flex-1 pr-2 ${foundSub ? 'text-slate-300' : 'text-white'}`}>
-                                                        {cat}
-                                                    </span>
-                                                </div>
-                            
-                                                <div className="flex justify-between items-center gap-2 mt-1">
-                                                    {!foundSub ? (
-                                                        <button type="button"
-                                                            onClick={(e) => { e.stopPropagation(); handleSubmit(cat); }}
-                                                            disabled={submittingCategory === cat || !inStreetView}
-                                                            className={`flex-1 text-[11px] px-2 py-2 font-bold rounded shadow uppercase transition-all
-                                    ${!inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-500 text-white'}`}
-                                                        >
-                                                            {submittingCategory === cat ? 'Saving...' : !inStreetView ? 'Enter Streetview' : 'Save'}
-                                                        </button>
-                                                    ) : (
-                                                        <>
-                                                            <button
-                                                                type="button"
+                                                {foundSub && <div className="absolute inset-0 bg-black/40 z-0"></div>}
+
+                                                <div className="relative z-10 flex flex-col gap-2">
+                                                    <div className="flex justify-between items-center w-full">
+                                                        <span className={`truncate font-medium flex-1 pr-2 ${foundSub ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : 'text-white'}`}>
+                                                            {cat}
+                                                        </span>
+                                                        <span className={`text-xs font-bold uppercase whitespace-nowrap ${foundSub ? 'text-green-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : 'text-slate-500'}`}>
+                                                            {foundSub ? 'Found' : 'Pending'}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="flex justify-between items-center gap-2 mt-1">
+                                                        {!foundSub ? (
+                                                            <button type="button"
                                                                 onClick={(e) => { e.stopPropagation(); handleSubmit(cat); }}
                                                                 disabled={submittingCategory === cat || !inStreetView}
-                                                                className={`flex-1 text-[10px] px-2 py-2 font-bold rounded shadow uppercase transition-all
-                                        ${!inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-amber-600 hover:bg-amber-500 text-white'}`}
+                                                                className={`flex-1 text-[11px] px-2 py-2 font-bold rounded shadow uppercase transition-all ${!inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-green-600/30 hover:bg-green-500/30 text-white'}`}
                                                             >
-                                                                {submittingCategory === cat ? '...' : !inStreetView ? 'Enter SV' : 'Overwrite'}
+                                                                {submittingCategory === cat ? 'Saving...' : !inStreetView ? 'Enter Streetview' : 'Save'}
                                                             </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={(e) => { e.stopPropagation(); jumpToLocation(foundSub); }}
-                                                                className="flex-[0.5] bg-slate-600 hover:bg-slate-500 text-[10px] px-2 py-2 text-white font-bold rounded shadow uppercase"
-                                                            >
-                                                                View
-                                                            </button>
-                                                        </>
-                                                    )}
+                                                        ) : (
+                                                            <>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => { e.stopPropagation(); handleSubmit(cat); }}
+                                                                    disabled={submittingCategory === cat || !inStreetView}
+                                                                    className={`flex-1 text-[10px] px-2 py-2 font-bold rounded shadow uppercase transition-all ${!inStreetView ? 'bg-slate-600/30 text-slate-300 cursor-not-allowed text-slate-300/30' : 'bg-amber-600/30 hover:bg-amber-500/30 text-white'}`}
+                                                                >
+                                                                    {submittingCategory === cat ? '...' : !inStreetView ? 'Enter Streetview' : 'Overwrite'}
+                                                                </button>
+                                                                {startingPoint === 'open-world' && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => { e.stopPropagation(); jumpToLocation(foundSub); }}
+                                                                        className="flex-[0.5] bg-slate-700/40 hover:bg-slate-500/30 text-[10px] px-2 py-2 text-white font-bold rounded shadow uppercase"
+                                                                    >
+                                                                        View
+                                                                    </button>
+                                                                )}
+                                                            </>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </li>
                                         );
@@ -527,8 +551,7 @@ export default function StreetView({
                                                 title={cat}
                                                 style={bgStyle}
                                                 onClick={() => handleBingoTileClick(cat)}
-                                                className={`relative p-2 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-center items-center text-center overflow-hidden pb-2 sm:pb-12
-                                border-slate-600 ${foundSub ? 'text-white border-green-500' : 'bg-slate-800 hover:bg-slate-700'}`}
+                                                className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-center items-center text-center overflow-hidden pb-2 sm:pb-12 border-slate-600 ${foundSub ? 'text-white border-green-500' : 'bg-slate-800 hover:bg-slate-700'}`}
                                             >
                                                 {foundSub && <div className="absolute inset-0 bg-black/40 z-0"></div>}
                                                 <span className={`relative z-10 ${getSidebarTextSizeClass()} font-bold leading-tight line-clamp-2 [hyphens:auto] [word-break:break-word] mt-0 sm:mt-1 ${foundSub ? 'drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)]' : 'text-white'}`}>
@@ -541,8 +564,7 @@ export default function StreetView({
                                                             title="Add submission"
                                                             onClick={(e) => { e.stopPropagation(); handleSubmit(cat); }}
                                                             disabled={submittingCategory === cat || !inStreetView}
-                                                            className={`w-full h-full font-bold rounded-lg uppercase transition-all flex justify-center items-center
-                                    ${!inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed opacity-50' : 'bg-green-600 hover:bg-green-500 text-white'}`}
+                                                            className={`w-full h-full font-bold rounded-lg uppercase transition-all flex justify-center items-center ${!inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed opacity-50' : 'bg-green-600/30 hover:bg-green-500/30 text-white'}`}
                                                         >
                                                             {submittingCategory === cat ? '...' : <FaCamera className="h-[60%] w-auto" />}
                                                         </button>
@@ -550,22 +572,23 @@ export default function StreetView({
                                                         <>
                                                             <button
                                                                 type="button"
-                                                                title="View submission"
-                                                                onClick={(e) => { e.stopPropagation(); jumpToLocation(foundSub); }}
-                                                                className="hidden sm:flex flex-1 h-full bg-slate-600 hover:bg-slate-500 text-white font-bold rounded-lg uppercase justify-center items-center"
-                                                            >
-                                                                <FaEye className="h-[60%] w-auto" />
-                                                            </button>
-                                                            <button
-                                                                type="button"
                                                                 title="Overwrite submission"
                                                                 onClick={(e) => { e.stopPropagation(); handleSubmit(cat); }}
                                                                 disabled={submittingCategory === cat || !inStreetView}
-                                                                className={`flex-1 h-full font-bold rounded-lg uppercase transition-all flex justify-center items-center
-                                        ${!inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed opacity-50' : 'bg-amber-600 hover:bg-amber-500 text-white'}`}
+                                                                className={`flex-1 h-full font-bold rounded-lg uppercase transition-all flex justify-center items-center ${!inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed opacity-50' : 'bg-amber-600/30 hover:bg-amber-500/30 text-white'}`}
                                                             >
                                                                 {submittingCategory === cat ? '...' : <FaCamera className="h-[60%] w-auto" />}
                                                             </button>
+                                                            {startingPoint === 'open-world' && (
+                                                                <button
+                                                                    type="button"
+                                                                    title="View submission"
+                                                                    onClick={(e) => { e.stopPropagation(); jumpToLocation(foundSub); }}
+                                                                    className="hidden sm:flex flex-1 h-full bg-slate-600/30 hover:bg-slate-500/30 text-white font-bold rounded-lg uppercase justify-center items-center"
+                                                                    >
+                                                                    <FaEye className="h-[60%] w-auto" />
+                                                                </button>
+                                                            )}
                                                         </>
                                                     )}
                                                 </div>
