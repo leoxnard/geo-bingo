@@ -1,11 +1,9 @@
 'use client';
 
-
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { GeoBingoLogo } from './utils/Elements';
 import { ScoreEntity, PlayerStat, PodiumViewProps } from './utils/types';
-
 
 export default function PodiumView({ 
     gameId, renderToast, isHost, teamMode
@@ -13,30 +11,31 @@ export default function PodiumView({
     const [stats, setStats] = useState<PlayerStat[]>([]);
     const [loading, setLoading] = useState(true);
     const [gameMode, setGameMode] = useState<string>('list');
+    const [endCondition, setEndCondition] = useState<string>(''); 
 
     useEffect(() => {
         const fetchResults = async () => {
-            const { data: game } = await supabase.from('games').select('game_mode, grid_size').eq('id', gameId).single();
+            const { data: game } = await supabase.from('games').select('game_mode, grid_size, end_condition').eq('id', gameId).single();
             const { data: players } = await supabase.from('players').select('id, name, bingo_board, team').eq('game_id', gameId);
             const { data: submissions } = await supabase.from('submissions').select('*').eq('game_id', gameId);
 
             const fetchedGameMode = game?.game_mode || 'list';
             setGameMode(fetchedGameMode);
+            setEndCondition(game?.end_condition || '');
             const gridSize = game?.grid_size || 3;
 
             if (players && submissions) {
                 const entities: ScoreEntity[] = [];
-                
+
                 if (teamMode === 'teams') {
                     const teamsMap = new Map<number, ScoreEntity>();
                     players.forEach(p => {
                         const t = p.team ?? -1;
                         if (t >= 0) {
                             if (!teamsMap.has(t)) {
-                                const teamNames = ['Blue Team', 'Red Team', 'Green Team', 'Yellow Team'];
                                 teamsMap.set(t, {
                                     id: `team-${t}`,
-                                    name: teamNames[t] || `Team ${t + 1}`,
+                                    name: p.name, 
                                     members: [p],
                                     bingo_board: p.bingo_board
                                 });
@@ -63,11 +62,8 @@ export default function PodiumView({
                     let score = 0;
                     let totalYes = 0;
                     let totalNo = 0;
-
-                    // Track which categories are validated
                     const validCategories: string[] = [];
 
-                    // Check every submission to calculate points and stats
                     entitySubs.forEach(sub => {
                         const votes = sub.votes || {};
                         let subYes = 0;
@@ -81,20 +77,16 @@ export default function PodiumView({
                         totalYes += subYes;
                         totalNo += subNo;
 
-                        // A guess is accepted if absolute majority (>50%) votes yes
                         const totalCast = subYes + subNo;
                         if (totalCast > 0 && subYes > (totalCast / 2)) {
-                            score += 1; // 1 point for each approved word from voting
+                            score += 1; 
                             validCategories.push(sub.category);
                         }
                     });
 
-                    // Check for Bingos
                     let bingoCount = 0;
                     if (fetchedGameMode === 'bingo' && entity.bingo_board && entity.bingo_board.length >= gridSize * gridSize) {
                         const board = entity.bingo_board;
-            
-                        // Map flat array to 2D grid boolean array indicating validity
                         const grid: boolean[][] = [];
                         for (let r = 0; r < gridSize; r++) {
                             const row: boolean[] = [];
@@ -105,45 +97,31 @@ export default function PodiumView({
                             grid.push(row);
                         }
 
-                        // Function to count FULL lines (rows, cols, diagonals)
                         const checkLines = () => {
                             let bingosFound = 0;
-
                             const checkDirection = (rStart: number, cStart: number, rDir: number, cDir: number) => {
                                 let r = rStart;
                                 let c = cStart;
                                 let count = 0;
-                                
                                 while (r >= 0 && r < gridSize && c >= 0 && c < gridSize) {
-                                    if (!grid[r][c]) return 0; // If any cell in the line is false, it's not a full bingo
+                                    if (!grid[r][c]) return 0;
                                     count++;
                                     r += rDir;
                                     c += cDir;
                                 }
-                                
-                                // Return 1 if the very end of the bounds was reached, effectively meaning it's a full edge-to-edge bingo
                                 return count === gridSize ? 1 : 0;
                             };
 
-                            // Check all Rows
-                            for (let r = 0; r < gridSize; r++) {
-                                bingosFound += checkDirection(r, 0, 0, 1);
-                            }
-
-                            // Check all Cols
-                            for (let c = 0; c < gridSize; c++) {
-                                bingosFound += checkDirection(0, c, 1, 0);
-                            }
-
-                            // Check ONLY the two Main Diagonals (Standard Bingo Rules)
-                            bingosFound += checkDirection(0, 0, 1, 1); // Top-Left to Bottom-Right
-                            bingosFound += checkDirection(0, gridSize - 1, 1, -1); // Top-Right to Bottom-Left
+                            for (let r = 0; r < gridSize; r++) bingosFound += checkDirection(r, 0, 0, 1);
+                            for (let c = 0; c < gridSize; c++) bingosFound += checkDirection(0, c, 1, 0);
+                            bingosFound += checkDirection(0, 0, 1, 1); 
+                            bingosFound += checkDirection(0, gridSize - 1, 1, -1); 
 
                             return bingosFound;
                         };
 
                         bingoCount = checkLines();
-                        score += bingoCount * gridSize; // add extra points equal to full grid size for every bingo found
+                        score += bingoCount * gridSize; 
                     }
 
                     const totalCommunityVotes = totalYes + totalNo;
@@ -164,18 +142,21 @@ export default function PodiumView({
                     };
                 });
 
-                // Sort: Highest score wins. If tie, highest community approval wins!
                 playerStats.sort((a, b) => {
+                    if (game?.end_condition === 'first_bingo') {
+                        if (b.bingos !== a.bingos) return b.bingos - a.bingos;
+                    }
                     if (b.score !== a.score) return b.score - a.score;
                     return b.communityApproval - a.communityApproval;
                 });
 
-                // Calculate Ranks (Dense Ranking to support ties)
                 let currentRank = 1;
                 playerStats.forEach((p, i) => {
                     if (i > 0) {
                         const prev = playerStats[i - 1];
-                        if (p.score === prev.score && p.communityApproval === prev.communityApproval) {
+                        const isBingoTie = game?.end_condition === 'first_bingo' ? p.bingos === prev.bingos : true;
+                        
+                        if (isBingoTie && p.score === prev.score && p.communityApproval === prev.communityApproval) {
                             p.rank = currentRank;
                         } else {
                             currentRank++;
@@ -185,7 +166,6 @@ export default function PodiumView({
                         p.rank = 1;
                     }
                 });
-        
                 setStats(playerStats);
             }
             setLoading(false);
@@ -200,37 +180,63 @@ export default function PodiumView({
     const rank2 = stats.filter(s => s.rank === 2);
     const rank3 = stats.filter(s => s.rank === 3);
 
+    const renderScoreBadge = (p: PlayerStat) => {
+        if (endCondition === 'first_bingo' && p.bingos > 0) {
+            return 'BINGO!';
+        }
+        return `${p.score} Pts`;
+    };
+
+    const getWinningMessage = () => {
+        if (rank1.length === 0) return null;
+        if (rank1.length > 1) return '🤝 Epic first place tie!'
+
+        const winner = rank1[0];
+        const runnerUp = rank2.length > 0 ? rank2[0] : null;
+
+        if (endCondition === 'first_bingo' && winner.bingos > 0) {
+            return '🏆 Winner by achieving the first bingo!';
+        }
+        
+        if (runnerUp && winner.score === runnerUp.score) {
+            return '⚖️ Tiebreaker: Winner by achieving a better approval rate!';
+        }
+
+        return '🏅 Winner by getting the most points'
+    };
+
     return (
         <div className="min-h-screen flex flex-col items-center p-4 bg-slate-900 text-white">
             {renderToast()}
-            <div className="w-full max-w-5xl flex justify-between items-center mb-4 mt-4">
-                <div className="flex items-center gap-4">
-                    <GeoBingoLogo size={50} className="hidden sm:block" />
-                    <h1 className="text-4xl font-black uppercase tracking-widest text-indigo-400">Results</h1>
-                </div>
-                {isHost ? (
-                    <button type="button" 
-                        onClick={async () => {
-                            // Delete old submissions for the new round
-                            await supabase.from('submissions').delete().eq('game_id', gameId);
-                            // Status zurück auf Lobby setzen
-                            const { error } = await supabase.from('games').update({ status: 'lobby', ready_players: [] }).eq('id', gameId);
-                            if (error) console.error("Error returning to lobby:", error);
-                        }}
-                        className="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 rounded-lg transition-all uppercase text-sm tracking-wide shadow-lg"
-                    >
-                        Back to Lobby
-                    </button>
-                ) : (
-                    <div className="text-slate-400 italic font-medium bg-slate-800 px-6 py-3 rounded-lg border border-slate-700">
-                        Waiting for Host...
-                    </div>
-                )}
-            </div>
+            
             <div className="w-full max-w-6xl mx-auto flex flex-col items-center text-white">
-      
+                
+                {/* HEADER / TOP BAR */}
+                <div className="w-full flex justify-between items-center mb-4 mt-4">
+                    <div className="flex items-center gap-4">
+                        <GeoBingoLogo size={50} className="hidden sm:block" />
+                        <h1 className="text-4xl font-black uppercase tracking-widest text-indigo-400">Results</h1>
+                    </div>
+                    {isHost ? (
+                        <button type="button" 
+                            onClick={async () => {
+                                await supabase.from('submissions').delete().eq('game_id', gameId);
+                                const { error } = await supabase.from('games').update({ status: 'lobby', ready_players: [] }).eq('id', gameId);
+                                if (error) console.error("Error returning to lobby:", error);
+                            }}
+                            className="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 rounded-lg transition-all uppercase text-sm tracking-wide shadow-lg"
+                        >
+                            Back to Lobby
+                        </button>
+                    ) : (
+                        <div className="text-slate-400 italic font-medium bg-slate-800 px-6 py-3 rounded-lg border border-slate-700">
+                            Waiting for Host...
+                        </div>
+                    )}
+                </div>
+
                 {/* THE PODIUM */}
-                <div className="flex items-end justify-center gap-4 md:gap-8 h-65 mb-5 mt-20 w-full">
+                <div className="flex items-end justify-center gap-4 md:gap-8 h-65 mt-16 w-full">
             
                     {/* 2nd Place */}
                     {rank2.length > 0 && (
@@ -240,7 +246,7 @@ export default function PodiumView({
                                     <span key={p.id} className="text-xl md:text-2xl font-bold w-full text-center" title={p.name}>{p.name}</span>
                                 ))}
                             </div>
-                            <span className="text-slate-400 mb-4 font-bold bg-slate-800 px-4 py-1 rounded-full">{rank2[0].score} Pts</span>
+                            <span className="text-slate-400 mb-4 font-bold bg-slate-800 px-4 py-1 rounded-full">{renderScoreBadge(rank2[0])}</span>
                             <div className="w-full bg-slate-300 h-32 rounded-t-2xl flex justify-center items-start pt-6 shadow-[0_0_40px_rgba(203,213,225,0.2)]">
                                 <span className="text-5xl font-black text-slate-500">2</span>
                             </div>
@@ -255,7 +261,7 @@ export default function PodiumView({
                                     <span key={p.id} className="text-2xl md:text-3xl font-black text-yellow-400 w-full text-center" title={p.name}>{p.name}</span>
                                 ))}
                             </div>
-                            <span className="text-yellow-200 mb-4 font-bold bg-yellow-900/50 px-5 py-1 rounded-full">{rank1[0].score} Pts</span>
+                            <span className="text-yellow-200 mb-4 font-bold bg-yellow-900/50 px-5 py-1 rounded-full">{renderScoreBadge(rank1[0])}</span>
                             <div className="w-full bg-yellow-400 h-48 rounded-t-2xl flex justify-center items-start pt-6 shadow-[0_0_60px_rgba(250,204,21,0.4)] relative overflow-hidden">
                                 <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-white/20 to-transparent"></div>
                                 <span className="text-6xl font-black text-yellow-600 relative z-10">1</span>
@@ -271,12 +277,19 @@ export default function PodiumView({
                                     <span key={p.id} className="text-xl md:text-2xl font-bold w-full text-center" title={p.name}>{p.name}</span>
                                 ))}
                             </div>
-                            <span className="text-amber-600 mb-4 font-bold bg-amber-900/30 px-4 py-1 rounded-full">{rank3[0].score} Pts</span>
+                            <span className="text-amber-600 mb-4 font-bold bg-amber-900/30 px-4 py-1 rounded-full">{renderScoreBadge(rank3[0])}</span>
                             <div className="w-full bg-amber-700 h-24 rounded-t-2xl flex justify-center items-start pt-6 shadow-[0_0_40px_rgba(180,83,9,0.2)]">
                                 <span className="text-5xl font-black text-amber-900">3</span>
                             </div>
                         </div>
                     )}
+                </div>
+
+                {/* WINNING MESSAGE BANNER */}
+                <div className="mt-6 mb-10 w-full flex justify-center animate-[fadeIn_2s_ease-in-out]">
+                    <span className="bg-slate-800 border border-slate-700 text-slate-300 px-6 py-2 rounded-full text-sm font-bold shadow-lg uppercase tracking-wide">
+                        {getWinningMessage()}
+                    </span>
                 </div>
 
                 {/* DETAILED STATISTICS */}
@@ -302,14 +315,11 @@ export default function PodiumView({
 
                                 {/* Stats Grid */}
                                 <div className={`grid ${gameMode === 'bingo' ? 'grid-cols-3' : 'grid-cols-2'} gap-3 mt-2`}>
-                    
-                                    {/* Submitted Total */}
                                     <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center">
                                         <span className="text-[10px] text-slate-400 uppercase font-bold mb-1 text-center">Approved words</span>
                                         <span className="text-xl font-medium text-white">{player.totalFound}</span>
                                     </div>
 
-                                    {/* Bingos */}
                                     {gameMode === 'bingo' && (
                                         <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center">
                                             <span className="text-[10px] text-slate-400 uppercase font-bold mb-1 text-center">Bingos</span>
@@ -317,7 +327,6 @@ export default function PodiumView({
                                         </div>
                                     )}
 
-                                    {/* Community Approval */}
                                     <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center">
                                         <span className="text-[10px] text-slate-400 uppercase font-bold mb-1 text-center">Approve-Rate</span>
                                         <span className={`text-xl font-medium ${
@@ -328,10 +337,8 @@ export default function PodiumView({
                                         </span>
                                     </div>
                     
-                                    {/* Votes Detail (Full Width) */}
                                     <div className={`bg-slate-800 p-3 rounded-xl flex flex-col ${gameMode === 'bingo' ? 'col-span-3' : 'col-span-2'}`}>
                                         <span className="text-xs text-slate-400 uppercase font-bold mb-2">Total Votes Received</span>
-                    
                                         <div className="flex items-center gap-4">
                                             <div className="flex-1 h-3 bg-slate-700 rounded-full overflow-hidden flex">
                                                 <div className="bg-green-500 h-full" style={{ width: `${player.totalYes + player.totalNo > 0 ? (player.totalYes / (player.totalYes + player.totalNo)) * 100 : 0}%` }}></div>

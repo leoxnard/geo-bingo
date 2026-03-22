@@ -9,7 +9,11 @@ import { FaEye, FaCamera } from 'react-icons/fa';
 import { Submission, StreetViewProps } from './utils/types';
 import { FullscreenButton, GeoBingoLogo } from './utils/Elements';
 import { calculateBingoCounter } from './utils/Functions';
-import { mapOptions } from './utils/mapUtils';
+import { mapOptions, GOOGLE_MAPS_LIBRARIES } from './utils/mapUtils';
+
+const additionalMapOptions = {
+    styles: ""
+}
 
 const safeStartCenter = { lat:30, lng: 10 };
 const initialWorldZoom = 2.4;
@@ -22,7 +26,6 @@ const panoOptions = {
     zoomControl: false,
     panControl: false,
     linksControl: false,
-    visible: false,
 };
 
 
@@ -43,12 +46,10 @@ export default function StreetView({
     players
 }: StreetViewProps) {
 
-    const [libraries] = useState<("places" | "geometry")[]>(['places', 'geometry']);
-    
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
         googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-        libraries,
+        libraries: GOOGLE_MAPS_LIBRARIES,
     });
 
   
@@ -160,7 +161,7 @@ export default function StreetView({
         pano.setOptions({ source: google.maps.StreetViewSource.GOOGLE } as any);
 
         if (startingPoint === 'open-world') {
-            pano.setPosition(safeStartCenter);
+            // pano.setPosition(safeStartCenter);
             // The customPolygonRef parsing was removed from here
         } else {
             const parsedStart = JSON.parse(startingPoint) as { lat: number; lng: number };
@@ -408,7 +409,7 @@ export default function StreetView({
                                 mapContainerClassName="google-map-container absolute inset-0"
                                 center={mapCenter}
                                 zoom={mapZoom}
-                                options={mapOptions()}
+                                options={mapOptions(additionalMapOptions)}
                             >
                                 {/* Draw custom boundary polygon if provided */}
                                 {polyPoints && (
@@ -460,8 +461,7 @@ export default function StreetView({
                                 <ul className="flex flex-col gap-3 flex-1">
                                     {myBoard.map((cat) => {
                                         const foundSub = mySubmissions.find(s => s.category === cat);
-                        
-
+                                        
                                         return (
                                             <li 
                                                 key={cat} 
@@ -471,9 +471,6 @@ export default function StreetView({
                                                 <div className="flex justify-between items-center w-full">
                                                     <span className={`truncate font-medium flex-1 pr-2 ${foundSub ? 'text-slate-300' : 'text-white'}`}>
                                                         {cat}
-                                                    </span>
-                                                    <span className={`text-xs font-bold uppercase whitespace-nowrap ${foundSub ? 'text-green-500' : 'text-slate-500'}`}>
-                                                        {foundSub ? 'Found' : 'Pending'}
                                                     </span>
                                                 </div>
                             
