@@ -28,8 +28,8 @@ export default function VotingView({
     const [hoveredSubId, setHoveredSubId] = useState<string | null>(null);
     const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
     
-    const { isLoaded } = useJsApiLoader({
-        id: 'google-map-script', // Muss absolut identisch mit anderen Stellen sein
+        const { isLoaded } = useJsApiLoader({
+        id: 'google-map-script',
         googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
         libraries: LIBRARIES
     });
@@ -43,8 +43,8 @@ export default function VotingView({
     const totalPlayers = players.length;
 
     useEffect(() => {
+        let isInitialLoad = true;
         const fetchData = async () => {
-            // 0. Fetch Categories directly from the DB
             let currentCategories = categories;
             const { data: gameData } = await supabase.from('games').select('categories').eq('id', gameId).single();
             if (gameData && gameData.categories) {
@@ -52,21 +52,23 @@ export default function VotingView({
                 setCategories(currentCategories);
             }
 
-            // 1. Fetch Submissions
             const { data: subData } = await supabase.from('submissions').select('*').eq('game_id', gameId);
             if (subData) {
                 setSubmissions(subData);
-                const firstPopulatedCat = currentCategories.find(cat => 
-                    subData.some((s: Submission) => s.category === cat)
-                );
-                if (firstPopulatedCat) {
-                    setActiveCategory(firstPopulatedCat);
-                } else if (currentCategories.length > 0) {
-                    setActiveCategory(currentCategories[0]);
+                
+                if (isInitialLoad) {
+                    const firstPopulatedCat = currentCategories.find(cat => 
+                        subData.some((s: Submission) => s.category === cat)
+                    );
+                    if (firstPopulatedCat) {
+                        setActiveCategory(firstPopulatedCat);
+                    } else if (currentCategories.length > 0) {
+                        setActiveCategory(currentCategories[0]);
+                    }
+                    isInitialLoad = false;
                 }
             }
 
-            // 2. Fetch Players
             const { data: playerData } = await supabase.from('players').select('id, name').eq('game_id', gameId);
             if (playerData) {
                 const pMap: Record<string, string> = {};
@@ -77,13 +79,17 @@ export default function VotingView({
         
         fetchData();
 
-        // 3. Setup Realtime Subscription
         const channel = supabase.channel(`voting-${gameId}`)
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'submissions', filter: `game_id=eq.${gameId}` }, 
                 (payload) => {
                     setSubmissions(prev => prev.map(s => 
                         s.id === payload.new.id ? { ...s, votes: payload.new.votes, is_valid: payload.new.is_valid } : s
                     ));
+                }
+            )
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'submissions', filter: `game_id=eq.${gameId}` }, 
+                (payload) => {
+                    setSubmissions(prev => [...prev, payload.new as Submission]);
                 }
             ).subscribe();
 
@@ -93,7 +99,8 @@ export default function VotingView({
             };
             cleanup();
         };
-    }, [gameId, categories]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [gameId]);
 
     const handleVote = async (sub: Submission, voteIsYes: boolean) => {
         const newVotes = { ...sub.votes, [playerId]: voteIsYes };
@@ -248,7 +255,7 @@ export default function VotingView({
                                         : "bg-red-900/50 text-red-400 border border-red-800/50";
                                 }
 
-                                const baseStyle = "text-left px-4 py-3 rounded-xl font-medium flex justify-between items-center w-full transition-all duration-1000 ease-in-out";
+                                const baseStyle = "text-left px-4 py-3 rounded-xl font-medium flex justify-between items-center w-full transition-all duration-500 ease-in-out";
 
                                 const stateStyle = isDisabled
                                     ? "bg-slate-900 opacity-50 border border-slate-900 text-slate-600 cursor-not-allowed"
@@ -395,7 +402,7 @@ export default function VotingView({
                                             <SafeImage 
                                                 src={`https://maps.googleapis.com/maps/api/streetview?size=600x400&location=${sub.lat},${sub.lng}&heading=${sub.heading}&pitch=${sub.pitch}&fov=${getFov(sub.zoom)}&key=${apiKey}&return_error_code=true`}
                                                 alt="Found location"
-                                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                                             />
                                             <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none z-10">
                                                 <span className="text-white font-bold bg-black/50 px-3 py-1 rounded-full text-sm">Explore</span>
