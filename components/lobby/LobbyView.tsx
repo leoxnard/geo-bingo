@@ -50,15 +50,6 @@ interface LobbyViewProps {
     setPlayers: (players: Player[] | ((prev: Player[]) => Player[])) => void;
 }
 
-const shuffle = <T,>(array: T[]): T[] => {
-    const newArr = [...array];
-    for (let i = newArr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
-    }
-    return newArr;
-};
-
 export default function LobbyView(props: LobbyViewProps) {
     const [libraries] = useState<("places" | "geometry")[]>(['places', 'geometry']);
     const { isLoaded } = useJsApiLoader({
@@ -122,6 +113,18 @@ export default function LobbyView(props: LobbyViewProps) {
         props.updateStatus('playing');
     };
 
+
+    const handleLeaveLobby = () => {
+        // If host leaves, assign new host
+        if (props.isHost && props.players.length > 1) {
+            const newHost = props.players.find(p => p.id !== props.playerId);
+            if (newHost) {
+                props.makeHost(newHost.id);
+            }
+        }
+        props.router.push('/');
+    };
+
     return (
         <div className="min-h-screen flex flex-col items-center p-10 bg-slate-900 text-white relative">
             {props.renderToast()}
@@ -182,7 +185,7 @@ export default function LobbyView(props: LobbyViewProps) {
                     kickPlayer={props.kickPlayer}
                     banPlayer={props.banPlayer}
                     handleStartGame={handleStartGame}
-                    handleLeaveLobby={() => props.router.push('/')}
+                    handleLeaveLobby={handleLeaveLobby}
                     setPlayers={props.setPlayers}
                 />
             </div>
