@@ -224,51 +224,53 @@ export default function VotingView({
 
                     {/* LEFT: Category Selection */}
                     <div className="w-full lg:w-64 flex flex-col gap-2">
-                        <h2 className="text-xl font-bold text-slate-400 mb-4 uppercase tracking-wider">Categories</h2>
-                        {categories.map(cat => {
-                            const categorySubs = submissions.filter(s => s.category === cat);
-                            const count = categorySubs.length;
-                            const isDisabled = count === 0;
+                        <div className="flex flex-col gap-2 mb-4 p-4 bg-slate-800 rounded-2xl border border-slate-700 overflow-y-auto">
+                            <h2 className="text-xl font-bold text-slate-400 mb-4 uppercase tracking-wider">Categories</h2>
+                            {categories.map(cat => {
+                                const categorySubs = submissions.filter(s => s.category === cat);
+                                const count = categorySubs.length;
+                                const isDisabled = count === 0;
 
-                            let badgeColor = "bg-slate-800 text-slate-400"; 
-                            if (count > 0) {
-                                const isFinished = categorySubs.every(sub => {
-                                    const subPlayerTeam = players.find(p => p.id === sub.player_id)?.team;
-                                    const myTeam = players.find(p => p.id === playerId)?.team;
-                                    if (sub.player_id === playerId || (teamMode === 'teams' && subPlayerTeam !== undefined && subPlayerTeam === myTeam)) return true;
-                                    return sub.votes && sub.votes[playerId] !== undefined;
-                                });
-                                badgeColor = isFinished 
-                                    ? "bg-green-900/50 text-green-400 border border-green-800/50" 
-                                    : "bg-red-900/50 text-red-400 border border-red-800/50";
-                            }
+                                let badgeColor = "bg-slate-700 text-slate-400"; 
+                                if (count > 0) {
+                                    const isFinished = categorySubs.every(sub => {
+                                        const subPlayerTeam = players.find(p => p.id === sub.player_id)?.team;
+                                        const myTeam = players.find(p => p.id === playerId)?.team;
+                                        if (sub.player_id === playerId || (teamMode === 'teams' && subPlayerTeam !== undefined && subPlayerTeam === myTeam)) return true;
+                                        return sub.votes && sub.votes[playerId] !== undefined;
+                                    });
+                                    badgeColor = isFinished 
+                                        ? "bg-green-900/50 text-green-400 border border-green-800/50" 
+                                        : "bg-red-900/50 text-red-400 border border-red-800/50";
+                                }
 
-                            // Determine button style
-                            const baseStyle = "text-left px-4 py-3 rounded-xl font-medium transition-all flex justify-between items-center";
-                            const stateStyle = isDisabled
-                                ? "bg-slate-800/40 text-slate-600 cursor-not-allowed opacity-50"
-                                : currentCategory === cat
-                                    ? "bg-indigo-600 text-white shadow-lg cursor-default"
-                                    : "bg-slate-800 text-slate-400 hover:bg-slate-700 cursor-pointer";
+                                const baseStyle = "text-left px-4 py-3 rounded-xl font-medium flex justify-between items-center w-full transition-all duration-1000 ease-in-out";
 
-                            return (
-                                <button type="button"
-                                    key={cat}
-                                    onClick={() => !isDisabled && setActiveCategory(cat)}
-                                    disabled={isDisabled}
-                                    className={`${baseStyle} ${stateStyle}`}
-                                >
-                                    <span className="truncate pr-2">{cat}</span>
-                                    <span className={`px-2 rounded text-xs py-1 whitespace-nowrap ${badgeColor}`}>
-                                        {count}
-                                    </span>
-                                </button>
-                            );
-                        })}
+                                const stateStyle = isDisabled
+                                    ? "bg-slate-900 opacity-50 border border-slate-900 text-slate-600 cursor-not-allowed"
+                                    : currentCategory === cat
+                                        ? "bg-indigo-600 text-white shadow-lg cursor-default border-transparent"
+                                        : "bg-slate-900 border border-slate-800 text-slate-400 cursor-pointer hover:scale-105";
+
+                                return (
+                                    <button type="button"
+                                        key={cat}
+                                        onClick={() => !isDisabled && setActiveCategory(cat)}
+                                        disabled={isDisabled}
+                                        className={`${baseStyle} ${stateStyle}`}
+                                    >
+                                        <span className="truncate pr-2">{cat}</span>
+                                        <span className={`px-2 rounded text-xs py-1 whitespace-nowrap ${badgeColor}`}>
+                                            {count}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
 
                         {/* Host Control: Finish Game */}
                         {isHost && (
-                            <div className="mt-8 flex flex-col gap-2">
+                            <div className="flex flex-col gap-2">
                                 <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 mb-2">
                                     <p className="text-xs text-slate-400 font-bold uppercase mb-1">
                                         Progress:
