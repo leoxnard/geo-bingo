@@ -315,17 +315,17 @@ export default function PodiumView({
 
                                 {/* Stats Grid */}
                                 <div className={`grid ${gameMode === 'bingo' ? 'grid-cols-3' : 'grid-cols-2'} gap-3 mt-2`}>
+                                    {gameMode === 'bingo' && (
+                                        <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center">
+                                            <span className="text-[10px] text-slate-400 uppercase font-bold mb-1 text-center">Bingos</span>
+                                            <span className="text-xl font-medium text-yellow-400">{player.bingos || 0}</span>
+                                        </div>
+                                    )}
+
                                     <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center">
                                         <span className="text-[10px] text-slate-400 uppercase font-bold mb-1 text-center">Approved words</span>
                                         <span className="text-xl font-medium text-white">{player.totalFound}</span>
                                     </div>
-
-                                    {gameMode === 'bingo' && (
-                                        <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center">
-                                            <span className="text-[10px] text-slate-400 uppercase font-bold mb-1 text-center">Bingos</span>
-                                            <span className="text-xl font-medium text-pink-400">{player.bingos || 0}</span>
-                                        </div>
-                                    )}
 
                                     <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center">
                                         <span className="text-[10px] text-slate-400 uppercase font-bold mb-1 text-center">Approve-Rate</span>

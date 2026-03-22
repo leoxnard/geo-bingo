@@ -83,22 +83,32 @@ export default function LobbyMap({
     useEffect(() => {
         if (!mapInstance || !isHost) return;
         const sv = mapInstance.getStreetView();
-        const listener = google.maps.event.addListener(sv, 'visible_changed', () => {
-            if (sv.getVisible()) {
+        
+        const listener = google.maps.event.addListener(sv, 'position_changed', () => {
+            const pos = sv.getPosition();
+            
+            if (pos) {
+                updateGameModeInfo({
+                    starting_point: JSON.stringify({ lat: pos.lat(), lng: pos.lng() }),
+                });
+                
                 sv.setVisible(false);
-                const pos = sv.getPosition();
-                if (pos) {
-                    updateGameModeInfo({
-                        starting_point: JSON.stringify({ lat: pos.lat(), lng: pos.lng() }),
-                        gameBoundary: JSON.stringify(draftPolygonPoints)
-                    });
-                }
             }
         });
+
+        const visibleListener = google.maps.event.addListener(sv, 'visible_changed', () => {
+             if (sv.getVisible()) {
+                 setTimeout(() => {
+                     sv.setVisible(false);
+                 }, 50);
+             }
+        });
+
         return () => {
             google.maps.event.removeListener(listener);
+            google.maps.event.removeListener(visibleListener);
         };
-    }, [mapInstance, isHost, updateGameModeInfo, draftPolygonPoints]);
+    }, [mapInstance, isHost, updateGameModeInfo]);
 
     return (
         <div className="bg-slate-800 p-6 rounded-xl flex-1 border border-slate-700 h-fit">

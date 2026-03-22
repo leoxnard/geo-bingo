@@ -126,7 +126,7 @@ export default function LobbySettings({
                             </button>
                         </div>
                         <p className="my-2 text-xs text-slate-400 text-center min-h-[16px]">
-                            {bingoBoardMode === 'shared' && 'Same board for all players.'}
+                            {bingoBoardMode === 'shared' && 'Same board for all players/teams.'}
                             {bingoBoardMode === 'individual' && 'Different words and positions for each player.'}
                         </p>
                     </div>
@@ -160,35 +160,39 @@ export default function LobbySettings({
             )}
 
             {/* End Condition Selection */}
-            <div className="pt-2 border-t border-slate-700">
-                <label className="flex justify-between font-bold mb-2 cursor-pointer">
-                    <span>Win Condition</span>
-                </label>
-                <div className="flex bg-slate-900 rounded-lg p-1">
-                    <button type="button"
-                        onClick={() => updateGameModeInfo({ end_condition: 'first_bingo' })}
-                        disabled={!isHost}
-                        className={`flex-1 py-2 text-sm rounded-md font-bold transition-all ${
-                            endCondition === 'first_bingo' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'
-                        }`}
-                    >
-                        First Bingo
-                    </button>
-                    <button type="button"
-                        onClick={() => updateGameModeInfo({ end_condition: 'timer' })}
-                        disabled={!isHost}
-                        className={`flex-1 py-2 text-sm rounded-md font-bold transition-all ${
-                            endCondition === 'timer' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'
-                        }`}
-                    >
-                        Full Time
-                    </button>
+            {gameMode === 'bingo' && (
+                <div className="pt-2 border-t border-slate-700">
+                    <label className="flex justify-between font-bold mb-2 cursor-pointer">
+                        <span>
+                            Win Condition
+                        </span>
+                    </label>
+                    <div className="flex bg-slate-900 rounded-lg p-1">
+                        <button type="button"
+                            onClick={() => updateGameModeInfo({ end_condition: 'first_bingo' })}
+                            disabled={!isHost}
+                            className={`flex-1 py-2 text-sm rounded-md font-bold transition-all ${
+                                endCondition === 'first_bingo' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                            }`}
+                        >
+                            First Bingo
+                        </button>
+                        <button type="button"
+                            onClick={() => updateGameModeInfo({ end_condition: 'timer' })}
+                            disabled={!isHost}
+                            className={`flex-1 py-2 text-sm rounded-md font-bold transition-all ${
+                                endCondition === 'timer' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                            }`}
+                        >
+                            Full Time
+                        </button>
+                    </div>
+                    <p className="my-2 text-xs text-slate-400 text-center min-h-[16px]">
+                        {endCondition === 'first_bingo' && 'Game ends instantly when someone gets a Bingo.'}
+                        {endCondition === 'timer' && 'Game continues until the timer runs out, extra points for each Bingo.'}
+                    </p>
                 </div>
-                <p className="my-2 text-xs text-slate-400 text-center min-h-[16px]">
-                    {endCondition === 'first_bingo' && 'Game ends instantly when someone gets a Bingo.'}
-                    {endCondition === 'timer' && 'Game continues until the timer runs out.'}
-                </p>
-            </div>
+            )}
 
             {/* Time Slider */}
             <div className="pt-2 border-t border-slate-700">
@@ -205,7 +209,7 @@ export default function LobbySettings({
                         id="time-limit-range"
                         type="range"
                         min="1"
-                        max="15"
+                        max="30"
                         step="1"
                         value={timeLimit / 60}
                         disabled={!isHost}

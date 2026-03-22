@@ -2,6 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import { FaTimes } from "react-icons/fa";
+import { CiCirclePlus, CiCircleMinus } from "react-icons/ci";
 import { shuffle } from '../utils/Functions';
 
 interface LobbyCategoriesProps {
@@ -155,37 +156,67 @@ export default function LobbyCategories({
             </h3>
 
             {gameMode === 'bingo' && bingoBoardMode === 'shared' ? (
-                <div className={`grid gap-3 mb-3 bingo-grid-${gridSize}`}>
-                    {Array.from({ length: Math.max(gridSize * gridSize, categories.length) }).map((_, i) => {
-                        const cat = categories[i];
-                        if (i >= gridSize * gridSize) return null;
-                        return (
-                            <div 
-                                key={i}
-                                draggable={isHost && !!cat}
-                                onDragStart={(e) => handleDragStart(e, i)}
-                                onDragOver={(e) => e.preventDefault()}
-                                onDrop={(e) => handleDrop(e, i)}
-                                className={`relative flex items-center justify-center p-2 rounded-lg border text-center ${getSidebarTextSizeClass()} min-h-[60px] [hyphens:auto] break-words transition-all
-                                ${cat ? 'bg-slate-700 border-slate-600' : 'bg-slate-800/50 border-dashed border-slate-600/50 text-slate-500'}
-                                ${isHost && cat ? 'cursor-grab active:cursor-grabbing hover:bg-slate-600' : ''}
-                                ${draggedIndex === i ? 'opacity-50 scale-95 border-indigo-500' : ''}
-                                `}
+                <>
+                    {isHost && (
+                        <div className={`grid grid-cols-2 gap-3 mb-3 min-h-[60px] break-all transition-all`}>
+                            <button
+                                type="button"
+                                onClick={minusOneGridSize}
+                                disabled={gridSize <= 2}
+                                className="relative flex items-center justify-center p-2 rounded-lg border border-dashed text-center text-indigo-400 border-indigo-700 disabled:border-slate-600 disabled:text-slate-500 disabled:bg-slate-800 hover:bg-slate-700/20"
+                                title="Reduce grid size"
+                                aria-label=""
                             >
-                                {cat ? (
-                                    <>
-                                        <span className="italic">{cat}</span>
-                                        {isHost && (
-                                            <button type="button" title='remove_cat_btn' onClick={() => removeCategory(cat)} className="absolute top-1 right-1 text-red-400 hover:text-red-300 p-0.5 rounded-full bg-slate-800">
-                                                <FaTimes />
-                                            </button>
-                                        )}
-                                    </>
-                                ) : <span>Empty</span>}
-                            </div>
-                        );
-                    })}
-                </div>
+                                <span className="text-lg leading-none">
+                                    <CiCircleMinus/>
+                                </span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={plusOneGridSize}
+                                disabled={gridSize >= maxGridSize}
+                                className="relative flex items-center justify-center p-2 rounded-lg border border-dashed text-center text-indigo-400 border-indigo-700 disabled:border-slate-600 disabled:text-slate-500 disabled:bg-slate-800 hover:bg-slate-700/20"
+                                title="Increase grid size"
+                                aria-label="Increase grid size"
+                            >
+                                <span className="text-lg leading-none">
+                                    <CiCirclePlus />
+                                </span>
+                            </button>
+                        </div>
+                    )}
+                    <div className={`grid gap-3 mb-6 bingo-grid-${gridSize}`}>
+                        {Array.from({ length: Math.max(gridSize * gridSize, categories.length) }).map((_, i) => {
+                            const cat = categories[i];
+                            if (i >= gridSize * gridSize) return null;
+                            return (
+                                <div 
+                                    key={i}
+                                    draggable={isHost && !!cat}
+                                    onDragStart={(e) => handleDragStart(e, i)}
+                                    onDragOver={(e) => e.preventDefault()}
+                                    onDrop={(e) => handleDrop(e, i)}
+                                    className={`relative flex items-center justify-center p-2 rounded-lg border text-center ${getSidebarTextSizeClass()} min-h-[60px] [hyphens:auto] break-words transition-all
+                                    ${cat ? 'bg-slate-700 border-slate-600' : 'bg-slate-800/50 border-dashed border-slate-600/50 text-slate-500'}
+                                    ${isHost && cat ? 'cursor-grab active:cursor-grabbing hover:bg-slate-600' : ''}
+                                    ${draggedIndex === i ? 'opacity-50 scale-95 border-indigo-500' : ''}
+                                    `}
+                                    >
+                                    {cat ? (
+                                        <>
+                                            <span className="italic">{cat}</span>
+                                            {isHost && (
+                                                <button type="button" title='remove_cat_btn' onClick={() => removeCategory(cat)} className="absolute top-1 right-1 text-red-400 hover:text-red-300 p-0.5 rounded-full bg-slate-800">
+                                                    <FaTimes />
+                                                </button>
+                                            )}
+                                        </>
+                                    ) : <span>Empty</span>}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </>
             ) : (
                 <ul className="mb-4 space-y-2">
                     {categories.map((cat, i) => (
@@ -199,35 +230,6 @@ export default function LobbyCategories({
                         </li>
                     ))}
                 </ul>
-            )}
-
-            {isHost && gameMode === 'bingo' && bingoBoardMode === 'shared' && (
-                <div className={`grid grid-cols-2 gap-3 mb-6 min-h-[60px] break-all transition-all`}>
-                    <button
-                        type="button"
-                        onClick={minusOneGridSize}
-                        disabled={gridSize <= 2}
-                        className="relative flex items-center justify-center p-2 rounded-lg border border-dashed text-center border-indigo-700 disabled:border-slate-600 disabled:text-slate-500 disabled:bg-slate-800"
-                        title="Reduce grid size"
-                        aria-label=""
-                    >
-                        <span className="text-lg leading-none">
-                            -
-                        </span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={plusOneGridSize}
-                        disabled={gridSize >= maxGridSize}
-                        className="relative flex items-center justify-center p-2 rounded-lg border border-dashed text-center border-indigo-700 disabled:border-slate-600 disabled:text-slate-500 disabled:bg-slate-800"
-                        title="Increase grid size"
-                        aria-label="Increase grid size"
-                    >
-                        <span className="text-lg leading-none">
-                            +
-                        </span>
-                    </button>
-                </div>
             )}
             {isHost && (
                 <div className="space-y-4">
