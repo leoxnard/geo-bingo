@@ -8,6 +8,7 @@ import { FaEye, FaCamera } from 'react-icons/fa';
 
 import { Submission, StreetViewProps } from './utils/types';
 import { FullscreenButton, GeoBingoLogo } from './utils/Elements';
+import { calculateBingoCounter } from './utils/Functions';
 import { mapOptions } from './utils/mapUtils';
 
 const safeStartCenter = { lat:30, lng: 10 };
@@ -26,7 +27,20 @@ const panoOptions = {
 
 
 export default function StreetView({ 
-    myBoard, gameId, playerId, gameMode = 'list', teamMode = 'ffa', gridSize = 3, startingPoint = 'open-world', gameBoundary = null, renderToast, showToast, timeLeft, readyPlayers, players
+    myBoard,
+    gameId,
+    playerId,
+    gameMode = 'list',
+    teamMode = 'ffa',
+    gridSize = 3,
+    startingPoint = 'open-world',
+    gameBoundary = null,
+    endCondition = 'timer',
+    renderToast,
+    showToast,
+    timeLeft,
+    readyPlayers,
+    players
 }: StreetViewProps) {
 
     const [libraries] = useState<("places" | "geometry")[]>(['places', 'geometry']);
@@ -206,15 +220,45 @@ export default function StreetView({
             zoom: streetViewRef.current.getZoom() || 1
         };
 
+        let updatedSubmissions = [...mySubmissions];
+
         const existingSub = mySubmissions.find(s => s.category === targetCategory);
         if (existingSub) {
             await supabase.from('submissions').update(submissionData).eq('id', existingSub.id);
-            setMySubmissions(prev => prev.map(s => s.id === existingSub.id ? { ...s, ...submissionData } : s));
+            updatedSubmissions = updatedSubmissions.map(s => s.id === existingSub.id ? { ...s, ...submissionData } : s);
+            setMySubmissions(updatedSubmissions);
         } else {
             const { data } = await supabase.from('submissions').insert([submissionData]).select().single();
-            if (data) setMySubmissions(prev => [...prev, data]);
+            if (data) {
+                updatedSubmissions = [...updatedSubmissions, data];
+                setMySubmissions(updatedSubmissions);
+            }
         }
         setSubmittingCategory(null);
+        console.log(gameMode, endCondition, gridSize, myBoard, updatedSubmissions);
+
+        if (gameMode === 'bingo' && endCondition === 'first_bingo') {
+            const bingos = calculateBingoCounter(gridSize, myBoard, updatedSubmissions);
+            console.log('gridSize:', gridSize, 'myBoard:', myBoard, 'updatedSubs:', updatedSubmissions, 'bingos:', bingos);
+            
+            if (bingos.count > 0) {
+                const winnerNames = players.filter(p => bingos.players.includes(p.id)).map(p => p.name);
+                let winnerNamesString;
+                if (winnerNames.length > 2) {
+                    winnerNamesString = [winnerNames.slice(0, -1).join(', '), winnerNames.slice(-1)[0]].join(' and ');
+                } else if (winnerNames.length === 2) {
+                    winnerNamesString = winnerNames.join(' and ');
+                } else {
+                    winnerNamesString = winnerNames[0];
+                }
+                showToast(`${winnerNamesString} got Bingo!`);
+                try {
+                    await supabase.from('games').update({ status: 'voting' }).eq('id', gameId);
+                } catch (error) {
+                    console.error("Failed to end game on Bingo:", error);
+                }
+            }
+        }
     };
 
     const jumpToLocation = (sub: Submission) => {

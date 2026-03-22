@@ -27,6 +27,7 @@ interface LobbyViewProps {
     teamMode: 'ffa' | 'teams';
     bingoBoardMode: 'shared' | 'individual';
     startingPoint: string;
+    endCondition: 'first_bingo' | 'timer';
     gameBoundary?: string | null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     updateGameModeInfo: (updates: any) => void;
@@ -146,6 +147,7 @@ export default function LobbyView(props: LobbyViewProps) {
                         gridSize={props.gridSize}
                         bingoBoardMode={props.bingoBoardMode}
                         timeLimit={props.timeLimit}
+                        endCondition={props.endCondition}
                         maxGridSize={MAXGRIDSIZE}
                         updateGameModeInfo={props.updateGameModeInfo}
                         updateTimeLimit={props.updateTimeLimit}

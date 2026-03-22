@@ -32,6 +32,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [teamMode, setTeamMode] = useState<'ffa' | 'teams'>('ffa');
     const [gridSize, setGridSize] = useState(3);
     const [bingoBoardMode, setBingoBoardMode] = useState<'shared' | 'individual'>('shared');
+    const [endCondition, setEndCondition] = useState<'first_bingo' | 'timer'>('timer');
     const [startingPoint, setStartingPoint] = useState<string>('open-world');
     const [gameBoundary, setGameBoundary] = useState<string | null>(null);
   
@@ -53,7 +54,15 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         setTimeout(() => setToastMessage(null), 3500);
     };
 
-    const updateGameModeInfo = async (updates: { game_mode?: string; team_mode?: string; grid_size?: number; bingo_board_mode?: 'shared' | 'individual'; starting_point?: string; gameBoundary?: string | null }) => {
+    const updateGameModeInfo = async (updates: {
+        game_mode?: string;
+        team_mode?: string;
+        grid_size?: number;
+        bingo_board_mode?: 'shared' | 'individual';
+        starting_point?: string;
+        gameBoundary?: string | null;
+        end_condition?: 'first_bingo' | 'timer';
+    }) => {
         if (!isHost) return;
         if (updates.game_mode) setGameMode(updates.game_mode as 'list' | 'bingo');
         if (updates.team_mode) setTeamMode(updates.team_mode as 'ffa' | 'teams');
@@ -61,6 +70,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (updates.bingo_board_mode) setBingoBoardMode(updates.bingo_board_mode);
         if (updates.starting_point) setStartingPoint(updates.starting_point);
         if (updates.gameBoundary !== undefined) setGameBoundary(updates.gameBoundary);
+        if (updates.end_condition) setEndCondition(updates.end_condition as 'first_bingo' | 'timer');
         await supabase.from('games').update(updates).eq('id', gameId);
     };
 
@@ -101,7 +111,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             if (!gameData) {
                 const { error } = await supabase.from('games').insert([{ 
                     id: gameId, status: 'lobby', categories: [], ready_players: [], time_limit: 300, host_id: currentPlayerId, banned_players: [],
-                    game_mode: 'list', team_mode: 'ffa', grid_size: 3, starting_point: 'open-world'
+                    game_mode: 'list', team_mode: 'ffa', grid_size: 3, starting_point: 'open-world', end_condition: 'timer'
                 }]);
                 if (!error) {
                     setIsHost(true);
@@ -123,6 +133,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setBingoBoardMode(gameData.bingo_board_mode || 'shared');
                 setStartingPoint(gameData.starting_point || 'open-world');
                 setGameBoundary(gameData.gameBoundary || null);
+                setEndCondition(gameData.end_condition || 'timer');
         
                 // Restore host status if they refresh the page
                 const isActuallyHost = gameData.host_id === currentPlayerId;
@@ -171,7 +182,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                         router.push('/');
                         return;
                     }
-          
+                    
                     const newHostId = payload.new.host_id || '';
                     setGameHostId(newHostId);
                     setIsHost(newHostId === currentPlayerId);
@@ -191,6 +202,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     setBingoBoardMode(payload.new.bingo_board_mode || 'shared');
                     setStartingPoint(payload.new.starting_point || 'open-world');
                     setGameBoundary(payload.new.gameBoundary || null);
+                    setEndCondition(payload.new.end_condition || 'timer');
                 }
             ).subscribe();
 
@@ -348,8 +360,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         <div 
             className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] transition-all duration-300 ${toastMessage ? 'translate-y-0 opacity-100' : '-translate-y-20 opacity-0 pointer-events-none'}`}
         >
-            <div className="bg-slate-800 border-b-4 border-red-500 text-white px-6 py-4 rounded-xl shadow-2xl font-bold flex items-center gap-3">
-                <span className="text-red-500 text-2xl leading-none"><IoIosWarning /></span>
+            <div className="bg-slate-800 border-b-4 border-orange-500 text-white px-6 py-4 rounded-xl shadow-2xl font-bold flex items-center gap-3">
+                <span className="text-orange-500 text-2xl leading-none"><IoIosWarning /></span>
                 <span>{toastMessage}</span>
             </div>
         </div>
@@ -366,6 +378,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 gridSize={gridSize}
                 bingoBoardMode={bingoBoardMode}
                 startingPoint={startingPoint}
+                endCondition={endCondition}
                 gameBoundary={gameBoundary}
                 updateGameModeInfo={updateGameModeInfo}
                 timeLimit={timeLimit}
@@ -404,6 +417,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 gridSize={gridSize}
                 startingPoint={startingPoint}
                 gameBoundary={gameBoundary}
+                endCondition={endCondition}
                 renderToast={renderToast}
                 showToast={showToast}
                 timeLeft={timeLeft}

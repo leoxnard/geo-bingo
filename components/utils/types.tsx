@@ -84,6 +84,7 @@ export interface StreetViewProps {
     timeLeft: number;
     readyPlayers: string[];
     players: Player[];
+    endCondition?: 'first_bingo' | 'timer';
 }
 
 export interface VotingViewProps {

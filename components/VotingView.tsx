@@ -15,11 +15,12 @@ const additionalMapOptions = {
 }
 
 export default function VotingView({ 
-    gameId, isHost, categories, playerId, players, teamMode, onFinishGame, renderToast
+    gameId, isHost, playerId, players, teamMode, onFinishGame, renderToast
 }: VotingViewProps) {
+    const [categories, setCategories] = useState<string[]>([]);
     const [submissions, setSubmissions] = useState<Submission[]>([]);
     const [playersMap, setPlayersMap] = useState<Record<string, string>>({});
-    const [activeCategory, setActiveCategory] = useState(categories[0]);
+    const [activeCategory, setActiveCategory] = useState('');
     const [viewedSubmission, setViewedSubmission] = useState<Submission | null>(null); // For street view look-up
     
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -43,17 +44,25 @@ export default function VotingView({
 
     useEffect(() => {
         const fetchData = async () => {
+            // 0. Fetch Categories directly from the DB
+            let currentCategories = categories;
+            const { data: gameData } = await supabase.from('games').select('categories').eq('id', gameId).single();
+            if (gameData && gameData.categories) {
+                currentCategories = gameData.categories;
+                setCategories(currentCategories);
+            }
+
             // 1. Fetch Submissions
             const { data: subData } = await supabase.from('submissions').select('*').eq('game_id', gameId);
             if (subData) {
                 setSubmissions(subData);
-                
-                // Auto-select the first category that has at least one submission
-                const firstPopulatedCat = categories.find(cat => 
+                const firstPopulatedCat = currentCategories.find(cat => 
                     subData.some((s: Submission) => s.category === cat)
                 );
                 if (firstPopulatedCat) {
                     setActiveCategory(firstPopulatedCat);
+                } else if (currentCategories.length > 0) {
+                    setActiveCategory(currentCategories[0]);
                 }
             }
 
@@ -98,8 +107,6 @@ export default function VotingView({
         : (categories[0] ?? activeCategory);
     const activeSubmissions = submissions.filter(s => s.category === currentCategory);
 
-    // Convert JS API Zoom to Static API FOV (Field of View)
-    // Zoom 1 = 90 FOV, Zoom 2 = 45 FOV, etc. Max FOV allowed by Google is 120.
     const getFov = (zoom: number) => {
         const validZoom = zoom || 1;
         return Math.min(120, Math.max(10, 180 / Math.pow(2, validZoom)));
@@ -118,17 +125,14 @@ export default function VotingView({
         }
     }, [targetCenter, mapInstance]);
 
-    // Check how many players have voted on EVERYTHING
     const playersWhoFinishedVoting = Object.keys(playersMap).filter(pId => {
         const voterTeam = players.find(p => p.id === pId)?.team;
-        // A player is finished if they have a vote mapped in EVERY submission (except their team's)
         return submissions.every(sub => {
             const subPlayerTeam = players.find(p => p.id === sub.player_id)?.team;
-            // Don't vote on own submissions or teammate's submissions (if teams mode)
             if (pId === sub.player_id || (teamMode === 'teams' && voterTeam !== undefined && voterTeam === subPlayerTeam)) return true;
             
             const voteMap = sub.votes || {};
-            return voteMap[pId] !== undefined; // They voted Yes or No
+            return voteMap[pId] !== undefined;
         });
     });
 
