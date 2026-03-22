@@ -66,6 +66,7 @@ export default function LobbyView(props: LobbyViewProps) {
         googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
         libraries
     });
+    const MAXGRIDSIZE = 6;
 
     const handleStartGame = async () => {
         if (props.categories.length === 0) {
@@ -140,6 +141,7 @@ export default function LobbyView(props: LobbyViewProps) {
                         gridSize={props.gridSize}
                         bingoBoardMode={props.bingoBoardMode}
                         timeLimit={props.timeLimit}
+                        maxGridSize={MAXGRIDSIZE}
                         updateGameModeInfo={props.updateGameModeInfo}
                         updateTimeLimit={props.updateTimeLimit}
                     />
@@ -152,6 +154,7 @@ export default function LobbyView(props: LobbyViewProps) {
                         categories={props.categories}
                         gameId={props.gameId}
                         supabase={props.supabase}
+                        maxGridSize={MAXGRIDSIZE}
                         showToast={props.showToast}
                     />
 

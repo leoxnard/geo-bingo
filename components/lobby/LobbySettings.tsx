@@ -9,6 +9,7 @@ interface LobbySettingsProps {
     gridSize: number;
     bingoBoardMode: 'shared' | 'individual';
     timeLimit: number;
+    maxGridSize: number;
     updateGameModeInfo: (updates: { 
         game_mode?: string; 
         team_mode?: string; 
@@ -25,12 +26,39 @@ export default function LobbySettings({
     gridSize,
     bingoBoardMode,
     timeLimit,
+    maxGridSize,
     updateGameModeInfo,
     updateTimeLimit
 }: LobbySettingsProps) {
     return (
         <div className="bg-slate-800 p-6 rounded-xl flex-1 border border-slate-700 h-fit">
             <h2 className="text-xl font-semibold mb-4 text-slate-300">Settings</h2>
+
+            {/* Team Mode Selection */}
+            <div className="mb-2 flex bg-slate-900 rounded-lg p-1">
+                <button type="button"
+                    onClick={() => updateGameModeInfo({ team_mode: 'ffa' })}
+                    disabled={!isHost}
+                    className={`flex-1 py-2 rounded-md font-bold transition-all ${
+                        teamMode === 'ffa'
+                            ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow'
+                            : 'text-slate-400 hover:text-white'
+                    }`}
+                >
+                    No Teams
+                </button>
+                <button type="button"
+                    onClick={() => updateGameModeInfo({ team_mode: 'teams' })}
+                    disabled={!isHost}
+                    className={`flex-1 py-2 rounded-md font-bold transition-all ${
+                        teamMode === 'teams'
+                            ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow'
+                            : 'text-slate-400 hover:text-white'
+                    }`}
+                >
+                    Teams
+                </button>
+            </div>
 
             {/* Game Mode Selection */}
             <div className="mb-2 flex bg-slate-900 rounded-lg p-1">
@@ -43,7 +71,7 @@ export default function LobbySettings({
                             : 'text-slate-400 hover:text-white'
                     }`}
                 >
-                    List
+                    Bingo List
                 </button>
                 <button type="button"
                     onClick={() => updateGameModeInfo({ game_mode: 'bingo' })}
@@ -58,35 +86,9 @@ export default function LobbySettings({
                 </button>
             </div>
 
-            {/* Team Mode Selection */}
-            <div className="mb-2 flex bg-slate-900 rounded-lg p-1">
-                <button type="button"
-                    onClick={() => updateGameModeInfo({ team_mode: 'ffa' })}
-                    disabled={!isHost}
-                    className={`flex-1 py-2 rounded-md font-bold transition-all text-sm ${
-                        teamMode === 'ffa'
-                            ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow'
-                            : 'text-slate-400 hover:text-white'
-                    }`}
-                >
-                    All against all
-                </button>
-                <button type="button"
-                    onClick={() => updateGameModeInfo({ team_mode: 'teams' })}
-                    disabled={!isHost}
-                    className={`flex-1 py-2 rounded-md font-bold transition-all text-sm ${
-                        teamMode === 'teams'
-                            ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow'
-                            : 'text-slate-400 hover:text-white'
-                    }`}
-                >
-                    Teams
-                </button>
-            </div>
-
             {gameMode === 'list' ? (
                 <p className="mb-6 p-2 pt-0 rounded-lg text-sm text-slate-400">
-                    In List mode, players will see a simple list of categories. The game ends when the timer runs out or all players vote to end. Great for quick sessions and smaller groups!
+                    In Bingo List mode, players will see a simple list of categories. The game ends when the timer runs out or all players vote to end. Great for quick sessions and smaller groups!
                 </p>
             ) : (
                 <p className="mb-6 p-2 pt-0 rounded-lg text-sm text-slate-400">
@@ -95,26 +97,9 @@ export default function LobbySettings({
             )}
 
             {gameMode === 'bingo' && (
-                <div className="mb-6 p-4 bg-slate-900 rounded-lg flex flex-col gap-4">
-                    <div>
-                        <label htmlFor="grid-size-range" className="flex justify-between font-bold mb-2 text-sm cursor-pointer">
-                            <span>Grid Size ({gridSize}x{gridSize})</span>
-                        </label>
-                        <input
-                            id="grid-size-range"
-                            title="Adjust the grid size"
-                            type="range"
-                            min="2"
-                            max="5"
-                            step="1"
-                            value={gridSize}
-                            disabled={!isHost}
-                            onChange={(e) => updateGameModeInfo({ grid_size: parseInt(e.target.value) })}
-                            className="w-full accent-indigo-500"
-                        />
-                    </div>
-                    <div>
-                        <label className="flex justify-between font-bold mb-2 text-sm">
+                <>
+                    <div className="pt-2 border-t border-slate-700">
+                        <label className="flex justify-between font-bold mb-2">
                             <span>Bingo Board Mode</span>
                         </label>
                         <div className="flex bg-slate-900 rounded-lg p-1">
@@ -137,20 +122,49 @@ export default function LobbySettings({
                                 Individual
                             </button>
                         </div>
-                        <p className="mt-2 text-xs text-slate-400 text-center min-h-[16px]">
+                        <p className="my-2 text-xs text-slate-400 text-center min-h-[16px]">
                             {bingoBoardMode === 'shared' && 'Same board for all players.'}
                             {bingoBoardMode === 'individual' && 'Different words and positions for each player.'}
                         </p>
+                    </div>
+                    {bingoBoardMode === 'individual' && (
+                        <div className="pt-2 border-t border-slate-700">
+                            <div className="flex justify-between items-center">
+                                <label htmlFor="grid-size-range" className="flex justify-between font-bold mb-2 cursor-pointer">
+                                    <span>
+                                        Grid Size
+                                    </span>
+                                </label>
+                                <span className="text-indigo-400"> {gridSize}x{gridSize} </span>
+                            </div>
+                            <div className="mb-6 p-3 bg-slate-900 rounded-lg flex flex-col gap-4">
+                                <input
+                                    id="grid-size-range"
+                                    title="Adjust the grid size"
+                                    type="range"
+                                    min="2"
+                                    max={maxGridSize}
+                                    step="1"
+                                    value={gridSize}
+                                    disabled={!isHost}
+                                    onChange={(e) => updateGameModeInfo({ grid_size: parseInt(e.target.value) })}
+                                    className="w-full accent-indigo-500"
+                                />
                     </div>
                 </div>
             )}
 
             {/* Time Slider */}
-            <div className="mb-8 p-4 bg-slate-900 rounded-lg">
+            <div className="pt-2 border-t border-slate-700">
+                <div className="flex justify-between items-center">
                 <label htmlFor="time-limit-range" className="flex justify-between font-bold mb-2 cursor-pointer">
-                    <span>Time Limit</span>
+                        <span>
+                            Time Limit
+                        </span>
+                    </label>
                     <span className="text-indigo-400">{timeLimit / 60} Minutes</span>
-                </label>
+                </div>
+                <div className="p-3 bg-slate-900 rounded-lg flex flex-col gap-4">
                 <input
                     id="time-limit-range"
                     type="range"
@@ -164,6 +178,7 @@ export default function LobbySettings({
                     title="Adjust the game time limit in minutes"
                 />
                 {!isHost && <p className="text-xs text-slate-500 mt-2 italic">Only the host can adjust the time limit.</p>}
+                </div>
             </div>
         </div>
     );

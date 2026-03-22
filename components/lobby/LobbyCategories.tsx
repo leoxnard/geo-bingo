@@ -13,6 +13,7 @@ interface LobbyCategoriesProps {
     gameId: string;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     supabase: any;
+    maxGridSize: number;
     showToast: (message: string) => void;
 }
 
@@ -24,6 +25,7 @@ export default function LobbyCategories({
     categories,
     gameId,
     supabase,
+    maxGridSize,
     showToast
 }: LobbyCategoriesProps) {
     const [newCategory, setNewCategory] = useState('');
@@ -36,11 +38,22 @@ export default function LobbyCategories({
         if (gameMode !== 'bingo') return '';
         switch (gridSize) {
         case 2: return 'text-base sm:text-xl';
-        case 3: return 'text-xs sm:text-xl';
-        case 4: return 'text-xs sm:text-base';
+        case 3: return 'text-xs sm:text-base';
+        case 4: return 'text-xs sm:text-sm';
         case 5: return 'text-[10px] sm:text-sm';
+        case 6: return 'text-[9px] sm:text-xs';
         default: return 'text-xs sm:text-xl';
         }
+    };
+
+    const updateGameModeInfo = async (updates: {
+        grid_size?: number;
+        categories?: string[];
+    }) => {
+        if (!isHost) return;
+        if (updates.grid_size) updates.grid_size = Math.max(2, Math.min(maxGridSize, updates.grid_size));
+        if (updates.categories) updates.categories = updates.categories.filter((v, i) => updates.categories!.indexOf(v) === i);
+        await supabase.from('games').update(updates).eq('id', gameId);
     };
 
     const addCategory = async () => {
@@ -55,8 +68,7 @@ export default function LobbyCategories({
                 return;
             }
             const updated = [...categories, trimmedCat];
-            await supabase.from('games').update({ categories: updated }).eq('id', gameId);
-            setNewCategory('');
+            await updateGameModeInfo({ categories: updated });
             setTimeout(() => categoryInputRef.current?.focus(), 50);
         }
     };
@@ -64,13 +76,13 @@ export default function LobbyCategories({
     const removeCategory = async (catToRemove: string) => {
         if (isHost) {
             const updated = categories.filter(c => c !== catToRemove);
-            await supabase.from('games').update({ categories: updated }).eq('id', gameId);
+            await updateGameModeInfo({ categories: updated });
         }
     };
 
     const clearCategories = async () => {
         if (isHost) {
-            await supabase.from('games').update({ categories: [] }).eq('id', gameId);
+            await updateGameModeInfo({ categories: [] });
         }
     };
 
@@ -85,7 +97,7 @@ export default function LobbyCategories({
 
             if (selectedWords.length > 0) {
                 const updated = [...categories, ...selectedWords];
-                await supabase.from('games').update({ categories: updated }).eq('id', gameId);
+                await updateGameModeInfo({ categories: updated });
             } else {
                 showToast("Not enough new words available!");
             }
@@ -94,6 +106,20 @@ export default function LobbyCategories({
             showToast("Error loading random words.");
         }
     };
+
+    const minusOneGridSize = () => {
+        if (gridSize > 2) {
+            updateGameModeInfo({ grid_size: gridSize - 1 });
+            setRandomCount((gridSize - 1) * (gridSize - 1));
+        }
+    }
+
+    const plusOneGridSize = () => {
+        if (gridSize < maxGridSize) {
+            updateGameModeInfo({ grid_size: gridSize + 1 });
+            setRandomCount((gridSize + 1) * (gridSize + 1));
+        }
+    }
 
     const handleDragStart = (e: React.DragEvent, index: number) => {
         if (!isHost) return;
@@ -107,7 +133,7 @@ export default function LobbyCategories({
         const [draggedItem] = updated.splice(draggedIndex, 1);
         updated.splice(targetIndex, 0, draggedItem);
         setDraggedIndex(null);
-        await supabase.from('games').update({ categories: updated }).eq('id', gameId);
+        await updateGameModeInfo({ categories: updated });
     };
 
     return (
@@ -129,7 +155,7 @@ export default function LobbyCategories({
             </h3>
 
             {gameMode === 'bingo' && bingoBoardMode === 'shared' ? (
-                <div className={`grid gap-3 mb-6 bingo-grid-${gridSize}`}>
+                <div className={`grid gap-3 mb-3 bingo-grid-${gridSize}`}>
                     {Array.from({ length: Math.max(gridSize * gridSize, categories.length) }).map((_, i) => {
                         const cat = categories[i];
                         if (i >= gridSize * gridSize) return null;
@@ -140,10 +166,10 @@ export default function LobbyCategories({
                                 onDragStart={(e) => handleDragStart(e, i)}
                                 onDragOver={(e) => e.preventDefault()}
                                 onDrop={(e) => handleDrop(e, i)}
-                                className={`relative flex items-center justify-center p-2 rounded-lg border text-center ${getSidebarTextSizeClass()} min-h-[60px] break-all transition-all
-                                    ${cat ? 'bg-slate-700 border-slate-600' : 'bg-slate-800/50 border-dashed border-slate-600/50 text-slate-500'}
-                                    ${isHost && cat ? 'cursor-grab active:cursor-grabbing hover:bg-slate-600' : ''}
-                                    ${draggedIndex === i ? 'opacity-50 scale-95 border-indigo-500' : ''}
+                                className={`relative flex items-center justify-center p-2 rounded-lg border text-center ${getSidebarTextSizeClass()} min-h-[60px] [hyphens:auto] break-words transition-all
+                                ${cat ? 'bg-slate-700 border-slate-600' : 'bg-slate-800/50 border-dashed border-slate-600/50 text-slate-500'}
+                                ${isHost && cat ? 'cursor-grab active:cursor-grabbing hover:bg-slate-600' : ''}
+                                ${draggedIndex === i ? 'opacity-50 scale-95 border-indigo-500' : ''}
                                 `}
                             >
                                 {cat ? (
@@ -175,6 +201,34 @@ export default function LobbyCategories({
                 </ul>
             )}
 
+            {isHost && gameMode === 'bingo' && bingoBoardMode === 'shared' && (
+                <div className={`grid grid-cols-2 gap-3 mb-6 min-h-[60px] break-all transition-all`}>
+                    <button
+                        type="button"
+                        onClick={minusOneGridSize}
+                        disabled={gridSize <= 2}
+                        className="relative flex items-center justify-center p-2 rounded-lg border border-dashed text-center border-indigo-700 disabled:border-slate-600 disabled:text-slate-500 disabled:bg-slate-800"
+                        title="Reduce grid size"
+                        aria-label=""
+                    >
+                        <span className="text-lg leading-none">
+                            -
+                        </span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={plusOneGridSize}
+                        disabled={gridSize >= maxGridSize}
+                        className="relative flex items-center justify-center p-2 rounded-lg border border-dashed text-center border-indigo-700 disabled:border-slate-600 disabled:text-slate-500 disabled:bg-slate-800"
+                        title="Increase grid size"
+                        aria-label="Increase grid size"
+                    >
+                        <span className="text-lg leading-none">
+                            +
+                        </span>
+                    </button>
+                </div>
+            )}
             {isHost && (
                 <div className="space-y-4">
                     <div className="flex gap-2 mb-4">

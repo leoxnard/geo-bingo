@@ -172,12 +172,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                         return;
                     }
           
-                    setStatus(payload.new.status);
-                    setCategories(payload.new.categories);
-                    setReadyPlayers(payload.new.ready_players || []);
-                    setBannedPlayers(payload.new.banned_players || []);
-                    setTimeLimit(payload.new.time_limit || 300);
-          
                     const newHostId = payload.new.host_id || '';
                     setGameHostId(newHostId);
                     setIsHost(newHostId === currentPlayerId);
@@ -186,7 +180,11 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     } else {
                         localStorage.removeItem(`geoBingoHost_${gameId}`);
                     }
-
+                    setStatus(payload.new.status);
+                    setCategories(payload.new.categories);
+                    setReadyPlayers(payload.new.ready_players || []);
+                    setBannedPlayers(payload.new.banned_players || []);
+                    setTimeLimit(payload.new.time_limit || 300);
                     setGameMode(payload.new.game_mode || 'list');
                     setTeamMode(payload.new.team_mode || 'ffa');
                     setGridSize(payload.new.grid_size || 3);
