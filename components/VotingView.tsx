@@ -6,13 +6,14 @@ import SafeImage from './utils/SafeImage';
 import { GoogleMap, useJsApiLoader, OverlayViewF, OverlayView, StreetViewPanorama, MarkerF } from '@react-google-maps/api';
 import { GeoBingoLogo, FullscreenButton } from './utils/Elements';
 import { VotingViewProps, Submission } from './utils/types';
-import { mapOptions } from './utils/mapUtils';
-
-const LIBRARIES: ("places" | "geometry" | "drawing" | "visualization" | "marker")[] = ['places', 'geometry'];
+import { mapOptions, GOOGLE_MAPS_LIBRARIES } from './utils/mapUtils';
 
 const additionalMapOptions = {
     streetViewControl: false, 
 }
+
+// Statischer Default-Center (verhindert Re-Renders der Karte durch neue Objektreferenzen)
+const defaultCenter = { lat: 50, lng: 10 };
 
 export default function VotingView({ 
     gameId, isHost, playerId, players, teamMode, onFinishGame, renderToast
@@ -21,17 +22,20 @@ export default function VotingView({
     const [submissions, setSubmissions] = useState<Submission[]>([]);
     const [playersMap, setPlayersMap] = useState<Record<string, string>>({});
     const [activeCategory, setActiveCategory] = useState('');
-    const [viewedSubmission, setViewedSubmission] = useState<Submission | null>(null); // For street view look-up
+    const [viewedSubmission, setViewedSubmission] = useState<Submission | null>(null);
     
     const [isFullscreen, setIsFullscreen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const [hoveredSubId, setHoveredSubId] = useState<string | null>(null);
     const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
     
-        const { isLoaded } = useJsApiLoader({
+    // NEU: Ref, um sich zu merken, welche Kategorie zuletzt fokussiert wurde
+    const lastCenteredCategoryRef = useRef<string | null>(null);
+    
+    const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
         googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-        libraries: LIBRARIES
+        libraries: GOOGLE_MAPS_LIBRARIES
     });
     
     useEffect(() => {
@@ -112,25 +116,37 @@ export default function VotingView({
     const currentCategory = categories.includes(activeCategory)
         ? activeCategory
         : (categories[0] ?? activeCategory);
-    const activeSubmissions = submissions.filter(s => s.category === currentCategory);
+
+    const activeSubmissions = useMemo(() => {
+        return submissions.filter(s => s.category === currentCategory);
+    }, [submissions, currentCategory]);
+
+    useEffect(() => {
+        if (!mapInstance || activeSubmissions.length === 0) return;
+        if (lastCenteredCategoryRef.current === currentCategory) return;
+        
+        lastCenteredCategoryRef.current = currentCategory;
+
+        const bounds = new window.google.maps.LatLngBounds();
+        activeSubmissions.forEach(sub => {
+            bounds.extend({ lat: sub.lat, lng: sub.lng });
+        });
+        
+        mapInstance.fitBounds(bounds);
+
+        window.google.maps.event.addListenerOnce(mapInstance, 'idle', () => {
+            const currentZoom = mapInstance.getZoom();
+            const maxZoom = 6;
+            if (currentZoom !== undefined && currentZoom > maxZoom) {
+                mapInstance.setZoom(maxZoom);
+            }
+        });
+    }, [mapInstance, activeSubmissions, currentCategory]);
 
     const getFov = (zoom: number) => {
         const validZoom = zoom || 1;
         return Math.min(120, Math.max(10, 180 / Math.pow(2, validZoom)));
     };
-
-    const targetCenter = useMemo(() => {
-        if (activeSubmissions.length === 0) return null;
-        const avgLat = activeSubmissions.reduce((sum, sub) => sum + sub.lat, 0) / activeSubmissions.length;
-        const avgLng = activeSubmissions.reduce((sum, sub) => sum + sub.lng, 0) / activeSubmissions.length;
-        return { lat: avgLat, lng: avgLng };
-    }, [activeSubmissions]);
-
-    useEffect(() => {
-        if (mapInstance && targetCenter) {
-            mapInstance.panTo(targetCenter);
-        }
-    }, [targetCenter, mapInstance]);
 
     const playersWhoFinishedVoting = Object.keys(playersMap).filter(pId => {
         const voterTeam = players.find(p => p.id === pId)?.team;
@@ -346,7 +362,7 @@ export default function VotingView({
                                     onUnmount={() => setMapInstance(null)}
                                     mapContainerClassName="w-full h-full"
                                     zoom={2}
-                                    center={targetCenter || { lat: 50, lng: 10 }}
+                                    center={defaultCenter}
                                     options={mapOptions(additionalMapOptions)}
                                 >
                                     {activeSubmissions.map(sub => {
@@ -361,9 +377,8 @@ export default function VotingView({
                                                 {hoveredSubId === sub.id && (
                                                     <OverlayViewF
                                                         position={{ lat: sub.lat, lng: sub.lng }}
-                                                        mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                                                        mapPaneName={OverlayView.FLOAT_PANE}
                                                     >
-                                                        {/* ADD pointer-events-none HERE */}
                                                         <div className="pointer-events-none bg-slate-800 border border-slate-600 text-white p-2 rounded-lg shadow-xl -translate-y-12 -translate-x-1/2 whitespace-nowrap">
                                                             <p className="font-bold text-sm">{playersMap[sub.player_id]}</p>
                                                             <div className="text-xs text-indigo-400">{sub.category}</div>
