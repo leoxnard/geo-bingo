@@ -34,7 +34,7 @@ export const FullscreenButton = ({ isFullscreen, containerRef, setIsFullscreen }
         <button
             type="button"
             onClick={() => toggleFullscreen(containerRef, setIsFullscreen)}
-            className="absolute top-2 right-2 z-[1000] hidden sm:flex w-12 h-12 bg-slate-800/30 hover:bg-slate-700/80 text-white items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-slate-500 font-bold transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm"
+            className="absolute top-2 right-2 z-5 hidden sm:flex w-12 h-12 bg-slate-800/30 hover:bg-slate-700/80 text-white items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-slate-500 font-bold transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm"
             title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
         >
             {isFullscreen ? (

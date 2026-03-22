@@ -1,27 +1,11 @@
 'use client';
 
+
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { GeoBingoLogo } from './utils/Elements';
+import { ScoreEntity, PlayerStat, PodiumViewProps } from './utils/types';
 
-interface PodiumViewProps {
-    gameId: string;
-    renderToast: () => React.ReactNode;
-    isHost: boolean;
-    teamMode: 'ffa' | 'teams';
-}
-
-interface PlayerStat {
-    id: string;
-    name: string;
-    score: number;
-    totalFound: number;
-    bingos: number;
-    communityApproval: number;
-    totalYes: number;
-    totalNo: number;
-    rank: number;
-}
 
 export default function PodiumView({ 
     gameId, renderToast, isHost, teamMode
@@ -41,15 +25,6 @@ export default function PodiumView({
             const gridSize = game?.grid_size || 3;
 
             if (players && submissions) {
-                // Determine entities to score: if teamMode === 'teams', group by team (if team is assigned, e.g. team >= 0)
-                // We'll create an array of "virtual players" which are either individuals or teams
-                interface ScoreEntity {
-                    id: string; // "team-0" or player id
-                    name: string;
-                    members: typeof players; // all players in this entity
-                    bingo_board?: string[]; // board from first member
-                }
-                
                 const entities: ScoreEntity[] = [];
                 
                 if (teamMode === 'teams') {
@@ -234,7 +209,7 @@ export default function PodiumView({
                     <h1 className="text-4xl font-black uppercase tracking-widest text-indigo-400">Results</h1>
                 </div>
                 {isHost ? (
-                    <button 
+                    <button type="button" 
                         onClick={async () => {
                             // Delete old submissions for the new round
                             await supabase.from('submissions').delete().eq('game_id', gameId);

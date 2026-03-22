@@ -6,18 +6,12 @@ import { GoogleMap, useJsApiLoader, StreetViewPanorama, Polygon } from '@react-g
 import { supabase } from '../lib/supabase';
 import { FaEye, FaCamera } from 'react-icons/fa';
 
+import { Submission, StreetViewProps } from './utils/types';
 import { FullscreenButton, GeoBingoLogo } from './utils/Elements';
+import { mapOptions } from './utils/mapUtils';
 
 const safeStartCenter = { lat:30, lng: 10 };
 const initialWorldZoom = 2.4;
-const mapOptions = {
-    streetViewControl: true,
-    mapTypeControl: false,
-    gestureHandling: 'greedy',
-    fullscreenControl: false,
-    zoomControl: false,
-    cameraControl: false,
-};
 
 const panoOptions = { 
     addressControl: false, 
@@ -30,32 +24,6 @@ const panoOptions = {
     visible: false,
 };
 
-interface Submission {
-    id: string; category: string; lat: number; lng: number; heading: number; pitch: number; zoom: number;
-}
-
-interface Player {
-    id: string;
-    name: string;
-    bingo_board?: string[];
-    team?: number;
-}
-
-interface StreetViewProps {
-    myBoard: string[];
-    gameId: string;
-    playerId: string;
-    gameMode?: 'list' | 'bingo';
-    teamMode?: 'ffa' | 'teams';
-    gridSize?: number;
-    startingPoint?: string;
-    gameBoundary?: string | null;
-    renderToast: () => React.ReactNode;
-    showToast : (message: string) => void;
-    timeLeft: number;
-    readyPlayers: string[];
-    players: Player[];
-}
 
 export default function StreetView({ 
     myBoard, gameId, playerId, gameMode = 'list', teamMode = 'ffa', gridSize = 3, startingPoint = 'open-world', gameBoundary = null, renderToast, showToast, timeLeft, readyPlayers, players
@@ -66,7 +34,7 @@ export default function StreetView({
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
         googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-        libraries // Use the state here
+        libraries,
     });
 
   
@@ -338,7 +306,6 @@ export default function StreetView({
         return 2; 
     }, [polyZoom, startingPoint]);
 
-    const resolvedMapOptions = mapOptions;
 
     if (!isLoaded) return <div className="h-screen flex items-center justify-center text-indigo-400">Loading Maps...</div>;
 
@@ -389,7 +356,7 @@ export default function StreetView({
                         <span className="flex items-center text-slate-400 font-medium">
                             Votes to end:&nbsp;<strong className="text-white">{readyPlayers.length} / {votesNeeded}</strong>
                         </span>
-                        <button 
+                        <button type="button" 
                             onClick={handleVoteEndRound}
                             disabled={hasVotedToEnd}
                             className={`flex items-center justify-center whitespace-nowrap px-3 sm:px-6 rounded-lg font-bold transition-all uppercase text-[10px] sm:text-sm shadow-lg
@@ -410,7 +377,7 @@ export default function StreetView({
                                 mapContainerClassName="google-map-container absolute inset-0"
                                 center={mapCenter}
                                 zoom={mapZoom}
-                                options={resolvedMapOptions}
+                                options={mapOptions()}
                             >
                                 {/* Draw custom boundary polygon if provided */}
                                 {polyPoints && (
@@ -481,8 +448,7 @@ export default function StreetView({
                             
                                                 <div className="flex justify-between items-center gap-2 mt-1">
                                                     {!foundSub ? (
-                                                        <button 
-                                                            type="button"
+                                                        <button type="button"
                                                             onClick={(e) => { e.stopPropagation(); handleSubmit(cat); }}
                                                             disabled={submittingCategory === cat || !inStreetView}
                                                             className={`flex-1 text-[11px] px-2 py-2 font-bold rounded shadow uppercase transition-all
@@ -492,7 +458,7 @@ export default function StreetView({
                                                         </button>
                                                     ) : (
                                                         <>
-                                                            <button 
+                                                            <button
                                                                 type="button"
                                                                 onClick={(e) => { e.stopPropagation(); handleSubmit(cat); }}
                                                                 disabled={submittingCategory === cat || !inStreetView}
@@ -501,7 +467,7 @@ export default function StreetView({
                                                             >
                                                                 {submittingCategory === cat ? '...' : !inStreetView ? 'Enter SV' : 'Overwrite'}
                                                             </button>
-                                                            <button 
+                                                            <button
                                                                 type="button"
                                                                 onClick={(e) => { e.stopPropagation(); jumpToLocation(foundSub); }}
                                                                 className="flex-[0.5] bg-slate-600 hover:bg-slate-500 text-[10px] px-2 py-2 text-white font-bold rounded shadow uppercase"
@@ -543,8 +509,7 @@ export default function StreetView({
                             
                                                 <div className="absolute bottom-2 w-[90%] left-[5%] h-[25%] max-h-12 hidden sm:flex flex-row justify-center gap-2 z-10">
                                                     {!foundSub ? (
-                                                        <button 
-                                                            type="button"
+                                                        <button type="button"
                                                             title="Add submission"
                                                             onClick={(e) => { e.stopPropagation(); handleSubmit(cat); }}
                                                             disabled={submittingCategory === cat || !inStreetView}
@@ -555,7 +520,7 @@ export default function StreetView({
                                                         </button>
                                                     ) : (
                                                         <>
-                                                            <button 
+                                                            <button
                                                                 type="button"
                                                                 title="View submission"
                                                                 onClick={(e) => { e.stopPropagation(); jumpToLocation(foundSub); }}
@@ -563,7 +528,7 @@ export default function StreetView({
                                                             >
                                                                 <FaEye className="h-[60%] w-auto" />
                                                             </button>
-                                                            <button 
+                                                            <button
                                                                 type="button"
                                                                 title="Overwrite submission"
                                                                 onClick={(e) => { e.stopPropagation(); handleSubmit(cat); }}

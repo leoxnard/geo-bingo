@@ -1,3 +1,25 @@
+export const mapOptions = (additionalOptions: { [key: string]: unknown } = {}): google.maps.MapOptions => ({
+    streetViewControl: true,
+    mapTypeControl: false,
+    gestureHandling: 'greedy',
+    fullscreenControl: false,
+    zoomControl: false,
+    cameraControl: false,
+    colorScheme: 'DARK',
+    scrollwheel: true,
+    disableDoubleClickZoom: false,
+    clickableIcons: false,
+    styles: [
+        {
+            featureType: "all",
+            elementType: "labels.icon",
+            stylers: [{ visibility: "off" }],
+        },
+    ],
+    ...additionalOptions
+});
+
+
 export const insertPoint = (newPoint: {lat: number, lng: number}, points: {lat: number, lng: number}[]) => {
     if (points.length < 3) return [...points, newPoint];
 

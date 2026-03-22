@@ -5,20 +5,14 @@ import { useRouter } from 'next/navigation';
 import StreetView from '../../../components/StreetView';
 import VotingView from '../../../components/VotingView';
 import PodiumView from '../../../components/PodiumView';
-import LobbyView from '../../../components/LobbyView';
+import LobbyView from '../../../components/lobby/LobbyView';
 import { supabase } from '../../../lib/supabase';
 import { adjectives, animals } from '../../../lib/names';
 import { IoIosWarning } from "react-icons/io";
 
-
+import { Player } from '../../../components/utils/types';
 type GameStatus = 'lobby' | 'playing' | 'voting' | 'finished';
 
-interface Player {
-    id: string;
-    name: string;
-    bingo_board?: string[];
-    team?: number;
-}
 
 export default function GameRoom({ params }: { params: Promise<{ id: string }> }) {
     const unwrappedParams = use(params);
@@ -426,7 +420,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     // --- VIEW 2: PLAYING ---
     if (status === 'playing') {
         const currentPlayer = players.find(p => p.id === playerId);
-        const myBoard = currentPlayer?.bingo_board && currentPlayer.bingo_board.length > 0 
+        const myBoard = gameMode === 'bingo' && currentPlayer?.bingo_board && currentPlayer.bingo_board.length > 0 
             ? currentPlayer.bingo_board 
             : categories;
         return (
@@ -445,7 +439,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 readyPlayers={readyPlayers}
                 players={players}
             />
-
         );
     }
 

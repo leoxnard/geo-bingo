@@ -2,55 +2,16 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import SafeImage from './SafeImage';
-import { GeoBingoLogo, FullscreenButton } from './utils/Elements';
+import SafeImage from './utils/SafeImage';
 import { GoogleMap, useJsApiLoader, OverlayViewF, OverlayView, StreetViewPanorama, MarkerF } from '@react-google-maps/api';
+import { GeoBingoLogo, FullscreenButton } from './utils/Elements';
+import { VotingViewProps, Submission } from './utils/types';
+import { mapOptions } from './utils/mapUtils';
 
 const LIBRARIES: ("places" | "geometry" | "drawing" | "visualization" | "marker")[] = ['places', 'geometry'];
 
-const mapOptions = {
-    mapId: "VOTING_MAP_ID",
+const additionalMapOptions = {
     streetViewControl: false, 
-    mapTypeControl: false, 
-    gestureHandling: 'greedy', 
-    fullscreenControl: false, 
-    zoomControl: false,
-    keyboardShortcuts: true,
-    draggable: true,
-    scrollwheel: true,
-    disableDoubleClickZoom: false,
-    cameraControl: false,
-}
-
-interface Submission {
-  id: string;
-  player_id: string;
-  category: string;
-  lat: number;
-  lng: number;
-  heading: number;
-  pitch: number;
-  zoom: number; // Added zoom
-  is_valid: boolean | null;
-  votes: Record<string, boolean>;
-}
-
-interface Player {
-    id: string;
-    name: string;
-    bingo_board?: string[];
-    team?: number;
-}
-
-interface VotingViewProps {
-    gameId: string;
-    isHost: boolean;
-    categories: string[];
-    playerId: string;
-    players: Player[];
-    teamMode: 'ffa' | 'teams';
-    onFinishGame: () => Promise<void> | void;
-    renderToast: () => React.ReactNode;
 }
 
 export default function VotingView({ 
@@ -246,7 +207,7 @@ export default function VotingView({
                                     </GoogleMap>
                                 )}
                                 
-                                <button
+                                <button type="button"
                                     onClick={() => setViewedSubmission(null)}
                                     className="absolute top-4 left-4 z-[1000] w-12 h-12 bg-red-500/30 hover:bg-red-500/80 text-white flex items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-red-400 font-bold text-2xl transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm"
                                     title="Exit Street View"
@@ -291,7 +252,7 @@ export default function VotingView({
                                     : "bg-slate-800 text-slate-400 hover:bg-slate-700 cursor-pointer";
 
                             return (
-                                <button
+                                <button type="button"
                                     key={cat}
                                     onClick={() => !isDisabled && setActiveCategory(cat)}
                                     disabled={isDisabled}
@@ -317,7 +278,7 @@ export default function VotingView({
                                     </p>
                                 </div>
                     
-                                <button 
+                                <button type="button" 
                                     onClick={onFinishGame}
                                     className="font-bold py-4 rounded-xl uppercase tracking-wide shadow-lg transition-all bg-green-600 hover:bg-green-500 text-white"
                                 >
@@ -373,7 +334,7 @@ export default function VotingView({
                                     mapContainerClassName="w-full h-full"
                                     zoom={2}
                                     center={targetCenter || { lat: 50, lng: 10 }}
-                                    options={mapOptions}
+                                    options={mapOptions(additionalMapOptions)}
                                 >
                                     {activeSubmissions.map(sub => {
                                         return (
@@ -389,7 +350,8 @@ export default function VotingView({
                                                         position={{ lat: sub.lat, lng: sub.lng }}
                                                         mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
                                                     >
-                                                        <div className="bg-slate-800 border border-slate-600 text-white p-2 rounded-lg shadow-xl -translate-y-12 -translate-x-1/2 whitespace-nowrap">
+                                                        {/* ADD pointer-events-none HERE */}
+                                                        <div className="pointer-events-none bg-slate-800 border border-slate-600 text-white p-2 rounded-lg shadow-xl -translate-y-12 -translate-x-1/2 whitespace-nowrap">
                                                             <p className="font-bold text-sm">{playersMap[sub.player_id]}</p>
                                                             <div className="text-xs text-indigo-400">{sub.category}</div>
                                                         </div>
@@ -463,8 +425,8 @@ export default function VotingView({
                                                     
                                                     return (
                                                         <>
-                                                            <button onClick={() => handleVote(sub, true)} className={`flex-1 py-2 rounded font-bold uppercase text-xs border transition-all ${myVote === true ? 'bg-green-600 border-green-500 text-white' : 'bg-transparent border-slate-600 text-slate-400 hover:border-green-500 hover:text-green-500'}`}>Yes</button>
-                                                            <button onClick={() => handleVote(sub, false)} className={`flex-1 py-2 rounded font-bold uppercase text-xs border transition-all ${myVote === false ? 'bg-red-600 border-red-500 text-white' : 'bg-transparent border-slate-600 text-slate-400 hover:border-red-500 hover:text-red-500'}`}>No</button>
+                                                            <button type="button" onClick={() => handleVote(sub, true)} className={`flex-1 py-2 rounded font-bold uppercase text-xs border transition-all ${myVote === true ? 'bg-green-600 border-green-500 text-white' : 'bg-transparent border-slate-600 text-slate-400 hover:border-green-500 hover:text-green-500'}`}>Yes</button>
+                                                            <button type="button" onClick={() => handleVote(sub, false)} className={`flex-1 py-2 rounded font-bold uppercase text-xs border transition-all ${myVote === false ? 'bg-red-600 border-red-500 text-white' : 'bg-transparent border-slate-600 text-slate-400 hover:border-red-500 hover:text-red-500'}`}>No</button>
                                                         </>
                                                     );
                                                 })()}

@@ -52,7 +52,7 @@ export default function Home() {
         
                 {/* PLAYER NAME INPUT */}
                 <div>
-                    <button className="text-sm text-slate-400 font-bold uppercase mb-2 block" onClick={() => setShowBadNames(!showBadNames)}>
+                    <button type="button" className="text-sm text-slate-400 font-bold uppercase mb-2 block" onClick={() => setShowBadNames(!showBadNames)}>
                         {showBadNames ? 'Your badass name' : 'Your name'}
                     </button>
                     <input 
@@ -66,7 +66,7 @@ export default function Home() {
 
                 <div className="w-full h-px bg-slate-700 my-2"></div>
 
-                <button 
+                <button type="button" 
                     onClick={createGame}
                     className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-xl transition-all tracking-wide uppercase"
                 >
@@ -83,7 +83,7 @@ export default function Home() {
                         value={lobbyId}
                         onChange={(e) => setLobbyId(e.target.value)}
                     />
-                    <button 
+                    <button type="button" 
                         type="submit"
                         className="w-full bg-slate-600 hover:bg-slate-500 text-white font-bold py-3 rounded-xl transition-all uppercase tracking-wide"
                     >
