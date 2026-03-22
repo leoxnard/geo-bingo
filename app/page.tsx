@@ -83,7 +83,7 @@ export default function Home() {
                         value={lobbyId}
                         onChange={(e) => setLobbyId(e.target.value)}
                     />
-                    <button type="button" 
+                    <button
                         type="submit"
                         className="w-full bg-slate-600 hover:bg-slate-500 text-white font-bold py-3 rounded-xl transition-all uppercase tracking-wide"
                     >
