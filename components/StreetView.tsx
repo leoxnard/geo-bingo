@@ -144,30 +144,10 @@ export default function StreetView({
     
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         pano.setOptions({ source: google.maps.StreetViewSource.GOOGLE } as any);
-    
-        const polyString = gameBoundary || '';
 
         if (startingPoint === 'open-world') {
             pano.setPosition(safeStartCenter);
-            if (polyString && polyString !== '[]' && polyString !== 'null') {
-                try {
-                    const points = JSON.parse(polyString);
-                    if (Array.isArray(points) && points.length >= 3) {
-                        let minX = points[0].lat, maxX = points[0].lat;
-                        let minY = points[0].lng, maxY = points[0].lng;
-                        for (let i = 1; i < points.length; i++) {
-                            if (points[i].lat < minX) minX = points[i].lat;
-                            if (points[i].lat > maxX) maxX = points[i].lat;
-                            if (points[i].lng < minY) minY = points[i].lng;
-                            if (points[i].lng > maxY) maxY = points[i].lng;
-                        }
-                        
-                        customPolygonRef.current = new google.maps.Polygon({ paths: points });
-                    }
-                } catch (e) {
-                    console.error("Invalid custom poly bounds:", e);
-                }
-            }
+            // The customPolygonRef parsing was removed from here
         } else {
             const parsedStart = JSON.parse(startingPoint) as { lat: number; lng: number };
             const googleStartingPoint = new google.maps.LatLng(parsedStart.lat, parsedStart.lng);
@@ -176,7 +156,6 @@ export default function StreetView({
             setInStreetView(true);
             lastValidPositionRef.current = new google.maps.LatLng(parsedStart.lat, parsedStart.lng);
         }
-
 
         pano.addListener('position_changed', () => {
             const pos = pano.getPosition();
@@ -203,7 +182,7 @@ export default function StreetView({
                 lastValidPositionRef.current = null;
             }
         });
-    }, [startingPoint, gameBoundary, showToast]);
+    }, [startingPoint, showToast]);
 
     const onUnmount = useCallback(() => {
         if (streetViewRef.current) {
@@ -289,6 +268,14 @@ export default function StreetView({
     }, [gameBoundary]);
 
     const { polyPoints, polyCenter, polyZoom } = parsedStartParams;
+
+    useEffect(() => {
+        if (isLoaded && polyPoints && polyPoints.length >= 3) {
+            customPolygonRef.current = new google.maps.Polygon({ paths: polyPoints });
+        } else {
+            customPolygonRef.current = null;
+        }
+    }, [isLoaded, polyPoints]);
 
     const mapCenter = useMemo(() => {
         // If open world and we have a custom restricted area, center on the area
