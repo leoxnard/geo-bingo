@@ -201,7 +201,7 @@ export default function LobbyCategories({
                                     ${isHost && cat ? 'cursor-grab active:cursor-grabbing hover:bg-slate-600' : ''}
                                     ${draggedIndex === i ? 'opacity-50 scale-95 border-indigo-500' : ''}
                                     `}
-                                    >
+                                >
                                     {cat ? (
                                         <>
                                             <span className="italic">{cat}</span>
@@ -220,7 +220,7 @@ export default function LobbyCategories({
             ) : (
                 <ul className="mb-4 space-y-2">
                     {categories.map((cat, i) => (
-                        <li key={i} className="bg-slate-700 p-3 rounded-lg flex justify-between items-center border border-slate-600 italic">
+                        <li key={i} className="bg-slate-700 p-2 pl-3 rounded-lg flex justify-between items-center border border-slate-600 italic">
                             <span>{cat}</span>
                             {isHost && (
                                 <button type="button" title='remove_cat_btn' onClick={() => removeCategory(cat)} className="text-red-400 hover:text-red-300 p-2 rounded-full bg-slate-800">

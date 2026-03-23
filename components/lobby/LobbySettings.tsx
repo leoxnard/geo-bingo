@@ -112,7 +112,7 @@ export default function LobbySettings({
                                 className={`flex-1 py-2 text-sm rounded-md font-bold transition-all ${
                                     bingoBoardMode === 'shared' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'
                                 }`}
-                                >
+                            >
                                 Shared
                             </button>
                             <button type="button"
@@ -121,7 +121,7 @@ export default function LobbySettings({
                                 className={`flex-1 py-2 text-sm rounded-md font-bold transition-all ${
                                     bingoBoardMode === 'individual' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'
                                 }`}
-                                >
+                            >
                                 Individual
                             </button>
                         </div>
