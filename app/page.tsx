@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+
 import { useRouter } from 'next/navigation';
+
 import { GeoBingoLogo } from '@/components/utils/Elements';
 
 import { adjectives, badAdjectives, animals } from '../lib/names';

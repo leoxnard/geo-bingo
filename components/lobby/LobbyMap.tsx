@@ -1,11 +1,13 @@
 'use client';
 
-import toast from 'react-hot-toast';
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
+
 import { GoogleMap, PolygonF, MarkerF, OverlayView, OverlayViewF } from '@react-google-maps/api';
+import toast from 'react-hot-toast';
 import { FaUndo, FaPlus, FaTimes } from "react-icons/fa";
-import { insertPoint, mapOptions } from '../utils/mapUtils';
+
 import { FullscreenButton } from '../utils/Elements';
+import { insertPoint, mapOptions } from '../utils/mapUtils';
 
 const DEFAULT_CENTER = { lat: 20, lng: 0 };
 const RECOMMENDED_STARTS = [

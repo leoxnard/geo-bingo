@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { FaTimes } from "react-icons/fa";
+
 import { CiCirclePlus, CiCircleMinus } from "react-icons/ci";
+import { FaTimes } from "react-icons/fa";
+
 import { shuffle } from '../utils/Functions';
 
 interface LobbyCategoriesProps {

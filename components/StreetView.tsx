@@ -1,14 +1,15 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+
 import { GoogleMap, useJsApiLoader, StreetViewPanorama, Polygon } from '@react-google-maps/api';
-import { supabase } from '../lib/supabase';
 import { FaEye, FaCamera } from 'react-icons/fa';
 
-import { Submission, StreetViewProps } from './utils/types';
+import { supabase } from '../lib/supabase';
 import { FullscreenButton, GeoBingoLogo } from './utils/Elements';
 import { calculateBingoCounter } from './utils/Functions';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from './utils/mapUtils';
+import { Submission, StreetViewProps } from './utils/types';
 
 const additionalMapOptions = {
     styles: ""

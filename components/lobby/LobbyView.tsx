@@ -1,17 +1,18 @@
 'use client';
 
 import React, { useState } from 'react';
-import Image from 'next/image';
-import { useJsApiLoader } from '@react-google-maps/api';
 
+import { useJsApiLoader } from '@react-google-maps/api';
+import Image from 'next/image';
+
+import LobbyCategories from './LobbyCategories';
+import LobbyMap from './LobbyMap';
+import LobbySettings from './LobbySettings';
+import LobbySidebar from './LobbySidebar';
 import { shuffle } from '../utils/Functions';
-import { GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from '../utils/mapUtils';
+import { isLocationAllowed } from '../utils/mapUtils';
 
 // Sub-components
-import LobbySettings from './LobbySettings';
-import LobbyMap from './LobbyMap';
-import LobbyCategories from './LobbyCategories';
-import LobbySidebar from './LobbySidebar';
 
 interface Player {
     id: string;

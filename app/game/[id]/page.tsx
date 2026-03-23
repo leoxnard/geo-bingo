@@ -1,16 +1,19 @@
 'use client';
 
 import { useState, use, useEffect, useRef, useCallback } from 'react';
+
 import { useRouter } from 'next/navigation';
-import StreetView from '../../../components/StreetView';
-import VotingView from '../../../components/VotingView';
-import PodiumView from '../../../components/PodiumView';
-import LobbyView from '../../../components/lobby/LobbyView';
-import { supabase } from '../../../lib/supabase';
-import { adjectives, animals } from '../../../lib/names';
 import { IoIosWarning } from "react-icons/io";
 
+import LobbyView from '../../../components/lobby/LobbyView';
+import PodiumView from '../../../components/PodiumView';
+import StreetView from '../../../components/StreetView';
 import { Player } from '../../../components/utils/types';
+import VotingView from '../../../components/VotingView';
+import { adjectives, animals } from '../../../lib/names';
+import { supabase } from '../../../lib/supabase';
+
+
 type GameStatus = 'lobby' | 'playing' | 'voting' | 'finished';
 
 

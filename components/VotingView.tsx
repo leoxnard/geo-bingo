@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { supabase } from '../lib/supabase';
-import SafeImage from './utils/SafeImage';
+
 import { GoogleMap, useJsApiLoader, OverlayViewF, OverlayView, StreetViewPanorama, MarkerF } from '@react-google-maps/api';
+
+import { supabase } from '../lib/supabase';
 import { GeoBingoLogo, FullscreenButton } from './utils/Elements';
-import { VotingViewProps, Submission } from './utils/types';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES } from './utils/mapUtils';
+import SafeImage from './utils/SafeImage';
+import { VotingViewProps, Submission } from './utils/types';
 
 const additionalMapOptions = {
     streetViewControl: false, 
