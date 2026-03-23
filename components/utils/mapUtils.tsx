@@ -129,3 +129,48 @@ export const insertPoint = (newPoint: {lat: number, lng: number}, points: {lat: 
     newPoints.splice(insertAt + 1, 0, newPoint);
     return newPoints;
 };
+
+export function isPointInPolygon(point: { lat: number; lng: number }, polygon: { lat: number; lng: number }[]) {
+    let isInside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = polygon[i].lng;
+        const yi = polygon[i].lat;
+        const xj = polygon[j].lng;
+        const yj = polygon[j].lat;
+
+        const intersect = ((yi > point.lat) !== (yj > point.lat)) &&
+            (point.lng < (xj - xi) * (point.lat - yi) / (yj - yi) + xi);
+            
+        if (intersect) {
+            isInside = !isInside;
+        }
+    }
+    return isInside;
+}
+
+export function isLocationAllowed(point: { lat: number; lng: number }, gameBoundary: string | null) {
+    if (!gameBoundary || gameBoundary === '[]') return true;
+    try {
+        const parsed = JSON.parse(gameBoundary);
+        if (!Array.isArray(parsed) || parsed.length === 0) return true;
+        if (parsed.length > 0 && parsed[0].lat !== undefined && parsed[0].id === undefined) {
+            return isPointInPolygon(point, parsed);
+        }
+        for (let i = parsed.length - 1; i >= 0; i--) {
+            const boundary = parsed[i];
+            if (boundary.points && boundary.points.length >= 3) {
+                if (isPointInPolygon(point, boundary.points)) {
+                    return boundary.type === 'allow';
+                }
+            }
+        }
+        const hasAllowZones = parsed.some(b => b.type === 'allow' && b.points.length >= 3);
+        if (hasAllowZones) {
+            return false;
+        }
+        return true;
+    } catch (e) {
+        console.error("Invalid boundary data", e);
+        return true;
+    }
+}

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import toast from 'react-hot-toast';
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { GoogleMap, PolygonF, MarkerF, OverlayView, OverlayViewF } from '@react-google-maps/api';
-import { FaUndo } from "react-icons/fa";
+import { FaUndo, FaPlus, FaTimes } from "react-icons/fa";
 import { insertPoint, mapOptions } from '../utils/mapUtils';
 import { FullscreenButton } from '../utils/Elements';
 
@@ -12,6 +13,17 @@ const RECOMMENDED_STARTS = [
     { name: 'Paris', lat: 48.853586, lng: 2.349171 },
     { name: 'Tokyo', lat: 35.658537, lng: 139.700240 }
 ];
+
+interface Point {
+    lat: number;
+    lng: number;
+}
+
+interface BoundaryPolygon {
+    id: string;
+    type: 'allow' | 'forbid';
+    points: Point[];
+}
 
 interface LobbyMapProps {
     isHost: boolean;
@@ -31,7 +43,9 @@ export default function LobbyMap({
     const containerRef = useRef<HTMLDivElement>(null);
     const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
-    const [hoveredLocation, setHoveredLocation] = useState<{ lat: number; lng: number } | null>(null);
+    const [hoveredLocation, setHoveredLocation] = useState<Point | null>(null);
+    const [activeBoundaryId, setActiveBoundaryId] = useState<string | null>(null);
+    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
     const actualStart = startingPoint || 'open-world';
     const hasFittedBounds = useRef(false);
@@ -42,27 +56,40 @@ export default function LobbyMap({
         draggableCursor: isHost ? 'crosshair' : 'default',
     };
 
-    // Parse polygon points from gameBoundary
-    const draftPolygonPoints = useMemo(() => {
+    const draftBoundaries: BoundaryPolygon[] = useMemo(() => {
         if (!gameBoundary || gameBoundary === '[]') return [];
         try {
-            const points = JSON.parse(gameBoundary);
-            return Array.isArray(points) ? points : [];
+            const parsed = JSON.parse(gameBoundary);
+            if (!Array.isArray(parsed)) return [];
+            
+            if (parsed.length > 0 && parsed[0].lat !== undefined && parsed[0].id === undefined) {
+                return [{ id: 'legacy-1', type: 'allow', points: parsed }];
+            }
+            
+            return parsed;
         } catch (e) {
             console.error("Invalid polygon data", e);
             return [];
         }
     }, [gameBoundary]);
 
-    // Auto-zoom and center when polygon changes
+    useEffect(() => {
+        if (draftBoundaries.length > 0 && !activeBoundaryId) {
+            setActiveBoundaryId(draftBoundaries[draftBoundaries.length - 1].id);
+        } else if (draftBoundaries.length === 0) {
+            setActiveBoundaryId(null);
+        }
+    }, [draftBoundaries, activeBoundaryId]);
+
     useEffect(() => {
         if (!mapInstance || typeof window === 'undefined' || !window.google) return;
         
-        if (draftPolygonPoints.length >= 3) {
-            // Snap the camera if we just hit 3 points, OR if the map just loaded with an existing polygon
-            if (draftPolygonPoints.length === 3 || !hasFittedBounds.current) {
+        const allPoints = draftBoundaries.flatMap(b => b.points);
+
+        if (allPoints.length >= 3) {
+            if (allPoints.length === 3 || !hasFittedBounds.current) {
                 const bounds = new window.google.maps.LatLngBounds();
-                draftPolygonPoints.forEach(point => bounds.extend(point));
+                allPoints.forEach(point => bounds.extend(point));
                 
                 mapInstance.fitBounds(bounds);
                 
@@ -74,12 +101,10 @@ export default function LobbyMap({
                 hasFittedBounds.current = true;
             }
         } else {
-            // Reset the flag if the area is cleared
             hasFittedBounds.current = false;
         }
-    }, [draftPolygonPoints, mapInstance]);
+    }, [draftBoundaries, mapInstance]);
 
-    // Intercept Pegman Drop
     useEffect(() => {
         if (!mapInstance || !isHost) return;
         const sv = mapInstance.getStreetView();
@@ -97,11 +122,11 @@ export default function LobbyMap({
         });
 
         const visibleListener = google.maps.event.addListener(sv, 'visible_changed', () => {
-             if (sv.getVisible()) {
-                 setTimeout(() => {
-                     sv.setVisible(false);
-                 }, 50);
-             }
+            if (sv.getVisible()) {
+                setTimeout(() => {
+                    sv.setVisible(false);
+                }, 50);
+            }
         });
 
         return () => {
@@ -109,6 +134,65 @@ export default function LobbyMap({
             google.maps.event.removeListener(visibleListener);
         };
     }, [mapInstance, isHost, updateGameModeInfo]);
+
+    const handleMapClick = (e: google.maps.MapMouseEvent) => {
+        if (!isHost || !e.latLng) return;
+        const newPoint = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+
+        let newBoundaries = [...draftBoundaries];
+        
+        if (newBoundaries.length === 0) {
+            const newId = Date.now().toString();
+            newBoundaries = [{ id: newId, type: 'allow', points: [newPoint] }];
+            setActiveBoundaryId(newId);
+        } else {
+            const targetId = activeBoundaryId || newBoundaries[newBoundaries.length - 1].id;
+            newBoundaries = newBoundaries.map(b => {
+                if (b.id === targetId) {
+                    return { ...b, points: insertPoint(newPoint, b.points) };
+                }
+                return b;
+            });
+        }
+        
+        updateGameModeInfo({ gameBoundary: JSON.stringify(newBoundaries) });
+    };
+
+    const handleAddBoundary = () => {
+        const newId = Date.now().toString();
+        const newBoundaries = [...draftBoundaries, { id: newId, type: 'allow', points: [] }];
+        updateGameModeInfo({ gameBoundary: JSON.stringify(newBoundaries) });
+        setActiveBoundaryId(newId);
+    };
+
+    const handleRemoveBoundary = (id: string) => {
+        const newBoundaries = draftBoundaries.filter(b => b.id !== id);
+        updateGameModeInfo({ gameBoundary: JSON.stringify(newBoundaries) });
+        if (activeBoundaryId === id) {
+            setActiveBoundaryId(newBoundaries.length > 0 ? newBoundaries[newBoundaries.length - 1].id : null);
+        }
+    };
+
+    const handleToggleType = (id: string) => {
+        const newBoundaries = draftBoundaries.map(b => {
+            if (b.id === id) {
+                return { ...b, type: b.type === 'allow' ? 'forbid' : 'allow' };
+            }
+            return b;
+        });
+        updateGameModeInfo({ gameBoundary: JSON.stringify(newBoundaries) });
+    };
+
+    const handleDrop = (dropIndex: number) => {
+        if (draggedIndex === null || draggedIndex === dropIndex) return;
+        
+        const newBoundaries = [...draftBoundaries];
+        const [draggedItem] = newBoundaries.splice(draggedIndex, 1);
+        newBoundaries.splice(dropIndex, 0, draggedItem);
+        
+        updateGameModeInfo({ gameBoundary: JSON.stringify(newBoundaries) });
+        setDraggedIndex(null);
+    };
 
     return (
         <div className="bg-slate-800 p-6 rounded-xl flex-1 border border-slate-700 h-fit">
@@ -130,12 +214,7 @@ export default function LobbyMap({
                                 mapContainerStyle={{ width: '100%', height: '100%' }}
                                 center={DEFAULT_CENTER}
                                 zoom={2}
-                                onClick={(e) => {
-                                    if (!isHost || !e.latLng) return;
-                                    const newPoint = { lat: e.latLng.lat(), lng: e.latLng.lng() };
-                                    const newPoints = insertPoint(newPoint, draftPolygonPoints);
-                                    updateGameModeInfo({ gameBoundary: JSON.stringify(newPoints) });
-                                }}
+                                onClick={handleMapClick}
                                 options={mapOptions(additionalMapOptions)}
                             >
                                 {RECOMMENDED_STARTS.map(loc => (
@@ -144,7 +223,7 @@ export default function LobbyMap({
                                         position={{ lat: loc.lat, lng: loc.lng }}
                                         onClick={() => isHost && updateGameModeInfo({
                                             starting_point: JSON.stringify({ lat: loc.lat, lng: loc.lng }),
-                                            gameBoundary: JSON.stringify(draftPolygonPoints)
+                                            gameBoundary: JSON.stringify(draftBoundaries)
                                         })}
                                         onMouseOver={() => setHoveredLocation({ lat: loc.lat, lng: loc.lng })}
                                         onMouseOut={() => setHoveredLocation(null)}
@@ -184,8 +263,6 @@ export default function LobbyMap({
                                     <OverlayViewF
                                         position={hoveredLocation}
                                         mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
-                                        // This acts exactly like your pixelOffset: Size(0, -40)
-                                        // It centers the box horizontally and pushes it up 40px
                                         getPixelPositionOffset={(width, height) => ({
                                             x: -(width / 2),
                                             y: -(height + 10)
@@ -201,36 +278,40 @@ export default function LobbyMap({
                                     </OverlayViewF>
                                 )}
 
-                                {draftPolygonPoints.length > 0 && (
-                                    <PolygonF
-                                        paths={draftPolygonPoints}
-                                        options={{
-                                            fillOpacity: 0.35,
-                                            fillColor: '#6366f1',
-                                            strokeColor: '#4f46e5',
-                                            strokeOpacity: 0.8,
-                                            strokeWeight: 2,
-                                            clickable: false,
-                                        }}
-                                    />
-                                )}
+                                {draftBoundaries.map((boundary) => (
+                                    <Fragment key={boundary.id}>
+                                        {boundary.points.length > 0 && (
+                                            <PolygonF
+                                                paths={boundary.points}
+                                                options={{
+                                                    fillOpacity: 0.1,
+                                                    fillColor: boundary.type === 'allow' ? '#008000' : '#ff0000',
+                                                    strokeColor: boundary.type === 'allow' ? '#008000' : '#ff0000',
+                                                    strokeOpacity: 0.6,
+                                                    strokeWeight: activeBoundaryId === boundary.id ? 4 : 2,
+                                                    clickable: false,
+                                                }}
+                                            />
+                                        )}
 
-                                {draftPolygonPoints.map((point, idx) => (
-                                    <MarkerF
-                                        key={`poly-${idx}`}
-                                        position={point}
-                                        options={{
-                                            clickable: false,
-                                            icon: {
-                                                path: google.maps.SymbolPath.CIRCLE,
-                                                scale: 4,
-                                                fillColor: '#ffffff',
-                                                fillOpacity: 1,
-                                                strokeColor: '#4f46e5',
-                                                strokeWeight: 2,
-                                            }
-                                        }}
-                                    />
+                                        {boundary.points.map((point, idx) => (
+                                            <MarkerF
+                                                key={`poly-${boundary.id}-${idx}`}
+                                                position={point}
+                                                options={{
+                                                    clickable: false,
+                                                    icon: {
+                                                        path: google.maps.SymbolPath.CIRCLE,
+                                                        scale: 4,
+                                                        fillColor: '#ffffff',
+                                                        fillOpacity: 1,
+                                                        strokeColor: boundary.type === 'allow' ? '#008000' : '#ff0000',
+                                                        strokeWeight: 2,
+                                                    }
+                                                }}
+                                            />
+                                        ))}
+                                    </Fragment>
                                 ))}
                             </GoogleMap>
                             <FullscreenButton isFullscreen={isFullscreen} containerRef={containerRef} setIsFullscreen={setIsFullscreen} />
@@ -239,41 +320,82 @@ export default function LobbyMap({
                 </div>
                 
                 {isHost && (
-                    <div className="flex flex-col sm:flex-row justify-between items-center w-full text-sm text-slate-400 gap-2 mt-2">
-                        <button type="button"
-                            onClick={() => updateGameModeInfo({ starting_point: 'open-world' })}
-                            disabled={actualStart === 'open-world'}
-                            className="px-3 py-1 bg-indigo-900 border border-indigo-700 hover:bg-indigo-800 text-slate-200 rounded flex gap-2 items-center transition-colors disabled:opacity-50 disabled:bg-slate-800 disabled:border-slate-700 disabled:text-slate-500"
-                        >
-                            Reset Start
-                        </button>
+                    <div className="flex flex-col gap-4 mt-2">
+                        <div className="flex flex-col sm:flex-row justify-between items-center w-full text-sm text-slate-400 gap-2">
+                            <button type="button"
+                                onClick={() => updateGameModeInfo({ starting_point: 'open-world' })}
+                                disabled={actualStart === 'open-world'}
+                                className="px-3 py-2 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-200 rounded flex gap-2 items-center transition-colors disabled:opacity-50 disabled:bg-slate-800 disabled:border-slate-700 disabled:text-slate-500"
+                            >
+                                Reset Starting Point
+                            </button>
 
-                        <div className="flex gap-2">
-                            <button 
-                                type="button" 
-                                onClick={() => {
-                                    if (draftPolygonPoints.length === 0) return;
-                                    // Create the new state by removing the last point
-                                    const newPoints = draftPolygonPoints.slice(0, -1);
-                                    // Sync to parent
-                                    updateGameModeInfo({ gameBoundary: JSON.stringify(newPoints) });
-                                }}
-                                disabled={draftPolygonPoints.length === 0}
-                                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded flex gap-2 items-center transition-colors disabled:opacity-50 border border-slate-700"
-                            >
-                                <FaUndo /> Undo Point
-                            </button>
-                            <button 
-                                type="button"
-                                onClick={() => {
-                                    updateGameModeInfo({ gameBoundary: '[]' });
-                                }}
-                                disabled={draftPolygonPoints.length === 0}
-                                className="px-3 py-1 bg-rose-900 border border-rose-700 hover:bg-rose-800 text-slate-200 rounded flex gap-2 items-center transition-colors disabled:opacity-50"
-                            >
-                                Reset Area
-                            </button>
+                            <div className="flex gap-2 flex-wrap justify-end">
+                                <button 
+                                    type="button" 
+                                    onClick={handleAddBoundary}
+                                    className="px-3 py-2 bg-emerald-900/60 border border-emerald-700 hover:bg-emerald-800 text-emerald-100 rounded flex gap-2 items-center transition-colors"
+                                >
+                                    <FaPlus /> Add Area
+                                </button>
+                                <button 
+                                    type="button"
+                                    onClick={() => updateGameModeInfo({ gameBoundary: '[]' })}
+                                    disabled={draftBoundaries.length === 0}
+                                    className="px-3 py-2 bg-rose-900 border border-rose-700 hover:bg-rose-800 text-slate-200 rounded flex gap-2 items-center transition-colors disabled:opacity-50"
+                                >
+                                    Reset Areas
+                                </button>
+                            </div>
                         </div>
+                        {draftBoundaries.length > 0 && (
+                            <div className="flex flex-col gap-2 pr-2">
+                                {draftBoundaries.length > 0 && (
+                                    <div className="flex flex-col gap-2 pr-2">
+                                        {draftBoundaries.map((b, index) => (
+                                            <div 
+                                                key={b.id} 
+                                                draggable
+                                                onDragStart={() => setDraggedIndex(index)}
+                                                onDragOver={(e) => {
+                                                    e.preventDefault(); // Nötig, um Drop zuzulassen
+                                                }}
+                                                onDrop={() => handleDrop(index)}
+                                                className={`flex items-center justify-between p-3 rounded-lg border cursor-grab active:cursor-grabbing transition-all ${
+                                                    draggedIndex === index ? 'opacity-50 scale-95 border-dashed' : ''
+                                                } ${activeBoundaryId === b.id ? 'border-indigo-500 bg-indigo-900/40' : 'border-slate-700 bg-slate-800 hover:border-slate-500'}`} 
+                                                onClick={() => setActiveBoundaryId(b.id)}
+                                            >
+                                                <div className="flex items-center gap-4">
+                                                    <span className="text-slate-500 cursor-grab px-1 text-lg">⋮⋮</span>
+                                                    <span className="text-slate-200 font-medium text-sm flex flex-col">
+                                                        <span>Area {index + 1}</span>
+                                                        <span className="text-[10px] text-slate-500 font-normal">
+                                                            {index === draftBoundaries.length - 1 ? 'Highest Priority' : 
+                                                                index === 0 ? 'Lowest Priority' : `Priority ${index + 1}`}
+                                                        </span>
+                                                    </span>
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); handleToggleType(b.id); }} 
+                                                        className={`px-3 py-1 rounded text-xs font-bold transition-colors ${b.type === 'allow' ? 'bg-green-600/20 text-green-400 border border-green-700 hover:bg-green-600/40' : 'bg-red-600/20 text-red-400 border border-red-700 hover:bg-red-600/40'}`}
+                                                    >
+                                                        {b.type === 'allow' ? 'Allow' : 'Forbid'}
+                                                    </button>
+                                                </div>
+                                                <button
+                                                    title='remove-boundary'
+                                                    onClick={(e) => { e.stopPropagation(); handleRemoveBoundary(b.id); }} 
+                                                    className="text-slate-500 hover:text-red-400 p-1"
+                                                >
+                                                    <FaTimes />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                     </div>
                 )}
             </div>

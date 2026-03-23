@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useJsApiLoader } from '@react-google-maps/api';
 
 import { shuffle } from '../utils/Functions';
-import { GOOGLE_MAPS_LIBRARIES } from '../utils/mapUtils';
+import { GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from '../utils/mapUtils';
 
 // Sub-components
 import LobbySettings from './LobbySettings';
@@ -69,21 +69,16 @@ export default function LobbyView(props: LobbyViewProps) {
             return;
         }
 
-        // Boundary Validation
-        if (props.gameBoundary && props.gameBoundary !== '[]') {
+        if (props.gameBoundary && props.gameBoundary !== '[]' && props.startingPoint !== 'open-world') {
             try {
-                const points = JSON.parse(props.gameBoundary);
-                if (Array.isArray(points) && points.length >= 3 && props.startingPoint !== 'open-world' && window.google) {
-                    const startPos = JSON.parse(props.startingPoint);
-                    const point = new google.maps.LatLng(startPos.lat, startPos.lng);
-                    const polygon = new google.maps.Polygon({ paths: points });
-                    
-                    if (!google.maps.geometry.poly.containsLocation(point, polygon)) {
-                        props.showToast('Error: Starting point is outside the boundary!');
-                        return;
-                    }
+                const startPos = JSON.parse(props.startingPoint);
+                
+                if (!isLocationAllowed(startPos, props.gameBoundary)) {
+                    props.showToast('Error: Starting point is in a forbidden zone or outside allowed boundaries!');
+                    return;
                 }
-            } catch {
+            } catch (error) {
+                console.error("Invalid map configuration parsing:", error);
                 props.showToast('Invalid map configuration.');
                 return;
             }

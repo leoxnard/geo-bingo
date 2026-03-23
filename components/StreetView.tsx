@@ -1,6 +1,5 @@
 'use client';
 
-
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { GoogleMap, useJsApiLoader, StreetViewPanorama, Polygon } from '@react-google-maps/api';
 import { supabase } from '../lib/supabase';
@@ -9,7 +8,7 @@ import { FaEye, FaCamera } from 'react-icons/fa';
 import { Submission, StreetViewProps } from './utils/types';
 import { FullscreenButton, GeoBingoLogo } from './utils/Elements';
 import { calculateBingoCounter } from './utils/Functions';
-import { mapOptions, GOOGLE_MAPS_LIBRARIES } from './utils/mapUtils';
+import { mapOptions, GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from './utils/mapUtils';
 
 const additionalMapOptions = {
     styles: ""
@@ -65,12 +64,12 @@ export default function StreetView({
     const streetViewRef = useRef<google.maps.StreetViewPanorama | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const lastValidPositionRef = useRef<google.maps.LatLng | null>(null);
-    const customPolygonRef = useRef<google.maps.Polygon | null>(null);
+    const lastValidPanoRef = useRef<string | null>(null);
+    const isRevertingRef = useRef(false);
 
     const hasVotedToEnd = readyPlayers.includes(playerId);
-    const votesNeeded = players.length; // All players
+    const votesNeeded = players.length;
 
-    // Format the time for display
     const formatTime = (seconds: number) => {
         const m = Math.floor(seconds / 60);
         const s = seconds % 60;
@@ -153,17 +152,13 @@ export default function StreetView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [gameId, playerId, teamMode, players.length]);
 
-    // useCallback prevents infinite loop spamming Google API!
     const onLoad = useCallback((pano: google.maps.StreetViewPanorama) => {
         streetViewRef.current = pano;
     
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         pano.setOptions({ source: google.maps.StreetViewSource.GOOGLE } as any);
 
-        if (startingPoint === 'open-world') {
-            // pano.setPosition(safeStartCenter);
-            // The customPolygonRef parsing was removed from here
-        } else {
+        if (startingPoint !== 'open-world') {
             const parsedStart = JSON.parse(startingPoint) as { lat: number; lng: number };
             const googleStartingPoint = new google.maps.LatLng(parsedStart.lat, parsedStart.lng);
             pano.setPosition(googleStartingPoint);
@@ -173,19 +168,31 @@ export default function StreetView({
         }
 
         pano.addListener('position_changed', () => {
+            if (isRevertingRef.current) return;
+
             const pos = pano.getPosition();
             if (!pos) return;
             
-            // Revert movement if outside custom boundary!
-            if (customPolygonRef.current) {
-                if (google.maps.geometry.poly.containsLocation(pos, customPolygonRef.current)) {
+            if (gameBoundary && gameBoundary !== '[]') {
+                const currentLoc = { lat: pos.lat(), lng: pos.lng() };
+                
+                if (isLocationAllowed(currentLoc, gameBoundary)) {
                     lastValidPositionRef.current = pos;
-                } else if (lastValidPositionRef.current) {
-                    showToast("You've reached the edge of the allowed area!");
-                    pano.setPosition(lastValidPositionRef.current);
+                    lastValidPanoRef.current = pano.getPano();
                 } else {
-                    showToast("Please stay within the designated area!");
-                    pano.setVisible(false); // Drop blocked
+                    isRevertingRef.current = true; // Sperre aktivieren
+                    showToast("You've reached the edge of the allowed area or entered a forbidden zone!");
+                    if (lastValidPanoRef.current) {
+                        pano.setPano(lastValidPanoRef.current);
+                    } else if (lastValidPositionRef.current) {
+                        pano.setPosition(lastValidPositionRef.current);
+                    } else {
+                        pano.setVisible(false);
+                    }
+
+                    setTimeout(() => {
+                        isRevertingRef.current = false;
+                    }, 200);
                 }
             }
         });
@@ -195,9 +202,10 @@ export default function StreetView({
             setInStreetView(isVisible);
             if (!isVisible) {
                 lastValidPositionRef.current = null;
+                lastValidPanoRef.current = null;
             }
         });
-    }, [startingPoint, showToast]);
+    }, [startingPoint, gameBoundary, showToast]);
 
     const onUnmount = useCallback(() => {
         if (streetViewRef.current) {
@@ -236,11 +244,9 @@ export default function StreetView({
             }
         }
         setSubmittingCategory(null);
-        console.log(gameMode, endCondition, gridSize, myBoard, updatedSubmissions);
 
         if (gameMode === 'bingo' && endCondition === 'first_bingo') {
             const bingos = calculateBingoCounter(gridSize, myBoard, updatedSubmissions);
-            console.log('gridSize:', gridSize, 'myBoard:', myBoard, 'updatedSubs:', updatedSubmissions, 'bingos:', bingos);
             
             if (bingos.count > 0) {
                 const winnerNames = players.filter(p => bingos.players.includes(p.id)).map(p => p.name);
@@ -272,76 +278,71 @@ export default function StreetView({
     };
 
     const handleBingoTileClick = (cat: string) => {
-        // On Mobile/small screens, tapping the full tile submits/overwrites.
         if (window.matchMedia('(max-width: 639px)').matches) {
             handleSubmit(cat);
         }
     };
 
     const parsedStartParams = useMemo(() => {
-        // Default to open-world center if parsing fails, but still try to parse for potential poly gameBoundarys
         const polyString = gameBoundary || '';
-        let polyPoints: google.maps.LatLngLiteral[] | null = null;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let parsedBoundaries: any[] = [];
         let polyCenter = null;
         let polyZoom = null;
         
         if (polyString && polyString !== '[]' && polyString !== 'null') {
             try {
-                polyPoints = JSON.parse(polyString);
-                if (Array.isArray(polyPoints) && polyPoints.length >= 3) {
-                    let minX = polyPoints[0].lat, maxX = polyPoints[0].lat;
-                    let minY = polyPoints[0].lng, maxY = polyPoints[0].lng;
-                    for (let i = 1; i < polyPoints.length; i++) {
-                        if (polyPoints[i].lat < minX) minX = polyPoints[i].lat;
-                        if (polyPoints[i].lat > maxX) maxX = polyPoints[i].lat;
-                        if (polyPoints[i].lng < minY) minY = polyPoints[i].lng;
-                        if (polyPoints[i].lng > maxY) maxY = polyPoints[i].lng;
+                const parsed = JSON.parse(polyString);
+                
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    if (parsed[0].lat !== undefined) {
+                        parsedBoundaries = [{ id: 'legacy', type: 'allow', points: parsed }];
+                    } else {
+                        parsedBoundaries = parsed;
                     }
-                    polyCenter = { lat: (minX + maxX)/2, lng: (minY + maxY)/2 };
-                    
-                    const latDiff = maxX - minX;
-                    const lngDiff = maxY - minY;
-                    const maxDiff = Math.max(latDiff, lngDiff);
-                    const calculatedZoom = maxDiff > 0 ? Math.floor(Math.log2(360 / maxDiff)) + 1 : initialWorldZoom;
-                    polyZoom = Math.min(Math.max(calculatedZoom, 1), 18);
+
+                    const allPoints = parsedBoundaries.flatMap(b => b.points || []);
+
+                    if (allPoints.length >= 3) {
+                        let minX = allPoints[0].lat, maxX = allPoints[0].lat;
+                        let minY = allPoints[0].lng, maxY = allPoints[0].lng;
+                        for (let i = 1; i < allPoints.length; i++) {
+                            if (allPoints[i].lat < minX) minX = allPoints[i].lat;
+                            if (allPoints[i].lat > maxX) maxX = allPoints[i].lat;
+                            if (allPoints[i].lng < minY) minY = allPoints[i].lng;
+                            if (allPoints[i].lng > maxY) maxY = allPoints[i].lng;
+                        }
+                        polyCenter = { lat: (minX + maxX)/2, lng: (minY + maxY)/2 };
+                        
+                        const latDiff = maxX - minX;
+                        const lngDiff = maxY - minY;
+                        const maxDiff = Math.max(latDiff, lngDiff);
+                        const calculatedZoom = maxDiff > 0 ? Math.floor(Math.log2(360 / maxDiff)) + 1 : initialWorldZoom;
+                        polyZoom = Math.min(Math.max(calculatedZoom, 1), 18);
+                    }
                 }
             } catch (e) {
                 console.error("Error parsing gameBoundary:", e);
             }
         }
-        return { polyPoints, polyCenter, polyZoom };
+        return { parsedBoundaries, polyCenter, polyZoom };
     }, [gameBoundary]);
 
-    const { polyPoints, polyCenter, polyZoom } = parsedStartParams;
-
-    useEffect(() => {
-        if (isLoaded && polyPoints && polyPoints.length >= 3) {
-            customPolygonRef.current = new google.maps.Polygon({ paths: polyPoints });
-        } else {
-            customPolygonRef.current = null;
-        }
-    }, [isLoaded, polyPoints]);
+    const { parsedBoundaries, polyCenter, polyZoom } = parsedStartParams;
 
     const mapCenter = useMemo(() => {
-        // If open world and we have a custom restricted area, center on the area
         if (startingPoint === 'open-world' && polyCenter) return polyCenter;
-        
-        // Otherwise, default to the safe start center
         return safeStartCenter;
     }, [polyCenter, startingPoint]);
 
     const mapZoom = useMemo(() => {
-        // If open world and we have a custom restricted area, zoom to fit the area
         if (startingPoint === 'open-world' && polyZoom !== null) return polyZoom;
-        
-        // Otherwise, default to a safe integer zoom level
         return 2; 
     }, [polyZoom, startingPoint]);
 
 
     if (!isLoaded) return <div className="h-screen flex items-center justify-center text-indigo-400">Loading Maps...</div>;
 
-    // Dynamically size sidebar to avoid Tailwind JIT compiling issues
     const getSidebarWidthClass = () => {
         if (gameMode !== 'bingo') return 'lg:w-96';
         switch (gridSize) {
@@ -377,7 +378,6 @@ export default function StreetView({
                 </div>
         
                 <div className="flex items-stretch gap-3 sm:gap-6 w-full sm:w-auto">
-                    {/* Timer Display */}
                     <div className="flex items-center justify-center text-xl sm:text-3xl font-black bg-slate-800 px-3 sm:px-6 rounded-lg sm:rounded-xl border border-slate-700 shadow-lg tracking-wider py-1.5 sm:py-2">
                         {timeLeft <= 60 ? (
                             <span className="text-red-500 animate-pulse">{formatTime(timeLeft)}</span>
@@ -413,25 +413,27 @@ export default function StreetView({
                                 zoom={mapZoom}
                                 options={mapOptions(additionalMapOptions)}
                             >
-                                {/* Draw custom boundary polygon if provided */}
-                                {polyPoints && (
-                                    <Polygon
-                                        paths={polyPoints}
-                                        options={{
-                                            fillColor: '#4c0082',
-                                            fillOpacity: 0.2,
-                                            strokeColor: '#4c0082',
-                                            strokeOpacity: 0.8,
-                                            strokeWeight: 2,
-                                            clickable: false
-                                        }}
-                                    />
-                                )}
-                                {/* Safely pass onLoad and onUnmount */}
+                                {/* Zeichnet alle Zonen mit den korrekten Farben auf die Minimap */}
+                                {parsedBoundaries.map((boundary) => (
+                                    boundary.points && boundary.points.length >= 3 && (
+                                        <Polygon
+                                            key={boundary.id}
+                                            paths={boundary.points}
+                                            options={{
+                                                fillColor: boundary.type === 'allow' ? '#008000' : '#ff0000',
+                                                fillOpacity: 0.1,
+                                                strokeColor: boundary.type === 'allow' ? '#008000' : '#ff0000',
+                                                strokeOpacity: 0.6,
+                                                strokeWeight: 2,
+                                                clickable: false
+                                            }}
+                                        />
+                                    )
+                                ))}
+
                                 <StreetViewPanorama options={panoOptions} onLoad={onLoad} onUnmount={onUnmount} />
                             </GoogleMap>
 
-                            {/* Custom Fullscreen Button */}
                             {!isMobileLandscape && (
                                 <FullscreenButton isFullscreen={isFullscreen} containerRef={containerRef} setIsFullscreen={setIsFullscreen} />
                             )}
@@ -585,7 +587,7 @@ export default function StreetView({
                                                                     title="View submission"
                                                                     onClick={(e) => { e.stopPropagation(); jumpToLocation(foundSub); }}
                                                                     className="hidden sm:flex flex-1 h-full bg-slate-600/30 hover:bg-slate-500/30 text-white font-bold rounded-lg uppercase justify-center items-center"
-                                                                    >
+                                                                >
                                                                     <FaEye className="h-[60%] w-auto" />
                                                                 </button>
                                                             )}
