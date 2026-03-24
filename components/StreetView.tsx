@@ -10,11 +10,7 @@ import { supabase } from '../lib/supabase';
 import { FullscreenButton, GeoBingoLogo } from './utils/Elements';
 import { calculateBingoCounter } from './utils/Functions';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from './utils/mapUtils';
-import { Submission, StreetViewProps } from './utils/types';
-
-const additionalMapOptions = {
-    styles: ""
-}
+import { Submission, StreetViewProps, PathPoint } from './utils/types';
 
 const safeStartCenter = { lat:30, lng: 10 };
 const initialWorldZoom = 2.4;

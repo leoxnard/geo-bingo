@@ -2,6 +2,8 @@
 
 export type GameStatus = 'lobby' | 'playing' | 'voting' | 'finished';
 
+export type PathPoint = { lat: number; lng: number; timestamp: number };
+
 export interface Submission {
   id: string;
   player_id: string;

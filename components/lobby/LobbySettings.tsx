@@ -109,8 +109,10 @@ export default function LobbySettings({
                             <button type="button"
                                 onClick={() => updateGameModeInfo({ bingo_board_mode: 'shared' })}
                                 disabled={!isHost}
-                                className={`flex-1 py-2 text-sm rounded-md font-bold transition-all ${
-                                    bingoBoardMode === 'shared' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                                className={`flex-1 py-2 rounded-md font-bold transition-all ${
+                                    bingoBoardMode === 'shared'
+                                        ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow'
+                                        : 'text-slate-400 hover:text-white'
                                 }`}
                             >
                                 Shared
@@ -118,8 +120,10 @@ export default function LobbySettings({
                             <button type="button"
                                 onClick={() => updateGameModeInfo({ bingo_board_mode: 'individual' })}
                                 disabled={!isHost}
-                                className={`flex-1 py-2 text-sm rounded-md font-bold transition-all ${
-                                    bingoBoardMode === 'individual' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                                className={`flex-1 py-2 rounded-md font-bold transition-all ${
+                                    bingoBoardMode === 'individual'
+                                        ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow'
+                                        : 'text-slate-400 hover:text-white'
                                 }`}
                             >
                                 Individual
@@ -127,7 +131,7 @@ export default function LobbySettings({
                         </div>
                         <p className="my-2 text-xs text-slate-400 text-center min-h-[16px]">
                             {bingoBoardMode === 'shared' && 'Same board for all players/teams.'}
-                            {bingoBoardMode === 'individual' && 'Different words and positions for each player.'}
+                            {bingoBoardMode === 'individual' && 'Different words and positions for each player, selected by random selection from the chosen categories.'}
                         </p>
                     </div>
                     {bingoBoardMode === 'individual' && (
@@ -171,8 +175,10 @@ export default function LobbySettings({
                         <button type="button"
                             onClick={() => updateGameModeInfo({ end_condition: 'first_bingo' })}
                             disabled={!isHost}
-                            className={`flex-1 py-2 text-sm rounded-md font-bold transition-all ${
-                                endCondition === 'first_bingo' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                            className={`flex-1 py-2 rounded-md font-bold transition-all ${
+                                endCondition === 'first_bingo'
+                                    ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow'
+                                    : 'text-slate-400 hover:text-white'
                             }`}
                         >
                             First Bingo
@@ -180,8 +186,10 @@ export default function LobbySettings({
                         <button type="button"
                             onClick={() => updateGameModeInfo({ end_condition: 'timer' })}
                             disabled={!isHost}
-                            className={`flex-1 py-2 text-sm rounded-md font-bold transition-all ${
-                                endCondition === 'timer' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                            className={`flex-1 py-2 rounded-md font-bold transition-all ${
+                                endCondition === 'timer'
+                                    ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow'
+                                    : 'text-slate-400 hover:text-white'
                             }`}
                         >
                             Full Time

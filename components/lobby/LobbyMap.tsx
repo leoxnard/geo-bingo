@@ -202,7 +202,7 @@ export default function LobbyMap({
                 Starting Location & Game Boundary
             </label>
             <p className="text-xs text-slate-400 mb-4">
-                Left-click the map to draw movement boundaries. Drop the Pegman to set a custom starting point, or select a recommended city marker.
+                Left-click the map to draw movement boundaries. If multiple areas are defined, the priority defines the order of precedence. Drop the Pegman to set a custom starting point, or select a recommended city marker. Selecting a starting point will automatically disable exiting street view ingame.
             </p>
 
             <div className="mt-4 flex flex-col gap-2">
