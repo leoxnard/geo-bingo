@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 
 import { GoogleMap, useJsApiLoader, StreetViewPanorama, Polygon } from '@react-google-maps/api';
 import { FaEye, FaCamera } from 'react-icons/fa';
+import { GoMoveToStart } from "react-icons/go";
 
 import { supabase } from '../lib/supabase';
 import { FullscreenButton, GeoBingoLogo } from './utils/Elements';
@@ -27,7 +28,6 @@ const panoOptions = {
     panControl: false,
     linksControl: false,
 };
-
 
 export default function StreetView({ 
     myBoard,
@@ -450,6 +450,17 @@ export default function StreetView({
                                     ✕
                                 </button>
                             )}
+                            {startingPoint !== 'open-world' && (
+                                <button
+                                    type="button"
+                                    onClick={() => streetViewRef.current?.setPosition(new google.maps.LatLng(startingPoint ? JSON.parse(startingPoint) : safeStartCenter))}
+                                    className="absolute top-2 left-2 z-5 hidden sm:flex w-12 h-12 bg-slate-800/30 hover:bg-slate-700/80 text-white text-[30px] items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-slate-500 font-bold transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm"
+                                    title="Return to Starting Point"
+                                >
+                                    <GoMoveToStart />
+                                </button>
+                            )}
+
                         </div>
 
                         {/* Right: Checklist */}
