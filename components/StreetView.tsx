@@ -12,6 +12,10 @@ import { calculateBingoCounter } from './utils/Functions';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from './utils/mapUtils';
 import { Submission, StreetViewProps, PathPoint } from './utils/types';
 
+const additionalMapOptions = {
+    styles: ""
+}
+
 const safeStartCenter = { lat:30, lng: 10 };
 const initialWorldZoom = 2.4;
 
@@ -149,6 +153,13 @@ export default function StreetView({
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [gameId, playerId, teamMode, players.length]);
+
+    const additionalMapOptions = useMemo(() => ({
+        styles: hideMapSymbols 
+            ? [{ featureType: "all", elementType: "labels.icon", stylers: [{ visibility: "off" }] }]
+            : []
+    }), [hideMapSymbols]);
+
 
     const onLoad = useCallback((pano: google.maps.StreetViewPanorama) => {
         streetViewRef.current = pano;
