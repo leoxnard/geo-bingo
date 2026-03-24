@@ -1,7 +1,7 @@
 export const GOOGLE_MAPS_LIBRARIES: ("places" | "geometry" | "drawing" | "visualization" | "marker")[] = ['places', 'geometry'];
 
 
-export const mapOptions = (additionalOptions: { [key: string]: unknown } = {}): google.maps.MapOptions => ({
+export const mapOptions = (additionalOptions: { [key: string]: unknown | google.maps.MapOptions } = {}): google.maps.MapOptions => ({
     streetViewControl: true,
     mapTypeControl: false,
     gestureHandling: 'greedy',

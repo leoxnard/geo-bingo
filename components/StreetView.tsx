@@ -43,7 +43,8 @@ export default function StreetView({
     showToast,
     timeLeft,
     readyPlayers,
-    players
+    players,
+    hideMapSymbols = false,
 }: StreetViewProps) {
 
     const { isLoaded } = useJsApiLoader({

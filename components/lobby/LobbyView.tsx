@@ -12,8 +12,6 @@ import LobbySidebar from './LobbySidebar';
 import { shuffle } from '../utils/Functions';
 import { isLocationAllowed } from '../utils/mapUtils';
 
-// Sub-components
-
 interface Player {
     id: string;
     name: string;
@@ -53,6 +51,7 @@ interface LobbyViewProps {
     supabase: any;
     updateStatus: (nextStatus: GameStatus) => Promise<void>;
     setPlayers: (players: Player[] | ((prev: Player[]) => Player[])) => void;
+    hideMapSymbols: boolean;
 }
 
 export default function LobbyView(props: LobbyViewProps) {
@@ -188,6 +187,8 @@ export default function LobbyView(props: LobbyViewProps) {
                     handleStartGame={handleStartGame}
                     handleLeaveLobby={handleLeaveLobby}
                     setPlayers={props.setPlayers}
+                    hideMapSymbols={props.hideMapSymbols}
+                    updateGameModeInfo={props.updateGameModeInfo}
                 />
             </div>
         </div>

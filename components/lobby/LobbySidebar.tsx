@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from 'react';
 import { FaRegCopy, FaCopy, FaRegEdit, FaPlus, FaRandom, FaTimes } from "react-icons/fa";
 
 import { shuffle } from '../utils/Functions';
+import { ToggleSwitch } from '../utils/Elements';
 
 interface Player {
     id: string;
@@ -31,6 +32,9 @@ interface LobbySidebarProps {
     handleStartGame: () => void;
     handleLeaveLobby: () => void;
     setPlayers: (players: Player[] | ((prev: Player[]) => Player[])) => void;
+    hideMapSymbols: boolean;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    updateGameModeInfo: (updates: any) => void;
 }
 
 const darkTeamColors = [
@@ -43,11 +47,7 @@ const darkTeamColors = [
 ];
 const teamNames = ['Team Alpha', 'Team Bravo', 'Team Charlie', 'Team Delta', 'Team Echo', 'Team Foxtrot'];
 
-export default function LobbySidebar({
-    gameId, players, onlinePlayers, playerId, gameHostId, isHost,
-    teamMode, categories, supabase, showToast, makeHost, kickPlayer,
-    banPlayer, handleStartGame, handleLeaveLobby, setPlayers
-}: LobbySidebarProps) {
+export default function LobbySidebar(props: LobbySidebarProps) {
     const [copiedId, setCopiedId] = useState(false);
     const [copiedLink, setCopiedLink] = useState(false);
     const [isEditingSelfName, setIsEditingSelfName] = useState(false);
@@ -65,16 +65,16 @@ export default function LobbySidebar({
     }, []);
 
     useEffect(() => {
-        if (teamMode === 'teams' && players.length > 0) {
-            const maxTeam = Math.max(...players.map(p => p.team || 0));
+        if (props.teamMode === 'teams' && props.players.length > 0) {
+            const maxTeam = Math.max(...props.players.map(p => p.team || 0));
             if (maxTeam >= teamCount) {
                 setTeamCount(maxTeam + 1);
             }
         }
-    }, [players, teamMode, teamCount]);
+    }, [props.players, props.teamMode, teamCount]);
 
     const handleCopyGameId = () => {
-        navigator.clipboard.writeText(gameId);
+        navigator.clipboard.writeText(props.gameId);
         setCopiedId(true);
         setTimeout(() => setCopiedId(false), 800);
     };
@@ -88,7 +88,7 @@ export default function LobbySidebar({
     };
 
     const saveSelfName = async () => {
-        const currentName = players.find(p => p.id === playerId)?.name || '';
+        const currentName = props.players.find(p => p.id === props.playerId)?.name || '';
         const nextName = selfNameInput.trim();
 
         if (!nextName || nextName === currentName) {
@@ -97,33 +97,33 @@ export default function LobbySidebar({
         }
 
         localStorage.setItem('geoBingoPlayerName', nextName);
-        setPlayers(prev => prev.map(p => p.id === playerId ? { ...p, name: nextName } : p));
+        props.setPlayers(prev => prev.map(p => p.id === props.playerId ? { ...p, name: nextName } : p));
 
-        const { error } = await supabase.from('players').update({ name: nextName }).eq('id', playerId);
-        if (error) showToast('Could not update name.');
-        else showToast('Name updated.');
+        const { error } = await props.supabase.from('players').update({ name: nextName }).eq('id', props.playerId);
+        if (error) props.showToast('Could not update name.');
+        else props.showToast('Name updated.');
         setIsEditingSelfName(false);
     };
 
     const handleUpdatePlayerTeam = async (targetPlayerId: string, teamIndex: number) => {
-        setPlayers(prev => prev.map(p => p.id === targetPlayerId ? { ...p, team: teamIndex } : p));
-        const { error } = await supabase.from('players').update({ team: teamIndex }).eq('id', targetPlayerId);
-        if (error) showToast('Could not update team.');
+        props.setPlayers(prev => prev.map(p => p.id === targetPlayerId ? { ...p, team: teamIndex } : p));
+        const { error } = await props.supabase.from('players').update({ team: teamIndex }).eq('id', targetPlayerId);
+        if (error) props.showToast('Could not update team.');
     };
 
     const handleRandomizeTeams = async () => {
         if (teamCount < 2) return;
         
-        const shuffledPlayers = shuffle([...players]);
+        const shuffledPlayers = shuffle([...props.players]);
         const updatedPlayers = shuffledPlayers.map((p, i) => ({
             ...p,
             team: i % teamCount
         }));
 
-        setPlayers(updatedPlayers);
+        props.setPlayers(updatedPlayers);
 
         const updates = updatedPlayers.map(p => 
-            supabase.from('players').update({ team: p.team }).eq('id', p.id)
+            props.supabase.from('players').update({ team: p.team }).eq('id', p.id)
         );
         
         await Promise.all(updates);
@@ -132,7 +132,7 @@ export default function LobbySidebar({
     const handleRemoveTeam = async (teamIndexToRemove: number) => {
         if (teamCount <= 1) return;
 
-        const updatedPlayers = players.map(p => {
+        const updatedPlayers = props.players.map(p => {
             const currentTeam = p.team || 0;
             if (currentTeam === teamIndexToRemove) {
                 return { ...p, team: 0 }; 
@@ -142,12 +142,12 @@ export default function LobbySidebar({
             return p;
         });
 
-        setPlayers(updatedPlayers);
+        props.setPlayers(updatedPlayers);
         setTeamCount(prev => prev - 1);
 
         const updates = updatedPlayers
-            .filter(p => (p.team || 0) >= teamIndexToRemove || (players.find(old => old.id === p.id)?.team === teamIndexToRemove))
-            .map(p => supabase.from('players').update({ team: p.team }).eq('id', p.id));
+            .filter(p => (p.team || 0) >= teamIndexToRemove || (props.players.find(old => old.id === p.id)?.team === teamIndexToRemove))
+            .map(p => props.supabase.from('players').update({ team: p.team }).eq('id', p.id));
         
         await Promise.all(updates);
     };
@@ -161,7 +161,7 @@ export default function LobbySidebar({
         e.preventDefault();
         const droppedPlayerId = e.dataTransfer.getData('playerId');
         if (droppedPlayerId) {
-            const player = players.find(p => p.id === droppedPlayerId);
+            const player = props.players.find(p => p.id === droppedPlayerId);
             if (player && (player.team || 0) !== teamIndex) {
                 handleUpdatePlayerTeam(droppedPlayerId, teamIndex);
             }
@@ -180,9 +180,9 @@ export default function LobbySidebar({
             className="flex flex-col gap-2 bg-slate-900 p-3 rounded-lg border border-slate-700 cursor-grab active:cursor-grabbing hover:bg-slate-800 transition-colors"
         >
             <div className="flex items-center gap-3">
-                <div className={`min-w-[8px] h-2 rounded-full animate-pulse ${onlinePlayers.includes(p.id) ? 'bg-green-500' : 'bg-orange-500'}`} />
+                <div className={`min-w-[8px] h-2 rounded-full animate-pulse ${props.onlinePlayers.includes(p.id) ? 'bg-green-500' : 'bg-orange-500'}`} />
                 <div className="flex-1 min-w-0 flex items-center gap-2">
-                    {p.id === playerId && isEditingSelfName ? (
+                    {p.id === props.playerId && isEditingSelfName ? (
                         <input
                             title='rename_input'
                             ref={selfNameInputRef}
@@ -194,11 +194,11 @@ export default function LobbySidebar({
                             autoFocus
                         />
                     ) : (
-                        <span className={`flex-1 truncate ${p.id === playerId ? 'text-green-400' : 'text-white'}`}>
-                            {p.name} {p.id === gameHostId ? '(Host)' : ''}
+                        <span className={`flex-1 truncate ${p.id === props.playerId ? 'text-green-400' : 'text-white'}`}>
+                            {p.name} {p.id === props.gameHostId ? '(Host)' : ''}
                         </span>
                     )}
-                    {p.id === playerId && (
+                    {p.id === props.playerId && (
                         <button type="button" title='rename' onClick={() => { setSelfNameInput(p.name); setIsEditingSelfName(true); }} className="text-slate-400 hover:text-white">
                             <FaRegEdit className="text-xs" />
                         </button>
@@ -206,11 +206,11 @@ export default function LobbySidebar({
                 </div>
             </div>
 
-            {isHost && p.id !== playerId && (
+            {props.isHost && p.id !== props.playerId && (
                 <div className="flex gap-2 w-full mt-1 border-t border-slate-800 pt-2">
-                    <button type="button" onClick={() => makeHost(p.id)} className="text-[10px] flex-[2] bg-indigo-900/50 text-indigo-400 hover:bg-indigo-600 hover:text-white py-1 rounded">Make Host</button>
-                    <button type="button" onClick={() => kickPlayer(p.id)} className="text-[10px] flex-1 bg-orange-900/50 text-orange-400 hover:bg-orange-600 hover:text-white py-1 rounded">Kick</button>
-                    <button type="button" onClick={() => banPlayer(p.id)} className="text-[10px] flex-1 bg-red-900/50 text-red-400 hover:bg-red-600 hover:text-white py-1 rounded">Ban</button>
+                    <button type="button" onClick={() => props.makeHost(p.id)} className="text-[10px] flex-[2] bg-indigo-900/50 text-indigo-400 hover:bg-indigo-600 hover:text-white py-1 rounded">Make Host</button>
+                    <button type="button" onClick={() => props.kickPlayer(p.id)} className="text-[10px] flex-1 bg-orange-900/50 text-orange-400 hover:bg-orange-600 hover:text-white py-1 rounded">Kick</button>
+                    <button type="button" onClick={() => props.banPlayer(p.id)} className="text-[10px] flex-1 bg-red-900/50 text-red-400 hover:bg-red-600 hover:text-white py-1 rounded">Ban</button>
                 </div>
             )}
         </li>
@@ -224,7 +224,7 @@ export default function LobbySidebar({
                 <div className="space-y-3">
                     <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 p-2 rounded-lg">
                         <span className="text-sm font-bold text-slate-400 w-12 tracking-widest">ID:</span>
-                        <span className="flex-1 font-mono text-slate-300 text-lg truncate">{gameId}</span>
+                        <span className="flex-1 font-mono text-slate-300 text-lg truncate">{props.gameId}</span>
                         <button 
                             type="button" 
                             onClick={handleCopyGameId} 
@@ -254,10 +254,10 @@ export default function LobbySidebar({
             {/* Player / Teams List */}
             <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 h-fit">
                 <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-semibold text-slate-300">Players ({players.length})</h2>
+                    <h2 className="text-xl font-semibold text-slate-300">Players ({props.players.length})</h2>
                     
                     {/* Team Controls (Only Host or enabled for everyone depending on preference, here visible if teams mode) */}
-                    {teamMode === 'teams' && (
+                    {props.teamMode === 'teams' && (
                         <div className="flex gap-2">
                             <button 
                                 onClick={handleRandomizeTeams}
@@ -279,17 +279,17 @@ export default function LobbySidebar({
                 </div>
 
                 {/* Free For All Mode */}
-                {teamMode === 'ffa' && (
+                {props.teamMode === 'ffa' && (
                     <ul className="space-y-3">
-                        {players.map(renderPlayerItem)}
+                        {props.players.map(renderPlayerItem)}
                     </ul>
                 )}
 
                 {/* Teams Mode */}
-                {teamMode === 'teams' && (
+                {props.teamMode === 'teams' && (
                     <div className="space-y-4">
                         {Array.from({ length: teamCount }).map((_, teamIndex) => {
-                            const teamPlayers = players.filter(p => (p.team || 0) === teamIndex);
+                            const teamPlayers = props.players.filter(p => (p.team || 0) === teamIndex);
                             const colorClass = darkTeamColors[teamIndex % darkTeamColors.length];
                             
                             return (
@@ -330,11 +330,11 @@ export default function LobbySidebar({
                     </div>
                 )}
 
-                {isHost ? (
+                {props.isHost ? (
                     <button type="button" 
-                        onClick={handleStartGame} 
-                        disabled={categories.length === 0}
-                        className={`w-full py-4 rounded-xl font-bold mt-8 tracking-wider uppercase ${categories.length === 0 ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-500 text-white'}`}
+                        onClick={props.handleStartGame} 
+                        disabled={props.categories.length === 0}
+                        className={`w-full py-4 rounded-xl font-bold mt-8 tracking-wider uppercase ${props.categories.length === 0 ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-500 text-white'}`}
                     >
                         START GAME
                     </button>
@@ -342,9 +342,29 @@ export default function LobbySidebar({
                     <div className="w-full bg-slate-700 text-slate-400 text-center py-4 rounded-xl font-bold mt-8 uppercase">Waiting for host...</div>
                 )}
 
-                <button type="button" onClick={handleLeaveLobby} className="w-full py-3 rounded-xl font-bold mt-3 border border-slate-600 text-slate-300 hover:bg-slate-700 transition-colors">
+                <button type="button" onClick={props.handleLeaveLobby} className="w-full py-3 rounded-xl font-bold mt-3 border border-slate-600 text-slate-300 hover:bg-slate-700 transition-colors">
                     LEAVE LOBBY
                 </button>
+            </div>
+            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 h-fit">
+                <h2 className="text-xl font-semibold mb-6 text-slate-100 border-b border-slate-700 pb-3">
+                Advanced Game Settings
+                </h2>
+                
+                <div className="flex flex-col gap-5">
+                    {/* Toggle 1: Hide Map Symbols */}
+                    <ToggleSwitch
+                        label="Hide Map Symbols (POIs)"
+                        checked={props.hideMapSymbols}
+                        disabled={!props.isHost} // Nur der Host kann steuern
+                        onChange={(checked) => props.updateGameModeInfo({ hide_map_symbols: checked })}
+                    />
+                    {!props.isHost && (
+                    <p className="text-xs text-slate-500 mt-5 pt-4 border-t border-slate-700/50 text-center">
+                        Only the game host can change these settings.
+                    </p>
+                    )}
+                </div>
             </div>
         </div>
     );

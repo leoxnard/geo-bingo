@@ -52,6 +52,9 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [toastMessage, setToastMessage] = useState<string | null>(null);
     const timeUpTriggeredRef = useRef(false);
 
+    // advanced game options
+    const [hideMapSymbols, setHideMapSymbols] = useState(false);
+
     const showToast = (message: string) => {
         setToastMessage(message);
         setTimeout(() => setToastMessage(null), 3500);
@@ -65,6 +68,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         starting_point?: string;
         gameBoundary?: string | null;
         end_condition?: 'first_bingo' | 'timer';
+        hide_map_symbols?: boolean;
     }) => {
         if (!isHost) return;
         if (updates.game_mode) setGameMode(updates.game_mode as 'list' | 'bingo');
@@ -74,6 +78,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (updates.starting_point) setStartingPoint(updates.starting_point);
         if (updates.gameBoundary !== undefined) setGameBoundary(updates.gameBoundary);
         if (updates.end_condition) setEndCondition(updates.end_condition as 'first_bingo' | 'timer');
+        if (updates.hide_map_symbols !== undefined) setHideMapSymbols(updates.hide_map_symbols);
         await supabase.from('games').update(updates).eq('id', gameId);
     };
 
@@ -114,7 +119,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             if (!gameData) {
                 const { error } = await supabase.from('games').insert([{ 
                     id: gameId, status: 'lobby', categories: [], ready_players: [], time_limit: 300, host_id: currentPlayerId, banned_players: [],
-                    game_mode: 'list', team_mode: 'ffa', grid_size: 3, starting_point: 'open-world', end_condition: 'timer'
+                    game_mode: 'list', team_mode: 'ffa', grid_size: 3, starting_point: 'open-world', end_condition: 'timer', hide_map_symbols: false
                 }]);
                 if (!error) {
                     setIsHost(true);
@@ -137,7 +142,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setStartingPoint(gameData.starting_point || 'open-world');
                 setGameBoundary(gameData.gameBoundary || null);
                 setEndCondition(gameData.end_condition || 'timer');
-        
+                setHideMapSymbols(gameData.hide_map_symbols || false);
+
                 // Restore host status if they refresh the page
                 const isActuallyHost = gameData.host_id === currentPlayerId;
                 setIsHost(isActuallyHost);
@@ -206,6 +212,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     setStartingPoint(payload.new.starting_point || 'open-world');
                     setGameBoundary(payload.new.gameBoundary || null);
                     setEndCondition(payload.new.end_condition || 'timer');
+                    setHideMapSymbols(payload.new.hide_map_symbols || false);
                 }
             ).subscribe();
 
@@ -400,6 +407,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 supabase={supabase}
                 updateStatus={updateStatus}
                 setPlayers={setPlayers}
+                hideMapSymbols={hideMapSymbols}
             />
         );
     }
@@ -426,6 +434,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 timeLeft={timeLeft}
                 readyPlayers={readyPlayers}
                 players={players}
+                hideMapSymbols={hideMapSymbols}
             />
         );
     }

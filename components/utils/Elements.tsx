@@ -62,3 +62,22 @@ export const GeoBingoLogo = ({ size = 60, className = "" }: { size?: number, cla
         />
     );
 };
+
+export const ToggleSwitch = ({ checked, onChange, disabled, label }: { checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean; label: string }) => (
+    <label className="flex items-center justify-between group">
+      <span className="text-slate-300 font-medium text-sm group-hover:text-white transition-colors">
+        {label}
+      </span>
+      <div className={`relative ${disabled ? 'opacity-50' : 'cursor-pointer'}`}>
+        <input
+          type="checkbox"
+          checked={checked}
+          disabled={disabled}
+          onChange={(e) => !disabled && onChange(e.target.checked)}
+          className="sr-only peer" // Sr-only verbirgt die Standard-Checkbox visuell
+        />
+        {/* Der Hintergrund des Schalters */}
+        <div className="w-11 h-6 bg-slate-700 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-400 peer-checked:bg-indigo-600 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
+      </div>
+    </label>
+  );
