@@ -90,6 +90,17 @@ export interface StreetViewProps {
     hideMapSymbols?: boolean;
 }
 
+export interface FastVotingViewProps {
+    gameId: string;
+    isHost: boolean;
+    categories: string[];
+    playerId: string;
+    players: Player[];
+    teamMode: 'ffa' | 'teams';
+    onFinishGame: () => Promise<void> | void;
+    renderToast: () => React.ReactNode;
+}
+
 export interface VotingViewProps {
     gameId: string;
     isHost: boolean;
@@ -97,6 +108,7 @@ export interface VotingViewProps {
     playerId: string;
     players: Player[];
     teamMode: 'ffa' | 'teams';
+    startingPoint: string;
     onFinishGame: () => Promise<void> | void;
     renderToast: () => React.ReactNode;
 }

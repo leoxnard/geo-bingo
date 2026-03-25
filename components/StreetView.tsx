@@ -68,6 +68,8 @@ export default function StreetView({
     const lastValidPositionRef = useRef<google.maps.LatLng | null>(null);
     const lastValidPanoRef = useRef<string | null>(null);
     const isRevertingRef = useRef(false);
+    const pathRef = useRef<PathPoint[]>([]);
+    const lastSavedLengthRef = useRef<number>(0);
 
     const hasVotedToEnd = readyPlayers.includes(playerId);
     const votesNeeded = players.length;
@@ -154,6 +156,23 @@ export default function StreetView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [gameId, playerId, teamMode, players.length]);
 
+    useEffect(() => {
+        const saveInterval = setInterval(async () => {
+            const currentPath = pathRef.current;
+            if (currentPath.length > lastSavedLengthRef.current) {
+                const { error } = await supabase.from('players').update({ path: currentPath }).eq('id', playerId);
+                if (error) {
+                    console.error("SUPABASE FEHLER:", error.message, error.details);
+                } else {
+                    lastSavedLengthRef.current = currentPath.length;
+                    console.log("Erfolgreich gespeichert. Punkte:", currentPath.length);
+                }
+            }
+        }, 5000);
+
+        return () => clearInterval(saveInterval);
+    }, [playerId]);
+
     const additionalMapOptions = useMemo(() => ({
         styles: hideMapSymbols 
             ? [{ featureType: "all", elementType: "labels.icon", stylers: [{ visibility: "off" }] }]
@@ -181,6 +200,15 @@ export default function StreetView({
 
             const pos = pano.getPosition();
             if (!pos) return;
+
+            const lastPoint = pathRef.current[pathRef.current.length - 1];
+            if (!lastPoint || lastPoint.lat !== pos.lat() || lastPoint.lng !== pos.lng()) {
+                pathRef.current.push({
+                    lat: pos.lat(),
+                    lng: pos.lng(),
+                    timestamp: Date.now()
+                });
+            }
             
             if (gameBoundary && gameBoundary !== '[]') {
                 const currentLoc = { lat: pos.lat(), lng: pos.lng() };

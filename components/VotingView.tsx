@@ -8,18 +8,17 @@ import { supabase } from '../lib/supabase';
 import { GeoBingoLogo, FullscreenButton } from './utils/Elements';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES } from './utils/mapUtils';
 import SafeImage from './utils/SafeImage';
-import { VotingViewProps, Submission } from './utils/types';
+import { FastVotingViewProps, Submission } from './utils/types';
 
 const additionalMapOptions = {
     streetViewControl: false, 
 }
 
-// Statischer Default-Center (verhindert Re-Renders der Karte durch neue Objektreferenzen)
 const defaultCenter = { lat: 50, lng: 10 };
 
-export default function VotingView({ 
+export default function FastVotingView({ 
     gameId, isHost, playerId, players, teamMode, onFinishGame, renderToast
-}: VotingViewProps) {
+}: FastVotingViewProps) {
     const [categories, setCategories] = useState<string[]>([]);
     const [submissions, setSubmissions] = useState<Submission[]>([]);
     const [playersMap, setPlayersMap] = useState<Record<string, string>>({});
@@ -31,7 +30,6 @@ export default function VotingView({
     const [hoveredSubId, setHoveredSubId] = useState<string | null>(null);
     const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
     
-    // NEU: Ref, um sich zu merken, welche Kategorie zuletzt fokussiert wurde
     const lastCenteredCategoryRef = useRef<string | null>(null);
     
     const { isLoaded } = useJsApiLoader({

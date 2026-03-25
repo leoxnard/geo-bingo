@@ -52,6 +52,7 @@ interface LobbyViewProps {
     updateStatus: (nextStatus: GameStatus) => Promise<void>;
     setPlayers: (players: Player[] | ((prev: Player[]) => Player[])) => void;
     hideMapSymbols: boolean;
+    fastVoting: boolean;
 }
 
 export default function LobbyView(props: LobbyViewProps) {
@@ -188,6 +189,7 @@ export default function LobbyView(props: LobbyViewProps) {
                     handleLeaveLobby={handleLeaveLobby}
                     setPlayers={props.setPlayers}
                     hideMapSymbols={props.hideMapSymbols}
+                    fastVoting={props.fastVoting}
                     updateGameModeInfo={props.updateGameModeInfo}
                 />
             </div>

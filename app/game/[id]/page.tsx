@@ -5,13 +5,14 @@ import { useState, use, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { IoIosWarning } from "react-icons/io";
 
-import LobbyView from '../../../components/lobby/LobbyView';
-import PodiumView from '../../../components/PodiumView';
-import StreetView from '../../../components/StreetView';
 import { Player } from '../../../components/utils/types';
-import VotingView from '../../../components/VotingView';
 import { adjectives, animals } from '../../../lib/names';
 import { supabase } from '../../../lib/supabase';
+import LobbyView from '../../../components/lobby/LobbyView';
+import StreetView from '../../../components/StreetView';
+import FastVotingView from '../../../components/VotingView';
+import VotingView from '../../../components/VotingJourneyView';
+import PodiumView from '../../../components/PodiumView';
 
 
 type GameStatus = 'lobby' | 'playing' | 'voting' | 'finished';
@@ -54,6 +55,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
     // advanced game options
     const [hideMapSymbols, setHideMapSymbols] = useState(false);
+    const [fastVoting, setFastVoting] = useState(false);
 
     const showToast = (message: string) => {
         setToastMessage(message);
@@ -69,6 +71,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         gameBoundary?: string | null;
         end_condition?: 'first_bingo' | 'timer';
         hide_map_symbols?: boolean;
+        fast_voting?: boolean;
     }) => {
         if (!isHost) return;
         if (updates.game_mode) setGameMode(updates.game_mode as 'list' | 'bingo');
@@ -79,6 +82,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (updates.gameBoundary !== undefined) setGameBoundary(updates.gameBoundary);
         if (updates.end_condition) setEndCondition(updates.end_condition as 'first_bingo' | 'timer');
         if (updates.hide_map_symbols !== undefined) setHideMapSymbols(updates.hide_map_symbols);
+        if (updates.fast_voting !== undefined) setFastVoting(updates.fast_voting);
         await supabase.from('games').update(updates).eq('id', gameId);
     };
 
@@ -143,6 +147,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setGameBoundary(gameData.gameBoundary || null);
                 setEndCondition(gameData.end_condition || 'timer');
                 setHideMapSymbols(gameData.hide_map_symbols || false);
+                setFastVoting(gameData.fast_voting || false);
 
                 // Restore host status if they refresh the page
                 const isActuallyHost = gameData.host_id === currentPlayerId;
@@ -213,6 +218,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     setGameBoundary(payload.new.gameBoundary || null);
                     setEndCondition(payload.new.end_condition || 'timer');
                     setHideMapSymbols(payload.new.hide_map_symbols || false);
+                    setFastVoting(payload.new.fast_voting || false);
                 }
             ).subscribe();
 
@@ -408,6 +414,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 updateStatus={updateStatus}
                 setPlayers={setPlayers}
                 hideMapSymbols={hideMapSymbols}
+                fastVoting={fastVoting}
             />
         );
     }
@@ -441,17 +448,32 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
     // --- VIEW 3: VOTING ---
     if (status === 'voting') {
+        if (fastVoting) {
+            return (
+                <FastVotingView
+                    gameId={gameId}
+                    isHost={isHost}
+                    categories={categories}
+                    playerId={playerId}
+                    players={players}
+                    teamMode={teamMode}
+                    onFinishGame={handleFinishGame}
+                    renderToast={renderToast}
+                />
+            );
+        }
         return (
             <VotingView
-                gameId={gameId}
-                isHost={isHost}
-                categories={categories}
-                playerId={playerId}
-                players={players}
-                teamMode={teamMode}
-                onFinishGame={handleFinishGame}
-                renderToast={renderToast}
-            />
+            gameId={gameId}
+            isHost={isHost}
+            categories={categories}
+            playerId={playerId}
+            players={players}
+            teamMode={teamMode}
+            startingPoint={startingPoint}
+            onFinishGame={handleFinishGame}
+            renderToast={renderToast}
+        />
         );
     }
 
