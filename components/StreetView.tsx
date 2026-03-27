@@ -162,16 +162,30 @@ export default function StreetView({
             if (currentPath.length > lastSavedLengthRef.current) {
                 const { error } = await supabase.from('players').update({ path: currentPath }).eq('id', playerId);
                 if (error) {
-                    console.error("SUPABASE FEHLER:", error.message, error.details);
+                    console.error("SUPABASE ERROR:", error.message, error.details);
                 } else {
                     lastSavedLengthRef.current = currentPath.length;
-                    console.log("Erfolgreich gespeichert. Punkte:", currentPath.length);
                 }
             }
         }, 5000);
 
         return () => clearInterval(saveInterval);
     }, [playerId]);
+
+    // sound effects for timer
+    useEffect(() => {
+        if (timeLeft === 61) {
+            const alertSound = new Audio('/sounds/ticking.wav');
+            alertSound.volume = 0.4;
+            alertSound.play().catch(e => console.log("Audio playback failed", e));
+        }
+
+        if (timeLeft === 11) {
+            const tickSound = new Audio('/sounds/countdown.wav');
+            tickSound.volume = 0.3;
+            tickSound.play().catch(e => console.log("Audio playback failed", e));
+        }
+    }, [timeLeft]);
 
     const additionalMapOptions = useMemo(() => ({
         styles: hideMapSymbols 
