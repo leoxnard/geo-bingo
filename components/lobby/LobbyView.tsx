@@ -36,6 +36,7 @@ interface LobbyViewProps {
     timeLimit: number;
     updateTimeLimit: (minutes: number) => void;
     categories: string[];
+    suggestedCategories: string[];
     gameId: string;
     players: Player[];
     onlinePlayers: string[];
@@ -156,6 +157,7 @@ export default function LobbyView(props: LobbyViewProps) {
                         gridSize={props.gridSize}
                         bingoBoardMode={props.bingoBoardMode}
                         categories={props.categories}
+                        suggestedCategories={props.suggestedCategories}
                         gameId={props.gameId}
                         supabase={props.supabase}
                         maxGridSize={MAXGRIDSIZE}

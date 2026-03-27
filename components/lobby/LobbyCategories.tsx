@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 
-import { CiCirclePlus, CiCircleMinus } from "react-icons/ci";
+import { CiCirclePlus, CiCircleMinus, CiCircleRemove, CiCircleCheck } from "react-icons/ci";
 import { FaTimes } from "react-icons/fa";
 
 import { shuffle } from '../utils/Functions';
@@ -13,6 +13,7 @@ interface LobbyCategoriesProps {
     gridSize: number;
     bingoBoardMode: 'shared' | 'individual';
     categories: string[];
+    suggestedCategories: string[];
     gameId: string;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     supabase: any;
@@ -26,6 +27,7 @@ export default function LobbyCategories({
     gridSize,
     bingoBoardMode,
     categories,
+    suggestedCategories,
     gameId,
     supabase,
     maxGridSize,
@@ -33,7 +35,7 @@ export default function LobbyCategories({
 }: LobbyCategoriesProps) {
     const [newCategory, setNewCategory] = useState('');
     const [randomLang, setRandomLang] = useState<'german' | 'english'>('german');
-    const [randomCount, setRandomCount] = useState<number | ''>(4);
+    const [randomNumber, setRandomNumber] = useState<number | ''>(4);
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const categoryInputRef = useRef<HTMLInputElement>(null);
 
@@ -89,6 +91,48 @@ export default function LobbyCategories({
         }
     };
 
+    const handleSuggestCategory = async () => {
+        const trimmedCat = newCategory.trim();
+        if (trimmedCat !== '' && !isHost) {
+            // Check if it already exists
+            if (categories.some(c => c.toLowerCase() === trimmedCat.toLowerCase())) {
+                showToast("This category already exists!");
+                return;
+            }
+
+            // Fetch latest to prevent race conditions from other players
+            const { data } = await supabase.from('games').select('suggested_categories').eq('id', gameId).single();
+            const currentSuggestions = data?.suggested_categories || [];
+
+            if (currentSuggestions.some((c: string) => c.toLowerCase() === trimmedCat.toLowerCase())) {
+                showToast("This category was already suggested!");
+                return;
+            }
+
+            const updatedSuggestions = [...currentSuggestions, trimmedCat];
+            await supabase.from('games').update({ suggested_categories: updatedSuggestions }).eq('id', gameId);
+            setNewCategory('');
+            showToast("Suggestion sent to the host!");
+        }
+    };
+
+    const acceptSuggestion = async (cat: string) => {
+        if (!isHost) return;
+        if (gameMode === 'bingo' && categories.length >= gridSize * gridSize) {
+            showToast(`Maximal ${gridSize * gridSize} words allowed for this Bingo grid!`);
+            return;
+        }
+        const updatedCat = [...categories, cat];
+        const updatedSug = suggestedCategories.filter(c => c !== cat);
+        await supabase.from('games').update({ categories: updatedCat, suggested_categories: updatedSug }).eq('id', gameId);
+    };
+
+    const rejectSuggestion = async (cat: string) => {
+        if (!isHost) return;
+        const updatedSug = suggestedCategories.filter(c => c !== cat);
+        await supabase.from('games').update({ suggested_categories: updatedSug }).eq('id', gameId);
+    };
+
     const addRandomCategories = async () => {
         if (!isHost) return;
         try {
@@ -96,7 +140,7 @@ export default function LobbyCategories({
             const allWords = randomLang === 'german' ? categoriesDe : categoriesEn;
             const shuffled = shuffle(allWords);
             const availableWords = shuffled.filter(w => !categories.map(c => c.toLowerCase()).includes(w.toLowerCase()));
-            const selectedWords = availableWords.slice(0, Number(randomCount) || 0);
+            const selectedWords = availableWords.slice(0, Number(randomNumber) || 0);
 
             if (selectedWords.length > 0) {
                 const updated = [...categories, ...selectedWords];
@@ -113,14 +157,14 @@ export default function LobbyCategories({
     const minusOneGridSize = () => {
         if (gridSize > 2) {
             updateGameModeInfo({ grid_size: gridSize - 1 });
-            setRandomCount((gridSize - 1) * (gridSize - 1));
+            setRandomNumber((gridSize - 1) * (gridSize - 1));
         }
     }
 
     const plusOneGridSize = () => {
         if (gridSize < maxGridSize) {
             updateGameModeInfo({ grid_size: gridSize + 1 });
-            setRandomCount((gridSize + 1) * (gridSize + 1));
+            setRandomNumber((gridSize + 1) * (gridSize + 1));
         }
     }
 
@@ -221,74 +265,112 @@ export default function LobbyCategories({
                 </>
             ) : (
                 <ul className="mb-4 space-y-2">
-                    {categories.map((cat, i) => (
-                        <li key={i} className="bg-slate-700 p-2 pl-3 rounded-lg flex justify-between items-center border border-slate-600 italic">
+                    {categories.map((cat, i) => ( 
+                        <li key={i} className="bg-slate-700 p-2 pl-3 rounded-lg flex justify-between items-center border border-slate-600 shadow-sm overflow-hidden italic h-[42px]">
                             <span>{cat}</span>
                             {isHost && (
-                                <button type="button" title='remove_cat_btn' onClick={() => removeCategory(cat)} className="text-red-400 hover:text-red-300 p-2 rounded-full bg-slate-800">
-                                    <FaTimes />
+                                <button 
+                                    type="button" 
+                                    onClick={() => removeCategory(cat)} 
+                                    className="text-red-400 hover:text-red-300 px-4 transition-colors border-l border-slate-600 flex items-center justify-center h-[42px]" 
+                                    title="Reject"
+                                >
+                                    <CiCircleRemove size={30} />
                                 </button>
                             )}
                         </li>
                     ))}
                 </ul>
             )}
+            {/* --- Category Suggestions --- */}
+            <div className="flex gap-2 mb-4 mt-6">
+                <input 
+                    ref={categoryInputRef}
+                    type="text" 
+                    value={newCategory} 
+                    onChange={(e) => setNewCategory(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            isHost ? addCategory() : handleSuggestCategory();
+                        }
+                    }}
+                    placeholder={isHost ? "Custom category..." : "Suggest a category..."}
+                    className="flex-1 p-3 rounded-lg bg-slate-900 border border-slate-600 text-white outline-none focus:border-indigo-500"
+                />
+                <button 
+                    type="button" 
+                    onClick={isHost ? addCategory : handleSuggestCategory} 
+                    className="bg-indigo-600 hover:bg-indigo-500 px-6 rounded-lg font-bold transition-colors"
+                >
+                    {isHost ? "Add" : "Suggest"}
+                </button>
+            </div>
+
+            {/* --- HOST ONLY: SUGGESTIONS & RANDOM --- */}
             {isHost && (
                 <div className="space-y-4">
-                    <div className="flex gap-2 mb-4">
-                        <input 
-                            ref={categoryInputRef}
-                            type="text" 
-                            value={newCategory} 
-                            onChange={(e) => setNewCategory(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && addCategory()}
-                            placeholder="Custom category..."
-                            className="flex-1 p-3 rounded-lg bg-slate-900 border border-slate-600 text-white outline-none focus:border-indigo-500"
-                        />
-                        <button type="button" onClick={addCategory} className="bg-indigo-600 hover:bg-indigo-500 px-6 rounded-lg font-bold">
-                            Add
-                        </button>
-                    </div>
-                    <div className="flex gap-3 bg-slate-700/40 p-4 rounded-xl border border-slate-600 items-end">
-                        {/* Part 1: Count (Relative 1) */}
-                        <div className="flex flex-col gap-1 flex-1 min-w-0">
-                            <label className="text-[10px] uppercase text-slate-400 font-bold truncate">
-                                Count
-                            </label>
-                            <input 
-                                title='random_count_ipt'
-                                type="number" 
-                                value={randomCount} 
-                                onChange={e => setRandomCount(e.target.value === '' ? '' : Number(e.target.value))}
-                                className="h-[42px] w-full rounded-lg bg-slate-900 border border-slate-600 text-white text-center font-bold"
-                            />
+                    {/* Random Generator */}
+                    <div className="bg-slate-800/80 p-4 rounded-xl border border-dashed border-indigo-500/50">
+                        <h4 className="text-xs font-bold text-indigo-400 mb-3 uppercase tracking-wider">
+                            Random Categories
+                        </h4>
+                        <div className='flex gap-3 items-end'>
+                            {/* Part 1: Number */}
+                            <div className="flex flex-col gap-1 flex-1 min-w-0">
+                                <label className="text-[10px] uppercase text-slate-400 font-bold truncate">Number</label>
+                                <input
+                                    title='random_number_ipt'
+                                    type="number" value={randomNumber}
+                                    onChange={e => setRandomNumber(e.target.value === '' ? '' : Number(e.target.value))}
+                                    className="h-[42px] w-full rounded-lg bg-slate-900 border border-slate-600 text-white text-center font-bold overflow-hidden" />
+                            </div>
+                            {/* Part 2: Language */}
+                            <div className="flex flex-col gap-1 flex-[2] min-w-0">
+                                <label className="text-[10px] uppercase text-slate-400 font-bold">
+                                    Language
+                                </label>
+                                <select title='random_lan_ipt' value={randomLang} onChange={e => setRandomLang(e.target.value as 'german' | 'english')} className="h-[42px] px-2 w-full rounded-lg bg-slate-900 border border-slate-600 text-white font-bold cursor-pointer">
+                                    <option value="german">German</option>
+                                    <option value="english">English</option>
+                                </select>
+                            </div>
+                            {/* Part 3: Button */}
+                            <button type="button" onClick={addRandomCategories} className="flex-1 bg-indigo-600 hover:bg-indigo-500 rounded-lg font-bold h-[42px] whitespace-nowrap">Add Random</button>
                         </div>
-
-                        {/* Part 2: Language (Relative 2) */}
-                        <div className="flex flex-col gap-1 flex-[2] min-w-0">
-                            <label className="text-[10px] uppercase text-slate-400 font-bold">
-                                Language
-                            </label>
-                            <select 
-                                title='random_lan_ipt'
-                                value={randomLang} 
-                                onChange={e => setRandomLang(e.target.value as 'german' | 'english')}
-                                className="h-[42px] px-2 w-full rounded-lg bg-slate-900 border border-slate-600 text-white font-bold cursor-pointer"
-                            >
-                                <option value="german">German</option>
-                                <option value="english">English</option>
-                            </select>
-                        </div>
-
-                        {/* Part 3: Button (Relative 2) */}
-                        <button 
-                            type="button" 
-                            onClick={addRandomCategories} 
-                            className="flex-1 bg-indigo-600 hover:bg-indigo-500 rounded-lg font-bold h-[42px] whitespace-nowrap"
-                        >
-                            Add Random
-                        </button>
                     </div>
+                    {/* Suggested Categories List */}
+                    {suggestedCategories.length > 0 && (
+                        <div className="p-4 bg-slate-800/80 rounded-xl border border-dashed border-indigo-500/50">
+                            <h4 className="text-xs font-bold text-indigo-400 mb-3 uppercase tracking-wider">
+                                Player Suggestions
+                            </h4>
+                            <ul className="space-y-2">
+                                {suggestedCategories.map((cat, i) => (
+                                    <li key={i} className="bg-slate-700 rounded-lg flex justify-between items-center border border-slate-600 italic shadow-sm overflow-hidden p-1 h-[42px]">
+                                        <span className="break-words py-2 px-3 flex items-center">{cat}</span>
+                                        <div className="flex shrink-0 border-l border-slate-600">
+                                            <button 
+                                                type="button" 
+                                                onClick={() => acceptSuggestion(cat)} 
+                                                className="text-green-400 hover:text-green-300 px-4 transition-colors border-r border-slate-600 flex items-center justify-center h-[42px]" 
+                                                title="Accept"
+                                            >
+                                                <CiCircleCheck size={30} />
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => rejectSuggestion(cat)} 
+                                                className="text-red-400 hover:text-red-300 px-4 transition-colors flex items-center justify-center" 
+                                                title="Reject"
+                                            >
+                                                <CiCircleRemove size={30} />
+                                            </button>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

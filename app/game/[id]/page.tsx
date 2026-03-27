@@ -26,7 +26,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     // Game state
     const [status, setStatus] = useState<GameStatus>('lobby');
     const [categories, setCategories] = useState<string[]>([]);
-    
+    const [suggestedCategories, setSuggestedCategories] = useState<string[]>([]);
     const [isHost, setIsHost] = useState(false);
     const [gameHostId, setGameHostId] = useState<string>('');
     const [timeLimit, setTimeLimit] = useState(300);  
@@ -135,6 +135,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             } else {
                 setStatus(gameData.status);
                 setCategories(gameData.categories);
+                setSuggestedCategories(gameData.suggested_categories || []);
                 setReadyPlayers(gameData.ready_players || []);
                 setBannedPlayers(gameData.banned_players || []);
                 setTimeLimit(gameData.time_limit || 300);
@@ -207,6 +208,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     }
                     setStatus(payload.new.status);
                     setCategories(payload.new.categories);
+                    setSuggestedCategories(payload.new.suggested_categories || []);
                     setReadyPlayers(payload.new.ready_players || []);
                     setBannedPlayers(payload.new.banned_players || []);
                     setTimeLimit(payload.new.time_limit || 300);
@@ -400,6 +402,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 timeLimit={timeLimit}
                 updateTimeLimit={updateTimeLimit}
                 categories={categories}
+                suggestedCategories={suggestedCategories}
                 gameId={gameId}
                 players={players}
                 onlinePlayers={onlinePlayers}
