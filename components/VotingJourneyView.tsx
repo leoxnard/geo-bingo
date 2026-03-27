@@ -6,15 +6,10 @@ import { GoogleMap, useJsApiLoader, Polyline, MarkerF, StreetViewPanorama } from
 import { supabase } from '../lib/supabase';
 import { GeoBingoLogo } from './utils/Elements';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES } from './utils/mapUtils';
-import SafeImage from './utils/SafeImage';
 import { VotingViewProps, Submission } from './utils/types';
 
-// ==========================================
-// Settings
-// ==========================================
 const ENABLE_PRELOADING = false; 
 const ANIMATION_DURATION = 8000;
-// ==========================================
 
 type PathPoint = { lat: number; lng: number; timestamp: number };
 
@@ -25,9 +20,12 @@ const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => 
 };
 
 export default function VotingJourneyView({ 
-    gameId, isHost, playerId, players, teamMode, startingPoint = 'open-world', onFinishGame, renderToast
+    gameId, isHost, playerId, players, teamMode, onFinishGame, renderToast
 }: VotingViewProps) {
     
+    const [gameCategories, setGameCategories] = useState<string[]>([]);
+    const [gridSize, setGridSize] = useState<number>(3);
+    const [gameMode, setGameMode] = useState<string>('list');
     const [submissions, setSubmissions] = useState<Submission[]>([]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [playersWithPaths, setPlayersWithPaths] = useState<any[]>([]);
@@ -38,13 +36,18 @@ export default function VotingJourneyView({
     const [isPreloading, setIsPreloading] = useState(ENABLE_PRELOADING);
     
     const [activeSubmission, setActiveSubmission] = useState<Submission | null>(null);
-    const [viewedFullscreenSub, setViewedFullscreenSub] = useState<Submission | null>(null);
+    const [lastActiveSub, setLastActiveSub] = useState<Submission | null>(null);
+    
+    // NEU: Steuert, wann das StreetView Panel physisch ins Bild slidet
+    const [isStreetViewVisible, setIsStreetViewVisible] = useState(false);
     
     const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
     const [finalPath, setFinalPath] = useState<PathPoint[]>([]);
 
     const polylineRef = useRef<google.maps.Polyline | null>(null);
     const markerRef = useRef<google.maps.Marker | null>(null);
+    const progressBarRef = useRef<HTMLDivElement | null>(null);
+    
     const animationProgressRef = useRef(0);
     const lastTimeRef = useRef(0);
     const shownSubIdsRef = useRef<Set<string>>(new Set());
@@ -60,7 +63,37 @@ export default function VotingJourneyView({
     });
 
     const currentPlayer = playersWithPaths[currentPlayerIndex];
-    const activeSubLatest = activeSubmission ? submissions.find(s => s.id === activeSubmission.id) : null;
+
+    const activeSubLatest = useMemo(() => {
+        if (activeSubmission && activeSubmission.player_id === currentPlayer?.id) {
+            return submissions.find(s => s.id === activeSubmission.id) || null;
+        }
+        return null;
+    }, [activeSubmission, submissions, currentPlayer]);
+
+    // PRELOAD LOGIK: 
+    // StreetView bekommt im Hintergrund sofort die Koordinaten. Das Sichtbar-Machen 
+    // verzögern wir um 500ms, damit die Karte Zeit zum Laden hat.
+    useEffect(() => {
+        if (activeSubLatest) {
+            setLastActiveSub(activeSubLatest); 
+            const timer = setTimeout(() => {
+                setIsStreetViewVisible(true);
+            }, 500); 
+            return () => clearTimeout(timer);
+        } else {
+            setIsStreetViewVisible(false); // Sofort ausblenden, wenn Vote vorbei
+        }
+    }, [activeSubLatest]);
+
+    const displaySub = activeSubLatest || lastActiveSub;
+
+    const currentBoard = useMemo(() => {
+        if (currentPlayer?.bingo_board && currentPlayer.bingo_board.length > 0) {
+            return currentPlayer.bingo_board;
+        }
+        return gameCategories.slice(0, gameMode === 'list' ? gameCategories.length : gridSize * gridSize);
+    }, [currentPlayer, gameCategories, gridSize, gameMode]);
 
     const votingStats = useMemo(() => {
         let isComplete = false;
@@ -78,12 +111,20 @@ export default function VotingJourneyView({
         return { isComplete, cast, eligibleCount };
     }, [activeSubLatest, playersWithPaths, currentPlayer, teamMode]);
 
+    // Data Fetching
     useEffect(() => {
         const fetchData = async () => {
+            const { data: gData } = await supabase.from('games').select('categories, grid_size, game_mode').eq('id', gameId).single();
+            if (gData) {
+                setGameCategories(gData.categories || []);
+                setGridSize(gData.grid_size || 3);
+                setGameMode(gData.game_mode || 'list');
+            }
+
             const { data: subData } = await supabase.from('submissions').select('*').eq('game_id', gameId);
             if (subData) setSubmissions(subData);
 
-            const { data: pData } = await supabase.from('players').select('id, name, team, path').eq('game_id', gameId);
+            const { data: pData } = await supabase.from('players').select('id, name, team, path, bingo_board').eq('game_id', gameId);
             if (pData) {
                 const validPlayers = pData.filter(p => p.path && p.path.length > 0);
                 setPlayersWithPaths(validPlayers);
@@ -98,6 +139,15 @@ export default function VotingJourneyView({
                 }
             )
             .on('broadcast', { event: 'next_player' }, (payload) => {
+                setIsPreloading(ENABLE_PRELOADING);
+                setActiveSubmission(null);
+                setIsPaused(false);
+                setIsLineComplete(false);
+                setFinalPath([]);
+                shownSubIdsRef.current.clear();
+                animationProgressRef.current = 0;
+                if (progressBarRef.current) progressBarRef.current.style.transform = `scaleY(0)`;
+                
                 setCurrentPlayerIndex(payload.payload.index);
             })
             .on('broadcast', { event: 'finish_game' }, () => {
@@ -108,7 +158,8 @@ export default function VotingJourneyView({
         return () => { supabase.removeChannel(channel); };
     }, [gameId, onFinishGame]);
 
-    const pathData: { rawPath: PathPoint[]; totalDist: number; dists: number[]; subProgressions: { sub: Submission; progress: number }[] } = useMemo(() => {
+    // Path Calculations
+    const pathData = useMemo(() => {
         const rawPath = currentPlayer?.path || [];
         let totalDist = 0;
         const dists = [0];
@@ -135,6 +186,7 @@ export default function VotingJourneyView({
         return { rawPath, totalDist, dists, subProgressions };
     }, [currentPlayer, submissions]);
 
+    // Reset State
     useEffect(() => {
         setIsPreloading(ENABLE_PRELOADING);
         animationProgressRef.current = 0;
@@ -142,17 +194,18 @@ export default function VotingJourneyView({
         setIsLineComplete(false);
         setFinalPath([]);
         setActiveSubmission(null);
+        if (progressBarRef.current) progressBarRef.current.style.transform = `scaleY(0)`;
     }, [currentPlayerIndex]);
 
+    // Map Init
     useEffect(() => {
         if (!mapInstance || !pathData || pathData.rawPath.length === 0) return;
 
         const initMap = () => {
             if (pathData.rawPath.length > 1) {
                 const bounds = new window.google.maps.LatLngBounds();
-                pathData.rawPath.forEach(p => bounds.extend({ lat: p.lat, lng: p.lng }));
+                pathData.rawPath.forEach((p: { lat: number; lng: number }) => bounds.extend({ lat: p.lat, lng: p.lng }));
                 mapInstance.fitBounds(bounds, 50);
-                console.log(`Fitting bounds for player ${currentPlayer?.name} to ${bounds.toString()}`);
             } else {
                 mapInstance.setZoom(15);
                 mapInstance.setCenter(pathData.rawPath[0]);
@@ -170,32 +223,43 @@ export default function VotingJourneyView({
         }
     }, [mapInstance, pathData, isPreloading]);
 
+    // Animation Loop
     useEffect(() => {
         if (!mapInstance || isPaused || isLineComplete || !pathData || pathData.rawPath.length === 0 || isPreloading) return;
 
         lastTimeRef.current = performance.now();
 
         const animate = (time: DOMHighResTimeStamp) => {
-            const delta = time - lastTimeRef.current;
+            let delta = time - lastTimeRef.current;
+            if (delta > 100) delta = 16.66; 
+            
             lastTimeRef.current = time;
 
             let progress = animationProgressRef.current + (delta / ANIMATION_DURATION);
             let hitSub = false;
 
-            if (progress >= 1) {
-                progress = 1;
-            } else {
-                const crossedSub = pathData.subProgressions.find(sp => sp.progress <= progress && !shownSubIdsRef.current.has(sp.sub.id));
-                if (crossedSub) {
-                    shownSubIdsRef.current.add(crossedSub.sub.id);
-                    setActiveSubmission(crossedSub.sub);
-                    setIsPaused(true);
-                    progress = crossedSub.progress;
-                    hitSub = true;
-                }
+            if (progress >= 1) progress = 1;
+
+            let crossedSub = pathData.subProgressions.find(sp => sp.progress <= progress && !shownSubIdsRef.current.has(sp.sub.id));
+
+            if (progress === 1 && !crossedSub) {
+                const unshownSub = pathData.subProgressions.find(sp => !shownSubIdsRef.current.has(sp.sub.id));
+                if (unshownSub) crossedSub = unshownSub;
+            }
+
+            if (crossedSub) {
+                shownSubIdsRef.current.add(crossedSub.sub.id);
+                setActiveSubmission(crossedSub.sub);
+                setIsPaused(true);
+                progress = crossedSub.progress;
+                hitSub = true;
             }
 
             animationProgressRef.current = progress;
+
+            if (progressBarRef.current) {
+                progressBarRef.current.style.transform = `scaleY(${progress})`;
+            }
 
             let currentPoint;
             let partialPath: PathPoint[] = [];
@@ -241,7 +305,7 @@ export default function VotingJourneyView({
                 mapInstance.setCenter(currentPoint);
             }
 
-            if (progress >= 1) {
+            if (progress >= 1 && !hitSub) {
                 setFinalPath(pathData.rawPath);
                 setIsLineComplete(true);
             } else if (!hitSub) {
@@ -256,7 +320,7 @@ export default function VotingJourneyView({
     useEffect(() => {
         if (isLineComplete && mapInstance && pathData && pathData.rawPath.length > 1) {
             const bounds = new window.google.maps.LatLngBounds();
-            pathData.rawPath.forEach(p => bounds.extend({ lat: p.lat, lng: p.lng }));
+            pathData.rawPath.forEach((p: { lat: number; lng: number }) => bounds.extend({ lat: p.lat, lng: p.lng }));
             mapInstance.panTo(bounds.getCenter());
         }
     }, [isLineComplete, mapInstance, pathData]);
@@ -264,7 +328,6 @@ export default function VotingJourneyView({
     useEffect(() => {
         if (votingStats.isComplete && activeSubLatest && isPaused) {
             setActiveSubmission(null);
-            setViewedFullscreenSub(null);
             setIsPaused(false);
         }
     }, [votingStats.isComplete, activeSubLatest, isPaused]);
@@ -273,7 +336,6 @@ export default function VotingJourneyView({
         const newVotes = { ...sub.votes, [playerId]: voteIsYes };
         setSubmissions(prev => prev.map(s => s.id === sub.id ? { ...s, votes: newVotes } : s));
 
-        // Optimistic UI update
         const { error } = await supabase.rpc('register_vote', {
             p_submission_id: sub.id,
             p_player_id: playerId,
@@ -281,15 +343,26 @@ export default function VotingJourneyView({
         });
 
         if (error) {
-            console.error("Error submitting vote:", error);
-            toast.error("Error submitting vote. Please try again.");
+            console.error(error);
+            toast.error("Error submitting vote.");
         }
     };
 
     const handleNextPlayer = () => {
         if (currentPlayerIndex < playersWithPaths.length - 1) {
             const nextIndex = currentPlayerIndex + 1;
+            
+            setIsPreloading(ENABLE_PRELOADING);
+            setActiveSubmission(null);
+            setIsPaused(false);
+            setIsLineComplete(false);
+            setFinalPath([]);
+            shownSubIdsRef.current.clear();
+            animationProgressRef.current = 0;
+            if (progressBarRef.current) progressBarRef.current.style.transform = `scaleY(0)`;
+            
             setCurrentPlayerIndex(nextIndex);
+            
             supabase.channel(`voting-journey-${gameId}`).send({
                 type: 'broadcast',
                 event: 'next_player',
@@ -326,19 +399,22 @@ export default function VotingJourneyView({
     }, [isLineComplete]);
 
     if (!isLoaded || playersWithPaths.length === 0) {
-        return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-indigo-400 font-bold text-2xl tracking-widest uppercase">Loading Journey...</div>;
+        return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-indigo-400 font-bold text-2xl tracking-widest uppercase">Loading...</div>;
     }
 
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    const isOpenWorld = startingPoint === 'open-world';
-
     const preloadMarkerPos = pathData?.rawPath.length > 0 ? pathData.rawPath[0] : dummyPos;
+    
+    const yesVotes = activeSubLatest ? Object.values(activeSubLatest.votes || {}).filter(v => v === true).length : 0;
+    const noVotes = activeSubLatest ? Object.values(activeSubLatest.votes || {}).filter(v => v === false).length : 0;
+
+    const columns = gameMode === 'list' ? 1 : gridSize;
 
     return (
-        <div className="h-screen w-screen overflow-hidden relative bg-slate-900">
+        <div className="flex h-screen w-screen overflow-hidden bg-slate-900">
             {renderToast()}
             
-            <div className="absolute inset-0 z-0 pointer-events-auto">
+            {/* Left Panel */}
+            <div className="relative w-1/2 h-full z-10 flex-shrink-0">
                 <GoogleMap
                     onLoad={map => setMapInstance(map)}
                     mapContainerClassName="w-full h-full"
@@ -364,97 +440,125 @@ export default function VotingJourneyView({
                         />
                     )}
                 </GoogleMap>
-            </div>
 
-            {isPreloading && ENABLE_PRELOADING && (
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-slate-800/90 backdrop-blur-md p-6 rounded-2xl border border-indigo-500 shadow-2xl flex flex-col items-center">
-                    <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <h2 className="text-xl font-bold text-white mb-1">Loading Route</h2>
-                    <p className="text-indigo-300 font-medium">Preparing map for {currentPlayer?.name}...</p>
-                </div>
-            )}
-
-            <div className="absolute top-6 left-6 right-6 z-10 flex justify-between items-start pointer-events-none">
-                <div className="flex items-center gap-4">
-                    <GeoBingoLogo size={50} className="drop-shadow-xl" />
-                    <div>
-                        <h1 className="text-3xl font-black uppercase text-indigo-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">Journey Replay</h1>
-                        <p className="text-white font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] mt-1">
-                            <span className="bg-slate-900/70 px-4 py-1.5 rounded-full border border-slate-700 backdrop-blur-md">
-                                Following: <span className="text-indigo-400">{currentPlayer?.name}</span>
-                            </span>
-                        </p>
-                    </div>
-                </div>
-
-                {isHost && (
-                    <button type="button" 
-                        onClick={handleSkipToPodium}
-                        className="pointer-events-auto font-bold px-6 py-3 rounded-xl shadow-[0_0_20px_rgba(34,197,94,0.3)] transition-all bg-green-600 hover:bg-green-500 text-white border border-green-400"
-                    >
-                        Skip to Podium
-                    </button>
-                )}
-            </div>
-
-            {activeSubLatest && !isPreloading && (
-                <div className={`z-40 bg-slate-800/95 backdrop-blur p-3 rounded-2xl border-2 border-indigo-500 shadow-[0_0_50px_rgba(79,70,229,0.4)] w-[400px] h-[320px] pointer-events-auto transform transition-all animate-in zoom-in-90 duration-300 ${isOpenWorld ? 'absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-[calc(100%+30px)]' : 'absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2'}`}>
-                    
-                    {isOpenWorld && (
-                        <div className="absolute -bottom-[14px] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[14px] border-r-[14px] border-t-[14px] border-l-transparent border-r-transparent border-t-indigo-500 drop-shadow-md"></div>
-                    )}
-
-                    <div 
-                        className="w-full h-40 rounded-xl overflow-hidden relative cursor-pointer group mb-4 shadow-inner"
-                        onClick={() => setViewedFullscreenSub(activeSubLatest)}
-                    >
-                        <SafeImage 
-                            src={`https://maps.googleapis.com/maps/api/streetview?size=600x400&location=${activeSubLatest.lat},${activeSubLatest.lng}&heading=${activeSubLatest.heading}&pitch=${activeSubLatest.pitch}&fov=90&key=${apiKey}`}
-                            alt="Found location"
-                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                        />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <span className="text-white font-bold bg-indigo-600/90 px-6 py-2 rounded-full backdrop-blur-sm shadow-lg border border-indigo-400">Open StreetView</span>
+                <div className="absolute top-6 left-6 right-6 z-10 flex justify-between items-start pointer-events-none">
+                    <div className="flex items-center gap-4">
+                        <GeoBingoLogo size={50} className="drop-shadow-xl" />
+                        <div>
+                            <h1 className="text-3xl font-black uppercase text-indigo-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">Journey Replay</h1>
+                            <p className="text-white font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] mt-1">
+                                <span className="bg-slate-900/70 px-4 py-1.5 rounded-full border border-slate-700 backdrop-blur-md">
+                                    Following: <span className="text-indigo-400">{currentPlayer?.name}</span>
+                                </span>
+                            </p>
                         </div>
                     </div>
 
-                    <div className="px-2 pb-2 text-center">
-                        <h3 className="text-xl font-bold text-white mb-1 line-clamp-1">{activeSubLatest.category}</h3>
-                        <p className="text-xs text-indigo-300 mb-2 uppercase tracking-widest font-semibold">
-                            {votingStats.isComplete 
-                                ? "Voting Complete - Continuing..." 
-                                : (votingStats.eligibleCount === 0 ? "No votes needed" : `Awaiting Votes... (${votingStats.cast}/${votingStats.eligibleCount})`)
-                            }
-                        </p>
+                    {isHost && (
+                        <button type="button" 
+                            onClick={handleSkipToPodium}
+                            className="pointer-events-auto font-bold px-6 py-3 rounded-xl shadow-[0_0_20px_rgba(34,197,94,0.3)] transition-all bg-green-600 hover:bg-green-500 text-white border border-green-400"
+                        >
+                            Skip
+                        </button>
+                    )}
+                </div>
 
-                        <div className="flex flex-col gap-3">
-                            <div className="flex gap-3">
+                {isLineComplete && !activeSubLatest && !isPreloading && (
+                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-800/95 backdrop-blur p-6 rounded-2xl border-2 border-indigo-500 shadow-[0_0_50px_rgba(79,70,229,0.4)] w-[350px] text-center animate-in zoom-in-90 duration-300">
+                        <h2 className="text-2xl font-black uppercase text-indigo-400 mb-2">{currentPlayer?.name}'s Journey</h2>
+                        <p className="text-slate-300 font-medium mb-6">Complete.</p>
+                        
+                        {isHost ? (
+                            <button 
+                                type="button" 
+                                onClick={handleNextPlayer} 
+                                className="w-full py-3 rounded-xl font-black uppercase text-sm border bg-green-600 hover:bg-green-500 text-white border-green-400 transition-all shadow-[0_0_15px_rgba(34,197,94,0.5)]"
+                            >
+                                {currentPlayerIndex < playersWithPaths.length - 1 ? 'Next Player' : 'Show Podium'}
+                            </button>
+                        ) : (
+                            <p className="text-sm text-slate-400 uppercase tracking-widest font-bold">Waiting for host...</p>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {/* Right Panel */}
+            <div className="relative w-1/2 h-full bg-slate-800 z-20 shadow-[-20px_0_50px_rgba(0,0,0,0.5)] overflow-hidden">
+                
+                {/* Progress Bar */}
+                <div className="absolute left-0 top-0 bottom-0 w-1.5 z-40 bg-slate-900/60 border-r border-slate-700">
+                    <div 
+                        ref={progressBarRef}
+                        className="absolute top-0 left-0 w-full h-full bg-indigo-500 shadow-[0_0_20px_2px_rgba(79,70,229,1)] origin-top"
+                        style={{ transform: 'scaleY(0)', transition: 'transform 0.1s linear' }}
+                    ></div>
+                </div>
+
+                {/* STREETVIEW CONTAINER (Steuerung jetzt über isStreetViewVisible) */}
+                <div className={`absolute inset-0 pl-1.5 flex flex-col z-30 bg-slate-800 transition-all duration-500 ease-in-out ${isStreetViewVisible ? 'opacity-100 translate-x-0 pointer-events-auto' : 'opacity-0 translate-x-12 pointer-events-none'}`}>
+                    <div className="flex-grow relative w-full">
+                        <GoogleMap
+                            mapContainerClassName="w-full h-full"
+                            center={displaySub ? { lat: displaySub.lat, lng: displaySub.lng } : dummyPos}
+                            options={{ disableDefaultUI: true, gestureHandling: 'greedy' }}
+                        >
+                            {displaySub && (
+                                <StreetViewPanorama 
+                                    options={{
+                                        position: { lat: displaySub.lat, lng: displaySub.lng },
+                                        pov: { heading: displaySub.heading, pitch: displaySub.pitch },
+                                        zoom: displaySub.zoom || 1,
+                                        visible: true, addressControl: false, showRoadLabels: false, enableCloseButton: false, linksControl: false, panControl: false, fullscreenControl: false, motionTracking: false
+                                    }}
+                                />
+                            )}
+                        </GoogleMap>
+                    </div>
+
+                    <div className="w-full bg-slate-900/95 backdrop-blur-xl border-t border-indigo-500/50 p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-20">
+                        <div className="max-w-xl mx-auto">
+                            <h3 className="text-2xl font-black text-white mb-1 text-center truncate">{displaySub?.category}</h3>
+                            <p className="text-sm text-indigo-300 mb-4 text-center uppercase tracking-widest font-semibold">
+                                {votingStats.isComplete ? "Voting Complete - Continuing..." : `Awaiting Votes... (${votingStats.cast}/${votingStats.eligibleCount})`}
+                            </p>
+
+                            <div className="flex gap-4">
                                 {(() => {
                                     if (votingStats.isComplete) {
                                         return (
-                                            <div className="flex-1 py-3 text-center text-green-400 font-bold uppercase border border-green-700 rounded-xl bg-green-900/30">
-                                                Voting Complete...
+                                            <div className="flex-1 py-4 text-center text-green-400 font-bold uppercase border border-green-700 rounded-xl bg-green-900/30">
+                                                Voting Complete <br/>
+                                                <span className="text-sm text-green-300/80 normal-case mt-1 inline-block">({yesVotes} Y / {noVotes} N)</span>
                                             </div>
                                         );
                                     }
 
-                                    const subPlayerTeam = players.find(p => p.id === activeSubLatest.player_id)?.team;
+                                    const subPlayerTeam = players.find(p => p.id === activeSubLatest?.player_id)?.team;
                                     const myTeam = players.find(p => p.id === playerId)?.team;
-                                    const isMySubmission = playerId === activeSubLatest.player_id;
+                                    const isMySubmission = playerId === activeSubLatest?.player_id;
                                     const isMyTeamSubmission = teamMode === 'teams' && subPlayerTeam !== undefined && subPlayerTeam === myTeam;
 
                                     if (isMySubmission || isMyTeamSubmission) {
                                         return (
-                                            <div className="flex-1 py-3 text-center text-slate-400 font-bold uppercase border border-slate-700 rounded-xl bg-slate-900/50">
-                                                {isMySubmission ? 'Your Submission' : 'Team Submission'}
+                                            <div className="flex-1 py-4 text-center text-slate-400 font-bold uppercase border border-slate-700 rounded-xl bg-slate-900/50">
+                                                {isMySubmission ? 'Your Submission' : 'Team Submission'} <br/>
+                                                <span className="text-sm text-slate-500 normal-case mt-1 inline-block">Y: {yesVotes} | N: {noVotes}</span>
                                             </div>
                                         );
                                     }
 
                                     return (
                                         <>
-                                            <button type="button" onClick={() => handleVote(activeSubLatest, true)} className={`flex-1 py-3 rounded-xl font-black uppercase text-sm border transition-all ${activeSubLatest.votes?.[playerId] === true ? 'bg-green-600 border-green-400 text-white shadow-[0_0_15px_rgba(34,197,94,0.5)]' : 'bg-slate-900/50 border-slate-600 text-slate-300 hover:border-green-500 hover:text-green-500 hover:bg-green-900/30'}`}>Yes</button>
-                                            <button type="button" onClick={() => handleVote(activeSubLatest, false)} className={`flex-1 py-3 rounded-xl font-black uppercase text-sm border transition-all ${activeSubLatest.votes?.[playerId] === false ? 'bg-red-600 border-red-400 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'bg-slate-900/50 border-slate-600 text-slate-300 hover:border-red-500 hover:text-red-500 hover:bg-red-900/30'}`}>No</button>
+                                            <div className="flex-1 flex flex-col gap-2">
+                                                <button type="button" onClick={() => activeSubLatest && handleVote(activeSubLatest, true)} className={`w-full py-4 rounded-xl font-black uppercase text-lg border transition-all ${activeSubLatest?.votes?.[playerId] === true ? 'bg-green-600 border-green-400 text-white shadow-[0_0_15px_rgba(34,197,94,0.5)]' : 'bg-slate-800 border-slate-600 text-slate-300 hover:border-green-500 hover:text-green-500 hover:bg-green-900/30'}`}>Yes</button>
+                                                <div className="text-center text-green-400 font-bold text-sm tracking-wide">{yesVotes} Votes</div>
+                                            </div>
+                                            <div className="flex-1 flex flex-col gap-2">
+                                                <button type="button" onClick={() => activeSubLatest && handleVote(activeSubLatest, false)} className={`w-full py-4 rounded-xl font-black uppercase text-lg border transition-all ${activeSubLatest?.votes?.[playerId] === false ? 'bg-red-600 border-red-400 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'bg-slate-800 border-slate-600 text-slate-300 hover:border-red-500 hover:text-red-500 hover:bg-red-900/30'}`}>No</button>
+                                                <div className="text-center text-red-400 font-bold text-sm tracking-wide">{noVotes} Votes</div>
+                                            </div>
                                         </>
                                     );
                                 })()}
@@ -462,46 +566,63 @@ export default function VotingJourneyView({
                         </div>
                     </div>
                 </div>
-            )}
 
-            {isLineComplete && !activeSubLatest && !isPreloading && (
-                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 bg-slate-800/95 backdrop-blur p-6 rounded-2xl border-2 border-indigo-500 shadow-[0_0_50px_rgba(79,70,229,0.4)] w-[350px] text-center animate-in zoom-in-90 duration-300">
-                    <h2 className="text-2xl font-black uppercase text-indigo-400 mb-2">{currentPlayer?.name}'s Journey</h2>
-                    <p className="text-slate-300 font-medium mb-6">All locations visited. Explore the map!</p>
+                {/* BINGO BOARD CONTAINER (Steuerung jetzt über isStreetViewVisible) */}
+                <div className={`absolute inset-0 flex flex-col items-center justify-center p-8 z-20 transition-all duration-500 ease-in-out ${isStreetViewVisible ? 'opacity-0 -translate-x-12 pointer-events-none' : 'opacity-100 translate-x-0 pointer-events-auto'}`}>
+                    <div className="text-center mb-8">
+                        <h2 className="text-3xl font-black uppercase text-indigo-400 tracking-widest">{currentPlayer?.name}'s Board</h2>
+                    </div>
                     
-                    {isHost ? (
-                        <button 
-                            type="button" 
-                            onClick={handleNextPlayer} 
-                            className="w-full py-3 rounded-xl font-black uppercase text-sm border bg-green-600 hover:bg-green-500 text-white border-green-400 transition-all shadow-[0_0_15px_rgba(34,197,94,0.5)]"
-                        >
-                            {currentPlayerIndex < playersWithPaths.length - 1 ? 'Next Player' : 'Show Podium'}
-                        </button>
-                    ) : (
-                        <p className="text-sm text-slate-400 uppercase tracking-widest font-bold">Waiting for host...</p>
-                    )}
-                </div>
-            )}
-
-            {viewedFullscreenSub && (
-                <div className="fixed inset-0 z-50 bg-black flex items-center justify-center pointer-events-auto animate-in fade-in duration-200">
-                    <GoogleMap
-                        mapContainerClassName="w-full h-full"
-                        center={{ lat: viewedFullscreenSub.lat, lng: viewedFullscreenSub.lng }}
-                        options={{ disableDefaultUI: true, gestureHandling: 'greedy' }}
+                    <div 
+                        className="grid w-full flex-grow max-h-[800px] gap-3" 
+                        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
                     >
-                        <StreetViewPanorama 
-                            options={{
-                                position: { lat: viewedFullscreenSub.lat, lng: viewedFullscreenSub.lng },
-                                pov: { heading: viewedFullscreenSub.heading, pitch: viewedFullscreenSub.pitch },
-                                zoom: viewedFullscreenSub.zoom,
-                                visible: true, addressControl: false, showRoadLabels: false, enableCloseButton: false
-                            }}
-                        />
-                    </GoogleMap>
-                    <button type="button" onClick={() => setViewedFullscreenSub(null)} className="absolute top-8 left-8 z-[1000] w-14 h-14 bg-slate-900/80 hover:bg-red-600 text-white flex items-center justify-center rounded-2xl shadow-2xl border border-slate-600 hover:border-red-400 font-bold text-2xl backdrop-blur-md transition-all">✕</button>
+                        {currentBoard?.map((category: string, idx: number) => {
+                            const sub = submissions.find(s => s.player_id === currentPlayer?.id && s.category === category);
+                            const isReached = sub && shownSubIdsRef.current.has(sub.id);
+                            
+                            let yesPercent = 0;
+                            let noPercent = 0;
+                            let tileClass = "bg-slate-900/60 border-slate-800 text-slate-600 opacity-60"; 
+                            
+                            if (sub) {
+                                if (isReached) {
+                                    const yes = Object.values(sub.votes || {}).filter(v => v === true).length;
+                                    const no = Object.values(sub.votes || {}).filter(v => v === false).length;
+                                    const total = yes + no;
+                                    
+                                    if (total > 0) {
+                                        yesPercent = (yes / total) * 100;
+                                        noPercent = (no / total) * 100;
+                                    }
+                                    tileClass = "bg-slate-800 border-slate-600 text-white shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)]";
+                                } else {
+                                    tileClass = "bg-indigo-600/30 border-indigo-400 text-indigo-100 shadow-[0_0_20px_rgba(79,70,229,0.3)]";
+                                }
+                            }
+                            
+                            return (
+                                <div key={`${currentPlayer?.id}-${idx}`} className={`relative rounded-xl overflow-hidden flex items-center justify-center border-2 transition-colors duration-500 ${tileClass}`}>
+                                    <div 
+                                        className="absolute left-0 top-0 bottom-0 bg-green-500/30 transition-all duration-700 ease-out" 
+                                        style={{ width: `${yesPercent}%` }}
+                                    ></div>
+                                    
+                                    <div 
+                                        className="absolute right-0 top-0 bottom-0 bg-red-500/30 transition-all duration-700 ease-out" 
+                                        style={{ width: `${noPercent}%` }}
+                                    ></div>
+
+                                    <span className="relative z-10 text-center font-bold text-sm sm:text-base px-2 drop-shadow-md">
+                                        {category}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
-            )}
+
+            </div>
         </div>
     );
 }

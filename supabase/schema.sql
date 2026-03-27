@@ -131,6 +131,18 @@ ALTER TABLE ONLY "public"."submissions"
 
 
 
+CREATE POLICY "Allow all on games" ON "public"."games" USING (true) WITH CHECK (true);
+
+
+
+CREATE POLICY "Allow all on players" ON "public"."players" USING (true) WITH CHECK (true);
+
+
+
+CREATE POLICY "Allow all on submissions" ON "public"."submissions" USING (true) WITH CHECK (true);
+
+
+
 CREATE POLICY "Allow public insert games" ON "public"."games" FOR INSERT WITH CHECK (true);
 
 

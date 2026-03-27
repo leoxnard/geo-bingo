@@ -108,7 +108,6 @@ export interface VotingViewProps {
     playerId: string;
     players: Player[];
     teamMode: 'ffa' | 'teams';
-    startingPoint: string;
     onFinishGame: () => Promise<void> | void;
     renderToast: () => React.ReactNode;
 }

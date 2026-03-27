@@ -470,7 +470,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             playerId={playerId}
             players={players}
             teamMode={teamMode}
-            startingPoint={startingPoint}
             onFinishGame={handleFinishGame}
             renderToast={renderToast}
         />
