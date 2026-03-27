@@ -3,18 +3,12 @@
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 
 import { GoogleMap, PolygonF, MarkerF, OverlayView, OverlayViewF } from '@react-google-maps/api';
-import toast from 'react-hot-toast';
-import { FaUndo, FaPlus, FaTimes } from "react-icons/fa";
+import { FaPlus, FaTimes } from "react-icons/fa";
 
 import { FullscreenButton } from '../utils/Elements';
 import { insertPoint, mapOptions } from '../utils/mapUtils';
 
 const DEFAULT_CENTER = { lat: 20, lng: 0 };
-const RECOMMENDED_STARTS = [
-    { name: 'New York', lat: 40.7570095, lng: -73.9859724 },
-    { name: 'Paris', lat: 48.853586, lng: 2.349171 },
-    { name: 'Tokyo', lat: 35.658537, lng: 139.700240 }
-];
 
 interface Point {
     lat: number;
@@ -50,11 +44,10 @@ export default function LobbyMap({
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
     const actualStart = startingPoint || 'open-world';
-    const hasFittedBounds = useRef(false);
 
     const additionalMapOptions = {
         streetViewControl: isHost,
-        gestureHandling: isHost ? 'greedy' : 'none',
+        gestureHandling: 'greedy',
         draggableCursor: isHost ? 'crosshair' : 'default',
     };
 
@@ -82,30 +75,6 @@ export default function LobbyMap({
             setActiveBoundaryId(null);
         }
     }, [draftBoundaries, activeBoundaryId]);
-
-    useEffect(() => {
-        if (!mapInstance || typeof window === 'undefined' || !window.google) return;
-        
-        const allPoints = draftBoundaries.flatMap(b => b.points);
-
-        if (allPoints.length >= 3) {
-            if (allPoints.length === 3 || !hasFittedBounds.current) {
-                const bounds = new window.google.maps.LatLngBounds();
-                allPoints.forEach(point => bounds.extend(point));
-                
-                mapInstance.fitBounds(bounds);
-                
-                const currentZoom = mapInstance.getZoom();
-                if (currentZoom && currentZoom > 18) {
-                    mapInstance.setZoom(18);
-                }
-                
-                hasFittedBounds.current = true;
-            }
-        } else {
-            hasFittedBounds.current = false;
-        }
-    }, [draftBoundaries, mapInstance]);
 
     useEffect(() => {
         if (!mapInstance || !isHost) return;
@@ -219,30 +188,6 @@ export default function LobbyMap({
                                 onClick={handleMapClick}
                                 options={mapOptions(additionalMapOptions)}
                             >
-                                {RECOMMENDED_STARTS.map(loc => (
-                                    <MarkerF
-                                        key={loc.name}
-                                        position={{ lat: loc.lat, lng: loc.lng }}
-                                        onClick={() => isHost && updateGameModeInfo({
-                                            starting_point: JSON.stringify({ lat: loc.lat, lng: loc.lng }),
-                                            gameBoundary: JSON.stringify(draftBoundaries)
-                                        })}
-                                        onMouseOver={() => setHoveredLocation({ lat: loc.lat, lng: loc.lng })}
-                                        onMouseOut={() => setHoveredLocation(null)}
-                                        options={{
-                                            opacity: actualStart.includes(loc.name) ? 1 : 0.4,
-                                            icon: {
-                                                path: google.maps.SymbolPath.CIRCLE,
-                                                scale: 7,
-                                                fillColor: actualStart.includes(loc.name) ? '#4f46e5' : '#ffffff',
-                                                fillOpacity: 1,
-                                                strokeColor: '#4f46e5',
-                                                strokeWeight: 2,
-                                            }
-                                        }}
-                                    />
-                                ))}
-
                                 {actualStart.startsWith('{') && (
                                     <MarkerF
                                         position={JSON.parse(actualStart)}
