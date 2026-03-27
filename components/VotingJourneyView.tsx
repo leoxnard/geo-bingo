@@ -40,8 +40,8 @@ export default function VotingJourneyView({
     const [activeSubmission, setActiveSubmission] = useState<Submission | null>(null);
     const [lastActiveSub, setLastActiveSub] = useState<Submission | null>(null);
     
-    // NEU: Steuert, wann das StreetView Panel physisch ins Bild slidet
     const [isStreetViewVisible, setIsStreetViewVisible] = useState(false);
+    const [isDataLoaded, setIsDataLoaded] = useState(false);
     
     const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
     const [finalPath, setFinalPath] = useState<PathPoint[]>([]);
@@ -131,6 +131,7 @@ export default function VotingJourneyView({
                 const validPlayers = pData.filter(p => p.path && p.path.length > 0);
                 setPlayersWithPaths(validPlayers);
             }
+            setIsDataLoaded(true);
         };
         fetchData();
 
@@ -236,6 +237,10 @@ export default function VotingJourneyView({
             if (delta > 100) delta = 16.66; 
             
             lastTimeRef.current = time;
+
+            if (pathData.totalDist === 0) {
+                animationProgressRef.current = 1;
+            }
 
             let progress = animationProgressRef.current + (delta / ANIMATION_DURATION);
             let hitSub = false;
@@ -403,8 +408,22 @@ export default function VotingJourneyView({
         });
     }, [isLineComplete]);
 
-    if (!isLoaded || playersWithPaths.length === 0) {
+    if (!isLoaded || !isDataLoaded) {
         return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-indigo-400 font-bold text-2xl tracking-widest uppercase">Loading...</div>;
+    }
+
+    if (isDataLoaded && playersWithPaths.length === 0) {
+        return (
+            <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white">
+                <h2 className="text-2xl font-bold mb-4 text-indigo-400 tracking-widest uppercase">Keine Pfade gefunden</h2>
+                <p className="text-slate-400 mb-8">Niemand hat das Haus verlassen oder GPS-Daten aufgezeichnet.</p>
+                {isHost && (
+                    <button type="button" onClick={onFinishGame} className="px-6 py-3 bg-green-600 hover:bg-green-500 rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(34,197,94,0.3)]">
+                        Direkt zum Podium
+                    </button>
+                )}
+            </div>
+        );
     }
 
     const preloadMarkerPos = pathData?.rawPath.length > 0 ? pathData.rawPath[0] : dummyPos;
@@ -526,7 +545,11 @@ export default function VotingJourneyView({
                         <div className="max-w-xl mx-auto">
                             <h3 className="text-2xl font-black text-white mb-1 text-center truncate">{displaySub?.category}</h3>
                             <p className="text-sm text-indigo-300 mb-4 text-center uppercase tracking-widest font-semibold">
-                                {votingStats.isComplete ? "Voting Complete - Continuing..." : `Awaiting Votes... (${votingStats.cast}/${votingStats.eligibleCount})`}
+                                {votingStats.eligibleCount === 0 && activeSubLatest
+                                    ? "Single Player Vote - No votes needed"
+                                    : votingStats.isComplete 
+                                        ? "Voting Complete - Continuing..." 
+                                        : `Awaiting Votes... (${votingStats.cast}/${votingStats.eligibleCount})`}
                             </p>
 
                             <div className="flex gap-4">
@@ -575,8 +598,14 @@ export default function VotingJourneyView({
                 {/* BINGO BOARD CONTAINER (Steuerung jetzt über isStreetViewVisible) */}
                 <div className={`absolute inset-0 flex flex-col items-center justify-center p-8 z-20 transition-all duration-500 ease-in-out ${isStreetViewVisible ? 'opacity-0 -translate-x-12 pointer-events-none' : 'opacity-100 translate-x-0 pointer-events-auto'}`}>
                     <div className="text-center mb-8">
-                        <h2 className="text-3xl font-black uppercase text-indigo-400 tracking-widest">{currentPlayer?.name}'s Board</h2>
+                        <h2 className="text-3xl font-black text-indigo-400 tracking-widest">{currentPlayer?.name}'s Board</h2>
                     </div>
+
+                    {submissions.filter(s => s.player_id === currentPlayer?.id).length === 0 && (
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-slate-900/90 p-6 rounded-2xl text-red-400 font-bold border border-red-500/50 backdrop-blur-md text-center shadow-[0_0_30px_rgba(239,68,68,0.3)]">
+                            No submissions found for this player
+                        </div>
+                    )}
                     
                     <div 
                         className="grid w-full flex-grow max-h-[800px] gap-3" 
