@@ -12,13 +12,6 @@ export const mapOptions = (additionalOptions: { [key: string]: unknown | google.
     scrollwheel: true,
     disableDoubleClickZoom: false,
     clickableIcons: false,
-    styles: [
-        {
-            featureType: "all",
-            elementType: "labels.icon",
-            stylers: [{ visibility: "off" }],
-        },
-    ],
     ...additionalOptions
 });
 

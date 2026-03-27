@@ -272,7 +272,7 @@ export default function LobbyCategories({
                                 <button 
                                     type="button" 
                                     onClick={() => removeCategory(cat)} 
-                                    className="text-red-400 hover:text-red-300 px-4 transition-colors border-l border-slate-600 flex items-center justify-center h-[42px]" 
+                                    className="text-red-400 hover:text-red-300 pl-4 pr-2 transition-colors border-l border-slate-600 flex items-center justify-center h-[42px]" 
                                     title="Reject"
                                 >
                                     <CiCircleRemove size={30} />
@@ -360,7 +360,7 @@ export default function LobbyCategories({
                                             <button 
                                                 type="button" 
                                                 onClick={() => rejectSuggestion(cat)} 
-                                                className="text-red-400 hover:text-red-300 px-4 transition-colors flex items-center justify-center" 
+                                                className="text-red-400 hover:text-red-300 pl-4 pr-2 transition-colors flex items-center justify-center" 
                                                 title="Reject"
                                             >
                                                 <CiCircleRemove size={30} />
