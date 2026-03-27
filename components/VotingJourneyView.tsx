@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
+import toast from 'react-hot-toast';
 import { GoogleMap, useJsApiLoader, Polyline, MarkerF, StreetViewPanorama } from '@react-google-maps/api';
 import { supabase } from '../lib/supabase';
 import { GeoBingoLogo } from './utils/Elements';
@@ -271,7 +272,18 @@ export default function VotingJourneyView({
     const handleVote = async (sub: Submission, voteIsYes: boolean) => {
         const newVotes = { ...sub.votes, [playerId]: voteIsYes };
         setSubmissions(prev => prev.map(s => s.id === sub.id ? { ...s, votes: newVotes } : s));
-        await supabase.from('submissions').update({ votes: newVotes }).eq('id', sub.id);
+
+        // Optimistic UI update
+        const { error } = await supabase.rpc('register_vote', {
+            p_submission_id: sub.id,
+            p_player_id: playerId,
+            p_vote: voteIsYes
+        });
+
+        if (error) {
+            console.error("Error submitting vote:", error);
+            toast.error("Error submitting vote. Please try again.");
+        }
     };
 
     const handleNextPlayer = () => {

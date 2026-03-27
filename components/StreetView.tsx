@@ -266,22 +266,23 @@ export default function StreetView({
             zoom: streetViewRef.current.getZoom() || 1
         };
 
-        let updatedSubmissions = [...mySubmissions];
-
+        // optimistic update
         const existingSub = mySubmissions.find(s => s.category === targetCategory);
+
+        const tempId = existingSub ? existingSub.id : crypto.randomUUID();
+        const optimisticSub = { ...submissionData, id: tempId, votes: existingSub?.votes || {}, is_valid: null } as Submission;
+
+        let updatedSubmissions: Submission[];
         if (existingSub) {
-            await supabase.from('submissions').update(submissionData).eq('id', existingSub.id);
-            updatedSubmissions = updatedSubmissions.map(s => s.id === existingSub.id ? { ...s, ...submissionData } : s);
-            setMySubmissions(updatedSubmissions);
+            updatedSubmissions = mySubmissions.map(s => s.id === existingSub.id ? optimisticSub : s);
         } else {
-            const { data } = await supabase.from('submissions').insert([submissionData]).select().single();
-            if (data) {
-                updatedSubmissions = [...updatedSubmissions, data];
-                setMySubmissions(updatedSubmissions);
-            }
+            updatedSubmissions = [...mySubmissions, optimisticSub];
         }
+
+        setMySubmissions(updatedSubmissions);
         setSubmittingCategory(null);
 
+        // Check Bingo condition
         if (gameMode === 'bingo' && endCondition === 'first_bingo') {
             const bingos = calculateBingoCounter(gridSize, myBoard, updatedSubmissions);
             
@@ -301,6 +302,25 @@ export default function StreetView({
                 } catch (error) {
                     console.error("Failed to end game on Bingo:", error);
                 }
+            }
+        }
+
+        // database update
+        if (existingSub) {
+            const { error } = await supabase.from('submissions').update(submissionData).eq('id', existingSub.id);
+            if (error) {
+                console.error("Update fehlgeschlagen:", error);
+                showToast("Fehler beim Speichern. Bild wurde zurückgesetzt.");
+                setMySubmissions([...mySubmissions]);
+        }
+        } else {
+            const { data, error } = await supabase.from('submissions').insert([submissionData]).select().single();
+            if (error) {
+                console.error("Insert fehlgeschlagen:", error);
+                showToast("Fehler beim Speichern. Bitte nochmal versuchen.");
+                setMySubmissions(mySubmissions);
+            } else if (data) {
+                setMySubmissions(prev => prev.map(s => s.id === tempId ? data : s));
             }
         }
     };
