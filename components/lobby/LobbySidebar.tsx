@@ -4,8 +4,8 @@ import { useState, useRef, useEffect } from 'react';
 
 import { FaRegCopy, FaCopy, FaRegEdit, FaPlus, FaRandom, FaTimes } from "react-icons/fa";
 
-import { shuffle } from '../utils/Functions';
 import { ToggleSwitch } from '../utils/Elements';
+import { shuffle } from '../utils/Functions';
 
 interface Player {
     id: string;
@@ -349,7 +349,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
             </div>
             <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 h-fit">
                 <h2 className="text-xl font-semibold mb-6 text-slate-100 border-b border-slate-700 pb-3">
-                Advanced Game Settings
+                    Advanced Game Settings
                 </h2>
                 
                 <div className="flex flex-col gap-5">
@@ -368,9 +368,9 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                         onChange={(checked) => props.updateGameModeInfo({ fast_voting: checked })}
                     />
                     {!props.isHost && (
-                    <p className="text-xs text-slate-500 mt-5 pt-4 border-t border-slate-700/50 text-center">
-                        Only the game host can change these settings.
-                    </p>
+                        <p className="text-xs text-slate-500 mt-5 pt-4 border-t border-slate-700/50 text-center">
+                            Only the game host can change these settings.
+                        </p>
                     )}
                 </div>
             </div>

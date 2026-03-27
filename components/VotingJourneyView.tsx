@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import toast from 'react-hot-toast';
+
 import { GoogleMap, useJsApiLoader, Polyline, MarkerF, StreetViewPanorama } from '@react-google-maps/api';
+import toast from 'react-hot-toast';
+
 import { supabase } from '../lib/supabase';
 import { GeoBingoLogo } from './utils/Elements';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES } from './utils/mapUtils';

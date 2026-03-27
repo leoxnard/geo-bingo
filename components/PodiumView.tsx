@@ -386,9 +386,9 @@ export default function PodiumView({
                                                         key={idx} 
                                                         className={`w-2 h-2 rounded-sm ${
                                                             status === 3 ? 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)] z-10' :
-                                                            status === 1 ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.4)]' :
-                                                            status === 2 ? 'bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.4)]' :
-                                                            'bg-slate-700'
+                                                                status === 1 ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.4)]' :
+                                                                    status === 2 ? 'bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.4)]' :
+                                                                        'bg-slate-700'
                                                         }`}
                                                     />
                                                 ))}

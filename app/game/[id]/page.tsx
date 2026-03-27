@@ -5,14 +5,14 @@ import { useState, use, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { IoIosWarning } from "react-icons/io";
 
+import LobbyView from '../../../components/lobby/LobbyView';
+import PodiumView from '../../../components/PodiumView';
+import StreetView from '../../../components/StreetView';
 import { Player } from '../../../components/utils/types';
+import VotingView from '../../../components/VotingJourneyView';
+import FastVotingView from '../../../components/VotingView';
 import { adjectives, animals } from '../../../lib/names';
 import { supabase } from '../../../lib/supabase';
-import LobbyView from '../../../components/lobby/LobbyView';
-import StreetView from '../../../components/StreetView';
-import FastVotingView from '../../../components/VotingView';
-import VotingView from '../../../components/VotingJourneyView';
-import PodiumView from '../../../components/PodiumView';
 
 
 type GameStatus = 'lobby' | 'playing' | 'voting' | 'finished';
@@ -467,15 +467,15 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         }
         return (
             <VotingView
-            gameId={gameId}
-            isHost={isHost}
-            categories={categories}
-            playerId={playerId}
-            players={players}
-            teamMode={teamMode}
-            onFinishGame={handleFinishGame}
-            renderToast={renderToast}
-        />
+                gameId={gameId}
+                isHost={isHost}
+                categories={categories}
+                playerId={playerId}
+                players={players}
+                teamMode={teamMode}
+                onFinishGame={handleFinishGame}
+                renderToast={renderToast}
+            />
         );
     }
 

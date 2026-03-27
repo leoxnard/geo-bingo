@@ -326,7 +326,7 @@ export default function StreetView({
                 console.error("Update fehlgeschlagen:", error);
                 showToast("Fehler beim Speichern. Bild wurde zurückgesetzt.");
                 setMySubmissions([...mySubmissions]);
-        }
+            }
         } else {
             const { data, error } = await supabase.from('submissions').insert([submissionData]).select().single();
             if (error) {
