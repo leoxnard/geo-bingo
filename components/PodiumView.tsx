@@ -9,7 +9,7 @@ import { ScoreEntity, PlayerStat, PodiumViewProps } from './utils/types';
 export default function PodiumView({ 
     gameId, renderToast, isHost, teamMode
 }: PodiumViewProps) {
-    const [stats, setStats] = useState<PlayerStat[]>([]);
+    const [stats, setStats] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [gameMode, setGameMode] = useState<string>('list');
     const [endCondition, setEndCondition] = useState<string>(''); 
@@ -64,6 +64,7 @@ export default function PodiumView({
                     let totalYes = 0;
                     let totalNo = 0;
                     const validCategories: string[] = [];
+                    const rejectedCategories: string[] = [];
 
                     entitySubs.forEach(sub => {
                         const votes = sub.votes || {};
@@ -79,23 +80,72 @@ export default function PodiumView({
                         totalNo += subNo;
 
                         const totalCast = subYes + subNo;
-                        if (totalCast > 0 && subYes > (totalCast / 2)) {
-                            score += 1; 
-                            validCategories.push(sub.category);
+                        if (totalCast > 0) {
+                            if (subYes > (totalCast / 2)) {
+                                score += 1; 
+                                validCategories.push(sub.category);
+                            } else {
+                                rejectedCategories.push(sub.category);
+                            }
                         }
                     });
 
                     let bingoCount = 0;
+                    const gridStatus: number[] = [];
+
                     if (fetchedGameMode === 'bingo' && entity.bingo_board && entity.bingo_board.length >= gridSize * gridSize) {
+                        // Build a 2D grid representation of the bingo board with boolean values indicating if the category was found or not
                         const board = entity.bingo_board;
                         const grid: boolean[][] = [];
                         for (let r = 0; r < gridSize; r++) {
                             const row: boolean[] = [];
                             for (let c = 0; c < gridSize; c++) {
                                 const cat = board[r * gridSize + c];
-                                row.push(validCategories.includes(cat));
+                                const isValid = validCategories.includes(cat);
+                                row.push(isValid);
+
+                                if (isValid) {
+                                    gridStatus.push(1);
+                                } else if (rejectedCategories.includes(cat)) {
+                                    gridStatus.push(2);
+                                } else {
+                                    gridStatus.push(0);
+                                }
                             }
                             grid.push(row);
+                        }
+
+                        // Check for completed lines and mark them in gridStatus
+                        for (let r = 0; r < gridSize; r++) {
+                            if (grid[r].every(val => val === true)) {
+                                for (let c = 0; c < gridSize; c++) gridStatus[r * gridSize + c] = 3;
+                            }
+                        }
+
+                        for (let c = 0; c < gridSize; c++) {
+                            let isColBingo = true;
+                            for (let r = 0; r < gridSize; r++) {
+                                if (!grid[r][c]) isColBingo = false;
+                            }
+                            if (isColBingo) {
+                                for (let r = 0; r < gridSize; r++) gridStatus[r * gridSize + c] = 3;
+                            }
+                        }
+
+                        let isDiag1 = true;
+                        for (let i = 0; i < gridSize; i++) {
+                            if (!grid[i][i]) isDiag1 = false;
+                        }
+                        if (isDiag1) {
+                            for (let i = 0; i < gridSize; i++) gridStatus[i * gridSize + i] = 3;
+                        }
+
+                        let isDiag2 = true;
+                        for (let i = 0; i < gridSize; i++) {
+                            if (!grid[i][gridSize - 1 - i]) isDiag2 = false;
+                        }
+                        if (isDiag2) {
+                            for (let i = 0; i < gridSize; i++) gridStatus[i * gridSize + (gridSize - 1 - i)] = 3;
                         }
 
                         const checkLines = () => {
@@ -139,7 +189,9 @@ export default function PodiumView({
                         communityApproval,
                         totalYes,
                         totalNo,
-                        rank: 0
+                        rank: 0,
+                        gridStatus,
+                        gridSize
                     };
                 });
 
@@ -147,8 +199,7 @@ export default function PodiumView({
                     if (game?.end_condition === 'first_bingo') {
                         if (b.bingos !== a.bingos) return b.bingos - a.bingos;
                     }
-                    if (b.score !== a.score) return b.score - a.score;
-                    return b.communityApproval - a.communityApproval;
+                    return b.score - a.score;
                 });
 
                 let currentRank = 1;
@@ -157,7 +208,7 @@ export default function PodiumView({
                         const prev = playerStats[i - 1];
                         const isBingoTie = game?.end_condition === 'first_bingo' ? p.bingos === prev.bingos : true;
                         
-                        if (isBingoTie && p.score === prev.score && p.communityApproval === prev.communityApproval) {
+                        if (isBingoTie && p.score === prev.score) {
                             p.rank = currentRank;
                         } else {
                             currentRank++;
@@ -190,20 +241,15 @@ export default function PodiumView({
 
     const getWinningMessage = () => {
         if (rank1.length === 0) return null;
-        if (rank1.length > 1) return '🤝 Epic first place tie!'
+        if (rank1.length > 1) return '🏆 Epic first place tie!'
 
         const winner = rank1[0];
-        const runnerUp = rank2.length > 0 ? rank2[0] : null;
 
         if (endCondition === 'first_bingo' && winner.bingos > 0) {
-            return '🏆 Winner by achieving the first bingo!';
-        }
-        
-        if (runnerUp && winner.score === runnerUp.score) {
-            return '⚖️ Tiebreaker: Winner by achieving a better approval rate!';
+            return '🥇 Winner by achieving the first bingo!';
         }
 
-        return '🏅 Winner by getting the most points'
+        return '🌟 Winner by getting the most points'
     };
 
     return (
@@ -328,15 +374,37 @@ export default function PodiumView({
                                         <span className="text-xl font-medium text-white">{player.totalFound}</span>
                                     </div>
 
-                                    <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center">
-                                        <span className="text-[10px] text-slate-400 uppercase font-bold mb-1 text-center">Approve-Rate</span>
-                                        <span className={`text-xl font-medium ${
-                                            player.communityApproval >= 75 ? 'text-green-400' : 
-                                                player.communityApproval >= 50 ? 'text-yellow-400' : 'text-red-400'
-                                        }`}>
-                                            {player.communityApproval}%
-                                        </span>
-                                    </div>
+                                    {gameMode === 'bingo' ? (
+                                        <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center justify-center">
+                                            <span className="text-[10px] text-slate-400 uppercase font-bold mb-2 text-center">Bingo-Board</span>
+                                            <div 
+                                                className="grid gap-1" 
+                                                style={{ gridTemplateColumns: `repeat(${player.gridSize || 3}, minmax(0, 1fr))` }}
+                                            >
+                                                {player.gridStatus?.map((status: number, idx: number) => (
+                                                    <div 
+                                                        key={idx} 
+                                                        className={`w-2 h-2 rounded-sm ${
+                                                            status === 3 ? 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)] z-10' :
+                                                            status === 1 ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.4)]' :
+                                                            status === 2 ? 'bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.4)]' :
+                                                            'bg-slate-700'
+                                                        }`}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center">
+                                            <span className="text-[10px] text-slate-400 uppercase font-bold mb-1 text-center">Approve-Rate</span>
+                                            <span className={`text-xl font-medium ${
+                                                player.communityApproval >= 75 ? 'text-green-400' : 
+                                                    player.communityApproval >= 50 ? 'text-yellow-400' : 'text-red-400'
+                                            }`}>
+                                                {player.communityApproval}%
+                                            </span>
+                                        </div>
+                                    )}
                     
                                     <div className={`bg-slate-800 p-3 rounded-xl flex flex-col ${gameMode === 'bingo' ? 'col-span-3' : 'col-span-2'}`}>
                                         <span className="text-xs text-slate-400 uppercase font-bold mb-2">Total Votes Received</span>

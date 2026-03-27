@@ -270,6 +270,9 @@ export default function VotingJourneyView({
             } else if (progress >= 1) {
                 currentPoint = pathData.rawPath[pathData.rawPath.length - 1];
                 partialPath = pathData.rawPath;
+            } else if (pathData.rawPath.length < 2) {
+                currentPoint = pathData.rawPath[0];
+                partialPath = [currentPoint];
             } else {
                 const targetDist = progress * pathData.totalDist;
                 let idx = 0;
