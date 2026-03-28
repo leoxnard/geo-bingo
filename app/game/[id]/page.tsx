@@ -4,6 +4,7 @@ import { useState, use, useEffect, useRef, useCallback } from 'react';
 
 import { useRouter } from 'next/navigation';
 import { IoIosWarning } from "react-icons/io";
+import toast, { Toaster } from 'react-hot-toast';
 
 import LobbyView from '../../../components/lobby/LobbyView';
 import PodiumView from '../../../components/PodiumView';
@@ -13,6 +14,7 @@ import VotingView from '../../../components/VotingJourneyView';
 import FastVotingView from '../../../components/VotingView';
 import { adjectives, animals } from '../../../lib/names';
 import { supabase } from '../../../lib/supabase';
+import { shuffle } from '../../../components/utils/Functions';
 
 
 type GameStatus = 'lobby' | 'playing' | 'voting' | 'finished';
@@ -30,7 +32,9 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [suggestedCategories, setSuggestedCategories] = useState<string[]>([]);
     const [isHost, setIsHost] = useState(false);
     const [gameHostId, setGameHostId] = useState<string>('');
-    const [timeLimit, setTimeLimit] = useState(300);  
+    const [timeLimit, setTimeLimit] = useState(300);
+    const [categorySource, setCategorySource] = useState<'manual' | 'generation'>('manual');
+    const [generationRadius, setGenerationRadius] = useState<number>(10); // in 100m
   
     // Bingo Mode State
     const [gameMode, setGameMode] = useState<'list' | 'bingo'>('list');
@@ -51,17 +55,11 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
     const [timeLeft, setTimeLeft] = useState<number>(0);
 
-    const [toastMessage, setToastMessage] = useState<string | null>(null);
     const timeUpTriggeredRef = useRef(false);
 
     // advanced game options
     const [hideMapSymbols, setHideMapSymbols] = useState(false);
     const [fastVoting, setFastVoting] = useState(false);
-
-    const showToast = (message: string) => {
-        setToastMessage(message);
-        setTimeout(() => setToastMessage(null), 3500);
-    };
 
     const updateGameModeInfo = async (updates: {
         game_mode?: string;
@@ -74,6 +72,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         hide_map_symbols?: boolean;
         fast_voting?: boolean;
         exclusive_mode?: boolean;
+        category_source?: 'manual' | 'generation';
+        generation_radius?: number;
     }) => {
         if (!isHost) return;
         if (updates.game_mode) setGameMode(updates.game_mode as 'list' | 'bingo');
@@ -86,13 +86,12 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (updates.hide_map_symbols !== undefined) setHideMapSymbols(updates.hide_map_symbols);
         if (updates.fast_voting !== undefined) setFastVoting(updates.fast_voting);
         if (updates.exclusive_mode !== undefined) setExclusiveMode(updates.exclusive_mode);
+        if (updates.category_source !== undefined) setCategorySource(updates.category_source);
+        if (updates.generation_radius !== undefined) setGenerationRadius(updates.generation_radius);
         await supabase.from('games').update(updates).eq('id', gameId);
     };
 
-    // The definitive engine (Setup Identity, Game, Players)
     useEffect(() => {
-    // Use sessionStorage so multiple tabs act as different players
-    // Initialize inside the effect but outside initializeRoom so the rest of the effect can access it
         let localId = sessionStorage.getItem('geoBingoSessionUUID');
         if (!localId) {
             localId = crypto.randomUUID();
@@ -101,11 +100,9 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setPlayerId(localId);
 
-        // Save ID into a constant so scope definitely propagates down to handleUnload
         const currentPlayerId = localId; 
 
         const initializeRoom = async () => {
-            // Name still comes from localStorage so you don't have to retype it
             const storedName = localStorage.getItem('geoBingoPlayerName') || '';
             const playerName = storedName.trim() && storedName !== 'Unknown Player'
                 ? storedName
@@ -114,30 +111,41 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 localStorage.setItem('geoBingoPlayerName', playerName);
             }
 
-            // 2. Setup or Load the Game Room
-            const { data: gameData } = await supabase.from('games').select('*').eq('id', gameId).single();
+            const [gameResponse, playerResponse] = await Promise.all([
+                supabase.from('games').select('*').eq('id', gameId).single(),
+                supabase.from('players').select('id, bingo_board').eq('id', currentPlayerId).single()
+            ]);
 
+            let gameData = gameResponse.data;
+            const existingPlayer = playerResponse.data;
+
+            // Kick Check
             if (gameData?.banned_players?.includes(currentPlayerId)) {
-                showToast('You have been kicked from this lobby.');
+                toast('You have been kicked from this lobby.');
                 setTimeout(() => router.push('/'), 2000);
                 return;
             }
 
+            // Setup or Load the Game Room
             if (!gameData) {
-                const { error } = await supabase.from('games').insert([{ 
-                    id: gameId, status: 'lobby', categories: [], ready_players: [], time_limit: 300, host_id: currentPlayerId, banned_players: [],
-                    game_mode: 'list', team_mode: 'ffa', grid_size: 3, starting_point: 'open-world', end_condition: 'timer', hide_map_symbols: false, exclusive_mode: false
-                }]);
+                const newGameData = { 
+                    id: gameId, status: 'lobby', categories: [], ready_players: [], time_limit: 300, 
+                    host_id: currentPlayerId, banned_players: [], game_mode: 'list', team_mode: 'ffa', 
+                    grid_size: 3, starting_point: 'open-world', end_condition: 'timer', 
+                    hide_map_symbols: false, exclusive_mode: false, category_source: 'manual', generation_radius: 10
+                };
+                const { error } = await supabase.from('games').insert([newGameData]);
                 if (!error) {
                     setIsHost(true);
                     setGameHostId(currentPlayerId);
+                    gameData = newGameData;
                     localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
                 } else {
-                    console.error("CRITICAL: Failed to create game. Did you add the target column? Error:", error);
+                    console.error("CRITICAL: Failed to create game.", error);
                 }
             } else {
-                setStatus(gameData.status);
-                setCategories(gameData.categories);
+                setStatus(gameData.status || 'lobby');
+                setCategories(gameData.categories || []);
                 setSuggestedCategories(gameData.suggested_categories || []);
                 setReadyPlayers(gameData.ready_players || []);
                 setBannedPlayers(gameData.banned_players || []);
@@ -153,25 +161,48 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setHideMapSymbols(gameData.hide_map_symbols || false);
                 setFastVoting(gameData.fast_voting || false);
                 setExclusiveMode(gameData.exclusive_mode || false);
+                setCategorySource(gameData.category_source || 'manual');
+                setGenerationRadius(gameData.generation_radius || 10);
 
-                // Restore host status if they refresh the page
                 const isActuallyHost = gameData.host_id === currentPlayerId;
                 setIsHost(isActuallyHost);
-                if (isActuallyHost) {
-                    localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
+                if (isActuallyHost) localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
+                else localStorage.removeItem(`geoBingoHost_${gameId}`);
+            }
+
+            // register player
+            let bingoBoardToAssign = null;
+            if (gameData.status === 'playing' && gameData.game_mode === 'bingo' && gameData.categories) {
+                const neededCount = (gameData.grid_size || 3) * (gameData.grid_size || 3);
+                
+                if (gameData.bingo_board_mode === 'shared') {
+                    const { data: otherPlayers } = await supabase.from('players')
+                        .select('bingo_board')
+                        .eq('game_id', gameId)
+                        .not('bingo_board', 'is', null)
+                        .limit(1);
+                        
+                    if (otherPlayers && otherPlayers.length > 0 && otherPlayers[0].bingo_board) {
+                        bingoBoardToAssign = otherPlayers[0].bingo_board;
+                    } else {
+                        bingoBoardToAssign = gameData.categories.slice(0, neededCount);
+                    }
                 } else {
-                    localStorage.removeItem(`geoBingoHost_${gameId}`);
+                    bingoBoardToAssign = shuffle([...gameData.categories]).slice(0, neededCount);
                 }
             }
 
-            // 3. Register Player
-            const { data: existingPlayer } = await supabase.from('players').select('id').eq('id', currentPlayerId).single();
             if (!existingPlayer) {
-                const { error: playerInsertErr } = await supabase.from('players').insert([{ id: currentPlayerId, game_id: gameId, name: playerName }]);
-                if (playerInsertErr) console.error("CRITICAL: Failed to insert player. Is the Game missing?", playerInsertErr);
+                const insertData: any = { id: currentPlayerId, game_id: gameId, name: playerName };
+                if (bingoBoardToAssign) insertData.bingo_board = bingoBoardToAssign;
+                const { error: playerInsertErr } = await supabase.from('players').insert([insertData]);
+                if (playerInsertErr) console.error("CRITICAL: Failed to insert player.", playerInsertErr);
             } else {
-                // Ensure game_id is updated so they correctly join the new room
-                const { error: playerUpdateErr } = await supabase.from('players').update({ name: playerName, game_id: gameId }).eq('id', currentPlayerId);
+                const updateData: any = { name: playerName, game_id: gameId };
+                if ((!existingPlayer.bingo_board || existingPlayer.bingo_board.length === 0) && bingoBoardToAssign) {
+                    updateData.bingo_board = bingoBoardToAssign;
+                }
+                const { error: playerUpdateErr } = await supabase.from('players').update(updateData).eq('id', currentPlayerId);
                 if (playerUpdateErr) console.error("CRITICAL: Failed to update player.", playerUpdateErr);
             }
       
@@ -226,6 +257,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     setHideMapSymbols(payload.new.hide_map_symbols || false);
                     setFastVoting(payload.new.fast_voting || false);
                     setExclusiveMode(payload.new.exclusive_mode || false);
+                    setCategorySource(payload.new.category_source || 'manual');
+                    setGenerationRadius(payload.new.generation_radius || 10);
                 }
             ).subscribe();
 
@@ -349,7 +382,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             await supabase.from("games").update({ host_id: newHostId }).eq("id", gameId);
             setIsHost(false);
             localStorage.removeItem(`geoBingoHost_${gameId}`);
-            showToast("You are no longer the host.");
+            toast("You are no longer the host.");
         }
     };
 
@@ -379,88 +412,88 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         await supabase.from('games').update({ status: 'finished' }).eq('id', gameId);
     };
 
-    const renderToast = () => (
-        <div 
-            className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] transition-all duration-300 ${toastMessage ? 'translate-y-0 opacity-100' : '-translate-y-20 opacity-0 pointer-events-none'}`}
-        >
-            <div className="bg-slate-800 border-b-4 border-orange-500 text-white px-6 py-4 rounded-xl shadow-2xl font-bold flex items-center gap-3">
-                <span className="text-orange-500 text-2xl leading-none"><IoIosWarning /></span>
-                <span>{toastMessage}</span>
-            </div>
-        </div>
-    );
-
-    // --- VIEW 1: LOBBY ---
-    if (status === 'lobby') {
-        return (
-            <LobbyView
-                renderToast = {renderToast}
-                gameMode={gameMode}
-                teamMode={teamMode}
-                isHost={isHost}
-                gridSize={gridSize}
-                bingoBoardMode={bingoBoardMode}
-                startingPoint={startingPoint}
-                endCondition={endCondition}
-                gameBoundary={gameBoundary}
-                updateGameModeInfo={updateGameModeInfo}
-                timeLimit={timeLimit}
-                updateTimeLimit={updateTimeLimit}
-                exclusiveMode={exclusiveMode}
-                categories={categories}
-                suggestedCategories={suggestedCategories}
-                gameId={gameId}
-                players={players}
-                onlinePlayers={onlinePlayers}
-                playerId={playerId}
-                gameHostId={gameHostId}
-                makeHost={makeHost}
-                kickPlayer={kickPlayer}
-                banPlayer={banPlayer}
-                showToast={showToast}
-                router={router}
-                supabase={supabase}
-                updateStatus={updateStatus}
-                setPlayers={setPlayers}
-                hideMapSymbols={hideMapSymbols}
-                fastVoting={fastVoting}
-            />
-        );
-    }
-
-    // --- VIEW 2: PLAYING ---
-    if (status === 'playing') {
-        const currentPlayer = players.find(p => p.id === playerId);
-        const myBoard = gameMode === 'bingo' && currentPlayer?.bingo_board && currentPlayer.bingo_board.length > 0 
-            ? currentPlayer.bingo_board 
-            : categories;
-        return (
-            <StreetView
-                myBoard={myBoard}
-                gameId={gameId}
-                playerId={playerId}
-                gameMode={gameMode}
-                teamMode={teamMode}
-                gridSize={gridSize}
-                startingPoint={startingPoint}
-                gameBoundary={gameBoundary}
-                endCondition={endCondition}
-                renderToast={renderToast}
-                showToast={showToast}
-                timeLeft={timeLeft}
-                readyPlayers={readyPlayers}
-                players={players}
-                hideMapSymbols={hideMapSymbols}
-                exclusiveMode={exclusiveMode}
-            />
-        );
-    }
-
-    // --- VIEW 3: VOTING ---
-    if (status === 'voting') {
-        if (fastVoting) {
+    const selectView = () => {
+        // --- VIEW 1: LOBBY ---
+        if (status === 'lobby') {
             return (
-                <FastVotingView
+                <LobbyView
+                    gameMode={gameMode}
+                    teamMode={teamMode}
+                    isHost={isHost}
+                    gridSize={gridSize}
+                    bingoBoardMode={bingoBoardMode}
+                    startingPoint={startingPoint}
+                    endCondition={endCondition}
+                    gameBoundary={gameBoundary}
+                    updateGameModeInfo={updateGameModeInfo}
+                    timeLimit={timeLimit}
+                    updateTimeLimit={updateTimeLimit}
+                    exclusiveMode={exclusiveMode}
+                    categories={categories}
+                    suggestedCategories={suggestedCategories}
+                    gameId={gameId}
+                    players={players}
+                    onlinePlayers={onlinePlayers}
+                    playerId={playerId}
+                    gameHostId={gameHostId}
+                    makeHost={makeHost}
+                    kickPlayer={kickPlayer}
+                    banPlayer={banPlayer}
+                    router={router}
+                    supabase={supabase}
+                    updateStatus={updateStatus}
+                    setPlayers={setPlayers}
+                    hideMapSymbols={hideMapSymbols}
+                    fastVoting={fastVoting}
+                    categorySource={categorySource}
+                    generationRadius={generationRadius}
+                />
+            );
+        }
+
+        // --- VIEW 2: PLAYING ---
+        if (status === 'playing') {
+            const currentPlayer = players.find(p => p.id === playerId);
+            const myBoard = gameMode === 'bingo' && currentPlayer?.bingo_board && currentPlayer.bingo_board.length > 0 
+                ? currentPlayer.bingo_board 
+                : categories;
+            return (
+                <StreetView
+                    myBoard={myBoard}
+                    gameId={gameId}
+                    playerId={playerId}
+                    gameMode={gameMode}
+                    teamMode={teamMode}
+                    gridSize={gridSize}
+                    startingPoint={startingPoint}
+                    gameBoundary={gameBoundary}
+                    endCondition={endCondition}
+                    timeLeft={timeLeft}
+                    readyPlayers={readyPlayers}
+                    players={players}
+                    hideMapSymbols={hideMapSymbols}
+                    exclusiveMode={exclusiveMode}
+                />
+            );
+        }
+
+        // --- VIEW 3: VOTING ---
+        if (status === 'voting') {
+            if (fastVoting) {
+                return (
+                    <FastVotingView
+                        gameId={gameId}
+                        isHost={isHost}
+                        categories={categories}
+                        playerId={playerId}
+                        players={players}
+                        teamMode={teamMode}
+                        onFinishGame={handleFinishGame}
+                    />
+                );
+            }
+            return (
+                <VotingView
                     gameId={gameId}
                     isHost={isHost}
                     categories={categories}
@@ -468,33 +501,29 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     players={players}
                     teamMode={teamMode}
                     onFinishGame={handleFinishGame}
-                    renderToast={renderToast}
                 />
             );
         }
-        return (
-            <VotingView
-                gameId={gameId}
-                isHost={isHost}
-                categories={categories}
-                playerId={playerId}
-                players={players}
-                teamMode={teamMode}
-                onFinishGame={handleFinishGame}
-                renderToast={renderToast}
-            />
-        );
-    }
 
-    // --- VIEW 4: PODIUM (FINISHED) ---
-    if (status === 'finished') {
-        return (
-            <PodiumView
-                gameId={gameId}
-                renderToast={renderToast}
-                isHost={isHost}
-                teamMode={teamMode}
+        // --- VIEW 4: PODIUM (FINISHED) ---
+        if (status === 'finished') {
+            return (
+                <PodiumView
+                    gameId={gameId}
+                    isHost={isHost}
+                    teamMode={teamMode}
+                />
+            );
+        }
+    };
+
+    return (
+        <>
+            <Toaster
+                position="top-center"
+                reverseOrder={false}
             />
-        );
-    }
+            {selectView()}
+        </>
+    );
 }

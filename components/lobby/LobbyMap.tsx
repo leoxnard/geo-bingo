@@ -26,7 +26,14 @@ interface LobbyMapProps {
     isLoaded: boolean;
     startingPoint: string;
     gameBoundary: string | null;
-    updateGameModeInfo: (updates: { starting_point?: string; gameBoundary?: string | null }) => void;
+    categorySource: 'manual' | 'generation';
+    generationRadius: number;
+    updateGameModeInfo: (updates: {
+        starting_point?: string;
+        gameBoundary?: string | null;
+        category_source?: 'manual' | 'generation';
+        generation_radius?: number;
+    }) => void;
 }
 
 export default function LobbyMap({
@@ -34,6 +41,8 @@ export default function LobbyMap({
     isLoaded,
     startingPoint,
     gameBoundary,
+    categorySource,
+    generationRadius,
     updateGameModeInfo
 }: LobbyMapProps) {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -42,6 +51,7 @@ export default function LobbyMap({
     const [hoveredLocation, setHoveredLocation] = useState<Point | null>(null);
     const [activeBoundaryId, setActiveBoundaryId] = useState<string | null>(null);
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+    const [localRadius, setLocalRadius] = useState(generationRadius);
 
     const actualStart = startingPoint || 'open-world';
 
@@ -49,6 +59,15 @@ export default function LobbyMap({
         streetViewControl: isHost,
         gestureHandling: 'greedy',
         draggableCursor: isHost ? 'crosshair' : 'default',
+    };
+
+    useEffect(() => {
+        setLocalRadius(generationRadius);
+    }, [generationRadius]);
+
+    const handleCommit = () => {
+        if (!isHost) return;
+        updateGameModeInfo({ generation_radius: localRadius });
     };
 
     const draftBoundaries: BoundaryPolygon[] = useMemo(() => {
@@ -266,84 +285,153 @@ export default function LobbyMap({
                     )}
                 </div>
                 
+                {/* Host Controls */}
                 {isHost && (
-                    <div className="flex flex-col gap-4 mt-2">
-                        <div className="flex flex-col sm:flex-row justify-between items-center w-full text-sm text-slate-400 gap-2">
-                            <button type="button"
-                                onClick={() => updateGameModeInfo({ starting_point: 'open-world' })}
-                                disabled={actualStart === 'open-world'}
-                                className="px-3 py-2 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-200 rounded flex gap-2 items-center transition-colors disabled:opacity-50 disabled:bg-slate-800 disabled:border-slate-700 disabled:text-slate-500"
-                            >
-                                Reset Starting Point
-                            </button>
+                    <>
+                        <div className="flex flex-col gap-4 my-2">
+                            <div className="flex flex-col sm:flex-row justify-between items-center w-full text-sm text-slate-400 gap-2">
+                                <button type="button"
+                                    onClick={() => updateGameModeInfo({ starting_point: 'open-world', category_source: 'manual' })}
+                                    disabled={actualStart === 'open-world'}
+                                    className="px-3 py-2 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-200 rounded flex gap-2 items-center transition-colors disabled:opacity-50 disabled:bg-slate-800 disabled:border-slate-700 disabled:text-slate-500"
+                                >
+                                    Reset Starting Point
+                                </button>
 
-                            <div className="flex gap-2 flex-wrap justify-end">
-                                <button 
-                                    type="button" 
-                                    onClick={handleAddBoundary}
-                                    className="px-3 py-2 bg-emerald-900/60 border border-emerald-700 hover:bg-emerald-800 text-emerald-100 rounded flex gap-2 items-center transition-colors"
-                                >
-                                    <FaPlus /> Add Area
-                                </button>
-                                <button 
-                                    type="button"
-                                    onClick={() => updateGameModeInfo({ gameBoundary: '[]' })}
-                                    disabled={draftBoundaries.length === 0}
-                                    className="px-3 py-2 bg-rose-900 border border-rose-700 hover:bg-rose-800 text-slate-200 rounded flex gap-2 items-center transition-colors disabled:opacity-50"
-                                >
-                                    Reset Areas
-                                </button>
+                                <div className="flex gap-2 flex-wrap justify-end">
+                                    <button 
+                                        type="button" 
+                                        onClick={handleAddBoundary}
+                                        className="px-3 py-2 bg-emerald-900/60 border border-emerald-700 hover:bg-emerald-800 text-emerald-100 rounded flex gap-2 items-center transition-colors"
+                                    >
+                                        <FaPlus /> Add Area
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={() => updateGameModeInfo({ gameBoundary: '[]' })}
+                                        disabled={draftBoundaries.length === 0}
+                                        className="px-3 py-2 bg-rose-900 border border-rose-700 hover:bg-rose-800 text-slate-200 rounded flex gap-2 items-center transition-colors disabled:opacity-50"
+                                    >
+                                        Reset Areas
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                        {draftBoundaries.length > 0 && (
-                            <div className="flex flex-col gap-2 pr-2">
-                                {draftBoundaries.length > 0 && (
-                                    <div className="flex flex-col gap-2 pr-2">
-                                        {draftBoundaries.map((b, index) => (
-                                            <div 
-                                                key={b.id} 
-                                                draggable
-                                                onDragStart={() => setDraggedIndex(index)}
-                                                onDragOver={(e) => {
-                                                    e.preventDefault(); // Nötig, um Drop zuzulassen
-                                                }}
-                                                onDrop={() => handleDrop(index)}
-                                                className={`flex items-center justify-between p-3 rounded-lg border cursor-grab active:cursor-grabbing transition-all ${
-                                                    draggedIndex === index ? 'opacity-50 scale-95 border-dashed' : ''
-                                                } ${activeBoundaryId === b.id ? 'border-indigo-500 bg-indigo-900/40' : 'border-slate-700 bg-slate-800 hover:border-slate-500'}`} 
-                                                onClick={() => setActiveBoundaryId(b.id)}
-                                            >
-                                                <div className="flex items-center gap-4">
-                                                    <span className="text-slate-500 cursor-grab px-1 text-lg">⋮⋮</span>
-                                                    <span className="text-slate-200 font-medium text-sm flex flex-col">
-                                                        <span>Area {index + 1}</span>
-                                                        <span className="text-[10px] text-slate-500 font-normal">
-                                                            {index === draftBoundaries.length - 1 ? 'Highest Priority' : 
-                                                                index === 0 ? 'Lowest Priority' : `Priority ${index + 1}`}
+                            {draftBoundaries.length > 0 && (
+                                <div className="flex flex-col gap-2 pr-2">
+                                    {draftBoundaries.length > 0 && (
+                                        <div className="flex flex-col gap-2 pr-2">
+                                            {draftBoundaries.map((b, index) => (
+                                                <div 
+                                                    key={b.id} 
+                                                    draggable
+                                                    onDragStart={() => setDraggedIndex(index)}
+                                                    onDragOver={(e) => {e.preventDefault();}}
+                                                    onDrop={() => handleDrop(index)}
+                                                    className={`flex items-center justify-between p-3 rounded-lg border cursor-grab active:cursor-grabbing transition-all ${
+                                                        draggedIndex === index ? 'opacity-50 scale-95 border-dashed' : ''
+                                                    } ${activeBoundaryId === b.id ? 'border-indigo-500 bg-indigo-900/40' : 'border-slate-700 bg-slate-800 hover:border-slate-500'}`} 
+                                                    onClick={() => setActiveBoundaryId(b.id)}
+                                                >
+                                                    <div className="flex items-center gap-4">
+                                                        <span className="text-slate-500 cursor-grab px-1 text-lg">⋮⋮</span>
+                                                        <span className="text-slate-200 font-medium text-sm flex flex-col">
+                                                            <span>Area {index + 1}</span>
+                                                            <span className="text-[10px] text-slate-500 font-normal">
+                                                                {index === draftBoundaries.length - 1 ? 'Highest Priority' : 
+                                                                    index === 0 ? 'Lowest Priority' : `Priority ${index + 1}`}
+                                                            </span>
                                                         </span>
-                                                    </span>
-                                                    <button 
-                                                        onClick={(e) => { e.stopPropagation(); handleToggleType(b.id); }} 
-                                                        className={`px-3 py-1 rounded text-xs font-bold transition-colors ${b.type === 'allow' ? 'bg-green-600/20 text-green-400 border border-green-700 hover:bg-green-600/40' : 'bg-red-600/20 text-red-400 border border-red-700 hover:bg-red-600/40'}`}
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); handleToggleType(b.id); }} 
+                                                            className={`px-3 py-1 rounded text-xs font-bold transition-colors ${b.type === 'allow' ? 'bg-green-600/20 text-green-400 border border-green-700 hover:bg-green-600/40' : 'bg-red-600/20 text-red-400 border border-red-700 hover:bg-red-600/40'}`}
+                                                        >
+                                                            {b.type === 'allow' ? 'Allow' : 'Forbid'}
+                                                        </button>
+                                                    </div>
+                                                    <button
+                                                        title='remove-boundary'
+                                                        onClick={(e) => { e.stopPropagation(); handleRemoveBoundary(b.id); }} 
+                                                        className="text-slate-500 hover:text-red-400 p-1"
                                                     >
-                                                        {b.type === 'allow' ? 'Allow' : 'Forbid'}
+                                                        <FaTimes />
                                                     </button>
                                                 </div>
-                                                <button
-                                                    title='remove-boundary'
-                                                    onClick={(e) => { e.stopPropagation(); handleRemoveBoundary(b.id); }} 
-                                                    className="text-slate-500 hover:text-red-400 p-1"
-                                                >
-                                                    <FaTimes />
-                                                </button>
-                                            </div>
-                                        ))}
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        
+                        {/* Category Source Selection (Only visible if starting point is set) */}
+                        {startingPoint !== 'open-world' && (
+                            <div className="pt-2 border-t border-slate-700">
+                                <label className="flex justify-between font-bold mb-2">
+                                    <span>Category Source</span>
+                                </label>
+                                <div className="flex bg-slate-900 rounded-lg p-1">
+                                    <button type="button"
+                                        onClick={() => updateGameModeInfo({ category_source: 'manual' })}
+                                        disabled={!isHost}
+                                        className={`flex-1 py-2 rounded-md font-bold transition-all ${
+                                            categorySource === 'manual'
+                                                ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow'
+                                                : 'text-slate-400 hover:text-white'
+                                        }`}
+                                    >
+                                        Manual
+                                    </button>
+                                    <button type="button"
+                                        onClick={() => updateGameModeInfo({ category_source: 'generation' })}
+                                        disabled={!isHost}
+                                        className={`flex-1 py-2 rounded-md font-bold transition-all ${
+                                            categorySource === 'generation'
+                                                ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow'
+                                                : 'text-slate-400 hover:text-white'
+                                        }`}
+                                    >
+                                        Generation (AI)
+                                    </button>
+                                </div>
+                                <p className="my-2 text-xs text-slate-400 text-center min-h-[16px]">
+                                    {categorySource === 'manual' && 'Players submit categories manually.'}
+                                    {categorySource === 'generation' && 'Categories will be auto-generated by AI based on your starting location. They remain hidden until the game starts!'}
+                                </p>
+
+                                {/* Radius Slider for Generation */}
+                                {categorySource === 'generation' && (
+                                    <div className="mt-4 mb-2">
+                                        <div className="flex justify-between items-center">
+                                            <label htmlFor="radius-range" className="flex justify-between font-bold mb-2 cursor-pointer">
+                                                <span>POI Radius</span>
+                                            </label>
+                                            <span className="text-indigo-400">
+                                                {localRadius >= 10
+                                                    ? `${(localRadius / 10).toFixed(1)} km`
+                                                    : `${localRadius * 100} m`}
+                                            </span>
+                                        </div>
+                                        <div className="p-3 bg-slate-900 rounded-lg flex flex-col gap-4">
+                                            <input
+                                                id="radius-range"
+                                                type="range"
+                                                min="1"
+                                                max="100"
+                                                step="1"
+                                                value={localRadius}
+                                                disabled={!isHost}
+                                                onChange={(e) => setLocalRadius(parseInt(e.target.value))}
+                                                onMouseUp={handleCommit} 
+                                                onTouchEnd={handleCommit}
+                                                className="w-full cursor-pointer accent-indigo-500"
+                                                title="POI Radius"
+                                            />
+                                        </div>
                                     </div>
                                 )}
                             </div>
                         )}
-
-                    </div>
+                    </>
                 )}
             </div>
         </div>
