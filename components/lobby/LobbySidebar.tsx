@@ -369,7 +369,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                         onChange={(checked) => props.updateGameModeInfo({ fast_voting: checked })}
                     />
                     {!props.isHost && (
-                        <p className="text-xs text-slate-500 mt-5 pt-4 border-t border-slate-700/50 text-center">
+                        <p className="text-xs text-slate-500 pt-4 border-t border-slate-700/50 text-center">
                             Only the game host can change these settings.
                         </p>
                     )}

@@ -53,6 +53,7 @@ export default function LobbyMap({
         streetViewControl: isHost,
         gestureHandling: 'greedy',
         draggableCursor: isHost ? 'crosshair' : 'default',
+        styles: [{ featureType: "all", elementType: "labels.icon", stylers: [{ visibility: "off" }] }]
     };
 
     const draftBoundaries: BoundaryPolygon[] = useMemo(() => {
