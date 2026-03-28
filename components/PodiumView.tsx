@@ -7,7 +7,7 @@ import { GeoBingoLogo } from './utils/Elements';
 import { ScoreEntity, PlayerStat, PodiumViewProps } from './utils/types';
 
 export default function PodiumView({ 
-    gameId, renderToast, isHost, teamMode
+    gameId, isHost, teamMode
 }: PodiumViewProps) {
     const [stats, setStats] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -254,8 +254,6 @@ export default function PodiumView({
 
     return (
         <div className="min-h-screen flex flex-col items-center p-4 bg-slate-900 text-white">
-            {renderToast()}
-            
             <div className="w-full max-w-6xl mx-auto flex flex-col items-center text-white">
                 
                 {/* HEADER / TOP BAR */}

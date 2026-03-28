@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface LobbySettingsProps {
     isHost: boolean;
@@ -36,6 +36,22 @@ export default function LobbySettings({
     updateGameModeInfo,
     updateTimeLimit
 }: LobbySettingsProps) {
+
+    const [localTimeLimit, setLocalTimeLimit] = useState(timeLimit / 60);
+
+    useEffect(() => {
+        setLocalTimeLimit(timeLimit / 60);
+    }, [timeLimit]);
+
+    const handleTimeLimitChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setLocalTimeLimit(parseInt(e.target.value));
+    };
+
+    const handleTimeLimitCommit = () => {
+        if (!isHost) return;
+        updateTimeLimit(localTimeLimit);
+    };
+
     return (
         <div className="bg-slate-800 p-6 rounded-xl flex-1 border border-slate-700 h-fit">
             <h2 className="text-xl font-semibold mb-4 text-slate-300">Settings</h2>
@@ -248,7 +264,7 @@ export default function LobbySettings({
                             Time Limit
                         </span>
                     </label>
-                    <span className="text-indigo-400">{timeLimit / 60} Minutes</span>
+                    <span className="text-indigo-400">{localTimeLimit} Minutes</span>
                 </div>
                 <div className="p-3 bg-slate-900 rounded-lg flex flex-col gap-4">
                     <input
@@ -257,10 +273,12 @@ export default function LobbySettings({
                         min="1"
                         max="30"
                         step="1"
-                        value={timeLimit / 60}
+                        value={localTimeLimit}
                         disabled={!isHost}
-                        onChange={(e) => updateTimeLimit(parseInt(e.target.value))}
-                        className="w-full cursor-pointer accent-indigo-500"
+                        onChange={handleTimeLimitChange}
+                        onMouseUp={handleTimeLimitCommit}
+                        onTouchEnd={handleTimeLimitCommit}
+                        className="w-full cursor-pointer accent-indigo-500 hover:accent-indigo-400"
                         title="Adjust the game time limit in minutes"
                     />
                     {!isHost && <p className="text-xs text-slate-500 mt-2 italic">Only the host can adjust the time limit.</p>}

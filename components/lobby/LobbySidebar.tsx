@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import toast from 'react-hot-toast';
 
 import { FaRegCopy, FaCopy, FaRegEdit, FaPlus, FaRandom, FaTimes } from "react-icons/fa";
 
@@ -25,7 +26,6 @@ interface LobbySidebarProps {
     categories: string[];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     supabase: any;
-    showToast: (message: string) => void;
     makeHost: (id: string) => void;
     kickPlayer: (id: string) => void;
     banPlayer: (id: string) => void;
@@ -36,6 +36,7 @@ interface LobbySidebarProps {
     fastVoting: boolean;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     updateGameModeInfo: (updates: any) => void;
+    categorySource: 'manual' | 'generation';
 }
 
 const darkTeamColors = [
@@ -101,15 +102,15 @@ export default function LobbySidebar(props: LobbySidebarProps) {
         props.setPlayers(prev => prev.map(p => p.id === props.playerId ? { ...p, name: nextName } : p));
 
         const { error } = await props.supabase.from('players').update({ name: nextName }).eq('id', props.playerId);
-        if (error) props.showToast('Could not update name.');
-        else props.showToast('Name updated.');
+            if (error) toast.error('Could not update name.');
+            else toast.success('Name updated.');
         setIsEditingSelfName(false);
     };
 
     const handleUpdatePlayerTeam = async (targetPlayerId: string, teamIndex: number) => {
         props.setPlayers(prev => prev.map(p => p.id === targetPlayerId ? { ...p, team: teamIndex } : p));
         const { error } = await props.supabase.from('players').update({ team: teamIndex }).eq('id', targetPlayerId);
-        if (error) props.showToast('Could not update team.');
+            if (error) toast.error('Could not update team.');
     };
 
     const handleRandomizeTeams = async () => {
@@ -334,8 +335,8 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                 {props.isHost ? (
                     <button type="button" 
                         onClick={props.handleStartGame} 
-                        disabled={props.categories.length === 0}
-                        className={`w-full py-4 rounded-xl font-bold mt-8 tracking-wider uppercase ${props.categories.length === 0 ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-500 text-white'}`}
+                        disabled={props.categories.length === 0 && props.categorySource === 'manual'}
+                        className={`w-full py-4 rounded-xl font-bold mt-8 tracking-wider uppercase ${props.categories.length === 0 && props.categorySource === 'manual' ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-500 text-white'}`}
                     >
                         START GAME
                     </button>

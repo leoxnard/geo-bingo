@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 import { useJsApiLoader } from '@react-google-maps/api';
 import toast from 'react-hot-toast';
@@ -126,7 +126,7 @@ export default function LobbyView(props: LobbyViewProps) {
                 console.log(uniquePlaces);
                 
                 if (uniquePlaces.length < requiredCount) {
-                    reject(`Not enough places found within the specified radius! Found ${uniquePlaces.length}, but need at least ${requiredCount}.`);
+                    reject(`Not enough places found within the specified radius (${uniquePlaces.length}/${requiredCount}).`);
                     return;
                 }
 
@@ -211,24 +211,19 @@ export default function LobbyView(props: LobbyViewProps) {
     const handleStartGame = async () => {
         if (isGenerating) return;
 
-        if (props.categorySource === 'manual' && props.categories.length === 0) {
-            toast('Please add at least one category before starting the game.');
-            return;
-        }
-
         let startPos;
         if (props.startingPoint !== 'open-world') {
             try {
                 startPos = JSON.parse(props.startingPoint);
                 if (props.gameBoundary && props.gameBoundary !== '[]') {
                     if (!isLocationAllowed(startPos, props.gameBoundary)) {
-                        toast('Starting point is outside the defined game boundary! Please choose a valid location.');
+                        toast.error('Starting point is outside the defined game boundary!');
                         return;
                     }
                 }
             } catch (error) {
                 console.error("Invalid map configuration parsing:", error);
-                toast('Invalid map configuration! Please check your starting point and game boundary settings.');
+                toast.error('Invalid map configuration!');
                 return;
             }
         }
@@ -239,19 +234,59 @@ export default function LobbyView(props: LobbyViewProps) {
         // AI Generation Logic
         if (props.categorySource === 'generation' && props.startingPoint !== 'open-world' && startPos) {
             setIsGenerating(true);
-            toast('AI is generating categories based on your starting point and radius. This may take a moment...');
-            
+
             try {
-                finalCategories = await generateCategoriesAI(startPos, props.generationRadius, neededCount);
-                await props.supabase.from('games').update({ categories: finalCategories }).eq('id', props.gameId);
+                const categories = await toast.promise(
+                    (async () => {
+                        const result = await generateCategoriesAI(startPos, props.generationRadius, neededCount);
+
+                        const { error: dbError } = await props.supabase
+                            .from('games')
+                            .update({ categories: result })
+                            .eq('id', props.gameId);
+
+                        if (dbError) throw new Error(dbError.message);
+                        
+                        return result;
+                    })(),
+                    {
+                        loading: 'Generating...',
+                        success: <b>Categories generated successfully!</b>,
+                        error: (err: any) => {
+                            console.error("AI Generation Error Details:", err);
+
+                            let errorMessage = "Unknown error occurred during category generation.";
+
+                            if (typeof err === 'string') {
+                                errorMessage = err;
+                            } else if (err instanceof Error) {
+                                errorMessage = err.message;
+                            } else if (err?.response?.data?.error) {
+                                errorMessage = err.response.data.error;
+                            } else if (err?.message) {
+                                errorMessage = err.message;
+                            } else if (err?.error) {
+                                errorMessage = typeof err.error === 'string' ? err.error : JSON.stringify(err.error);
+                            }
+
+                            return `${errorMessage}`;
+                        },
+                    }
+                );
+
+                finalCategories = categories;
+                console.log("Generated categories:", finalCategories);
+
             } catch (error) {
-                toast(typeof error === 'string' ? error : 'Error generating categories with AI. Please try again or switch to manual category selection.');
                 setIsGenerating(false);
                 return;
             }
+
             setIsGenerating(false);
-        } else if (props.gameMode === 'bingo' && finalCategories.length < neededCount) {
-            toast(`You need at least ${neededCount} categories to start a Bingo game with a grid size of ${props.gridSize}. Please add more categories or reduce the grid size.`);
+        }
+        
+        if (props.gameMode === 'bingo' && finalCategories.length < neededCount) {
+            toast.error(`You need at least ${neededCount} categories to start a Bingo game with a grid size of ${props.gridSize}. Please add more categories or reduce the grid size.`);
             return;
         }
 
@@ -260,7 +295,8 @@ export default function LobbyView(props: LobbyViewProps) {
             try {
                 if (props.bingoBoardMode === 'shared') {
                     const board = finalCategories.slice(0, neededCount);
-                    await props.supabase.from('players').update({ bingo_board: board }).eq('game_id', props.gameId);
+                    const { error } = await props.supabase.from('players').update({ bingo_board: board }).eq('game_id', props.gameId);
+                    if (error) throw error;
                 } else {
                     const promises = props.players.map(p => {
                         const board = shuffle([...finalCategories]).slice(0, neededCount);
@@ -268,8 +304,9 @@ export default function LobbyView(props: LobbyViewProps) {
                     });
                     await Promise.all(promises);
                 }
-            } catch {
-                toast("Failed to generate boards.");
+            } catch (err: any) {
+                console.error("Failed to generate boards:", err);
+                toast.error(`Board Generation Failed: ${err?.message || "Unknown database error"}`);
                 return;
             }
         }

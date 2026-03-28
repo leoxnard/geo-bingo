@@ -17,7 +17,7 @@ const additionalMapOptions = {
 const defaultCenter = { lat: 50, lng: 10 };
 
 export default function FastVotingView({ 
-    gameId, isHost, playerId, players, teamMode, onFinishGame, renderToast
+    gameId, isHost, playerId, players, teamMode, onFinishGame
 }: FastVotingViewProps) {
     const [categories, setCategories] = useState<string[]>([]);
     const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -177,7 +177,6 @@ export default function FastVotingView({
 
     return (
         <div className="min-h-screen flex flex-col items-center p-4 bg-slate-900 text-white">
-            {renderToast()}
             <div className="w-full max-w-[95%] xl:max-w-[90vw] flex justify-between items-center mb-8 mt-4">
                 <div className="flex items-center gap-4">
                     <GeoBingoLogo size={30} className="hidden sm:block" />

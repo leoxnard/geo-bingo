@@ -37,7 +37,6 @@ export interface PlayerStat {
 }
 
 export interface LobbyViewProps {
-    renderToast: () => React.ReactNode;
     gameMode: 'list' | 'bingo';
     teamMode: 'ffa' | 'teams';
     bingoBoardMode: 'shared' | 'individual';
@@ -63,7 +62,6 @@ export interface LobbyViewProps {
     makeHost: (id: string) => void;
     kickPlayer: (id: string) => void;
     banPlayer: (id: string) => void;
-    showToast : (message: string) => void;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     router: any;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -81,8 +79,6 @@ export interface StreetViewProps {
     gridSize?: number;
     startingPoint?: string;
     gameBoundary?: string | null;
-    renderToast: () => React.ReactNode;
-    showToast : (message: string) => void;
     timeLeft: number;
     readyPlayers: string[];
     players: Player[];
@@ -99,7 +95,6 @@ export interface FastVotingViewProps {
     players: Player[];
     teamMode: 'ffa' | 'teams';
     onFinishGame: () => Promise<void> | void;
-    renderToast: () => React.ReactNode;
 }
 
 export interface VotingViewProps {
@@ -110,12 +105,10 @@ export interface VotingViewProps {
     players: Player[];
     teamMode: 'ffa' | 'teams';
     onFinishGame: () => Promise<void> | void;
-    renderToast: () => React.ReactNode;
 }
 
 export interface PodiumViewProps {
     gameId: string;
-    renderToast: () => React.ReactNode;
     isHost: boolean;
     teamMode: 'ffa' | 'teams';
 }

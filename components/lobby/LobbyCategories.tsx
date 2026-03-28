@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
+import toast from 'react-hot-toast';
 
 import { CiCirclePlus, CiCircleMinus, CiCircleRemove, CiCircleCheck } from "react-icons/ci";
 import { FaTimes } from "react-icons/fa";
@@ -18,7 +19,6 @@ interface LobbyCategoriesProps {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     supabase: any;
     maxGridSize: number;
-    showToast: (message: string) => void;
 }
 
 export default function LobbyCategories({
@@ -31,7 +31,6 @@ export default function LobbyCategories({
     gameId,
     supabase,
     maxGridSize,
-    showToast
 }: LobbyCategoriesProps) {
     const [newCategory, setNewCategory] = useState('');
     const [randomLang, setRandomLang] = useState<'german' | 'english'>('german');
@@ -65,11 +64,11 @@ export default function LobbyCategories({
         const trimmedCat = newCategory.trim();
         if (trimmedCat !== '' && isHost) {
             if (gameMode === 'bingo' && categories.length >= gridSize * gridSize) {
-                showToast(`Maximal ${gridSize * gridSize} words allowed for this Bingo grid!`);
+                toast.error(`Maximal ${gridSize * gridSize} words allowed for this Bingo grid!`);
                 return;
             }
             if (categories.some(c => c.toLowerCase() === trimmedCat.toLowerCase())) {
-                showToast("This category already exists!");
+                toast.error("This category already exists!");
                 return;
             }
             const updated = [...categories, trimmedCat];
@@ -96,7 +95,7 @@ export default function LobbyCategories({
         if (trimmedCat !== '' && !isHost) {
             // Check if it already exists
             if (categories.some(c => c.toLowerCase() === trimmedCat.toLowerCase())) {
-                showToast("This category already exists!");
+                toast.error("This category already exists!");
                 return;
             }
 
@@ -105,21 +104,21 @@ export default function LobbyCategories({
             const currentSuggestions = data?.suggested_categories || [];
 
             if (currentSuggestions.some((c: string) => c.toLowerCase() === trimmedCat.toLowerCase())) {
-                showToast("This category was already suggested!");
+                toast.error("This category was already suggested!");
                 return;
             }
 
             const updatedSuggestions = [...currentSuggestions, trimmedCat];
             await supabase.from('games').update({ suggested_categories: updatedSuggestions }).eq('id', gameId);
             setNewCategory('');
-            showToast("Suggestion sent to the host!");
+            toast.success("Suggestion sent to the host!");
         }
     };
 
     const acceptSuggestion = async (cat: string) => {
         if (!isHost) return;
         if (gameMode === 'bingo' && categories.length >= gridSize * gridSize) {
-            showToast(`Maximal ${gridSize * gridSize} words allowed for this Bingo grid!`);
+            toast.error(`Maximal ${gridSize * gridSize} words allowed for this Bingo grid!`);
             return;
         }
         const updatedCat = [...categories, cat];
@@ -146,11 +145,11 @@ export default function LobbyCategories({
                 const updated = [...categories, ...selectedWords];
                 await updateGameModeInfo({ categories: updated });
             } else {
-                showToast("Not enough new words available!");
+                toast.error("Not enough new words available!");
             }
         } catch (err) {
             console.error("Error fetching random words", err);
-            showToast("Error loading random words.");
+            toast.error("Error loading random words.");
         }
     };
 

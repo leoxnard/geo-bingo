@@ -22,7 +22,7 @@ const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => 
 };
 
 export default function VotingJourneyView({ 
-    gameId, isHost, playerId, players, teamMode, onFinishGame, renderToast
+    gameId, isHost, playerId, players, teamMode, onFinishGame
 }: VotingViewProps) {
     
     const [gameCategories, setGameCategories] = useState<string[]>([]);
@@ -435,8 +435,6 @@ export default function VotingJourneyView({
 
     return (
         <div className="flex h-screen w-screen overflow-hidden bg-slate-900">
-            {renderToast()}
-            
             {/* Left Panel */}
             <div className="relative w-1/2 h-full z-10 flex-shrink-0">
                 <GoogleMap

@@ -5,6 +5,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { GoogleMap, useJsApiLoader, StreetViewPanorama, Polygon } from '@react-google-maps/api';
 import { FaEye, FaCamera } from 'react-icons/fa';
 import { GoMoveToStart } from "react-icons/go";
+import toast from 'react-hot-toast';
 
 import { supabase } from '../lib/supabase';
 import { FullscreenButton, GeoBingoLogo } from './utils/Elements';
@@ -35,8 +36,6 @@ export default function StreetView({
     startingPoint = 'open-world',
     gameBoundary = null,
     endCondition = 'timer',
-    renderToast,
-    showToast,
     timeLeft,
     readyPlayers,
     players,
@@ -227,7 +226,7 @@ export default function StreetView({
                     lastValidPanoRef.current = pano.getPano();
                 } else {
                     isRevertingRef.current = true;
-                    showToast("You've reached the edge of the allowed area or entered a forbidden zone!");
+                    toast("You've reached the edge of the allowed area or entered a forbidden zone!");
                     if (lastValidPanoRef.current) {
                         pano.setPano(lastValidPanoRef.current);
                     } else if (lastValidPositionRef.current) {
@@ -251,7 +250,7 @@ export default function StreetView({
                 lastValidPanoRef.current = null;
             }
         });
-    }, [startingPoint, gameBoundary, showToast]);
+    }, [startingPoint, gameBoundary]);
 
     const onUnmount = useCallback(() => {
         if (streetViewRef.current) {
@@ -305,7 +304,7 @@ export default function StreetView({
                 } else {
                     winnerNamesString = winnerNames[0];
                 }
-                showToast(`${winnerNamesString} got Bingo!`);
+                toast(`${winnerNamesString} got Bingo!`);
                 try {
                     await supabase.from('games').update({ status: 'voting' }).eq('id', gameId);
                 } catch (error) {
@@ -328,11 +327,11 @@ export default function StreetView({
             });
 
             if (data && data.success === false && data.error === 'ALREADY_CLAIMED') {
-                showToast("Sorry, someone else was faster claiming this category!");
+                toast.error("Sorry, someone else was faster claiming this category!");
                 setAllSubmissions(prev => prev.filter(s => s.id !== tempId));
             } else if (error) {
                 console.error("RPC call failed:", error);
-                showToast("Error saving submission. Please try again.");
+                toast.error("Error saving submission. Please try again.");
                 setAllSubmissions(prev => prev.filter(s => s.id !== tempId));
             } else if (data && data.success) {
                 setAllSubmissions(prev => prev.map(s => s.id === tempId ? data.data : s));
@@ -344,14 +343,14 @@ export default function StreetView({
                 const { error } = await supabase.from('submissions').update(submissionData).eq('id', existingSub.id);
                 if (error) {
                     console.error("Update error:", error);
-                    showToast("Error updating submission. Please try again.");
+                    toast.error("Error updating submission. Please try again.");
                     setAllSubmissions(prev => prev.filter(s => s.id !== tempId));
                 }
             } else {
                 const { data, error } = await supabase.from('submissions').insert([submissionData]).select().single();
                 if (error) {
                     console.error("Insert error:", error);
-                    showToast("Error saving submission. Please try again.");
+                    toast.error("Error saving submission. Please try again.");
                     setAllSubmissions(prev => prev.filter(s => s.id !== tempId));
                 } else if (data) {
                     setAllSubmissions(prev => prev.map(s => s.id === tempId ? data : s));
@@ -463,7 +462,6 @@ export default function StreetView({
 
     return (
         <div className="min-h-screen p-4 bg-slate-900">
-            {renderToast()}
             <div className="flex justify-between items-center mb-4 w-full max-w-[95%] xl:max-w-[90vw] mx-auto text-white">
                 <div className="flex items-center gap-4 hidden sm:flex">
                     <GeoBingoLogo size={40} />
