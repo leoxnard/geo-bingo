@@ -47,7 +47,7 @@ export interface LobbyViewProps {
         grid_size?: number; 
         bingo_board_mode?: 'shared' | 'individual'; 
         starting_point?: string; 
-        gameBoundary?: string | null 
+        gameBoundary?: string;
     }) => void;
     isHost: boolean;
     gridSize: number;
@@ -78,7 +78,7 @@ export interface StreetViewProps {
     teamMode?: 'ffa' | 'teams';
     gridSize?: number;
     startingPoint?: string;
-    gameBoundary?: string | null;
+    gameBoundary?: string;
     timeLeft: number;
     readyPlayers: string[];
     players: Player[];

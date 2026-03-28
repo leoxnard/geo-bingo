@@ -28,7 +28,7 @@ interface LobbyViewProps {
     bingoBoardMode: 'shared' | 'individual';
     startingPoint: string;
     endCondition: 'first_bingo' | 'timer';
-    gameBoundary?: string | null;
+    gameBoundary: string;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     updateGameModeInfo: (updates: any) => void;
     isHost: boolean;
@@ -353,7 +353,7 @@ export default function LobbyView(props: LobbyViewProps) {
                         isHost={props.isHost}
                         isLoaded={isLoaded}
                         startingPoint={props.startingPoint}
-                        gameBoundary={props.gameBoundary || null}
+                        gameBoundary={props.gameBoundary}
                         categorySource={props.categorySource}
                         generationRadius={props.generationRadius}
                         updateGameModeInfo={props.updateGameModeInfo}

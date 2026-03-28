@@ -25,12 +25,12 @@ interface LobbyMapProps {
     isHost: boolean;
     isLoaded: boolean;
     startingPoint: string;
-    gameBoundary: string | null;
+    gameBoundary: string;
     categorySource: 'manual' | 'generation';
     generationRadius: number;
     updateGameModeInfo: (updates: {
         starting_point?: string;
-        gameBoundary?: string | null;
+        gameBoundary?: string;
         category_source?: 'manual' | 'generation';
         generation_radius?: number;
     }) => void;
@@ -144,7 +144,6 @@ export default function LobbyMap({
                 return b;
             });
         }
-        
         updateGameModeInfo({ gameBoundary: JSON.stringify(newBoundaries) });
     };
 

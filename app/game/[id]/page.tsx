@@ -3,7 +3,7 @@
 import { useState, use, useEffect, useRef, useCallback } from 'react';
 
 import { useRouter } from 'next/navigation';
-import { CiCircleAlert, CiCircleCheck, CiCircleRemove  } from "react-icons/ci";
+import { CiCircleAlert, CiCircleCheck  } from "react-icons/ci";
 import toast, { Toaster } from 'react-hot-toast';
 
 import LobbyView from '../../../components/lobby/LobbyView';
@@ -43,7 +43,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [bingoBoardMode, setBingoBoardMode] = useState<'shared' | 'individual'>('shared');
     const [endCondition, setEndCondition] = useState<'first_bingo' | 'timer'>('timer');
     const [startingPoint, setStartingPoint] = useState<string>('open-world');
-    const [gameBoundary, setGameBoundary] = useState<string | null>(null);
+    const [gameBoundary, setGameBoundary] = useState<string>('[]');
   
     // Players & Voting
     const [playerId, setPlayerId] = useState<string>('');
@@ -67,7 +67,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         grid_size?: number;
         bingo_board_mode?: 'shared' | 'individual';
         starting_point?: string;
-        gameBoundary?: string | null;
+        gameBoundary?: string;
         end_condition?: 'first_bingo' | 'timer';
         hide_map_symbols?: boolean;
         fast_voting?: boolean;
@@ -81,7 +81,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (updates.grid_size) setGridSize(updates.grid_size);
         if (updates.bingo_board_mode) setBingoBoardMode(updates.bingo_board_mode);
         if (updates.starting_point) setStartingPoint(updates.starting_point);
-        if (updates.gameBoundary !== undefined) setGameBoundary(updates.gameBoundary);
+        if (updates.gameBoundary) setGameBoundary(updates.gameBoundary);
         if (updates.end_condition) setEndCondition(updates.end_condition as 'first_bingo' | 'timer');
         if (updates.hide_map_symbols !== undefined) setHideMapSymbols(updates.hide_map_symbols);
         if (updates.fast_voting !== undefined) setFastVoting(updates.fast_voting);
@@ -156,7 +156,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setGridSize(gameData.grid_size || 3);
                 setBingoBoardMode(gameData.bingo_board_mode || 'shared');
                 setStartingPoint(gameData.starting_point || 'open-world');
-                setGameBoundary(gameData.gameBoundary || null);
+                setGameBoundary(gameData.gameBoundary || '[]');
                 setEndCondition(gameData.end_condition || 'timer');
                 setHideMapSymbols(gameData.hide_map_symbols || false);
                 setFastVoting(gameData.fast_voting || false);
@@ -252,7 +252,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     setGridSize(payload.new.grid_size || 3);
                     setBingoBoardMode(payload.new.bingo_board_mode || 'shared');
                     setStartingPoint(payload.new.starting_point || 'open-world');
-                    setGameBoundary(payload.new.gameBoundary || null);
+                    setGameBoundary(payload.new.gameBoundary || '[]');
                     setEndCondition(payload.new.end_condition || 'timer');
                     setHideMapSymbols(payload.new.hide_map_symbols || false);
                     setFastVoting(payload.new.fast_voting || false);

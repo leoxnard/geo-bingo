@@ -141,7 +141,7 @@ export function isPointInPolygon(point: { lat: number; lng: number }, polygon: {
     return isInside;
 }
 
-export function isLocationAllowed(point: { lat: number; lng: number }, gameBoundary: string | null) {
+export function isLocationAllowed(point: { lat: number; lng: number }, gameBoundary: string) {
     if (!gameBoundary || gameBoundary === '[]') return true;
     try {
         const parsed = JSON.parse(gameBoundary);

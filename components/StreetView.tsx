@@ -34,7 +34,7 @@ export default function StreetView({
     teamMode = 'ffa',
     gridSize = 3,
     startingPoint = 'open-world',
-    gameBoundary = null,
+    gameBoundary = '[]',
     endCondition = 'timer',
     timeLeft,
     readyPlayers,
@@ -376,7 +376,7 @@ export default function StreetView({
     };
 
     const parsedStartParams = useMemo(() => {
-        const polyString = gameBoundary || '';
+        const polyString = gameBoundary || '[]';
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let parsedBoundaries: any[] = [];
         let polyCenter = null;
