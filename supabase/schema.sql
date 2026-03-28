@@ -87,12 +87,14 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "team_mode" "text" DEFAULT 'ffa'::"text",
     "bingo_board_mode" "text" DEFAULT 'shared'::"text",
     "starting_point" "text" DEFAULT 'open-world'::"text",
-    "gameBoundary" "text" DEFAULT 'null'::"text",
+    "gameBoundary" "text" DEFAULT '[]'::"text" NOT NULL,
     "end_condition" "text" DEFAULT 'timer'::"text",
     "fast_voting" boolean DEFAULT false,
     "hide_map_symbols" boolean DEFAULT false,
     "suggested_categories" "text"[] DEFAULT '{}'::"text"[],
-    "exclusive_mode" boolean DEFAULT false NOT NULL
+    "exclusive_mode" boolean DEFAULT false NOT NULL,
+    "category_source" "text" DEFAULT 'manual'::"text" NOT NULL,
+    "generation_radius" bigint DEFAULT '10'::bigint NOT NULL
 );
 
 
