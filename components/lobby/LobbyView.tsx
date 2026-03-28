@@ -354,13 +354,11 @@ export default function LobbyView(props: LobbyViewProps) {
                         isLoaded={isLoaded}
                         startingPoint={props.startingPoint}
                         gameBoundary={props.gameBoundary}
-                        categorySource={props.categorySource}
-                        generationRadius={props.generationRadius}
                         updateGameModeInfo={props.updateGameModeInfo}
-                        />
+                    />
 
-                    {props.categorySource === 'manual' && (
-                        <LobbyCategories 
+                    <LobbyCategories 
+                        updateGameModeInfo={props.updateGameModeInfo}
                         isHost={props.isHost}
                         gameMode={props.gameMode}
                         gridSize={props.gridSize}
@@ -370,8 +368,10 @@ export default function LobbyView(props: LobbyViewProps) {
                         gameId={props.gameId}
                         supabase={props.supabase}
                         maxGridSize={MAXGRIDSIZE}
-                        />
-                    )}
+                        startingPoint={props.startingPoint}
+                        categorySource={props.categorySource}
+                        generationRadius={props.generationRadius}
+                    />
                 </div>
 
                 <LobbySidebar 
