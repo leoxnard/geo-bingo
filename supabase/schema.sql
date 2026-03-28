@@ -23,6 +23,34 @@ COMMENT ON SCHEMA "public" IS 'standard public schema';
 
 
 
+CREATE OR REPLACE FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) RETURNS "jsonb"
+    LANGUAGE "plpgsql"
+    AS $$
+DECLARE
+  result_sub RECORD;
+BEGIN
+  -- 1. Wir "sperren" die Game-Reihe für einen Bruchteil einer Sekunde. 
+  -- Wenn 2 Spieler exakt gleichzeitig kommen, muss einer kurz in der Schlange warten.
+  PERFORM 1 FROM games WHERE id = p_game_id FOR UPDATE;
+
+  -- 2. Prüfen, ob die Kategorie in diesem Spiel schon von jemandem gefunden wurde
+  IF EXISTS (SELECT 1 FROM submissions WHERE game_id = p_game_id AND category = p_category) THEN
+    RETURN jsonb_build_object('success', false, 'error', 'ALREADY_CLAIMED');
+  END IF;
+
+  -- 3. Wenn sie noch frei ist, fügen wir sie sicher ein!
+  INSERT INTO submissions (game_id, player_id, category, lat, lng, heading, pitch, zoom)
+  VALUES (p_game_id, p_player_id, p_category, p_lat, p_lng, p_heading, p_pitch, p_zoom)
+  RETURNING * INTO result_sub;
+
+  RETURN jsonb_build_object('success', true, 'data', row_to_json(result_sub));
+END;
+$$;
+
+
+ALTER FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) RETURNS "void"
     LANGUAGE "plpgsql"
     AS $$
@@ -62,7 +90,9 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "gameBoundary" "text" DEFAULT 'null'::"text",
     "end_condition" "text" DEFAULT 'timer'::"text",
     "fast_voting" boolean DEFAULT false,
-    "hide_map_symbols" boolean DEFAULT false
+    "hide_map_symbols" boolean DEFAULT false,
+    "suggested_categories" "text"[] DEFAULT '{}'::"text"[],
+    "exclusive_mode" boolean DEFAULT false NOT NULL
 );
 
 
@@ -196,6 +226,12 @@ GRANT USAGE ON SCHEMA "public" TO "postgres";
 GRANT USAGE ON SCHEMA "public" TO "anon";
 GRANT USAGE ON SCHEMA "public" TO "authenticated";
 GRANT USAGE ON SCHEMA "public" TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) TO "anon";
+GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) TO "service_role";
 
 
 

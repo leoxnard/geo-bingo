@@ -25,6 +25,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
     // Game state
     const [status, setStatus] = useState<GameStatus>('lobby');
+    const [exclusiveMode, setExclusiveMode] = useState(false);
     const [categories, setCategories] = useState<string[]>([]);
     const [suggestedCategories, setSuggestedCategories] = useState<string[]>([]);
     const [isHost, setIsHost] = useState(false);
@@ -72,6 +73,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         end_condition?: 'first_bingo' | 'timer';
         hide_map_symbols?: boolean;
         fast_voting?: boolean;
+        exclusive_mode?: boolean;
     }) => {
         if (!isHost) return;
         if (updates.game_mode) setGameMode(updates.game_mode as 'list' | 'bingo');
@@ -83,6 +85,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (updates.end_condition) setEndCondition(updates.end_condition as 'first_bingo' | 'timer');
         if (updates.hide_map_symbols !== undefined) setHideMapSymbols(updates.hide_map_symbols);
         if (updates.fast_voting !== undefined) setFastVoting(updates.fast_voting);
+        if (updates.exclusive_mode !== undefined) setExclusiveMode(updates.exclusive_mode);
         await supabase.from('games').update(updates).eq('id', gameId);
     };
 
@@ -123,7 +126,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             if (!gameData) {
                 const { error } = await supabase.from('games').insert([{ 
                     id: gameId, status: 'lobby', categories: [], ready_players: [], time_limit: 300, host_id: currentPlayerId, banned_players: [],
-                    game_mode: 'list', team_mode: 'ffa', grid_size: 3, starting_point: 'open-world', end_condition: 'timer', hide_map_symbols: false
+                    game_mode: 'list', team_mode: 'ffa', grid_size: 3, starting_point: 'open-world', end_condition: 'timer', hide_map_symbols: false, exclusive_mode: false
                 }]);
                 if (!error) {
                     setIsHost(true);
@@ -149,6 +152,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setEndCondition(gameData.end_condition || 'timer');
                 setHideMapSymbols(gameData.hide_map_symbols || false);
                 setFastVoting(gameData.fast_voting || false);
+                setExclusiveMode(gameData.exclusive_mode || false);
 
                 // Restore host status if they refresh the page
                 const isActuallyHost = gameData.host_id === currentPlayerId;
@@ -221,6 +225,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     setEndCondition(payload.new.end_condition || 'timer');
                     setHideMapSymbols(payload.new.hide_map_symbols || false);
                     setFastVoting(payload.new.fast_voting || false);
+                    setExclusiveMode(payload.new.exclusive_mode || false);
                 }
             ).subscribe();
 
@@ -401,6 +406,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 updateGameModeInfo={updateGameModeInfo}
                 timeLimit={timeLimit}
                 updateTimeLimit={updateTimeLimit}
+                exclusiveMode={exclusiveMode}
                 categories={categories}
                 suggestedCategories={suggestedCategories}
                 gameId={gameId}
@@ -445,6 +451,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 readyPlayers={readyPlayers}
                 players={players}
                 hideMapSymbols={hideMapSymbols}
+                exclusiveMode={exclusiveMode}
             />
         );
     }

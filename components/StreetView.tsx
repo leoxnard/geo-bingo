@@ -12,10 +12,6 @@ import { calculateBingoCounter } from './utils/Functions';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from './utils/mapUtils';
 import { Submission, StreetViewProps, PathPoint } from './utils/types';
 
-const additionalMapOptions = {
-    styles: ""
-}
-
 const safeStartCenter = { lat:30, lng: 10 };
 const initialWorldZoom = 2.4;
 
@@ -45,6 +41,7 @@ export default function StreetView({
     readyPlayers,
     players,
     hideMapSymbols = false,
+    exclusiveMode = false,
 }: StreetViewProps) {
 
     const { isLoaded } = useJsApiLoader({
@@ -56,7 +53,7 @@ export default function StreetView({
   
     const [submittingCategory, setSubmittingCategory] = useState<string | null>(null);
     const [inStreetView, setInStreetView] = useState(false); 
-    const [mySubmissions, setMySubmissions] = useState<Submission[]>([]);
+    const [allSubmissions, setAllSubmissions] = useState<Submission[]>([]);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isMobileLandscape, setIsMobileLandscape] = useState(() => {
         if (typeof window === 'undefined') return false;
@@ -73,6 +70,12 @@ export default function StreetView({
 
     const hasVotedToEnd = readyPlayers.includes(playerId);
     const votesNeeded = players.length;
+
+    const myTeam = useMemo(() => players.find(p => p.id === playerId)?.team ?? -1, [players, playerId]);
+    const teamIds = useMemo(() => teamMode === 'teams' ? players.filter(p => p.team === myTeam).map(p => p.id) : [playerId], [teamMode, players, myTeam, playerId]);
+
+    const mySubmissions = useMemo(() => allSubmissions.filter(s => teamIds.includes((s as any).player_id)), [allSubmissions, teamIds]);
+    const otherSubmissions = useMemo(() => allSubmissions.filter(s => !teamIds.includes((s as any).player_id)), [allSubmissions, teamIds]);
 
     const formatTime = (seconds: number) => {
         const m = Math.floor(seconds / 60);
@@ -114,36 +117,28 @@ export default function StreetView({
         return () => mql.removeEventListener('change', onChange);
     }, []);
 
+    // --- FETCH ALL SUBMISSIONS FOR EXCLUSIVE MODE ---
     useEffect(() => {
-        const myTeam = players.find(p => p.id === playerId)?.team ?? -1;
-        const teamIds = teamMode === 'teams' ? players.filter(p => p.team === myTeam).map(p => p.id) : [playerId];
-
-        const fetchMySubmissions = async () => {
-            const { data } = await supabase.from('submissions').select('*').eq('game_id', gameId).in('player_id', teamIds);
-            if (data) setMySubmissions(data);
+        const fetchAllSubmissions = async () => {
+            const { data } = await supabase.from('submissions').select('*').eq('game_id', gameId);
+            if (data) setAllSubmissions(data);
         };
-        fetchMySubmissions();
+        fetchAllSubmissions();
 
-        const channel = supabase.channel(`team-submissions-${gameId}-${playerId}`)
+        const channel = supabase.channel(`game-submissions-${gameId}`)
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'submissions', filter: `game_id=eq.${gameId}` }, 
                 (payload) => {
                     const newSub = payload.new as Submission;
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    if (teamIds.includes((newSub as any).player_id)) {
-                        setMySubmissions(prev => {
-                            if (prev.find(s => s.id === newSub.id)) return prev;
-                            return [...prev, newSub];
-                        });
-                    }
+                    setAllSubmissions(prev => {
+                        if (prev.find(s => s.id === newSub.id)) return prev;
+                        return [...prev, newSub];
+                    });
                 }
             )
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'submissions', filter: `game_id=eq.${gameId}` }, 
                 (payload) => {
                     const updatedSub = payload.new as Submission;
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    if (teamIds.includes((updatedSub as any).player_id)) {
-                        setMySubmissions(prev => prev.map(s => s.id === updatedSub.id ? { ...s, ...updatedSub } : s));
-                    }
+                    setAllSubmissions(prev => prev.map(s => s.id === updatedSub.id ? { ...s, ...updatedSub } : s));
                 }
             ).subscribe();
 
@@ -154,7 +149,7 @@ export default function StreetView({
             cleanup();
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [gameId, playerId, teamMode, players.length]);
+    }, [gameId]);
 
     useEffect(() => {
         const saveInterval = setInterval(async () => {
@@ -231,7 +226,7 @@ export default function StreetView({
                     lastValidPositionRef.current = pos;
                     lastValidPanoRef.current = pano.getPano();
                 } else {
-                    isRevertingRef.current = true; // Sperre aktivieren
+                    isRevertingRef.current = true;
                     showToast("You've reached the edge of the allowed area or entered a forbidden zone!");
                     if (lastValidPanoRef.current) {
                         pano.setPano(lastValidPanoRef.current);
@@ -286,19 +281,19 @@ export default function StreetView({
         const tempId = existingSub ? existingSub.id : crypto.randomUUID();
         const optimisticSub = { ...submissionData, id: tempId, votes: existingSub?.votes || {}, is_valid: null } as Submission;
 
-        let updatedSubmissions: Submission[];
-        if (existingSub) {
-            updatedSubmissions = mySubmissions.map(s => s.id === existingSub.id ? optimisticSub : s);
-        } else {
-            updatedSubmissions = [...mySubmissions, optimisticSub];
-        }
+        const updatedAllSubmissions = existingSub 
+            ? allSubmissions.map(s => s.id === existingSub.id ? optimisticSub : s)
+            : [...allSubmissions, optimisticSub];
+        
+        const updatedMySubmissions = existingSub
+            ? mySubmissions.map(s => s.id === existingSub.id ? optimisticSub : s)
+            : [...mySubmissions, optimisticSub];
 
-        setMySubmissions(updatedSubmissions);
+        setAllSubmissions(updatedAllSubmissions);
         setSubmittingCategory(null);
 
-        // Check Bingo condition
         if (gameMode === 'bingo' && endCondition === 'first_bingo') {
-            const bingos = calculateBingoCounter(gridSize, myBoard, updatedSubmissions);
+            const bingos = calculateBingoCounter(gridSize, myBoard, updatedMySubmissions);
             
             if (bingos.count > 0) {
                 const winnerNames = players.filter(p => bingos.players.includes(p.id)).map(p => p.name);
@@ -319,22 +314,48 @@ export default function StreetView({
             }
         }
 
-        // database update
-        if (existingSub) {
-            const { error } = await supabase.from('submissions').update(submissionData).eq('id', existingSub.id);
-            if (error) {
-                console.error("Update fehlgeschlagen:", error);
-                showToast("Fehler beim Speichern. Bild wurde zurückgesetzt.");
-                setMySubmissions([...mySubmissions]);
+        if (exclusiveMode && !existingSub) {
+            // exclusive mode insert via RPC to ensure atomic claim
+            const { data, error } = await supabase.rpc('claim_exclusive_category', {
+                p_game_id: gameId,
+                p_player_id: playerId,
+                p_category: targetCategory,
+                p_lat: submissionData.lat,
+                p_lng: submissionData.lng,
+                p_heading: submissionData.heading,
+                p_pitch: submissionData.pitch,
+                p_zoom: submissionData.zoom
+            });
+
+            if (data && data.success === false && data.error === 'ALREADY_CLAIMED') {
+                showToast("Sorry, someone else was faster claiming this category!");
+                setAllSubmissions(prev => prev.filter(s => s.id !== tempId));
+            } else if (error) {
+                console.error("RPC call failed:", error);
+                showToast("Error saving submission. Please try again.");
+                setAllSubmissions(prev => prev.filter(s => s.id !== tempId));
+            } else if (data && data.success) {
+                setAllSubmissions(prev => prev.map(s => s.id === tempId ? data.data : s));
             }
+
         } else {
-            const { data, error } = await supabase.from('submissions').insert([submissionData]).select().single();
-            if (error) {
-                console.error("Insert fehlgeschlagen:", error);
-                showToast("Fehler beim Speichern. Bitte nochmal versuchen.");
-                setMySubmissions(mySubmissions);
-            } else if (data) {
-                setMySubmissions(prev => prev.map(s => s.id === tempId ? data : s));
+            // ffa update or insert
+            if (existingSub) {
+                const { error } = await supabase.from('submissions').update(submissionData).eq('id', existingSub.id);
+                if (error) {
+                    console.error("Update error:", error);
+                    showToast("Error updating submission. Please try again.");
+                    setAllSubmissions(prev => prev.filter(s => s.id !== tempId));
+                }
+            } else {
+                const { data, error } = await supabase.from('submissions').insert([submissionData]).select().single();
+                if (error) {
+                    console.error("Insert error:", error);
+                    showToast("Error saving submission. Please try again.");
+                    setAllSubmissions(prev => prev.filter(s => s.id !== tempId));
+                } else if (data) {
+                    setAllSubmissions(prev => prev.map(s => s.id === tempId ? data : s));
+                }
             }
         }
     };
@@ -349,7 +370,8 @@ export default function StreetView({
     };
 
     const handleBingoTileClick = (cat: string) => {
-        if (window.matchMedia('(max-width: 639px)').matches) {
+        const isBlocked = exclusiveMode && !mySubmissions.find(s => s.category === cat) && otherSubmissions.some(s => s.category === cat);
+        if (window.matchMedia('(max-width: 639px)').matches && !isBlocked) {
             handleSubmit(cat);
         }
     };
@@ -484,7 +506,6 @@ export default function StreetView({
                                 zoom={mapZoom}
                                 options={mapOptions(additionalMapOptions)}
                             >
-                                {/* Zeichnet alle Zonen mit den korrekten Farben auf die Minimap */}
                                 {parsedBoundaries.map((boundary) => (
                                     boundary.points && boundary.points.length >= 3 && (
                                         <Polygon
@@ -547,6 +568,7 @@ export default function StreetView({
                                 <ul className="flex flex-col gap-3 flex-1">
                                     {myBoard.map((cat) => {
                                         const foundSub = mySubmissions.find(s => s.category === cat);
+                                        const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some(s => s.category === cat);
                                         
                                         const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
                                         const fov = foundSub?.zoom ? 180 / Math.pow(2, foundSub.zoom) : 90;
@@ -567,17 +589,17 @@ export default function StreetView({
                                             <li 
                                                 key={cat} 
                                                 style={bgStyle}
-                                                className={`relative overflow-hidden p-3 rounded-xl border border-slate-600 transition-all cursor-pointer flex flex-col gap-2 ${foundSub ? 'shadow-md' : 'bg-slate-800 hover:bg-slate-700/30'}`}
+                                                className={`relative overflow-hidden p-3 rounded-xl border transition-all cursor-pointer flex flex-col gap-2 ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'}`}
                                             >
                                                 {foundSub && <div className="absolute inset-0 bg-black/40 z-0"></div>}
 
                                                 <div className="relative z-10 flex flex-col gap-2">
                                                     <div className="flex justify-between items-center w-full">
-                                                        <span className={`truncate font-medium flex-1 pr-2 ${foundSub ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : 'text-white'}`}>
+                                                        <span className={`truncate font-medium flex-1 pr-2 ${foundSub ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400 line-through' : 'text-white'}`}>
                                                             {cat}
                                                         </span>
-                                                        <span className={`text-xs font-bold uppercase whitespace-nowrap ${foundSub ? 'text-green-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : 'text-slate-500'}`}>
-                                                            {foundSub ? 'Found' : 'Pending'}
+                                                        <span className={`text-xs font-bold uppercase whitespace-nowrap ${foundSub ? 'text-green-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-500' : 'text-slate-500'}`}>
+                                                            {foundSub ? 'Found' : isBlocked ? 'Locked' : 'Pending'}
                                                         </span>
                                                     </div>
 
@@ -585,26 +607,30 @@ export default function StreetView({
                                                         {!foundSub ? (
                                                             <button type="button"
                                                                 onClick={(e) => { e.stopPropagation(); handleSubmit(cat); }}
-                                                                disabled={submittingCategory === cat || !inStreetView}
-                                                                className={`flex-1 text-[11px] px-2 py-2 font-bold rounded shadow uppercase transition-all ${!inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-green-600/30 hover:bg-green-500/30 text-white'}`}
+                                                                disabled={submittingCategory === cat || !inStreetView || isBlocked}
+                                                                className={`flex-1 text-[11px] px-2 py-2 font-bold rounded shadow uppercase transition-all ${isBlocked ? 'bg-red-900/50 text-red-300 cursor-not-allowed' : !inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-green-600/30 hover:bg-green-500/30 text-white'}`}
                                                             >
-                                                                {submittingCategory === cat ? 'Saving...' : !inStreetView ? 'Enter Streetview' : 'Save'}
+                                                                {submittingCategory === cat ? 'Saving...' : isBlocked ? 'Claimed' : !inStreetView ? 'Enter Streetview' : 'Save'}
                                                             </button>
                                                         ) : (
                                                             <>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={(e) => { e.stopPropagation(); handleSubmit(cat); }}
-                                                                    disabled={submittingCategory === cat || !inStreetView}
-                                                                    className={`flex-1 text-[10px] px-2 py-2 font-bold rounded shadow uppercase transition-all ${!inStreetView ? 'bg-slate-600/30 text-slate-300 cursor-not-allowed text-slate-300/30' : 'bg-amber-600/30 hover:bg-amber-500/30 text-white'}`}
-                                                                >
-                                                                    {submittingCategory === cat ? '...' : !inStreetView ? 'Enter Streetview' : 'Overwrite'}
-                                                                </button>
+                                                                {/* Added check for !exclusiveMode here */}
+                                                                {!exclusiveMode && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => { e.stopPropagation(); handleSubmit(cat); }}
+                                                                        disabled={submittingCategory === cat || !inStreetView}
+                                                                        className={`flex-1 text-[10px] px-2 py-2 font-bold rounded shadow uppercase transition-all ${!inStreetView ? 'bg-slate-600/30 text-slate-300 cursor-not-allowed text-slate-300/30' : 'bg-amber-600/30 hover:bg-amber-500/30 text-white'}`}
+                                                                    >
+                                                                        {submittingCategory === cat ? '...' : !inStreetView ? 'Enter Streetview' : 'Overwrite'}
+                                                                    </button>
+                                                                )}
+
                                                                 {startingPoint === 'open-world' && (
                                                                     <button
                                                                         type="button"
                                                                         onClick={(e) => { e.stopPropagation(); jumpToLocation(foundSub); }}
-                                                                        className="flex-[0.5] bg-slate-700/40 hover:bg-slate-500/30 text-[10px] px-2 py-2 text-white font-bold rounded shadow uppercase"
+                                                                        className={`${exclusiveMode ? 'flex-1' : 'flex-[0.5]'} bg-slate-700/40 hover:bg-slate-500/30 text-[10px] px-2 py-2 text-white font-bold rounded shadow uppercase transition-all`}
                                                                     >
                                                                         View
                                                                     </button>
@@ -621,6 +647,8 @@ export default function StreetView({
                                 <div className={`grid gap-2 flex-1 auto-rows-fr bingo-grid-${gridSize}`}>
                                     {myBoard.map((cat) => {
                                         const foundSub = mySubmissions.find(s => s.category === cat);
+                                        const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some(s => s.category === cat);
+                                        
                                         const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
                                         const fov = foundSub?.zoom ? 180 / Math.pow(2, foundSub.zoom) : 90;
                                         const bgStyle = foundSub ? {
@@ -632,23 +660,23 @@ export default function StreetView({
                                         return (
                                             <div 
                                                 key={cat} 
-                                                title={cat}
+                                                title={isBlocked ? "Claimed by another team" : cat}
                                                 style={bgStyle}
                                                 onClick={() => handleBingoTileClick(cat)}
-                                                className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-center items-center text-center overflow-hidden pb-2 sm:pb-12 border-slate-600 ${foundSub ? 'text-white border-green-500' : 'bg-slate-800 hover:bg-slate-700'}`}
+                                                className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-center items-center text-center overflow-hidden pb-2 sm:pb-12 ${foundSub ? 'text-white border-green-500' : isBlocked ? 'bg-slate-900/80 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700'}`}
                                             >
                                                 {foundSub && <div className="absolute inset-0 bg-black/40 z-0"></div>}
-                                                <span className={`relative z-10 ${getSidebarTextSizeClass()} font-bold leading-tight line-clamp-2 [hyphens:auto] [word-break:break-word] mt-0 sm:mt-1 ${foundSub ? 'drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)]' : 'text-white'}`}>
+                                                <span className={`relative z-10 ${getSidebarTextSizeClass()} font-bold leading-tight line-clamp-2 [hyphens:auto] [word-break:break-word] mt-0 sm:mt-1 ${foundSub ? 'drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400 line-through' : 'text-white'}`}>
                                                     {cat}
                                                 </span>
                             
                                                 <div className="absolute bottom-2 w-[90%] left-[5%] h-[25%] max-h-12 hidden sm:flex flex-row justify-center gap-2 z-10">
                                                     {!foundSub ? (
                                                         <button type="button"
-                                                            title="Add submission"
+                                                            title={isBlocked ? "Claimed by another team" : "Add submission"}
                                                             onClick={(e) => { e.stopPropagation(); handleSubmit(cat); }}
-                                                            disabled={submittingCategory === cat || !inStreetView}
-                                                            className={`w-full h-full font-bold rounded-lg uppercase transition-all flex justify-center items-center ${!inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed opacity-50' : 'bg-green-600/30 hover:bg-green-500/30 text-white'}`}
+                                                            disabled={submittingCategory === cat || !inStreetView || isBlocked}
+                                                            className={`w-full h-full font-bold rounded-lg uppercase transition-all flex justify-center items-center ${isBlocked ? 'bg-red-900/50 text-red-500 cursor-not-allowed' : !inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed opacity-50' : 'bg-green-600/30 hover:bg-green-500/30 text-white'}`}
                                                         >
                                                             {submittingCategory === cat ? '...' : <FaCamera className="h-[60%] w-auto" />}
                                                         </button>

@@ -88,6 +88,7 @@ export interface StreetViewProps {
     players: Player[];
     endCondition?: 'first_bingo' | 'timer';
     hideMapSymbols?: boolean;
+    exclusiveMode?: boolean;
 }
 
 export interface FastVotingViewProps {

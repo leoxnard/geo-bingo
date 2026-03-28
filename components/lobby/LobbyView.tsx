@@ -35,6 +35,7 @@ interface LobbyViewProps {
     gridSize: number;
     timeLimit: number;
     updateTimeLimit: (minutes: number) => void;
+    exclusiveMode: boolean;
     categories: string[];
     suggestedCategories: string[];
     gameId: string;
@@ -147,6 +148,7 @@ export default function LobbyView(props: LobbyViewProps) {
                         timeLimit={props.timeLimit}
                         endCondition={props.endCondition}
                         maxGridSize={MAXGRIDSIZE}
+                        exclusiveMode={props.exclusiveMode}
                         updateGameModeInfo={props.updateGameModeInfo}
                         updateTimeLimit={props.updateTimeLimit}
                     />

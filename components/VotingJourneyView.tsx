@@ -415,11 +415,11 @@ export default function VotingJourneyView({
     if (isDataLoaded && playersWithPaths.length === 0) {
         return (
             <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white">
-                <h2 className="text-2xl font-bold mb-4 text-indigo-400 tracking-widest uppercase">Keine Pfade gefunden</h2>
-                <p className="text-slate-400 mb-8">Niemand hat das Haus verlassen oder GPS-Daten aufgezeichnet.</p>
+                <h2 className="text-2xl font-bold mb-4 text-indigo-400 tracking-widest uppercase">No Paths Found</h2>
+                <p className="text-slate-400 mb-8">No one has left the house or recorded GPS data.</p>
                 {isHost && (
                     <button type="button" onClick={onFinishGame} className="px-6 py-3 bg-green-600 hover:bg-green-500 rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(34,197,94,0.3)]">
-                        Direkt zum Podium
+                        End Game
                     </button>
                 )}
             </div>

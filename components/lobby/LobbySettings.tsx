@@ -11,12 +11,14 @@ interface LobbySettingsProps {
     timeLimit: number;
     endCondition: 'first_bingo' | 'timer';
     maxGridSize: number;
+    exclusiveMode: boolean;
     updateGameModeInfo: (updates: { 
         game_mode?: string; 
         team_mode?: string; 
         grid_size?: number; 
         bingo_board_mode?: 'shared' | 'individual';
         end_condition?: 'first_bingo' | 'timer';
+        exclusive_mode?: boolean;
     }) => void;
     updateTimeLimit: (minutes: number) => void;
 }
@@ -30,6 +32,7 @@ export default function LobbySettings({
     timeLimit,
     endCondition,
     maxGridSize,
+    exclusiveMode,
     updateGameModeInfo,
     updateTimeLimit
 }: LobbySettingsProps) {
@@ -98,6 +101,41 @@ export default function LobbySettings({
                     In Bingo Grid mode, players receive a grid of categories. Players receive extra points for completing rows or columns of a length defined by the host. The game ends when the timer runs out or all players vote to end. Perfect for longer sessions and adds a fun strategic layer!
                 </p>
             )}
+
+            {/* Select if Categories are exclusive or not */}
+            <div className="pt-2 border-t border-slate-700">
+                <label className="flex justify-between font-bold mb-2">
+                    <span>Category Mode</span>
+                </label>
+                <div className="flex bg-slate-900 rounded-lg p-1">
+                    <button type="button"
+                        onClick={() => updateGameModeInfo({ exclusive_mode: false })}
+                        disabled={!isHost}
+                        className={`flex-1 py-2 rounded-md font-bold transition-all ${
+                            exclusiveMode === false
+                                ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow'
+                                : 'text-slate-400 hover:text-white'
+                        }`}
+                    >
+                        Not Exclusive
+                    </button>
+                    <button type="button"
+                        onClick={() => updateGameModeInfo({ exclusive_mode: true })}
+                        disabled={!isHost}
+                        className={`flex-1 py-2 rounded-md font-bold transition-all ${
+                            exclusiveMode === true
+                                ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow'
+                                : 'text-slate-400 hover:text-white'
+                        }`}
+                    >
+                        Exclusive
+                    </button>
+                </div>
+                <p className="my-2 text-xs text-slate-400 text-center min-h-[16px]">
+                    {exclusiveMode === false && 'Categories can be submitted by every player.'}
+                    {exclusiveMode === true && 'Each category can only be submitted by the first player submitting it. A player will not be able to overwrite his own submission!'}
+                </p>
+            </div>
 
             {gameMode === 'bingo' && (
                 <>
