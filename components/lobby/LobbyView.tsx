@@ -25,7 +25,6 @@ type GameStatus = 'lobby' | 'playing' | 'voting' | 'finished';
 interface LobbyViewProps {
     gameMode: 'list' | 'bingo';
     teamMode: 'ffa' | 'teams';
-    bingoBoardMode: 'shared' | 'individual';
     startingPoint: string;
     endCondition: 'first_bingo' | 'timer';
     gameBoundary: string;
@@ -34,7 +33,6 @@ interface LobbyViewProps {
     isHost: boolean;
     gridSize: number;
     timeLimit: number;
-    updateTimeLimit: (minutes: number) => void;
     exclusiveMode: boolean;
     categories: string[];
     suggestedCategories: string[];
@@ -56,6 +54,7 @@ interface LobbyViewProps {
     fastVoting: boolean;
     categorySource: 'manual' | 'generation';
     generationRadius: number;
+    generationNumber: number;
 }
 
 export default function LobbyView(props: LobbyViewProps) {
@@ -195,9 +194,7 @@ export default function LobbyView(props: LobbyViewProps) {
                     throw new Error(`AI returned fewer categories than required! Got ${finalCategories.length}, but need ${requiredCount}.`);
                 }
 
-                for (const responseCategory of finalCategories) {
-                    console.log(`Gemini suggested category: "${responseCategory}"`);
-                }
+                console.log("Final categories from AI:", finalCategories);
 
                 resolve(finalCategories.slice(0, requiredCount));
 
@@ -229,7 +226,7 @@ export default function LobbyView(props: LobbyViewProps) {
         }
 
         let finalCategories = [...props.categories];
-        const neededCount = props.gameMode === 'bingo' ? props.gridSize * props.gridSize : 10;
+        const neededCount = props.gameMode === 'bingo' ? props.gridSize * props.gridSize : props.generationNumber;
 
         // AI Generation Logic
         if (props.categorySource === 'generation' && props.startingPoint !== 'open-world' && startPos) {
@@ -293,17 +290,9 @@ export default function LobbyView(props: LobbyViewProps) {
         // Bingo Board Generation Logic
         if (props.gameMode === 'bingo') {
             try {
-                if (props.bingoBoardMode === 'shared') {
-                    const board = finalCategories.slice(0, neededCount);
-                    const { error } = await props.supabase.from('players').update({ bingo_board: board }).eq('game_id', props.gameId);
-                    if (error) throw error;
-                } else {
-                    const promises = props.players.map(p => {
-                        const board = shuffle([...finalCategories]).slice(0, neededCount);
-                        return props.supabase.from('players').update({ bingo_board: board }).eq('id', p.id);
-                    });
-                    await Promise.all(promises);
-                }
+                const board = finalCategories.slice(0, neededCount);
+                const { error } = await props.supabase.from('players').update({ bingo_board: board }).eq('game_id', props.gameId);
+                if (error) throw error;
             } catch (err: any) {
                 console.error("Failed to generate boards:", err);
                 toast.error(`Board Generation Failed: ${err?.message || "Unknown database error"}`);
@@ -340,13 +329,10 @@ export default function LobbyView(props: LobbyViewProps) {
                         gameMode={props.gameMode}
                         teamMode={props.teamMode}
                         gridSize={props.gridSize}
-                        bingoBoardMode={props.bingoBoardMode}
                         timeLimit={props.timeLimit}
                         endCondition={props.endCondition}
-                        maxGridSize={MAXGRIDSIZE}
                         exclusiveMode={props.exclusiveMode}
                         updateGameModeInfo={props.updateGameModeInfo}
-                        updateTimeLimit={props.updateTimeLimit}
                     />
 
                     <LobbyMap 
@@ -362,7 +348,6 @@ export default function LobbyView(props: LobbyViewProps) {
                         isHost={props.isHost}
                         gameMode={props.gameMode}
                         gridSize={props.gridSize}
-                        bingoBoardMode={props.bingoBoardMode}
                         categories={props.categories}
                         suggestedCategories={props.suggestedCategories}
                         gameId={props.gameId}
@@ -371,6 +356,7 @@ export default function LobbyView(props: LobbyViewProps) {
                         startingPoint={props.startingPoint}
                         categorySource={props.categorySource}
                         generationRadius={props.generationRadius}
+                        generationNumber={props.generationNumber}
                     />
                 </div>
 

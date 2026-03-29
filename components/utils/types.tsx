@@ -39,7 +39,6 @@ export interface PlayerStat {
 export interface LobbyViewProps {
     gameMode: 'list' | 'bingo';
     teamMode: 'ffa' | 'teams';
-    bingoBoardMode: 'shared' | 'individual';
     startingPoint: string;
     updateGameModeInfo: (updates: { 
         game_mode?: string; 

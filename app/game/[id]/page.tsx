@@ -35,12 +35,12 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [timeLimit, setTimeLimit] = useState(300);
     const [categorySource, setCategorySource] = useState<'manual' | 'generation'>('manual');
     const [generationRadius, setGenerationRadius] = useState<number>(10); // in 100m
+    const [generationNumber, setGenerationNumber] = useState<number>(10);
   
     // Bingo Mode State
     const [gameMode, setGameMode] = useState<'list' | 'bingo'>('list');
     const [teamMode, setTeamMode] = useState<'ffa' | 'teams'>('ffa');
     const [gridSize, setGridSize] = useState(3);
-    const [bingoBoardMode, setBingoBoardMode] = useState<'shared' | 'individual'>('shared');
     const [endCondition, setEndCondition] = useState<'first_bingo' | 'timer'>('timer');
     const [startingPoint, setStartingPoint] = useState<string>('open-world');
     const [gameBoundary, setGameBoundary] = useState<string>('[]');
@@ -64,6 +64,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const updateGameModeInfo = async (updates: {
         game_mode?: string;
         team_mode?: string;
+        time_limit?: number;
         grid_size?: number;
         bingo_board_mode?: 'shared' | 'individual';
         starting_point?: string;
@@ -74,12 +75,13 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         exclusive_mode?: boolean;
         category_source?: 'manual' | 'generation';
         generation_radius?: number;
+        generation_number?: number;
     }) => {
         if (!isHost) return;
         if (updates.game_mode) setGameMode(updates.game_mode as 'list' | 'bingo');
         if (updates.team_mode) setTeamMode(updates.team_mode as 'ffa' | 'teams');
+        if (updates.time_limit) setTimeLimit(updates.time_limit);
         if (updates.grid_size) setGridSize(updates.grid_size);
-        if (updates.bingo_board_mode) setBingoBoardMode(updates.bingo_board_mode);
         if (updates.starting_point) setStartingPoint(updates.starting_point);
         if (updates.gameBoundary) setGameBoundary(updates.gameBoundary);
         if (updates.end_condition) setEndCondition(updates.end_condition as 'first_bingo' | 'timer');
@@ -88,6 +90,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (updates.exclusive_mode !== undefined) setExclusiveMode(updates.exclusive_mode);
         if (updates.category_source !== undefined) setCategorySource(updates.category_source);
         if (updates.generation_radius !== undefined) setGenerationRadius(updates.generation_radius);
+        if (updates.generation_number !== undefined) setGenerationNumber(updates.generation_number);
         await supabase.from('games').update(updates).eq('id', gameId);
     };
 
@@ -129,10 +132,23 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             // Setup or Load the Game Room
             if (!gameData) {
                 const newGameData = { 
-                    id: gameId, status: 'lobby', categories: [], ready_players: [], time_limit: 300, 
-                    host_id: currentPlayerId, banned_players: [], game_mode: 'list', team_mode: 'ffa', 
-                    grid_size: 3, starting_point: 'open-world', end_condition: 'timer', 
-                    hide_map_symbols: false, exclusive_mode: false, category_source: 'manual', generation_radius: 10
+                    id: gameId,
+                    status: 'lobby',
+                    categories: [],
+                    ready_players: [],
+                    time_limit: 300, 
+                    host_id: currentPlayerId,
+                    banned_players: [],
+                    game_mode: 'list',
+                    team_mode: 'ffa', 
+                    grid_size: 3,
+                    starting_point: 'open-world',
+                    end_condition: 'timer', 
+                    hide_map_symbols: false,
+                    exclusive_mode: false,
+                    category_source: 'manual',
+                    generation_radius: 10,
+                    generation_number: 10
                 };
                 const { error } = await supabase.from('games').insert([newGameData]);
                 if (!error) {
@@ -154,7 +170,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setGameMode(gameData.game_mode || 'list');
                 setTeamMode(gameData.team_mode || 'ffa');
                 setGridSize(gameData.grid_size || 3);
-                setBingoBoardMode(gameData.bingo_board_mode || 'shared');
                 setStartingPoint(gameData.starting_point || 'open-world');
                 setGameBoundary(gameData.gameBoundary || '[]');
                 setEndCondition(gameData.end_condition || 'timer');
@@ -163,6 +178,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setExclusiveMode(gameData.exclusive_mode || false);
                 setCategorySource(gameData.category_source || 'manual');
                 setGenerationRadius(gameData.generation_radius || 10);
+                setGenerationNumber(gameData.generation_number || 10);
 
                 const isActuallyHost = gameData.host_id === currentPlayerId;
                 setIsHost(isActuallyHost);
@@ -250,7 +266,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     setGameMode(payload.new.game_mode || 'list');
                     setTeamMode(payload.new.team_mode || 'ffa');
                     setGridSize(payload.new.grid_size || 3);
-                    setBingoBoardMode(payload.new.bingo_board_mode || 'shared');
                     setStartingPoint(payload.new.starting_point || 'open-world');
                     setGameBoundary(payload.new.gameBoundary || '[]');
                     setEndCondition(payload.new.end_condition || 'timer');
@@ -259,6 +274,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     setExclusiveMode(payload.new.exclusive_mode || false);
                     setCategorySource(payload.new.category_source || 'manual');
                     setGenerationRadius(payload.new.generation_radius || 10);
+                    setGenerationNumber(payload.new.generation_number || 10);
                 }
             ).subscribe();
 
@@ -352,13 +368,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         return () => clearInterval(timerId);
     }, [status, timeLimit, isHost, gameId, updateStatus, gameLoaded]);
 
-    // --- ACTIONS ---
-    const updateTimeLimit = async (minutes: number) => {
-        const seconds = minutes * 60;
-        setTimeLimit(seconds);
-        await supabase.from('games').update({ time_limit: seconds }).eq('id', gameId);
-    };
-
     const kickPlayer = async (idToKick: string) => {
         if (isHost) {
             setPlayers(prev => prev.filter(p => p.id !== idToKick));
@@ -421,13 +430,11 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     teamMode={teamMode}
                     isHost={isHost}
                     gridSize={gridSize}
-                    bingoBoardMode={bingoBoardMode}
                     startingPoint={startingPoint}
                     endCondition={endCondition}
                     gameBoundary={gameBoundary}
                     updateGameModeInfo={updateGameModeInfo}
                     timeLimit={timeLimit}
-                    updateTimeLimit={updateTimeLimit}
                     exclusiveMode={exclusiveMode}
                     categories={categories}
                     suggestedCategories={suggestedCategories}
@@ -447,6 +454,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     fastVoting={fastVoting}
                     categorySource={categorySource}
                     generationRadius={generationRadius}
+                    generationNumber={generationNumber}
                 />
             );
         }

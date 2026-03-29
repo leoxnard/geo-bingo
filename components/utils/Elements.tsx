@@ -74,10 +74,148 @@ export const ToggleSwitch = ({ checked, onChange, disabled, label }: { checked: 
                 checked={checked}
                 disabled={disabled}
                 onChange={(e) => !disabled && onChange(e.target.checked)}
-                className="sr-only peer" // Sr-only verbirgt die Standard-Checkbox visuell
+                className="sr-only peer"
             />
             {/* Der Hintergrund des Schalters */}
             <div className="w-11 h-6 bg-slate-700 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-400 peer-checked:bg-indigo-600 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
         </div>
     </label>
+);
+
+export const ToggleButton = ({ 
+    classname, 
+    active, 
+    labelLeft, 
+    labelRight, 
+    onClick, 
+    disabled, 
+    title, 
+    isHost, 
+    position = 'middle',
+    description,
+}: { 
+    classname?: string; 
+    active: 'left' | 'right'; 
+    labelLeft: string, 
+    labelRight: string, 
+    onClick: (val: 'left' | 'right') => void; 
+    disabled?: boolean; 
+    title: string; 
+    isHost?: boolean; 
+    position?: 'top' | 'middle' | 'bottom';
+    description?: string;
+}) => (
+    <div className={`py-3 border-t border-slate-700
+        ${position === 'top' ? 'pt-0 border-t-0' : ''}
+        ${position === 'bottom' ? 'pb-0' : ''}
+        ${classname}`}>
+        <label className="flex justify-between font-bold mb-2 text-xl text-slate-300">
+            <span>{title}</span>
+        </label>
+        
+        {/* Button-Container */}
+        <button 
+            className="relative w-full flex bg-slate-900 rounded-lg p-1 transition-all focus:outline-none disabled:opacity-50"
+            onClick={() => onClick(active === 'left' ? 'right' : 'left')}
+            disabled={disabled}
+            title={title}
+        >
+            {/* Slider */}
+            <div 
+                className={`
+                    absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] 
+                    rounded-md shadow-lg transition-transform duration-300 ease-in-out
+                    ${active === 'right' ? 'translate-x-full' : 'translate-x-0'} 
+                    ${isHost ? 'bg-indigo-600' : 'bg-slate-700'}
+                `} 
+            />
+
+            {/* Labels */}
+            <div className={`relative z-10 flex-1 py-2 text-sm font-semibold transition-colors duration-200 ${active === 'left' ? 'text-white' : 'text-slate-400'}`}>
+                {labelLeft}
+            </div>
+            <div className={`relative z-10 flex-1 py-2 text-sm font-semibold transition-colors duration-200 ${active === 'right' ? 'text-white' : 'text-slate-400'}`}>
+                {labelRight}
+            </div>
+        </button>
+        {/* Description */}
+        {description && (
+            <p className="mt-2 text-xs text-slate-400 text-center min-h-[16px]">
+                {description}
+            </p>
+        )}
+    </div>
+);
+
+export const RangeSlider = ({ 
+    classname,
+    title,
+    min,
+    max,
+    minLabel = String(min),
+    maxLabel = String(max),
+    step = 1,
+    value,
+    displayValue,
+    disabled,
+    onChange,
+    onCommit,
+    position = 'middle',
+    description
+}: { 
+    classname?: string;
+    title: string;
+    min: number; 
+    max: number;
+    minLabel?: string;
+    maxLabel?: string;
+    step?: number;
+    value: number;
+    displayValue?: string;
+    disabled?: boolean;
+    onChange: (val: number) => void;
+    onCommit: () => void;
+    position?: 'top' | 'middle' | 'bottom';
+    description?: string;
+}) => (
+    <div className={`py-3 border-t border-slate-700 
+        ${position === 'top' ? 'pt-0 border-t-0' : ''}
+        ${position === 'bottom' ? 'pb-0' : ''}
+        ${classname}`}>
+        <div className="flex justify-between items-center mb-3">
+            <label className="font-bold text-xl text-slate-300">
+                {title}
+            </label>
+            {/* Der formatierte Wert aus deiner Logik */}
+            <span className="font-black text-indigo-400 tabular-nums">
+                {displayValue || value}
+            </span>
+        </div>
+
+        <div className="p-4 bg-slate-900 rounded-xl shadow-inner flex flex-col gap-2">
+            <input
+                type="range"
+                title={title}
+                min={min}
+                max={max}
+                step={step}
+                value={value}
+                disabled={disabled}
+                onChange={(e) => onChange(parseInt(e.target.value))}
+                onMouseUp={onCommit} 
+                onTouchEnd={onCommit}
+                className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 hover:accent-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            />
+            <div className="flex justify-between text-[10px] tracking-widest text-slate-500 font-bold px-1">
+                <span>{minLabel}</span>
+                <span>{maxLabel}</span>
+            </div>
+        </div>
+
+        {description && (
+            <p className="mt-2 text-xs text-slate-400 text-center italic">
+                {description}
+            </p>
+        )}
+    </div>
 );

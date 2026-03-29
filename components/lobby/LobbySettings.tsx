@@ -2,25 +2,25 @@
 
 import React, { useState, useEffect } from 'react';
 
+import { ToggleButton, RangeSlider } from '../utils/Elements';
+
 interface LobbySettingsProps {
     isHost: boolean;
     gameMode: 'list' | 'bingo';
     teamMode: 'ffa' | 'teams';
     gridSize: number;
-    bingoBoardMode: 'shared' | 'individual';
     timeLimit: number;
     endCondition: 'first_bingo' | 'timer';
-    maxGridSize: number;
     exclusiveMode: boolean;
     updateGameModeInfo: (updates: { 
-        game_mode?: string; 
-        team_mode?: string; 
+        game_mode?: string;
+        team_mode?: string;
+        time_limit?: number; 
         grid_size?: number; 
         bingo_board_mode?: 'shared' | 'individual';
         end_condition?: 'first_bingo' | 'timer';
         exclusive_mode?: boolean;
     }) => void;
-    updateTimeLimit: (minutes: number) => void;
 }
 
 export default function LobbySettings({
@@ -28,262 +28,108 @@ export default function LobbySettings({
     gameMode,
     teamMode,
     gridSize,
-    bingoBoardMode,
     timeLimit,
     endCondition,
-    maxGridSize,
     exclusiveMode,
-    updateGameModeInfo,
-    updateTimeLimit
+    updateGameModeInfo
 }: LobbySettingsProps) {
 
+    const [localGridSize, setLocalGridSize] = useState(gridSize);
     const [localTimeLimit, setLocalTimeLimit] = useState(timeLimit / 60);
 
     useEffect(() => {
         setLocalTimeLimit(timeLimit / 60);
-    }, [timeLimit]);
+        setLocalGridSize(gridSize);
+    }, [timeLimit, gridSize]);
 
-    const handleTimeLimitChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setLocalTimeLimit(parseInt(e.target.value));
-    };
-
-    const handleTimeLimitCommit = () => {
+    const handleCommit = () => {
         if (!isHost) return;
-        updateTimeLimit(localTimeLimit);
+        updateGameModeInfo({ 
+            grid_size: localGridSize,
+            time_limit: localTimeLimit * 60,
+        });
     };
 
     return (
         <div className="bg-slate-800 p-6 rounded-xl flex-1 border border-slate-700 h-fit">
-            <h2 className="text-xl font-semibold mb-4 text-slate-300">Settings</h2>
+            {/* <h2 className="text-xl font-semibold mb-4 text-slate-300">Settings</h2> */}
 
             {/* Team Mode Selection */}
-            <div className="mb-2 flex bg-slate-900 rounded-lg p-1">
-                <button type="button"
-                    onClick={() => updateGameModeInfo({ team_mode: 'ffa' })}
-                    disabled={!isHost}
-                    className={`flex-1 py-2 rounded-md font-bold transition-all ${
-                        teamMode === 'ffa'
-                            ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow'
-                            : 'text-slate-400 hover:text-white'
-                    }`}
-                >
-                    No Teams
-                </button>
-                <button type="button"
-                    onClick={() => updateGameModeInfo({ team_mode: 'teams' })}
-                    disabled={!isHost}
-                    className={`flex-1 py-2 rounded-md font-bold transition-all ${
-                        teamMode === 'teams'
-                            ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow'
-                            : 'text-slate-400 hover:text-white'
-                    }`}
-                >
-                    Teams
-                </button>
-            </div>
+            <ToggleButton
+                title="Team Mode"
+                active={teamMode === 'ffa' ? 'left' : 'right'}
+                onClick={(val: 'left' | 'right') => updateGameModeInfo({ team_mode: val === 'left' ? 'ffa' : 'teams' })}
+                disabled={!isHost}
+                isHost={isHost}
+                labelLeft="No Teams"
+                labelRight="Teams"
+                position='top'
+            />
 
             {/* Game Mode Selection */}
-            <div className="mb-2 flex bg-slate-900 rounded-lg p-1">
-                <button type="button"
-                    onClick={() => updateGameModeInfo({ game_mode: 'list' })}
-                    disabled={!isHost}
-                    className={`flex-1 py-2 rounded-md font-bold transition-all ${
-                        gameMode === 'list'
-                            ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow'
-                            : 'text-slate-400 hover:text-white'
-                    }`}
-                >
-                    Bingo List
-                </button>
-                <button type="button"
-                    onClick={() => updateGameModeInfo({ game_mode: 'bingo' })}
-                    disabled={!isHost}
-                    className={`flex-1 py-2 rounded-md font-bold transition-all ${
-                        gameMode === 'bingo'
-                            ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow'
-                            : 'text-slate-400 hover:text-white'
-                    }`}
-                >
-                    Bingo Grid
-                </button>
-            </div>
-
-            {gameMode === 'list' ? (
-                <p className="mb-6 p-2 pt-0 rounded-lg text-sm text-slate-400">
-                    In Bingo List mode, players will see a simple list of categories. The game ends when the timer runs out or all players vote to end. Great for quick sessions and smaller groups!
-                </p>
-            ) : (
-                <p className="mb-6 p-2 pt-0 rounded-lg text-sm text-slate-400">
-                    In Bingo Grid mode, players receive a grid of categories. Players receive extra points for completing rows or columns of a length defined by the host. The game ends when the timer runs out or all players vote to end. Perfect for longer sessions and adds a fun strategic layer!
-                </p>
-            )}
+            <ToggleButton
+                title="Game Mode"
+                active={gameMode === 'list' ? 'left' : 'right'}
+                onClick={(val: 'left' | 'right') => updateGameModeInfo({ game_mode: val === 'left' ? 'list' : 'bingo' })}
+                disabled={!isHost}
+                isHost={isHost}
+                labelLeft="Bingo List"
+                labelRight="Bingo Grid"
+                description={`${gameMode === 'list' ? 
+                    'In Bingo List mode, players will see a simple list of categories.'
+                    : 'In Bingo Grid mode, players receive a grid of categories.'
+                }`}
+            />
 
             {/* Select if Categories are exclusive or not */}
-            <div className="pt-2 border-t border-slate-700">
-                <label className="flex justify-between font-bold mb-2">
-                    <span>Category Mode</span>
-                </label>
-                <div className="flex bg-slate-900 rounded-lg p-1">
-                    <button type="button"
-                        onClick={() => updateGameModeInfo({ exclusive_mode: false })}
-                        disabled={!isHost}
-                        className={`flex-1 py-2 rounded-md font-bold transition-all ${
-                            exclusiveMode === false
-                                ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow'
-                                : 'text-slate-400 hover:text-white'
-                        }`}
-                    >
-                        Not Exclusive
-                    </button>
-                    <button type="button"
-                        onClick={() => updateGameModeInfo({ exclusive_mode: true })}
-                        disabled={!isHost}
-                        className={`flex-1 py-2 rounded-md font-bold transition-all ${
-                            exclusiveMode === true
-                                ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow'
-                                : 'text-slate-400 hover:text-white'
-                        }`}
-                    >
-                        Exclusive
-                    </button>
-                </div>
-                <p className="my-2 text-xs text-slate-400 text-center min-h-[16px]">
-                    {exclusiveMode === false && 'Categories can be submitted by every player.'}
-                    {exclusiveMode === true && 'Each category can only be submitted by the first player submitting it. A player will not be able to overwrite his own submission!'}
-                </p>
-            </div>
-
-            {gameMode === 'bingo' && (
-                <>
-                    <div className="pt-2 border-t border-slate-700">
-                        <label className="flex justify-between font-bold mb-2">
-                            <span>Bingo Board Mode</span>
-                        </label>
-                        <div className="flex bg-slate-900 rounded-lg p-1">
-                            <button type="button"
-                                onClick={() => updateGameModeInfo({ bingo_board_mode: 'shared' })}
-                                disabled={!isHost}
-                                className={`flex-1 py-2 rounded-md font-bold transition-all ${
-                                    bingoBoardMode === 'shared'
-                                        ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow'
-                                        : 'text-slate-400 hover:text-white'
-                                }`}
-                            >
-                                Shared
-                            </button>
-                            <button type="button"
-                                onClick={() => updateGameModeInfo({ bingo_board_mode: 'individual' })}
-                                disabled={!isHost}
-                                className={`flex-1 py-2 rounded-md font-bold transition-all ${
-                                    bingoBoardMode === 'individual'
-                                        ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow'
-                                        : 'text-slate-400 hover:text-white'
-                                }`}
-                            >
-                                Individual
-                            </button>
-                        </div>
-                        <p className="my-2 text-xs text-slate-400 text-center min-h-[16px]">
-                            {bingoBoardMode === 'shared' && 'Same board for all players/teams.'}
-                            {bingoBoardMode === 'individual' && 'Different words and positions for each player, selected by random selection from the chosen categories.'}
-                        </p>
-                    </div>
-                    {bingoBoardMode === 'individual' && (
-                        <div className="pt-2 border-t border-slate-700">
-                            <div className="flex justify-between items-center">
-                                <label htmlFor="grid-size-range" className="flex justify-between font-bold mb-2 cursor-pointer">
-                                    <span>
-                                        Grid Size
-                                    </span>
-                                </label>
-                                <span className="text-indigo-400"> {gridSize}x{gridSize} </span>
-                            </div>
-                            <div className="mb-6 p-3 bg-slate-900 rounded-lg flex flex-col gap-4">
-                                <input
-                                    id="grid-size-range"
-                                    title="Adjust the grid size"
-                                    type="range"
-                                    min="2"
-                                    max={maxGridSize}
-                                    step="1"
-                                    value={gridSize}
-                                    disabled={!isHost}
-                                    onChange={(e) => updateGameModeInfo({ grid_size: parseInt(e.target.value) })}
-                                    className="w-full accent-indigo-500"
-                                />
-                            </div>
-                        </div>
-                    )}
-                </>
-            )}
+            <ToggleButton
+                title="Category Mode"
+                active={exclusiveMode === false ? 'left' : 'right'}
+                labelLeft="Not Exclusive"
+                labelRight="Exclusive"
+                onClick={(val: 'left' | 'right') => updateGameModeInfo({ exclusive_mode: val === 'left' ? false : true })}
+                disabled={!isHost}
+                isHost={isHost}
+                position='middle'
+                description={exclusiveMode === false 
+                    ? 'Categories can be submitted by every player.' 
+                    : 'Each category can only be submitted by the first player submitting it. \
+                        A player will not be able to overwrite his own submission!'
+                }
+            />
 
             {/* End Condition Selection */}
             {gameMode === 'bingo' && (
-                <div className="pt-2 border-t border-slate-700">
-                    <label className="flex justify-between font-bold mb-2 cursor-pointer">
-                        <span>
-                            Win Condition
-                        </span>
-                    </label>
-                    <div className="flex bg-slate-900 rounded-lg p-1">
-                        <button type="button"
-                            onClick={() => updateGameModeInfo({ end_condition: 'first_bingo' })}
-                            disabled={!isHost}
-                            className={`flex-1 py-2 rounded-md font-bold transition-all ${
-                                endCondition === 'first_bingo'
-                                    ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow'
-                                    : 'text-slate-400 hover:text-white'
-                            }`}
-                        >
-                            First Bingo
-                        </button>
-                        <button type="button"
-                            onClick={() => updateGameModeInfo({ end_condition: 'timer' })}
-                            disabled={!isHost}
-                            className={`flex-1 py-2 rounded-md font-bold transition-all ${
-                                endCondition === 'timer'
-                                    ? (isHost ? 'bg-indigo-600' : 'bg-slate-600') + ' text-white shadow'
-                                    : 'text-slate-400 hover:text-white'
-                            }`}
-                        >
-                            Full Time
-                        </button>
-                    </div>
-                    <p className="my-2 text-xs text-slate-400 text-center min-h-[16px]">
-                        {endCondition === 'first_bingo' && 'Game ends instantly when someone gets a Bingo.'}
-                        {endCondition === 'timer' && 'Game continues until the timer runs out, extra points for each Bingo.'}
-                    </p>
-                </div>
+                <>
+                    <ToggleButton
+                        title="Win Condition"
+                        active={endCondition === 'first_bingo' ? 'left' : 'right'}
+                        labelLeft="First Bingo"
+                        labelRight="Full Time"
+                        onClick={(val: 'left' | 'right') => updateGameModeInfo({ end_condition: val === 'left' ? 'first_bingo' : 'timer' })}
+                        disabled={!isHost}
+                        isHost={isHost}
+                        description={endCondition === 'first_bingo' 
+                            ? 'Game ends instantly when someone gets a Bingo.' 
+                            : 'Game continues until the timer runs out, extra points for each Bingo.'
+                        }
+                    />
+                </>
             )}
 
             {/* Time Slider */}
-            <div className="pt-2 border-t border-slate-700">
-                <div className="flex justify-between items-center">
-                    <label htmlFor="time-limit-range" className="flex justify-between font-bold mb-2 cursor-pointer">
-                        <span>
-                            Time Limit
-                        </span>
-                    </label>
-                    <span className="text-indigo-400">{localTimeLimit} Minutes</span>
-                </div>
-                <div className="p-3 bg-slate-900 rounded-lg flex flex-col gap-4">
-                    <input
-                        id="time-limit-range"
-                        type="range"
-                        min="1"
-                        max="30"
-                        step="1"
-                        value={localTimeLimit}
-                        disabled={!isHost}
-                        onChange={handleTimeLimitChange}
-                        onMouseUp={handleTimeLimitCommit}
-                        onTouchEnd={handleTimeLimitCommit}
-                        className="w-full cursor-pointer accent-indigo-500 hover:accent-indigo-400"
-                        title="Adjust the game time limit in minutes"
-                    />
-                    {!isHost && <p className="text-xs text-slate-500 mt-2 italic">Only the host can adjust the time limit.</p>}
-                </div>
-            </div>
+            <RangeSlider
+                title="Time Limit"
+                min={1}
+                max={30}
+                step={1}
+                value={localTimeLimit}
+                displayValue={`${localTimeLimit} Minutes`}
+                onChange={setLocalTimeLimit}
+                disabled={!isHost}
+                onCommit={handleCommit}
+                position="bottom"
+            />
         </div>
     );
 }
