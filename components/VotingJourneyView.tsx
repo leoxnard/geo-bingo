@@ -57,6 +57,9 @@ export default function VotingJourneyView({
 
     const dummyPath = useMemo(() => [], []);
     const dummyPos = useMemo(() => ({ lat: 0, lng: 0 }), []);
+
+    const [maxItemsPerColumn, setMaxItemsPerColumn] = useState(8);
+    const categoryRef = useRef<HTMLDivElement>(null);
     
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
@@ -73,9 +76,6 @@ export default function VotingJourneyView({
         return null;
     }, [activeSubmission, submissions, currentPlayer]);
 
-    // PRELOAD LOGIK: 
-    // StreetView bekommt im Hintergrund sofort die Koordinaten. Das Sichtbar-Machen 
-    // verzögern wir um 500ms, damit die Karte Zeit zum Laden hat.
     useEffect(() => {
         if (activeSubLatest) {
             setLastActiveSub(activeSubLatest); 
@@ -84,9 +84,25 @@ export default function VotingJourneyView({
             }, 500); 
             return () => clearTimeout(timer);
         } else {
-            setIsStreetViewVisible(false); // Sofort ausblenden, wenn Vote vorbei
+            setIsStreetViewVisible(false);
         }
     }, [activeSubLatest]);
+
+    useEffect(() => {
+        const calculateCapacity = () => {
+            if (categoryRef.current) {
+                const containerHeight = categoryRef.current.clientHeight;
+                
+                const TILE_HEIGHT = 30;
+                const GAP = 12;
+                const itemsThatFit = Math.floor(containerHeight / (TILE_HEIGHT + GAP));   
+                setMaxItemsPerColumn(Math.max(3, itemsThatFit));
+            }
+        };
+        calculateCapacity();
+        window.addEventListener('resize', calculateCapacity);
+        return () => window.removeEventListener('resize', calculateCapacity);
+    }, []);
 
     const displaySub = activeSubLatest || lastActiveSub;
 
@@ -431,7 +447,17 @@ export default function VotingJourneyView({
     const yesVotes = activeSubLatest ? Object.values(activeSubLatest.votes || {}).filter(v => v === true).length : 0;
     const noVotes = activeSubLatest ? Object.values(activeSubLatest.votes || {}).filter(v => v === false).length : 0;
 
-    const columns = gameMode === 'list' ? 1 : gridSize;
+    const totalCategories = currentBoard?.length || 0;
+    let columns = 1;
+    let rows = 1;
+
+    if (gameMode === "bingo") {
+        columns = gridSize;
+        rows = gridSize; 
+    } else {
+        columns = Math.ceil(totalCategories / maxItemsPerColumn) || 1;
+        rows = Math.ceil(totalCategories / columns) || 1;
+    }
 
     return (
         <div className="flex h-screen w-screen overflow-hidden bg-slate-900">
@@ -518,7 +544,7 @@ export default function VotingJourneyView({
                     ></div>
                 </div>
 
-                {/* STREETVIEW CONTAINER (Steuerung jetzt über isStreetViewVisible) */}
+                {/* STREETVIEW CONTAINER */}
                 <div className={`absolute inset-0 pl-1.5 flex flex-col z-30 bg-slate-800 transition-all duration-500 ease-in-out ${isStreetViewVisible ? 'opacity-100 translate-x-0 pointer-events-auto' : 'opacity-0 translate-x-12 pointer-events-none'}`}>
                     <div className="flex-grow relative w-full">
                         <GoogleMap
@@ -606,8 +632,13 @@ export default function VotingJourneyView({
                     )}
                     
                     <div 
-                        className="grid w-full flex-grow max-h-[800px] gap-3" 
-                        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+                        ref={categoryRef}
+                        className="grid gap-3 flex-1 w-full" 
+                        style={{ 
+                            gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+                            gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+                            gridAutoFlow: 'column'
+                        }}
                     >
                         {currentBoard?.map((category: string, idx: number) => {
                             const sub = submissions.find(s => s.player_id === currentPlayer?.id && s.category === category);
@@ -615,7 +646,7 @@ export default function VotingJourneyView({
                             
                             let yesPercent = 0;
                             let noPercent = 0;
-                            let tileClass = "bg-slate-900/60 border-slate-800 text-slate-600 opacity-60"; 
+                            let tileClass = "bg-slate-900/60 border-slate-800 text-slate-600 opacity-60 [hyphens:auto] break-all";
                             
                             if (sub) {
                                 if (isReached) {
