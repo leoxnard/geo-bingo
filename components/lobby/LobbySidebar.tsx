@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import toast from 'react-hot-toast';
 
+import toast from 'react-hot-toast';
 import { FaRegCopy, FaCopy, FaRegEdit, FaPlus, FaRandom, FaTimes } from "react-icons/fa";
 
 import { ToggleSwitch } from '../utils/Elements';
@@ -102,15 +102,15 @@ export default function LobbySidebar(props: LobbySidebarProps) {
         props.setPlayers(prev => prev.map(p => p.id === props.playerId ? { ...p, name: nextName } : p));
 
         const { error } = await props.supabase.from('players').update({ name: nextName }).eq('id', props.playerId);
-            if (error) toast.error('Could not update name.');
-            else toast.success('Name updated.');
+        if (error) toast.error('Could not update name.');
+        else toast.success('Name updated.');
         setIsEditingSelfName(false);
     };
 
     const handleUpdatePlayerTeam = async (targetPlayerId: string, teamIndex: number) => {
         props.setPlayers(prev => prev.map(p => p.id === targetPlayerId ? { ...p, team: teamIndex } : p));
         const { error } = await props.supabase.from('players').update({ team: teamIndex }).eq('id', targetPlayerId);
-            if (error) toast.error('Could not update team.');
+        if (error) toast.error('Could not update team.');
     };
 
     const handleRandomizeTeams = async () => {

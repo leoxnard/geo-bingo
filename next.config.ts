@@ -6,11 +6,11 @@ const nextConfig: NextConfig = {
     turbopack: {}, 
     
     webpack: (config) => {
-      config.ignoreWarnings = [
-        { module: /node_modules\/@googlemaps\/markerclusterer/ },
-        { module: /node_modules\/@react-google-maps\/api/ },
-      ];
-      return config;
+        config.ignoreWarnings = [
+            { module: /node_modules\/@googlemaps\/markerclusterer/ },
+            { module: /node_modules\/@react-google-maps\/api/ },
+        ];
+        return config;
     },
 };
 

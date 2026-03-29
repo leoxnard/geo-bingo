@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import toast from 'react-hot-toast';
 
+import toast from 'react-hot-toast';
 import { CiCirclePlus, CiCircleMinus, CiCircleRemove, CiCircleCheck } from "react-icons/ci";
 import { FaTimes } from "react-icons/fa";
 
-import { shuffle } from '../utils/Functions';
 import { ToggleButton, RangeSlider } from '../utils/Elements';
+import { shuffle } from '../utils/Functions';
 
 interface LobbyCategoriesProps {
     updateGameModeInfo: (updates: {

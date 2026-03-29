@@ -3,14 +3,13 @@
 import { useState } from 'react';
 
 import { useJsApiLoader } from '@react-google-maps/api';
-import toast from 'react-hot-toast';
 import Image from 'next/image';
+import toast from 'react-hot-toast';
 
 import LobbyCategories from './LobbyCategories';
 import LobbyMap from './LobbyMap';
 import LobbySettings from './LobbySettings';
 import LobbySidebar from './LobbySidebar';
-import { shuffle } from '../utils/Functions';
 import { isLocationAllowed } from '../utils/mapUtils';
 
 interface Player {
@@ -120,7 +119,7 @@ export default function LobbyView(props: LobbyViewProps) {
                 ]);
 
                 // Merge and remove duplicates
-                let uniquePlaces = Array.from(new Set([...culturalPlaces, ...urbanPlaces]));
+                const uniquePlaces = Array.from(new Set([...culturalPlaces, ...urbanPlaces]));
                 console.log(`Google Places API (New) found ${uniquePlaces.length} places:`);
                 console.log(uniquePlaces);
                 
@@ -276,6 +275,7 @@ export default function LobbyView(props: LobbyViewProps) {
 
             } catch (error) {
                 setIsGenerating(false);
+                console.error("Error in category generation process:", error);
                 return;
             }
 
@@ -325,6 +325,7 @@ export default function LobbyView(props: LobbyViewProps) {
             <div className="flex flex-col lg:flex-row gap-6 w-full max-w-5xl">
                 <div className="flex-1 gap-6 flex flex-col">
                     <LobbySettings 
+                        key={settings.lastUpdated}
                         isHost={props.isHost}
                         gameMode={props.gameMode}
                         teamMode={props.teamMode}

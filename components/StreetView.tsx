@@ -3,9 +3,9 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 
 import { GoogleMap, useJsApiLoader, StreetViewPanorama, Polygon } from '@react-google-maps/api';
+import toast from 'react-hot-toast';
 import { FaEye, FaCamera } from 'react-icons/fa';
 import { GoMoveToStart } from "react-icons/go";
-import toast from 'react-hot-toast';
 
 import { supabase } from '../lib/supabase';
 import { FullscreenButton, GeoBingoLogo } from './utils/Elements';
@@ -147,7 +147,7 @@ export default function StreetView({
             };
             cleanup();
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     }, [gameId]);
 
     useEffect(() => {
