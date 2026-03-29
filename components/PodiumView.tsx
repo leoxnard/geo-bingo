@@ -191,7 +191,8 @@ export default function PodiumView({
                         totalNo,
                         rank: 0,
                         gridStatus,
-                        gridSize
+                        gridSize,
+                        bingoBoard: entity.bingo_board,
                     };
                 });
 
@@ -360,20 +361,33 @@ export default function PodiumView({
 
                                 {/* Stats Grid */}
                                 <div className={`grid ${gameMode === 'bingo' ? 'grid-cols-3' : 'grid-cols-2'} gap-3 mt-2`}>
+                                    {/* Bingos */}
                                     {gameMode === 'bingo' && (
-                                        <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center">
-                                            <span className="text-[10px] text-slate-400 uppercase font-bold mb-1 text-center">Bingos</span>
-                                            <span className="text-xl font-medium text-yellow-400">{player.bingos || 0}</span>
+                                        <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full"> 
+                                            <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">
+                                                Bingos
+                                            </span>
+                                            <div className="flex-1 flex items-center justify-center w-full">
+                                                <span className="text-xl font-medium text-yellow-400 leading-none">
+                                                    {player.bingos || 0}
+                                                </span>
+                                            </div>
                                         </div>
                                     )}
-
-                                    <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center">
-                                        <span className="text-[10px] text-slate-400 uppercase font-bold mb-1 text-center">Approved words</span>
-                                        <span className="text-xl font-medium text-white">{player.totalFound}</span>
+                                    {/* Approved Words */}
+                                    <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full"> 
+                                        <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">
+                                            Approved words
+                                        </span>
+                                        <div className="flex-1 flex items-center justify-center w-full">
+                                            <span className="text-xl font-medium leading-none">
+                                                {player.totalFound || 0}
+                                            </span>
+                                        </div>
                                     </div>
-
+                                    {/* Mini Bingo Board */}
                                     {gameMode === 'bingo' ? (
-                                        <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center justify-center">
+                                        <div className="relative group bg-slate-800 p-3 rounded-xl flex flex-col items-center justify-center">
                                             <span className="text-[10px] text-slate-400 uppercase font-bold mb-2 text-center">Bingo-Board</span>
                                             <div 
                                                 className="grid gap-1" 
@@ -391,9 +405,41 @@ export default function PodiumView({
                                                     />
                                                 ))}
                                             </div>
+
+                                            {/* --- HOVER OVERLAY --- */}
+                                            <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 hidden group-hover:flex z-50 w-[280px] h-[280px] sm:w-[400px] sm:h-[400px] p-3 bg-slate-900 border border-indigo-500/50 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] pointer-events-none flex-col">
+                                                <div 
+                                                    className="grid gap-1.5 flex-1" 
+                                                    style={{ 
+                                                        gridTemplateColumns: `repeat(${player.gridSize || 3}, 1fr)`,
+                                                        gridTemplateRows: `repeat(${player.gridSize || 3}, 1fr)`
+                                                    }}
+                                                >
+                                                    {player.bingoBoard?.map((word: string, idx: number) => {
+                                                        const status = player.gridStatus[idx];
+                                                        let styleClass = 'bg-slate-800 text-slate-400 border-slate-700';
+                                                        
+                                                        if (status === 3) styleClass = 'bg-yellow-900/40 text-yellow-400 border-yellow-500/50 shadow-[0_0_10px_rgba(250,204,21,0.2)] font-bold';
+                                                        else if (status === 1) styleClass = 'bg-green-900/30 text-green-400 border-green-500/40';
+                                                        else if (status === 2) styleClass = 'bg-red-900/20 text-red-500 border-red-500/30 line-through opacity-60';
+
+                                                        return (
+                                                            <div 
+                                                                key={idx} 
+                                                                className={`text-[9px] sm:text-[11px] flex items-center justify-center text-center p-1.5 rounded border overflow-hidden hyphens-auto break-all leading-tight h-full w-full ${styleClass}`}
+                                                            >
+                                                                <span className="line-clamp-4">{word}</span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                                
+                                                {/* Pfeil-Icon unten */}
+                                                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-slate-900 border-b border-r border-indigo-500/50 rotate-45"></div>
+                                            </div>
                                         </div>
                                     ) : (
-                                        <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center">
+                                        <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
                                             <span className="text-[10px] text-slate-400 uppercase font-bold mb-1 text-center">Approve-Rate</span>
                                             <span className={`text-xl font-medium ${
                                                 player.communityApproval >= 75 ? 'text-green-400' : 

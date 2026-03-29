@@ -36,6 +36,7 @@ export interface PlayerStats {
     totalFound: number;
     totalNo: number;
     totalYes: number;
+    bingoBoard?: string[];
 }
 
 export interface LobbyViewProps {
