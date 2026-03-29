@@ -4,12 +4,12 @@ import { useState, useEffect } from 'react';
 
 import { supabase } from '../lib/supabase';
 import { GeoBingoLogo } from './utils/Elements';
-import { ScoreEntity, PlayerStat, PodiumViewProps } from './utils/types';
+import { ScoreEntity, PlayerStats, PodiumViewProps } from './utils/types';
 
 export default function PodiumView({ 
     gameId, isHost, teamMode
 }: PodiumViewProps) {
-    const [stats, setStats] = useState<any[]>([]);
+    const [stats, setStats] = useState<PlayerStats[]>([]);
     const [loading, setLoading] = useState(true);
     const [gameMode, setGameMode] = useState<string>('list');
     const [endCondition, setEndCondition] = useState<string>(''); 
@@ -232,7 +232,7 @@ export default function PodiumView({
     const rank2 = stats.filter(s => s.rank === 2);
     const rank3 = stats.filter(s => s.rank === 3);
 
-    const renderScoreBadge = (p: PlayerStat) => {
+    const renderScoreBadge = (p: PlayerStats) => {
         if (endCondition === 'first_bingo' && p.bingos > 0) {
             return 'BINGO!';
         }

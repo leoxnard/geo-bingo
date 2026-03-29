@@ -24,16 +24,18 @@ export interface Player {
     team?: number;
 }
 
-export interface PlayerStat {
-    id: string;
-    name: string;
-    score: number;
-    totalFound: number;
+export interface PlayerStats {
     bingos: number;
     communityApproval: number;
-    totalYes: number;
-    totalNo: number;
+    gridSize: number;
+    gridStatus: number[];
+    id: string;
+    name: string;
     rank: number;
+    score: number;
+    totalFound: number;
+    totalNo: number;
+    totalYes: number;
 }
 
 export interface LobbyViewProps {

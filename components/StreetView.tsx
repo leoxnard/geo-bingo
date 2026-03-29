@@ -73,8 +73,8 @@ export default function StreetView({
     const myTeam = useMemo(() => players.find(p => p.id === playerId)?.team ?? -1, [players, playerId]);
     const teamIds = useMemo(() => teamMode === 'teams' ? players.filter(p => p.team === myTeam).map(p => p.id) : [playerId], [teamMode, players, myTeam, playerId]);
 
-    const mySubmissions = useMemo(() => allSubmissions.filter(s => teamIds.includes((s as any).player_id)), [allSubmissions, teamIds]);
-    const otherSubmissions = useMemo(() => allSubmissions.filter(s => !teamIds.includes((s as any).player_id)), [allSubmissions, teamIds]);
+    const mySubmissions = useMemo(() => allSubmissions.filter(s => teamIds.includes(s.player_id)), [allSubmissions, teamIds]);
+    const otherSubmissions = useMemo(() => allSubmissions.filter(s => !teamIds.includes(s.player_id)), [allSubmissions, teamIds]);
 
     const formatTime = (seconds: number) => {
         const m = Math.floor(seconds / 60);

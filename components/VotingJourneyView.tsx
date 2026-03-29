@@ -13,7 +13,19 @@ import { VotingViewProps, Submission } from './utils/types';
 const ENABLE_PRELOADING = false; 
 const ANIMATION_DURATION = 8000;
 
-type PathPoint = { lat: number; lng: number; timestamp: number };
+type PathPoint = {
+    lat: number;
+    lng: number;
+    timestamp: number
+};
+
+interface PlayerWithPaths {
+    id: string;
+    name: string;
+    bingo_board?: string[];
+    team?: number;
+    path: PathPoint[];
+}
 
 const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => {
     let dLng = Math.abs(lng1 - lng2);
@@ -29,8 +41,8 @@ export default function VotingJourneyView({
     const [gridSize, setGridSize] = useState<number>(3);
     const [gameMode, setGameMode] = useState<string>('list');
     const [submissions, setSubmissions] = useState<Submission[]>([]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [playersWithPaths, setPlayersWithPaths] = useState<any[]>([]);
+    const [playersWithPaths, setPlayersWithPaths] = useState<PlayerWithPaths[]>([]);
+    const [shownSubIds, setShownSubIds] = useState<Set<string>>(new Set());
     
     const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
     const [isPaused, setIsPaused] = useState(false);
@@ -39,7 +51,7 @@ export default function VotingJourneyView({
     
     const [activeSubmission, setActiveSubmission] = useState<Submission | null>(null);
     const [lastActiveSub, setLastActiveSub] = useState<Submission | null>(null);
-    
+
     const [isStreetViewVisible, setIsStreetViewVisible] = useState(false);
     const [isDataLoaded, setIsDataLoaded] = useState(false);
     
@@ -77,15 +89,13 @@ export default function VotingJourneyView({
     }, [activeSubmission, submissions, currentPlayer]);
 
     useEffect(() => {
-        if (activeSubLatest) {
-            setLastActiveSub(activeSubLatest); 
-            const timer = setTimeout(() => {
-                setIsStreetViewVisible(true);
-            }, 500); 
-            return () => clearTimeout(timer);
-        } else {
-            setIsStreetViewVisible(false);
-        }
+        const delay = activeSubLatest ? 500 : 0;
+        
+        const timer = setTimeout(() => {
+            setIsStreetViewVisible(!!activeSubLatest);
+        }, delay); 
+        
+        return () => clearTimeout(timer);
     }, [activeSubLatest]);
 
     useEffect(() => {
@@ -164,6 +174,7 @@ export default function VotingJourneyView({
                 setIsLineComplete(false);
                 setFinalPath([]);
                 shownSubIdsRef.current.clear();
+                setShownSubIds(new Set());
                 animationProgressRef.current = 0;
                 if (progressBarRef.current) progressBarRef.current.style.transform = `scaleY(0)`;
                 
@@ -204,17 +215,6 @@ export default function VotingJourneyView({
 
         return { rawPath, totalDist, dists, subProgressions };
     }, [currentPlayer, submissions]);
-
-    // Reset State
-    useEffect(() => {
-        setIsPreloading(ENABLE_PRELOADING);
-        animationProgressRef.current = 0;
-        shownSubIdsRef.current.clear();
-        setIsLineComplete(false);
-        setFinalPath([]);
-        setActiveSubmission(null);
-        if (progressBarRef.current) progressBarRef.current.style.transform = `scaleY(0)`;
-    }, [currentPlayerIndex]);
 
     // Map Init
     useEffect(() => {
@@ -273,7 +273,9 @@ export default function VotingJourneyView({
             if (crossedSub) {
                 shownSubIdsRef.current.add(crossedSub.sub.id);
                 setActiveSubmission(crossedSub.sub);
+                setLastActiveSub(crossedSub.sub);
                 setIsPaused(true);
+                setShownSubIds(new Set(shownSubIdsRef.current)); 
                 progress = crossedSub.progress;
                 hitSub = true;
             }
@@ -352,10 +354,15 @@ export default function VotingJourneyView({
     }, [isLineComplete, mapInstance, pathData]);
     
     useEffect(() => {
+        let timeoutId: ReturnType<typeof setTimeout>;
+        
         if (votingStats.isComplete && activeSubLatest && isPaused) {
-            setActiveSubmission(null);
-            setIsPaused(false);
+            timeoutId = setTimeout(() => {
+                setActiveSubmission(null);
+                setIsPaused(false);
+            }, 100); 
         }
+        return () => clearTimeout(timeoutId);
     }, [votingStats.isComplete, activeSubLatest, isPaused]);
 
     const handleVote = async (sub: Submission, voteIsYes: boolean) => {
@@ -384,6 +391,7 @@ export default function VotingJourneyView({
             setIsLineComplete(false);
             setFinalPath([]);
             shownSubIdsRef.current.clear();
+            setShownSubIds(new Set());
             animationProgressRef.current = 0;
             if (progressBarRef.current) progressBarRef.current.style.transform = `scaleY(0)`;
             
@@ -642,7 +650,7 @@ export default function VotingJourneyView({
                     >
                         {currentBoard?.map((category: string, idx: number) => {
                             const sub = submissions.find(s => s.player_id === currentPlayer?.id && s.category === category);
-                            const isReached = sub && shownSubIdsRef.current.has(sub.id);
+                            const isReached = sub && shownSubIds.has(sub.id);
                             
                             let yesPercent = 0;
                             let noPercent = 0;

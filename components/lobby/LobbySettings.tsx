@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 import { ToggleButton, RangeSlider } from '../utils/Elements';
 
@@ -27,25 +27,17 @@ export default function LobbySettings({
     isHost,
     gameMode,
     teamMode,
-    gridSize,
     timeLimit,
     endCondition,
     exclusiveMode,
     updateGameModeInfo
 }: LobbySettingsProps) {
 
-    const [localGridSize, setLocalGridSize] = useState(gridSize);
     const [localTimeLimit, setLocalTimeLimit] = useState(timeLimit / 60);
-
-    useEffect(() => {
-        setLocalTimeLimit(timeLimit / 60);
-        setLocalGridSize(gridSize);
-    }, [timeLimit, gridSize]);
 
     const handleCommit = () => {
         if (!isHost) return;
         updateGameModeInfo({ 
-            grid_size: localGridSize,
             time_limit: localTimeLimit * 60,
         });
     };

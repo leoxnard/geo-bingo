@@ -66,14 +66,8 @@ export default function LobbySidebar(props: LobbySidebarProps) {
         return () => clearTimeout(timer);
     }, []);
 
-    useEffect(() => {
-        if (props.teamMode === 'teams' && props.players.length > 0) {
-            const maxTeam = Math.max(...props.players.map(p => p.team || 0));
-            if (maxTeam >= teamCount) {
-                setTeamCount(maxTeam + 1);
-            }
-        }
-    }, [props.players, props.teamMode, teamCount]);
+    const maxTeam = props.players.length > 0 ? Math.max(...props.players.map(p => p.team || 0)) : 0;
+    const displayTeamCount = props.teamMode === 'teams' ? Math.max(teamCount, maxTeam + 1) : teamCount;
 
     const handleCopyGameId = () => {
         navigator.clipboard.writeText(props.gameId);
@@ -114,12 +108,12 @@ export default function LobbySidebar(props: LobbySidebarProps) {
     };
 
     const handleRandomizeTeams = async () => {
-        if (teamCount < 2) return;
+        if (displayTeamCount < 2) return;
         
         const shuffledPlayers = shuffle([...props.players]);
         const updatedPlayers = shuffledPlayers.map((p, i) => ({
             ...p,
-            team: i % teamCount
+            team: i % displayTeamCount
         }));
 
         props.setPlayers(updatedPlayers);
@@ -132,7 +126,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
     };
 
     const handleRemoveTeam = async (teamIndexToRemove: number) => {
-        if (teamCount <= 1) return;
+        if (displayTeamCount <= 1) return;
 
         const updatedPlayers = props.players.map(p => {
             const currentTeam = p.team || 0;
@@ -145,7 +139,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
         });
 
         props.setPlayers(updatedPlayers);
-        setTeamCount(prev => prev - 1);
+        setTeamCount(displayTeamCount - 1);
 
         const updates = updatedPlayers
             .filter(p => (p.team || 0) >= teamIndexToRemove || (props.players.find(old => old.id === p.id)?.team === teamIndexToRemove))
@@ -269,9 +263,9 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                                 <FaRandom />
                             </button>
                             <button 
-                                onClick={() => setTeamCount(prev => Math.min(prev + 1, darkTeamColors.length))}
-                                disabled={teamCount >= darkTeamColors.length}
-                                className={`p-2 rounded transition ${teamCount >= darkTeamColors.length ? 'bg-slate-800 text-slate-600 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
+                                onClick={() => setTeamCount(Math.min(displayTeamCount + 1, darkTeamColors.length))}
+                                disabled={displayTeamCount >= darkTeamColors.length}
+                                className={`p-2 rounded transition ${displayTeamCount >= darkTeamColors.length ? 'bg-slate-800 text-slate-600 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
                                 title="Add Team"
                             >
                                 <FaPlus />
@@ -290,7 +284,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                 {/* Teams Mode */}
                 {props.teamMode === 'teams' && (
                     <div className="space-y-4">
-                        {Array.from({ length: teamCount }).map((_, teamIndex) => {
+                        {Array.from({ length: displayTeamCount }).map((_, teamIndex) => {
                             const teamPlayers = props.players.filter(p => (p.team || 0) === teamIndex);
                             const colorClass = darkTeamColors[teamIndex % darkTeamColors.length];
                             
@@ -306,7 +300,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                                             {teamNames[teamIndex % teamNames.length]} ({teamPlayers.length})
                                         </h3>
                                         
-                                        {teamCount > 1 && (
+                                        {displayTeamCount > 1 && (
                                             <button 
                                                 onClick={() => handleRemoveTeam(teamIndex)}
                                                 className="text-current opacity-50 hover:opacity-100 hover:text-red-400 transition-all p-1"
@@ -322,7 +316,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                                             teamPlayers.map(renderPlayerItem)
                                         ) : (
                                             <div className="text-center text-xs opacity-50 py-2 border-2 border-dashed border-current rounded-lg">
-                                                Spieler hierher ziehen
+                                                Drop players here
                                             </div>
                                         )}
                                     </div>

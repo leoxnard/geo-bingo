@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 
 import toast from 'react-hot-toast';
 import { CiCirclePlus, CiCircleMinus, CiCircleRemove, CiCircleCheck } from "react-icons/ci";
@@ -59,12 +59,6 @@ export default function LobbyCategories({
     const [localRadius, setLocalRadius] = useState(generationRadius);
     const [localGenerationNumber, setLocalGenerationNumber] = useState(generationNumber);
     const [localGridSize, setLocalGridSize] = useState(gridSize);
-
-    useEffect(() => {
-        setLocalRadius(generationRadius);
-        setLocalGenerationNumber(generationNumber);
-        setLocalGridSize(gridSize);
-    }, [generationRadius, generationNumber, gridSize]);
 
     const handleCommit = () => {
         if (!isHost) return;
@@ -382,7 +376,11 @@ export default function LobbyCategories({
                             onChange={(e) => setNewCategory(e.target.value)}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
-                                    isHost ? addCategory() : handleSuggestCategory();
+                                    if (isHost) {
+                                        addCategory();
+                                    } else {
+                                        handleSuggestCategory();
+                                    }
                                 }
                             }}
                             placeholder={isHost ? "Custom category..." : "Suggest a category..."}

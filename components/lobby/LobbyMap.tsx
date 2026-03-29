@@ -44,7 +44,7 @@ export default function LobbyMap({
     const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [hoveredLocation, setHoveredLocation] = useState<Point | null>(null);
-    const [activeBoundaryId, setActiveBoundaryId] = useState<string | null>(null);
+    const [selectedBoundaryId, setSelectedBoundaryId] = useState<string | null>(null);
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
     const actualStart = startingPoint || 'open-world';
@@ -73,13 +73,17 @@ export default function LobbyMap({
         }
     }, [gameBoundary]);
 
-    useEffect(() => {
-        if (draftBoundaries.length > 0 && !activeBoundaryId) {
-            setActiveBoundaryId(draftBoundaries[draftBoundaries.length - 1].id);
-        } else if (draftBoundaries.length === 0) {
-            setActiveBoundaryId(null);
+    const activeBoundaryId = useMemo(() => {
+        if (draftBoundaries.length === 0) return null;
+        
+        // If the user manually selected an ID and it still exists, use it
+        if (selectedBoundaryId && draftBoundaries.some(b => b.id === selectedBoundaryId)) {
+            return selectedBoundaryId;
         }
-    }, [draftBoundaries, activeBoundaryId]);
+        
+        // Otherwise, default to the most recently added boundary
+        return draftBoundaries[draftBoundaries.length - 1].id;
+    }, [draftBoundaries, selectedBoundaryId]);
 
     useEffect(() => {
         if (!mapInstance || !isHost) return;
@@ -120,7 +124,7 @@ export default function LobbyMap({
         if (newBoundaries.length === 0) {
             const newId = Date.now().toString();
             newBoundaries = [{ id: newId, type: 'allow', points: [newPoint] }];
-            setActiveBoundaryId(newId);
+            setSelectedBoundaryId(newId);
         } else {
             const targetId = activeBoundaryId || newBoundaries[newBoundaries.length - 1].id;
             newBoundaries = newBoundaries.map(b => {
@@ -137,14 +141,14 @@ export default function LobbyMap({
         const newId = Date.now().toString();
         const newBoundaries = [...draftBoundaries, { id: newId, type: 'allow', points: [] }];
         updateGameModeInfo({ gameBoundary: JSON.stringify(newBoundaries) });
-        setActiveBoundaryId(newId);
+        setSelectedBoundaryId(newId);
     };
 
     const handleRemoveBoundary = (id: string) => {
         const newBoundaries = draftBoundaries.filter(b => b.id !== id);
         updateGameModeInfo({ gameBoundary: JSON.stringify(newBoundaries) });
         if (activeBoundaryId === id) {
-            setActiveBoundaryId(newBoundaries.length > 0 ? newBoundaries[newBoundaries.length - 1].id : null);
+            setSelectedBoundaryId(newBoundaries.length > 0 ? newBoundaries[newBoundaries.length - 1].id : null);
         }
     };
 
@@ -314,7 +318,7 @@ export default function LobbyMap({
                                                 className={`flex items-center justify-between p-3 rounded-lg border cursor-grab active:cursor-grabbing transition-all ${
                                                     draggedIndex === index ? 'opacity-50 scale-95 border-dashed' : ''
                                                 } ${activeBoundaryId === b.id ? 'border-indigo-500 bg-indigo-900/40' : 'border-slate-700 bg-slate-800 hover:border-slate-500'}`} 
-                                                onClick={() => setActiveBoundaryId(b.id)}
+                                                onClick={() => setSelectedBoundaryId(b.id)}
                                             >
                                                 <div className="flex items-center gap-4">
                                                     <span className="text-slate-500 cursor-grab px-1 text-lg">⋮⋮</span>

@@ -26,6 +26,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const router = useRouter();
 
     // Game state
+    const [lastUpdated, setLastUpdated] = useState<string>('');
     const [status, setStatus] = useState<GameStatus>('lobby');
     const [exclusiveMode, setExclusiveMode] = useState(false);
     const [categories, setCategories] = useState<string[]>([]);
@@ -160,6 +161,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     console.error("CRITICAL: Failed to create game.", error);
                 }
             } else {
+                setLastUpdated(gameData.updated_at);
                 setStatus(gameData.status || 'lobby');
                 setCategories(gameData.categories || []);
                 setSuggestedCategories(gameData.suggested_categories || []);
@@ -209,15 +211,21 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             }
 
             if (!existingPlayer) {
-                const insertData: any = { id: currentPlayerId, game_id: gameId, name: playerName };
-                if (bingoBoardToAssign) insertData.bingo_board = bingoBoardToAssign;
+                const insertData = { 
+                    id: currentPlayerId, 
+                    game_id: gameId, 
+                    name: playerName,
+                    ...(bingoBoardToAssign && { bingo_board: bingoBoardToAssign })
+                };
                 const { error: playerInsertErr } = await supabase.from('players').insert([insertData]);
                 if (playerInsertErr) console.error("CRITICAL: Failed to insert player.", playerInsertErr);
             } else {
-                const updateData: any = { name: playerName, game_id: gameId };
-                if ((!existingPlayer.bingo_board || existingPlayer.bingo_board.length === 0) && bingoBoardToAssign) {
-                    updateData.bingo_board = bingoBoardToAssign;
-                }
+                const shouldAssignBoard = (!existingPlayer.bingo_board || existingPlayer.bingo_board.length === 0) && bingoBoardToAssign;
+                const updateData = { 
+                    name: playerName, 
+                    game_id: gameId,
+                    ...(shouldAssignBoard && { bingo_board: bingoBoardToAssign })
+                };
                 const { error: playerUpdateErr } = await supabase.from('players').update(updateData).eq('id', currentPlayerId);
                 if (playerUpdateErr) console.error("CRITICAL: Failed to update player.", playerUpdateErr);
             }
@@ -239,7 +247,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
         initializeRoom();
 
-        // 4. Set up Realtime Listeners
+        // Realtime Listeners
         const gameChannel = supabase.channel(`game-updates-${gameId}`)
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${gameId}` }, 
                 (payload) => {
@@ -257,6 +265,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     } else {
                         localStorage.removeItem(`geoBingoHost_${gameId}`);
                     }
+                    setLastUpdated(payload.new.updated_at);
                     setStatus(payload.new.status);
                     setCategories(payload.new.categories);
                     setSuggestedCategories(payload.new.suggested_categories || []);
@@ -426,6 +435,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (status === 'lobby') {
             return (
                 <LobbyView
+                    lastUpdated={lastUpdated}
                     gameMode={gameMode}
                     teamMode={teamMode}
                     isHost={isHost}
