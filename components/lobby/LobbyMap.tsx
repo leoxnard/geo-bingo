@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 
-import { GoogleMap, PolygonF, MarkerF, OverlayView, OverlayViewF } from '@react-google-maps/api';
+import { GoogleMap, PolygonF, MarkerF, OverlayView, OverlayViewF, Circle } from '@react-google-maps/api';
 import { FaPlus, FaTimes } from "react-icons/fa";
 
 import { FullscreenButton } from '../utils/Elements';
@@ -26,6 +26,7 @@ interface LobbyMapProps {
     isLoaded: boolean;
     startingPoint: string;
     gameBoundary: string;
+    generationRadius?: number;
     updateGameModeInfo: (updates: {
         starting_point?: string;
         gameBoundary?: string;
@@ -38,6 +39,7 @@ export default function LobbyMap({
     isLoaded,
     startingPoint,
     gameBoundary,
+    generationRadius,
     updateGameModeInfo
 }: LobbyMapProps) {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -205,11 +207,26 @@ export default function LobbyMap({
                                             icon: {
                                                 path: google.maps.SymbolPath.CIRCLE,
                                                 scale: 8,
-                                                fillColor: '#10b981',
+                                                fillColor: '#4f46e5',
                                                 fillOpacity: 1,
-                                                strokeColor: '#059669',
+                                                strokeColor: '#a4b3ff',
                                                 strokeWeight: 2,
                                             }
+                                        }}
+                                    />
+                                )}
+
+                                {/* Generation Radius */}
+                                {generationRadius && actualStart.startsWith('{') && (
+                                    <Circle
+                                        center={JSON.parse(actualStart)} 
+                                        radius={generationRadius * 100}
+                                        options={{
+                                            fillOpacity: 0,
+                                            strokeColor: "#625fff",
+                                            strokeOpacity: 0.8,
+                                            strokeWeight: 3,
+                                            clickable: false,
                                         }}
                                     />
                                 )}

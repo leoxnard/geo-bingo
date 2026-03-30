@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 
-import { GoogleMap, useJsApiLoader, Polyline, MarkerF, StreetViewPanorama } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, Polyline, MarkerF, StreetViewPanorama, Circle } from '@react-google-maps/api';
 import toast from 'react-hot-toast';
 
 import { supabase } from '../lib/supabase';
@@ -27,6 +27,15 @@ interface PlayerWithPaths {
     path: PathPoint[];
 }
 
+interface BingoCategory {
+    categoryName: string;
+    matchedPlaces: {
+        name: string;
+        lat: number;
+        lng: number;
+    }[];
+}
+
 const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => {
     let dLng = Math.abs(lng1 - lng2);
     if (dLng > 180) dLng = 360 - dLng;
@@ -43,6 +52,9 @@ export default function VotingJourneyView({
     const [submissions, setSubmissions] = useState<Submission[]>([]);
     const [playersWithPaths, setPlayersWithPaths] = useState<PlayerWithPaths[]>([]);
     const [shownSubIds, setShownSubIds] = useState<Set<string>>(new Set());
+    const [categoryDetails, setCategoryDetails] = useState<BingoCategory[]>([]);
+    const [generationRadius, setGenerationRadius] = useState<number>(1000);
+    const [startingPoint, setStartingPoint] = useState<{ lat: number; lng: number } | null>(null);
     
     const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
     const [isPaused, setIsPaused] = useState(false);
@@ -66,6 +78,7 @@ export default function VotingJourneyView({
     const lastTimeRef = useRef(0);
     const shownSubIdsRef = useRef<Set<string>>(new Set());
     const rAFRef = useRef(0);
+    const markersRef = useRef<Map<string, google.maps.Marker>>(new Map());
 
     const dummyPath = useMemo(() => [], []);
     const dummyPos = useMemo(() => ({ lat: 0, lng: 0 }), []);
@@ -142,11 +155,19 @@ export default function VotingJourneyView({
     // Data Fetching
     useEffect(() => {
         const fetchData = async () => {
-            const { data: gData } = await supabase.from('games').select('categories, grid_size, game_mode').eq('id', gameId).single();
+            const { data: gData } = await supabase
+                .from('games')
+                .select('categories, grid_size, game_mode, category_details, generation_radius, starting_point')
+                .eq('id', gameId)
+                .single();
+
             if (gData) {
                 setGameCategories(gData.categories || []);
                 setGridSize(gData.grid_size || 3);
                 setGameMode(gData.game_mode || 'list');
+                setCategoryDetails(gData.category_details || []);
+                setGenerationRadius(gData.generation_radius || 1000);
+                setStartingPoint(JSON.parse(gData.starting_point) || null);
             }
 
             const { data: subData } = await supabase.from('submissions').select('*').eq('game_id', gameId);
@@ -345,6 +366,7 @@ export default function VotingJourneyView({
         return () => cancelAnimationFrame(rAFRef.current);
     }, [isPaused, isLineComplete, mapInstance, pathData, isPreloading]);
 
+    // 
     useEffect(() => {
         if (isLineComplete && mapInstance && pathData && pathData.rawPath.length > 1) {
             const bounds = new window.google.maps.LatLngBounds();
@@ -419,6 +441,95 @@ export default function VotingJourneyView({
         onFinishGame();
     };
 
+    // Fall 1: Aktive Kategorie-Marker während der Reise
+    const activeCategoryMarkers = useMemo(() => {
+        if (!displaySub || isLineComplete) return null;
+        
+        const activeCat = categoryDetails.find(cat => cat.categoryName === displaySub.category);
+        if (!activeCat) return null;
+
+        return activeCat.matchedPlaces.map((place, pIdx) => {
+            const mId = `active-${displaySub.id}-${pIdx}`;
+            return (
+                <MarkerF
+                    key={mId}
+                    position={{ lat: place.lat, lng: place.lng }}
+                    options={{
+                        icon: {
+                            path: window.google.maps.SymbolPath.CIRCLE,
+                            scale: 8,
+                            fillColor: '#4f46e5',
+                            fillOpacity: 1,
+                            strokeWeight: 1.5,
+                            strokeColor: '#a4b3ff',
+                        },
+                        label: {
+                            text: place.name,
+                            // animate-in und fade-in für sanftes Einblenden!
+                            className: "bg-slate-900/90 text-white p-3 rounded border border-indigo-500 text-[10px] font-bold mt-10 whitespace-nowrap shadow-lg",
+                            color: '#a4b3ff'
+                        },
+                    }}
+                    // Die Marker fallen sanft herein, statt hart aufzuploppen
+                    animation={typeof window !== 'undefined' && window.google ? window.google.maps.Animation.DROP : undefined}
+                />
+            );
+        });
+    }, [displaySub?.id, isLineComplete, categoryDetails]);
+
+    // Fall 2: Alle Kategorien am Ende (Hover-Logik)
+    const finalCategoryMarkers = useMemo(() => {
+        if (!isLineComplete) return null;
+
+        return categoryDetails.map((cat, cIdx) => (
+            cat.matchedPlaces.map((place, pIdx) => {
+                const mId = `final-${cIdx}-${pIdx}`;
+                
+                // Vorlagen-Objekt für das Label
+                const labelConfig = {
+                    text: `${place.name} (${cat.categoryName})`,
+                    className: "bg-slate-900/90 text-white p-3 rounded border border-indigo-500 text-[10px] font-bold mt-10 whitespace-nowrap shadow-lg",
+                    color: '#a4b3ff'
+                };
+
+                return (
+                    <MarkerF
+                        key={mId}
+                        position={{ lat: place.lat, lng: place.lng }}
+                        onLoad={(marker) => markersRef.current.set(mId, marker)}
+                        onUnmount={() => markersRef.current.delete(mId)}
+                        onMouseOver={() => {
+                            const marker = markersRef.current.get(mId);
+                            if (marker) {
+                                marker.setLabel(labelConfig);
+                                marker.setZIndex(100); // Immer im Vordergrund
+                            }
+                        }}
+                        onMouseOut={() => {
+                            const marker = markersRef.current.get(mId);
+                            if (marker) {
+                                marker.setLabel(null);
+                                marker.setZIndex(5);
+                            }
+                        }}
+                        options={{
+                            icon: {
+                                path: window.google.maps.SymbolPath.CIRCLE,
+                                scale: 6,
+                                fillColor: '#4f46e5',
+                                fillOpacity: 1,
+                                strokeWeight: 1.5,
+                                strokeColor: '#a4b3ff',
+                            },
+                            zIndex: 5
+                        }}
+                        animation={typeof window !== 'undefined' && window.google ? window.google.maps.Animation.DROP : undefined}
+                    />
+                );
+            })
+        ));
+    }, [isLineComplete, categoryDetails]);
+
     const currentMapOptions = useMemo(() => {
         const interactive = isLineComplete;
         return mapOptions({
@@ -431,6 +542,23 @@ export default function VotingJourneyView({
             styles: [],
         });
     }, [isLineComplete]);
+
+    const panoramaOptions = useMemo(() => {
+        if (!displaySub) return undefined;
+        return {
+            position: { lat: displaySub.lat, lng: displaySub.lng },
+            pov: { heading: displaySub.heading, pitch: displaySub.pitch },
+            zoom: displaySub.zoom || 1,
+            visible: true, 
+            addressControl: false, 
+            showRoadLabels: false, 
+            enableCloseButton: false, 
+            linksControl: false, 
+            panControl: false, 
+            fullscreenControl: false, 
+            motionTracking: false
+        };
+    }, [displaySub?.id]);
 
     if (!isLoaded || !isDataLoaded) {
         return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-indigo-400 font-bold text-2xl tracking-widest uppercase">Loading...</div>;
@@ -479,8 +607,9 @@ export default function VotingJourneyView({
                     <Polyline 
                         path={isLineComplete ? finalPath : dummyPath}
                         onLoad={p => polylineRef.current = p}
-                        options={{ strokeColor: '#4f46e5', strokeOpacity: 0.8, strokeWeight: 6, geodesic: true }} 
+                        options={{ strokeColor: '#fac800', strokeOpacity: 0.8, strokeWeight: 6, geodesic: true, zIndex: 10000 }} 
                     />
+                    
                     {!isLineComplete && (
                         <MarkerF 
                             position={isPreloading ? preloadMarkerPos : dummyPos}
@@ -490,8 +619,29 @@ export default function VotingJourneyView({
                                 scale: 8,
                                 fillColor: '#ffffff',
                                 fillOpacity: 1,
-                                strokeColor: '#4f46e5',
+                                strokeColor: '#fac800',
                                 strokeWeight: 4,
+                            }}
+                        />
+                    )}
+
+                    {/* Category Markers */}
+                    {activeCategoryMarkers}
+
+                    {/* Final Category Markers */}
+                    {finalCategoryMarkers}
+
+                    {/* Radius Circle */}
+                    {isLineComplete && (
+                        <Circle
+                            center={startingPoint || { lat: 0, lng: 0 }} 
+                            radius={generationRadius * 100}
+                            options={{
+                                fillOpacity: 0,
+                                strokeColor: "#625fff",
+                                strokeOpacity: 0.8,
+                                strokeWeight: 3,
+                                clickable: false,
                             }}
                         />
                     )}
@@ -562,12 +712,7 @@ export default function VotingJourneyView({
                         >
                             {displaySub && (
                                 <StreetViewPanorama 
-                                    options={{
-                                        position: { lat: displaySub.lat, lng: displaySub.lng },
-                                        pov: { heading: displaySub.heading, pitch: displaySub.pitch },
-                                        zoom: displaySub.zoom || 1,
-                                        visible: true, addressControl: false, showRoadLabels: false, enableCloseButton: false, linksControl: false, panControl: false, fullscreenControl: false, motionTracking: false
-                                    }}
+                                    options={panoramaOptions}
                                 />
                             )}
                         </GoogleMap>

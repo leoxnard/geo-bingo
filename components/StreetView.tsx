@@ -127,6 +127,7 @@ export default function StreetView({
         const channel = supabase.channel(`game-submissions-${gameId}`)
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'submissions', filter: `game_id=eq.${gameId}` }, 
                 (payload) => {
+                    console.log("New submission received via realtime:", payload);
                     const newSub = payload.new as Submission;
                     setAllSubmissions(prev => {
                         if (prev.find(s => s.id === newSub.id)) return prev;
@@ -269,8 +270,8 @@ export default function StreetView({
 
         const submissionData = {
             game_id: gameId, player_id: playerId, category: targetCategory,
-            lat: parseFloat(position.lat().toFixed(6)), lng: parseFloat(position.lng().toFixed(6)),
-            heading: parseFloat(pov.heading.toFixed(2)), pitch: parseFloat(pov.pitch.toFixed(2)),
+            lat: position.lat(), lng: position.lng(),
+            heading: pov.heading, pitch: pov.pitch,
             zoom: streetViewRef.current.getZoom() || 1
         };
 
