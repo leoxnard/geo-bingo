@@ -65,10 +65,10 @@ export default function LobbySettings({
                 onClick={(val: 'left' | 'right') => updateGameModeInfo({ game_mode: val === 'left' ? 'list' : 'bingo' })}
                 disabled={!isHost}
                 isHost={isHost}
-                labelLeft="Bingo List"
+                labelLeft="Classic List"
                 labelRight="Bingo Grid"
                 description={`${gameMode === 'list' ? 
-                    'In Bingo List mode, players will see a simple list of categories.'
+                    'In Classic List mode, players will see a simple list of categories.'
                     : 'In Bingo Grid mode, players receive a grid of categories.'
                 }`}
             />

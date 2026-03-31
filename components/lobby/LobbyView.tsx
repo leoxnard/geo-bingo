@@ -57,6 +57,7 @@ interface LobbyViewProps {
     categorySource: 'manual' | 'nearbyPlaces' | 'nearbyStreetView';
     generationRadius: number;
     generationNumber: number;
+    language: 'english' | 'german';
 }
 
 export default function LobbyView(props: LobbyViewProps) {
@@ -202,10 +203,11 @@ export default function LobbyView(props: LobbyViewProps) {
                     />
 
                     <LobbyCategories 
-                        key={`categories-${props.gameId}-${props.lastUpdated}`}
+                        key={`settings-${props.gameId}`}
                         updateGameModeInfo={props.updateGameModeInfo}
                         isHost={props.isHost}
                         gameMode={props.gameMode}
+                        language={props.language}
                         gridSize={props.gridSize}
                         categories={props.categories}
                         suggestedCategories={props.suggestedCategories}
@@ -221,6 +223,7 @@ export default function LobbyView(props: LobbyViewProps) {
 
                 <LobbySidebar 
                     gameId={props.gameId}
+                    language={props.language}
                     players={props.players}
                     onlinePlayers={props.onlinePlayers}
                     playerId={props.playerId}

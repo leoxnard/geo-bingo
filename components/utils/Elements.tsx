@@ -324,3 +324,54 @@ export const RangeSlider = ({
         )}
     </div>
 );
+
+export const Selection = ({
+    classname,
+    title,
+    options,
+    value,
+    onChange,
+    disabled,
+    position = 'middle',
+    description
+}: {
+    classname?: string;
+    title: string;
+    options: { label: string; value: string }[];
+    value: string;
+    onChange: (val: string) => void;
+    disabled?: boolean;
+    position?: 'top' | 'middle' | 'bottom' | 'clean';
+    description?: string;
+}) => (
+    <div className={`
+        ${position === 'middle' ? 'py-3 border-t border-slate-700' : ''}
+        ${position === 'top' ? 'pb-3 border-t border-slate-700 border-t-0' : ''}
+        ${position === 'bottom' ? 'pt-3 border-t border-slate-700' : ''}
+        ${classname}`}>
+        
+        <div className="flex items-center justify-between gap-4">
+            <label className="text-sm text-slate-300 flex-shrink-0">
+                {title}
+            </label>
+            
+            <select 
+                title={title}
+                value={value} 
+                onChange={(e) => onChange(e.target.value)}
+                disabled={disabled}
+                className="h-[42px] px-3 w-full max-w-[200px] sm:max-w-[250px] rounded-lg bg-slate-900 border border-slate-600 text-sm text-white cursor-pointer transition-colors focus:outline-none focus:border-indigo-500 hover:border-slate-500 disabled:opacity-50"
+            >
+                {options.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+            </select>
+        </div>
+
+        {description && (
+            <p className="mt-2 text-xs text-slate-400 italic">
+                {description}
+            </p>
+        )}
+    </div>
+);

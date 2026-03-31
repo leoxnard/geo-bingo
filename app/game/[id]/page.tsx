@@ -58,7 +58,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
     const timeUpTriggeredRef = useRef(false);
 
-    // advanced game options
+    // more game options
+    const [language, setLanguage] = useState<'german' | 'english'>('german');
     const [hideMapSymbols, setHideMapSymbols] = useState(false);
     const [fastVoting, setFastVoting] = useState(false);
 
@@ -77,6 +78,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         category_source?: 'manual' | 'nearbyPlaces' | 'nearbyStreetView';
         generation_radius?: number;
         generation_number?: number;
+        language?: 'english' | 'german';
     }) => {
         if (!isHost) return;
         if (updates.game_mode) setGameMode(updates.game_mode as 'list' | 'bingo');
@@ -92,6 +94,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (updates.category_source !== undefined) setCategorySource(updates.category_source);
         if (updates.generation_radius !== undefined) setGenerationRadius(updates.generation_radius);
         if (updates.generation_number !== undefined) setGenerationNumber(updates.generation_number);
+        if (updates.language !== undefined) setLanguage(updates.language);
         await supabase.from('games').update(updates).eq('id', gameId);
     };
 
@@ -149,7 +152,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     exclusive_mode: false,
                     category_source: 'manual',
                     generation_radius: 10,
-                    generation_number: 10
+                    generation_number: 10,
+                    language: 'german',
                 };
                 const { error } = await supabase.from('games').insert([newGameData]);
                 if (!error) {
@@ -181,7 +185,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setCategorySource(gameData.category_source || 'manual');
                 setGenerationRadius(gameData.generation_radius || 10);
                 setGenerationNumber(gameData.generation_number || 10);
-
+                setLanguage(gameData.language || 'german');
                 const isActuallyHost = gameData.host_id === currentPlayerId;
                 setIsHost(isActuallyHost);
                 if (isActuallyHost) localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
@@ -284,6 +288,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     setCategorySource(payload.new.category_source || 'manual');
                     setGenerationRadius(payload.new.generation_radius || 10);
                     setGenerationNumber(payload.new.generation_number || 10);
+                    setLanguage(payload.new.language || 'german');
                 }
             ).subscribe();
 
@@ -465,6 +470,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     categorySource={categorySource}
                     generationRadius={generationRadius}
                     generationNumber={generationNumber}
+                    language={language}
                 />
             );
         }
@@ -545,13 +551,13 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                         color: '#fff',
                     },
                     success: {
-                        icon: <CiCircleCheck size="5em" color="#00b01d" />,
+                        icon: <CiCircleCheck size="3em" color="#00b01d" />,
                         style: {
                             color: '#00b01d',
                         },
                     },
                     error: {
-                        icon: <CiCircleAlert size="5em" color="#ff0000" />,
+                        icon: <CiCircleAlert size="3em" color="#ff0000" />,
                         style: {
                             color: '#ff0000',
                         },

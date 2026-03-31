@@ -5,7 +5,7 @@ import { useState, useRef, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { FaRegCopy, FaCopy, FaRegEdit, FaPlus, FaRandom, FaTimes } from "react-icons/fa";
 
-import { ToggleSwitch } from '../utils/Elements';
+import { ToggleSwitch, Selection } from '../utils/Elements';
 import { shuffle } from '../utils/Functions';
 
 interface Player {
@@ -17,6 +17,7 @@ interface Player {
 
 interface LobbySidebarProps {
     gameId: string;
+    language: 'english' | 'german';
     players: Player[];
     onlinePlayers: string[];
     playerId: string;
@@ -345,10 +346,22 @@ export default function LobbySidebar(props: LobbySidebarProps) {
             </div>
             <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 h-fit">
                 <h2 className="text-xl font-semibold mb-6 text-slate-100 border-b border-slate-700 pb-3">
-                    Advanced Game Settings
+                    More Game Settings
                 </h2>
                 
                 <div className="flex flex-col gap-5">
+                    {/* Language Selection */}
+                    <Selection
+                        title="Category Language"
+                        options={[
+                            { value: 'german', label: 'German' },
+                            { value: 'english', label: 'English' }
+                        ]}
+                        value={props.language}
+                        onChange={(val) => props.updateGameModeInfo({ language: val })}
+                        disabled={!props.isHost}
+                        position='clean'
+                    /> 
                     {/* Toggle 1: Hide Map Symbols */}
                     <ToggleSwitch
                         label="Hide Map Symbols (POIs)"
