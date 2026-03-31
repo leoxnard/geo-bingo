@@ -171,8 +171,8 @@ export default function VotingJourneyView({
                 setGameMode(gData.game_mode || 'list');
                 setCategoryDetails(gData.category_details || []);
                 setGenerationRadius(gData.generation_radius || 1000);
-                setStartingPoint(JSON.parse(gData.starting_point) || null);
                 setCategorySource(gData.category_source || 'manual');
+                setStartingPoint(gData.starting_point !== 'open-world' && gData.category_source !== 'manual' ? JSON.parse(gData.starting_point) : null);
             }
 
             const { data: subData } = await supabase.from('submissions').select('*').eq('game_id', gameId);
@@ -569,7 +569,7 @@ export default function VotingJourneyView({
             clickableIcons: false,
             gestureHandling: interactive ? 'greedy' : 'none',
             keyboardShortcuts: interactive,
-            zoomControl: interactive,
+            zoomControl: false,
             styles: [],
         });
     }, [isLineComplete]);
