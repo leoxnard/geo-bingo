@@ -59,6 +59,9 @@ export default function StreetView({
         return window.matchMedia('(max-width: 932px) and (orientation: landscape)').matches;
     });
   
+    const [panoInstance, setPanoInstance] = useState<google.maps.StreetViewPanorama | null>(null);
+    const [minimapInstance, setMinimapInstance] = useState<google.maps.Map | null>(null);
+
     const streetViewRef = useRef<google.maps.StreetViewPanorama | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const lastValidPositionRef = useRef<google.maps.LatLng | null>(null);
@@ -83,6 +86,11 @@ export default function StreetView({
     };
 
     const handleVoteEndRound = async () => {
+        if (pathRef.current.length > lastSavedLengthRef.current) {
+            await supabase.from('players').update({ path: pathRef.current }).eq('id', playerId);
+            lastSavedLengthRef.current = pathRef.current.length;
+        }
+
         const updatedReadyPlayers = [...readyPlayers, playerId];
         const votesNeeded = players.length;
 
@@ -99,6 +107,29 @@ export default function StreetView({
             console.error("Failed to vote:", error);
         }
     };
+
+    useEffect(() => {
+        if (minimapInstance && panoInstance) {
+            minimapInstance.setStreetView(panoInstance);
+
+            const initialPos = panoInstance.getPosition();
+            if (initialPos) {
+                minimapInstance.setCenter(initialPos);
+            }
+
+            const positionListener = panoInstance.addListener('position_changed', () => {
+                const currentPos = panoInstance.getPosition();
+                if (currentPos) {
+                    minimapInstance.setCenter(currentPos);
+                }
+            });
+
+            return () => {
+                google.maps.event.removeListener(positionListener);
+                minimapInstance.setStreetView(null);
+            };
+        }
+    }, [minimapInstance, panoInstance]);
 
     useEffect(() => {
         const handleFullscreenChange = () => {
@@ -163,7 +194,12 @@ export default function StreetView({
             }
         }, 5000);
 
-        return () => clearInterval(saveInterval);
+        return () => {
+            clearInterval(saveInterval)
+            if (pathRef.current.length > lastSavedLengthRef.current) {
+                supabase.from('players').update({ path: pathRef.current }).eq('id', playerId).then();
+            }
+        };
     }, [playerId]);
 
     // sound effects for timer
@@ -462,6 +498,7 @@ export default function StreetView({
 
     return (
         <div className="min-h-screen p-4 bg-slate-900">
+            {/* Header */}
             <div className="flex justify-between items-center mb-4 w-full max-w-[95%] xl:max-w-[90vw] mx-auto text-white">
                 <div className="flex items-center gap-4 hidden sm:flex">
                     <GeoBingoLogo size={40} />
@@ -496,6 +533,7 @@ export default function StreetView({
             <div className="w-full max-w-[95%] xl:max-w-[90vw] mx-auto">
                 {playerId && (
                     <div className={`flex gap-6 ${isMobileLandscape ? 'flex-row h-[calc(100dvh-7rem)] min-h-0' : 'flex-col lg:flex-row h-[calc(100vh-8rem)] min-h-[600px]'}`}>
+                        {/* Left: Map */}
                         <div ref={containerRef} className={`${isMobileLandscape ? 'basis-[58%] min-h-0 h-full' : 'flex-1 min-h-[400px] h-full'} border-4 border-slate-700 rounded-2xl overflow-hidden shadow-2xl relative bg-slate-800 absolute-safari-fix`}>
                             <GoogleMap 
                                 key={gameId} 
@@ -521,8 +559,43 @@ export default function StreetView({
                                     )
                                 ))}
 
-                                <StreetViewPanorama options={panoOptions} onLoad={onLoad} onUnmount={onUnmount} />
+                                <StreetViewPanorama 
+                                    options={panoOptions} 
+                                    onLoad={(pano) => {
+                                        setPanoInstance(pano);
+                                        onLoad(pano);
+                                    }} 
+                                    onUnmount={() => {
+                                        setPanoInstance(null);
+                                        onUnmount();
+                                    }} 
+                                />
                             </GoogleMap>
+
+                            {/* Minimap */}
+                            {inStreetView && (
+                                <div className="absolute bottom-6 left-6 z-[500] w-28 h-28 sm:w-36 sm:h-36 hover:w-44 hover:h-44 sm:hover:w-56 sm:hover:h-56 rounded-xl overflow-hidden border-4 border-indigo-500 shadow-[0_0_20px_rgba(79,70,229,0.5)] transition-all duration-300 minimap-wrapper">
+                                    <style>{`.minimap-wrapper .gmnoprint { display: none !important; }`}</style>
+                                    <GoogleMap
+                                        mapContainerClassName="w-full h-full"
+                                        onLoad={map => setMinimapInstance(map)}
+                                        onUnmount={() => setMinimapInstance(null)}
+                                        center={lastValidPositionRef.current || mapCenter}
+                                        zoom={16}
+                                        options={{
+                                            disableDefaultUI: true, 
+                                            streetViewControl: true,
+                                            gestureHandling: startingPoint === 'open-world' ? 'greedy' : 'none', 
+                                            keyboardShortcuts: false,
+                                            clickableIcons: false,
+                                            styles: [{ featureType: "all", elementType: "labels.icon", stylers: [{ visibility: "off" }] }]
+                                        }}
+                                    />
+                                    {startingPoint !== 'open-world' && (
+                                        <div className="absolute inset-0 z-50 bg-transparent"></div>
+                                    )}
+                                </div>
+                            )}
 
                             {!isMobileLandscape && (
                                 <FullscreenButton isFullscreen={isFullscreen} containerRef={containerRef} setIsFullscreen={setIsFullscreen} />
