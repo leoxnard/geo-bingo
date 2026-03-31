@@ -180,18 +180,12 @@ export const MultiToggleButton = <T extends string | number>({
     const activeIndex = options.findIndex((opt) => opt.value === activeValue);
     const safeActiveIndex = activeIndex >= 0 ? activeIndex : 0;
 
-    // Fallback: Wenn sizeRatios nicht übergeben wurde, bekommt jede Option eine "1" (gleich groß)
     const ratios = sizeRatios && sizeRatios.length === options.length 
         ? sizeRatios 
         : options.map(() => 1);
 
-    // Gesamtsumme aller Ratios (z.B. [1, 2, 1] = 4)
     const totalRatioSum = ratios.reduce((acc, val) => acc + val, 0);
-
-    // Ratio der aktuell aktiven Option
     const currentRatio = ratios[safeActiveIndex];
-
-    // Summe aller Ratios *vor* der aktuell aktiven Option für den perfekten Offset
     const prevRatiosSum = ratios.slice(0, safeActiveIndex).reduce((acc, val) => acc + val, 0);
 
     return (

@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { CiCirclePlus, CiCircleMinus, CiCircleRemove, CiCircleCheck, CiCircleQuestion } from "react-icons/ci";
 
-import { RangeSlider, MultiToggleButton } from '../utils/Elements';
+import { RangeSlider, MultiToggleButton, Selection } from '../utils/Elements';
 import { shuffle } from '../utils/Functions';
 
 interface CategoryItemProps {
@@ -22,8 +22,16 @@ interface CategoryItemProps {
 }
 
 const CategoryItem = ({
-    initialValue, index, gameMode, draggedIndex, gridSize,
-    onSave, onRemove, onRandomize, onDragStart, onDrop
+    initialValue,
+    index,
+    gameMode,
+    draggedIndex,
+    gridSize,
+    onSave,
+    onRemove,
+    onRandomize,
+    onDragStart,
+    onDrop
 }: CategoryItemProps) => {
     const [val, setVal] = useState(initialValue || '');
     const getTextSize = (gameMode: string, gridSize: number) => {
@@ -163,6 +171,7 @@ interface LobbyCategoriesProps {
         category_source?: 'manual' | 'nearbyPlaces' | 'nearbyStreetView';
         generation_radius?: number;
         generation_number?: number;
+        difficulty?: 'default' | 'easy';
     }) => void;
     isHost: boolean;
     gameMode: 'list' | 'bingo';
@@ -178,6 +187,7 @@ interface LobbyCategoriesProps {
     categorySource: 'manual' | 'nearbyPlaces' | 'nearbyStreetView';
     generationRadius: number;
     generationNumber: number;
+    difficulty: 'default' | 'easy';
 }
 
 export default function LobbyCategories({
@@ -195,6 +205,7 @@ export default function LobbyCategories({
     categorySource,
     generationRadius,
     generationNumber,
+    difficulty
 }: LobbyCategoriesProps) {
     const [newCategory, setNewCategory] = useState(''); 
     const [randomNumber, setRandomNumber] = useState<number | ''>(10);
@@ -205,13 +216,10 @@ export default function LobbyCategories({
 
     const [localCategories, setLocalCategories] = useState<string[]>(categories);
     
-    // --- DIE NEUE LÖSUNG GEGEN DAS FLACKERN ---
     const isPendingSyncRef = useRef(false);
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
     const echoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Synchronisiert den lokalen State nur, wenn wir gerade NICHT speichern
-    // und das Datenbank-Echo abgewartet haben.
     useEffect(() => {
         if (!isPendingSyncRef.current) {
             setLocalCategories(categories);
@@ -221,27 +229,19 @@ export default function LobbyCategories({
     const queueDBSave = (newCategories: string[]) => {
         if (!isHost) return;
 
-        // 1. Lokalen State sofort aktualisieren (kein Warten!)
         setLocalCategories(newCategories);
-        
-        // 2. Lock setzen: Überschreibe uns vorerst nicht mit ankommenden (alten) Props
         isPendingSyncRef.current = true;
 
         if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
         if (echoTimeoutRef.current) clearTimeout(echoTimeoutRef.current);
         
-        // 3. Datenbank-Update debouncen (damit wir nicht bei jedem Tastendruck die DB fluten)
         debounceTimerRef.current = setTimeout(async () => {
             await updateGameModeInfo({ categories: newCategories });
-            
-            // 4. Nach dem Speichern kurz warten, um das "Echo" von Supabase Realtime zu schlucken, 
-            // bevor wir den State wieder für externe Updates freigeben.
             echoTimeoutRef.current = setTimeout(() => {
                 isPendingSyncRef.current = false;
             }, 1200); 
         }, 600);
     };
-    // ------------------------------------------
 
     const handleCommit = () => {
         if (!isHost) return;
@@ -497,6 +497,21 @@ export default function LobbyCategories({
 
             {categorySource !== 'manual' && (
                 <>
+                    <MultiToggleButton
+                        title='Difficulty'
+                        options={[
+                            { value: 'default', label: 'Default' },
+                            { value: 'easy', label: 'Easy' }
+                        ]}
+                        activeValue={difficulty}
+                        onChange={(val) => updateGameModeInfo({ difficulty: val })}
+                        disabled={!isHost}
+                        sizeRatios={[1, 1]}
+                        isHost={isHost}
+                        description={difficulty === 'default'
+                            ? 'AI will generate more specific categories. Good for smaller radii and urban areas.'
+                            : 'AI will generate more general categories. Better for larger radii.'}
+                     />
                     {gameMode === 'list' ? (
                         <RangeSlider
                             title="Number of Categories"

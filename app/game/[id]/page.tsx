@@ -37,6 +37,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [categorySource, setCategorySource] = useState<'manual' | 'nearbyPlaces' | 'nearbyStreetView'>('manual');
     const [generationRadius, setGenerationRadius] = useState<number>(10); // in 100m
     const [generationNumber, setGenerationNumber] = useState<number>(10);
+    const [difficulty, setDifficulty] = useState<'default' | 'easy'>('default');
   
     // Bingo Mode State
     const [gameMode, setGameMode] = useState<'list' | 'bingo'>('list');
@@ -79,6 +80,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         generation_radius?: number;
         generation_number?: number;
         language?: 'english' | 'german';
+        difficulty?: 'default' | 'easy';
     }) => {
         if (!isHost) return;
         if (updates.game_mode) setGameMode(updates.game_mode as 'list' | 'bingo');
@@ -95,6 +97,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (updates.generation_radius !== undefined) setGenerationRadius(updates.generation_radius);
         if (updates.generation_number !== undefined) setGenerationNumber(updates.generation_number);
         if (updates.language !== undefined) setLanguage(updates.language);
+        if (updates.difficulty !== undefined) setDifficulty(updates.difficulty);
         await supabase.from('games').update(updates).eq('id', gameId);
     };
 
@@ -471,6 +474,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     generationRadius={generationRadius}
                     generationNumber={generationNumber}
                     language={language}
+                    difficulty={difficulty}
                 />
             );
         }

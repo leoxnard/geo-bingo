@@ -58,6 +58,7 @@ interface LobbyViewProps {
     generationRadius: number;
     generationNumber: number;
     language: 'english' | 'german';
+    difficulty: 'default' | 'easy';
 }
 
 export default function LobbyView(props: LobbyViewProps) {
@@ -91,7 +92,6 @@ export default function LobbyView(props: LobbyViewProps) {
         let finalCategories = [...props.categories];
         const neededCount = props.gameMode === 'bingo' ? props.gridSize * props.gridSize : props.generationNumber;
 
-        // --- ANGEPASSTE LOGIK: Verzweigung der beiden AI-Modi ---
         if ((props.categorySource === 'nearbyPlaces' || props.categorySource === 'nearbyStreetView') && props.startingPoint !== 'open-world' && startPos) {
             setIsGenerating(true);
 
@@ -101,9 +101,9 @@ export default function LobbyView(props: LobbyViewProps) {
                         let complexResult;
                         
                         if (props.categorySource === 'nearbyStreetView') {
-                            complexResult = await generateNearbyStreetViewCategories(startPos, props.generationRadius, neededCount);
+                            complexResult = await generateNearbyStreetViewCategories(startPos, props.generationRadius, neededCount, props.difficulty);
                         } else {
-                            complexResult = await generateNearbyPlaceCategories(startPos, props.generationRadius, neededCount);
+                            complexResult = await generateNearbyPlaceCategories(startPos, props.generationRadius, neededCount, props.difficulty);
                         }
 
                         const simpleCategoryNames = complexResult.map(cat => cat.categoryName);
@@ -218,6 +218,7 @@ export default function LobbyView(props: LobbyViewProps) {
                         categorySource={props.categorySource}
                         generationRadius={props.generationRadius}
                         generationNumber={props.generationNumber}
+                        difficulty={props.difficulty}
                     />
                 </div>
 
