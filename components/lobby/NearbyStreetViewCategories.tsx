@@ -91,11 +91,13 @@ Deine Mission: Finde in den folgenden Street-View-Bildern besonders interessante
 
 Du erhältst ${validImages.length} Bilder. Jedes Bild ist mit einer "Bild-ID" markiert.
 Suche dir möglichst viele Merkmale aus den Bildern heraus und benenne das besondere Merkmal in 1 bis maximal 2 Wörtern (auf Deutsch), vermeide räumliche Beschreibungen (z.B. "gestapelt", "nebeneinander"). 
-Nenne Eigennamen nur, wenn sie von aussen klar erkennbar sind und nicht zu einzigartig sind (z.B. "EDEKA" ist gut aber "Frauenkirche" nicht, da man den Namen nicht direkt am Gebäude erkennen kann). Es sollte dann aber verständlich sein, was genau gesucht ist (z.B. "Samsonite Koffer" statt "Samsonite").
-Bewerte jedes gefundene Merkmal mit einem "interestScore" von 1 bis 100, um zu zeigen, wie interessant es für das Spiel ist und wie sicher du dir bist, dass es im Bild zu sehen ist:
-- Hoher Score (80-100): spezielle/kuriose Fahrzeuge (z.B. Oldtimer, Traktor), einmalige Architektur, besondere Statuen/Kunstwerke, Musiker, auffälliges Graffiti, ungewöhnliche Straßenszenen, Tiere.
-- Mittlerer Score (40-79): Spezifische Läden, Verkehrsschilder, auffällige Schaufenster, besondere Türen, Menschen mit erkennbaren Merkmalen (z.B. bunte Kleidung, Fahrradfahrer), interessante Pflanzen oder Bäume.
-- Niedriger Score (1-39): Normale Autos, generische Hotel- oder Firmenschilder, Ampeln, zu kleine Details, die schwer zu erkennen sind oder auch Begriffe mit denen man nicht sicher ist was gemeint ist (z.B. "Reifen", "Holz").
+Nenne Eigennamen nur, wenn sie deutschlandweit bekannt sind (z.B. "EDEKA" ist gut aber "Frauenkirche" nicht, da man den Namen nicht direkt am Gebäude erkennen kann).
+Es geht darum Kategorien zu finden die man auf der Suche durchaus finden könnte, aber nicht zu generisch sind, dass sie auf fast jedem Bild vorkommen (z.B. "Tür", "Fenster", "Auto" wären zu generisch).
+Es sollte dann aber verständlich sein, was genau gesucht ist (z.B. "Samsonite Koffer" statt "Samsonite"), nutze lieber allgemeinere Begriffe, wenn es zu spezifisch wird (z.B. "LKW" statt "Moser LKW"). 
+Bewerte jedes gefundene Merkmal mit einem "score" von 1 bis 100. Dieser spiegelt sowohl deine Sicherheit bei der Erkennung als auch den Unterhaltungswert für das Spiel wider. (Die folgenden Kategorien dienen als Orientierung, du kannst auch andere Begriffe wählen):
+- Hoher Score (80-100): Sehr hohe Sicherheit und passende Kategorien! Zum Beispiel spezielle/kuriose Fahrzeuge (z.B. Oldtimer, Traktor), einmalige Architektur, besondere Statuen/Kunstwerke, Musiker, auffälliges Graffiti, ungewöhnliche Straßenszenen, Tiere, Menschen mit besonderen erkennbaren Merkmalen.
+- Mittlerer Score (40-79): Akurate Sicherheit! Zum Beispiel spezifische Läden, Verkehrsschilder, auffällige Schaufenster, besondere Türen, interessante Pflanzen oder Bäume, Fahrzeuge mit besonderen Farben oder Merkmalen.
+- Niedriger Score (1-39): Niedrige Sicherheit oder uninteressant! Zum Beispiel Normale Autos, generische Hotel- oder Firmenschilder, Ampeln, zu kleine Details, die schwer zu erkennen sind oder auch Begriffe mit denen man nicht sicher ist was gemeint ist (z.B. "Reifen", "Holz").
 
 WICHTIG: Erfinde nichts! Das Merkmal muss ZWEIFELSFREI im Bild erkennbar sein. Wenn du erkennst, dass das Bild ein indoor-Bild ist, gebe ihm ein score von 0!
 
@@ -104,8 +106,8 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Array in diesem Format, ohne Mar
 {
 "categoryName": "Das gefundene Merkmal (z.B. Katze)",
 "imageId": "Die exakte Bild-ID aus dem Prompt",
-"interestScore": 95
-}
+"score": 95
+},
 ]` }];
 
         validImages.forEach(img => {
@@ -156,13 +158,13 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Array in diesem Format, ohne Mar
         }
 
         const finalCategories: BingoCategory[] = parsedItems
-            .map((item: { categoryName: string, imageId: string, interestScore: number }) => {
+            .map((item: { categoryName: string, imageId: string, score: number }) => {
                 const sourceImg = validImages.find(img => img.id === item.imageId);
                 if (!sourceImg) return null;
 
                 return {
                     categoryName: item.categoryName,
-                    interestScore: item.interestScore || 0,
+                    score: item.score || 0,
                     matchedPlaces: [{
                         name: item.categoryName,
                         lat: sourceImg.lat,
@@ -170,11 +172,11 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Array in diesem Format, ohne Mar
                     }]
                 };
             })
-            .filter((item): item is (BingoCategory & { interestScore: number }) => item !== null)
+            .filter((item): item is (BingoCategory & { score: number }) => item !== null)
             .filter((cat, index, self) => index === self.findIndex(c => 
                 c.categoryName.toLowerCase().trim() === cat.categoryName.toLowerCase().trim()
             ))
-            .sort((a, b) => b.interestScore - a.interestScore)
+            .sort((a, b) => b.score - a.score)
             .slice(0, requiredCount)
             .map(cat => ({
                 categoryName: cat.categoryName,
