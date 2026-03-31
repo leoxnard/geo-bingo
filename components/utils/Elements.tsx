@@ -147,6 +147,111 @@ export const ToggleButton = ({
     </div>
 );
 
+export type ToggleOption<T extends string | number> = {
+    value: T;
+    label: string;
+};
+
+interface MultiToggleButtonProps<T extends string | number> {
+    classname?: string;
+    options: ToggleOption<T>[];
+    activeValue: T;
+    onChange: (val: T) => void;
+    disabled?: boolean;
+    title: string;
+    isHost?: boolean;
+    position?: 'top' | 'middle' | 'bottom';
+    sizeRatios?: number[]; // Neues optionales Array für die Breiten
+    description?: string;
+}
+
+export const MultiToggleButton = <T extends string | number>({
+    classname = '',
+    options,
+    activeValue,
+    onChange,
+    disabled,
+    title,
+    isHost,
+    position = 'middle',
+    sizeRatios,
+    description,
+}: MultiToggleButtonProps<T>) => {
+    const activeIndex = options.findIndex((opt) => opt.value === activeValue);
+    const safeActiveIndex = activeIndex >= 0 ? activeIndex : 0;
+
+    // Fallback: Wenn sizeRatios nicht übergeben wurde, bekommt jede Option eine "1" (gleich groß)
+    const ratios = sizeRatios && sizeRatios.length === options.length 
+        ? sizeRatios 
+        : options.map(() => 1);
+
+    // Gesamtsumme aller Ratios (z.B. [1, 2, 1] = 4)
+    const totalRatioSum = ratios.reduce((acc, val) => acc + val, 0);
+
+    // Ratio der aktuell aktiven Option
+    const currentRatio = ratios[safeActiveIndex];
+
+    // Summe aller Ratios *vor* der aktuell aktiven Option für den perfekten Offset
+    const prevRatiosSum = ratios.slice(0, safeActiveIndex).reduce((acc, val) => acc + val, 0);
+
+    return (
+        <div className={`py-3 border-t border-slate-700
+            ${position === 'top' ? 'pt-0 border-t-0' : ''}
+            ${position === 'bottom' ? 'pb-0' : ''}
+            ${classname}`}>
+            
+            <label className="flex justify-between font-bold mb-2 text-xl text-slate-300">
+                <span>{title}</span>
+            </label>
+            
+            {/* Button-Container */}
+            <div 
+                className={`relative w-full flex bg-slate-900 rounded-lg p-1 transition-all ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
+                title={title}
+            >
+                {/* Dynamischer Slider */}
+                <div 
+                    className={`
+                        absolute top-1 bottom-1 left-1 rounded-md shadow-lg 
+                        transition-transform duration-300 ease-in-out
+                        ${isHost ? 'bg-indigo-600' : 'bg-slate-700'}
+                    `}
+                    style={{ 
+                        width: `calc((100% - 8px) * ${currentRatio / totalRatioSum})`,
+                        transform: `translateX(${(prevRatiosSum / currentRatio) * 100}%)`
+                    }} 
+                />
+
+                {/* Option Labels */}
+                {options.map((option, index) => {
+                    const isActive = activeValue === option.value;
+                    return (
+                        <button
+                            key={option.value}
+                            onClick={() => onChange(option.value)}
+                            disabled={disabled}
+                            className={`
+                                relative z-10 py-2 text-sm font-semibold transition-colors duration-200 focus:outline-none
+                                ${isActive ? 'text-white' : 'text-slate-400 hover:text-slate-300'}
+                            `}
+                            style={{ flex: ratios[index] }}
+                        >
+                            {option.label}
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* Description */}
+            {description && (
+                <p className="mt-2 text-xs text-slate-400 text-center min-h-[16px]">
+                    {description}
+                </p>
+            )}
+        </div>
+    );
+};
+
 export const RangeSlider = ({ 
     classname,
     title,

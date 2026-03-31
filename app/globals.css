@@ -38,39 +38,41 @@ body {
   height: 100%;
 }
 
-/* Entfernt die Pfeile in Chrome, Safari, Edge und Opera */
+/* Chrome, Safari, Edge und Opera */
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
 
-/* Breite des Scrollbalkens */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
 }
 
-/* Hintergrund des Scrollbalken-Pfads (Track) */
+::-webkit-scrollbar-button:vertical:start:decrement,
+::-webkit-scrollbar-button:vertical:end:increment {
+  display: block;
+  height: 20px;
+  background-color: transparent;
+}
+
 ::-webkit-scrollbar-track {
-  background: #0f172a; /* Entspricht slate-900 */
-  border-radius: 5px;
+  background: #1d293d; 
+  margin-block: 5px; 
 }
 
-/* Der bewegliche Griff (Thumb) */
 ::-webkit-scrollbar-thumb {
-  background: #4f46e5; /* Ein etwas dunkleres Indigo für den Standard-Zustand */
-  border-radius: 10px;
-  border: 2px solid #0f172a; /* Erzeugt einen "Abstand"-Effekt zum Rand */
+  background: #4f46e5;
+  border-radius: 12px;
+  border: 3px solid #1d293d; 
+  background-clip: padding-box; 
 }
 
-/* Handle beim Drüberfahren (Hover) */
 ::-webkit-scrollbar-thumb:hover {
-  background: #818cf8; /* Entspricht indigo-400 - leuchtet beim Hover auf */
+  background: #818cf8;
 }
 
-/* Für Firefox (eingeschränktere Styling-Möglichkeiten) */
 * {
-  scrollbar-width: thin;
-  scrollbar-color: #4f46e5 #0f172a;
+  scrollbar-color: #4f46e5 #1d293d;
 }

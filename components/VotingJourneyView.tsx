@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 
-import { GoogleMap, useJsApiLoader, Polyline, MarkerF, StreetViewPanorama, Circle } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, Polyline, MarkerF, StreetViewPanorama, Circle, OverlayViewF, OverlayView } from '@react-google-maps/api';
 import toast from 'react-hot-toast';
 
 import { supabase } from '../lib/supabase';
@@ -85,6 +85,10 @@ export default function VotingJourneyView({
 
     const [maxItemsPerColumn, setMaxItemsPerColumn] = useState(8);
     const categoryRef = useRef<HTMLDivElement>(null);
+
+    const [categorySource, setCategorySource] = useState<string>('manual');
+    const [hoveredFinalMarker, setHoveredFinalMarker] = useState<{lat: number, lng: number, categoryNames: string[]} | null>(null);
+    const [selectedFinalMarker, setSelectedFinalMarker] = useState<{lat: number, lng: number, categoryNames: string[]} | null>(null);
     
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
@@ -157,7 +161,7 @@ export default function VotingJourneyView({
         const fetchData = async () => {
             const { data: gData } = await supabase
                 .from('games')
-                .select('categories, grid_size, game_mode, category_details, generation_radius, starting_point')
+                .select('categories, grid_size, game_mode, category_details, generation_radius, starting_point, category_source')
                 .eq('id', gameId)
                 .single();
 
@@ -168,6 +172,7 @@ export default function VotingJourneyView({
                 setCategoryDetails(gData.category_details || []);
                 setGenerationRadius(gData.generation_radius || 1000);
                 setStartingPoint(JSON.parse(gData.starting_point) || null);
+                setCategorySource(gData.category_source || 'manual');
             }
 
             const { data: subData } = await supabase.from('submissions').select('*').eq('game_id', gameId);
@@ -441,7 +446,7 @@ export default function VotingJourneyView({
         onFinishGame();
     };
 
-    // Fall 1: Aktive Kategorie-Marker während der Reise
+    // while animation
     const activeCategoryMarkers = useMemo(() => {
         if (!displaySub || isLineComplete) return null;
         
@@ -465,70 +470,96 @@ export default function VotingJourneyView({
                         },
                         label: {
                             text: place.name,
-                            // animate-in und fade-in für sanftes Einblenden!
                             className: "bg-slate-900/90 text-white p-3 rounded border border-indigo-500 text-[10px] font-bold mt-10 whitespace-nowrap shadow-lg",
                             color: '#a4b3ff'
                         },
                     }}
-                    // Die Marker fallen sanft herein, statt hart aufzuploppen
                     animation={typeof window !== 'undefined' && window.google ? window.google.maps.Animation.DROP : undefined}
                 />
             );
         });
     }, [displaySub?.id, isLineComplete, categoryDetails]);
 
-    // Fall 2: Alle Kategorien am Ende (Hover-Logik)
+    const groupedFinalPlaces = useMemo(() => {
+        if (!categoryDetails) return [];
+        
+        const map = new Map<string, { lat: number, lng: number, categoryNames: string[] }>();
+        
+        categoryDetails.forEach(cat => {
+            cat.matchedPlaces.forEach(place => {
+                const key = `${place.lat.toFixed(6)},${place.lng.toFixed(6)}`;
+                
+                if (!map.has(key)) {
+                    map.set(key, { lat: place.lat, lng: place.lng, categoryNames: [] });
+                }
+                
+                const entry = map.get(key)!;
+                if (!entry.categoryNames.includes(cat.categoryName)) {
+                    entry.categoryNames.push(cat.categoryName);
+                }
+            });
+        });
+        
+        return Array.from(map.values());
+    }, [categoryDetails]);
+
     const finalCategoryMarkers = useMemo(() => {
         if (!isLineComplete) return null;
 
-        return categoryDetails.map((cat, cIdx) => (
-            cat.matchedPlaces.map((place, pIdx) => {
-                const mId = `final-${cIdx}-${pIdx}`;
-                
-                // Vorlagen-Objekt für das Label
-                const labelConfig = {
-                    text: `${place.name} (${cat.categoryName})`,
-                    className: "bg-slate-900/90 text-white p-3 rounded border border-indigo-500 text-[10px] font-bold mt-10 whitespace-nowrap shadow-lg",
-                    color: '#a4b3ff'
-                };
+        return groupedFinalPlaces.map((group, idx) => {
+            const mId = `final-group-${idx}`;
+            const combinedCategories = group.categoryNames.join(' • ');
+            
+            const labelConfig = {
+                text: combinedCategories,
+                className: "bg-slate-900/90 text-white p-3 rounded border border-indigo-500 text-[10px] font-bold mt-10 whitespace-nowrap shadow-lg",
+                color: '#a4b3ff'
+            };
 
-                return (
-                    <MarkerF
-                        key={mId}
-                        position={{ lat: place.lat, lng: place.lng }}
-                        onLoad={(marker) => markersRef.current.set(mId, marker)}
-                        onUnmount={() => markersRef.current.delete(mId)}
-                        onMouseOver={() => {
-                            const marker = markersRef.current.get(mId);
-                            if (marker) {
+            return (
+                <MarkerF
+                    key={mId}
+                    position={{ lat: group.lat, lng: group.lng }}
+                    onLoad={(marker) => markersRef.current.set(mId, marker)}
+                    onUnmount={() => markersRef.current.delete(mId)}
+                    onMouseOver={() => {
+                        const marker = markersRef.current.get(mId);
+                        if (marker) {
+                            if (categorySource !== 'nearbyStreetView') {
                                 marker.setLabel(labelConfig);
-                                marker.setZIndex(100); // Immer im Vordergrund
                             }
-                        }}
-                        onMouseOut={() => {
-                            const marker = markersRef.current.get(mId);
-                            if (marker) {
-                                marker.setLabel(null);
-                                marker.setZIndex(5);
-                            }
-                        }}
-                        options={{
-                            icon: {
-                                path: window.google.maps.SymbolPath.CIRCLE,
-                                scale: 6,
-                                fillColor: '#4f46e5',
-                                fillOpacity: 1,
-                                strokeWeight: 1.5,
-                                strokeColor: '#a4b3ff',
-                            },
-                            zIndex: 5
-                        }}
-                        animation={typeof window !== 'undefined' && window.google ? window.google.maps.Animation.DROP : undefined}
-                    />
-                );
-            })
-        ));
-    }, [isLineComplete, categoryDetails]);
+                            marker.setZIndex(100);
+                            setHoveredFinalMarker({ lat: group.lat, lng: group.lng, categoryNames: group.categoryNames });
+                        }
+                    }}
+                    onMouseOut={() => {
+                        const marker = markersRef.current.get(mId);
+                        if (marker) {
+                            marker.setLabel(null);
+                            marker.setZIndex(5);
+                        }
+                        setHoveredFinalMarker(null);
+                    }}
+                    onClick={() => {
+                        setSelectedFinalMarker({ lat: group.lat, lng: group.lng, categoryNames: group.categoryNames });
+                        setIsStreetViewVisible(true);
+                    }}
+                    options={{
+                        icon: {
+                            path: window.google.maps.SymbolPath.CIRCLE,
+                            scale: group.categoryNames.length > 1 ? 10 : 8,
+                            fillColor: '#4f46e5',
+                            fillOpacity: 1,
+                            strokeWeight: group.categoryNames.length > 1 ? 2 : 1.5,
+                            strokeColor: '#a4b3ff',
+                        },
+                        zIndex: 5
+                    }}
+                    animation={typeof window !== 'undefined' && window.google ? window.google.maps.Animation.DROP : undefined}
+                />
+            );
+        });
+    }, [isLineComplete, groupedFinalPlaces, categorySource]);
 
     const currentMapOptions = useMemo(() => {
         const interactive = isLineComplete;
@@ -544,21 +575,42 @@ export default function VotingJourneyView({
     }, [isLineComplete]);
 
     const panoramaOptions = useMemo(() => {
-        if (!displaySub) return undefined;
-        return {
-            position: { lat: displaySub.lat, lng: displaySub.lng },
-            pov: { heading: displaySub.heading, pitch: displaySub.pitch },
-            zoom: displaySub.zoom || 1,
-            visible: true, 
-            addressControl: false, 
-            showRoadLabels: false, 
-            enableCloseButton: false, 
-            linksControl: false, 
-            panControl: false, 
-            fullscreenControl: false, 
-            motionTracking: false
-        };
-    }, [displaySub?.id]);
+        if (displaySub) {
+            return {
+                position: { lat: displaySub.lat, lng: displaySub.lng },
+                pov: { heading: displaySub.heading, pitch: displaySub.pitch },
+                zoom: displaySub.zoom || 1,
+                visible: true, 
+                addressControl: false, 
+                showRoadLabels: false, 
+                enableCloseButton: false, 
+                linksControl: false, 
+                panControl: false, 
+                fullscreenControl: false, 
+                motionTracking: false,
+                zoomControl: false,
+                cameraControl: false,
+            };
+        }
+        if (selectedFinalMarker) {
+             return {
+                position: { lat: selectedFinalMarker.lat, lng: selectedFinalMarker.lng },
+                pov: { heading: 0, pitch: 0 },
+                zoom: 0,
+                visible: true, 
+                addressControl: false, 
+                showRoadLabels: false, 
+                enableCloseButton: false, 
+                linksControl: false, 
+                panControl: false, 
+                fullscreenControl: false, 
+                motionTracking: false,
+                zoomControl: false,
+                cameraControl: false,
+            };
+        }
+        return undefined;
+    }, [displaySub?.id, selectedFinalMarker]);
 
     if (!isLoaded || !isDataLoaded) {
         return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-indigo-400 font-bold text-2xl tracking-widest uppercase">Loading...</div>;
@@ -630,6 +682,30 @@ export default function VotingJourneyView({
 
                     {/* Final Category Markers */}
                     {finalCategoryMarkers}
+
+                    {hoveredFinalMarker && categorySource === 'nearbyStreetView' && (
+                        <OverlayViewF
+                            position={{ lat: hoveredFinalMarker.lat, lng: hoveredFinalMarker.lng }}
+                            mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                            getPixelPositionOffset={(width, height) => ({
+                                x: -(width / 2),
+                                y: -(height + 15)
+                            })}
+                        >
+                            <div className="flex flex-col bg-slate-900 border-2 border-indigo-500 rounded-lg overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.5)] pointer-events-none w-[240px] animate-in fade-in slide-in-from-bottom-2 duration-200">
+                                <div className="bg-indigo-600 text-white px-3 py-2 text-center font-bold text-[11px] uppercase tracking-wider flex flex-col gap-0.5">
+                                    {hoveredFinalMarker.categoryNames.map((name, i) => (
+                                        <span key={i}>{name}</span>
+                                    ))}
+                                </div>
+                                <img
+                                    src={`https://maps.googleapis.com/maps/api/streetview?size=640x640&location=${hoveredFinalMarker.lat},${hoveredFinalMarker.lng}&fov=120&source=outdoor&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`}
+                                    alt={hoveredFinalMarker.categoryNames[0]}
+                                    className="w-full h-[240px] object-cover block"
+                                />
+                            </div>
+                        </OverlayViewF>
+                    )}
 
                     {/* Radius Circle */}
                     {isLineComplete && (
@@ -707,10 +783,10 @@ export default function VotingJourneyView({
                     <div className="flex-grow relative w-full">
                         <GoogleMap
                             mapContainerClassName="w-full h-full"
-                            center={displaySub ? { lat: displaySub.lat, lng: displaySub.lng } : dummyPos}
+                            center={displaySub ? { lat: displaySub.lat, lng: displaySub.lng } : selectedFinalMarker ? { lat: selectedFinalMarker.lat, lng: selectedFinalMarker.lng } : dummyPos}
                             options={{ disableDefaultUI: true, gestureHandling: 'greedy' }}
                         >
-                            {displaySub && (
+                            {(displaySub || selectedFinalMarker) && (
                                 <StreetViewPanorama 
                                     options={panoramaOptions}
                                 />
@@ -719,60 +795,80 @@ export default function VotingJourneyView({
                     </div>
 
                     <div className="w-full bg-slate-900/95 backdrop-blur-xl border-t border-indigo-500/50 p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-20">
-                        <div className="max-w-xl mx-auto">
-                            <h3 className="text-2xl font-black text-white mb-1 text-center truncate">{displaySub?.category}</h3>
-                            <p className="text-sm text-indigo-300 mb-4 text-center uppercase tracking-widest font-semibold">
-                                {votingStats.eligibleCount === 0 && activeSubLatest
-                                    ? "Single Player Vote - No votes needed"
-                                    : votingStats.isComplete 
-                                        ? "Voting Complete - Continuing..." 
-                                        : `Awaiting Votes... (${votingStats.cast}/${votingStats.eligibleCount})`}
-                            </p>
+                        {displaySub ? (
+                            <div className="max-w-xl mx-auto">
+                                <h3 className="text-2xl font-black text-white mb-1 text-center truncate">{displaySub?.category}</h3>
+                                <p className="text-sm text-indigo-300 mb-4 text-center uppercase tracking-widest font-semibold">
+                                    {votingStats.eligibleCount === 0 && activeSubLatest
+                                        ? "Single Player Vote - No votes needed"
+                                        : votingStats.isComplete 
+                                            ? "Voting Complete - Continuing..." 
+                                            : `Awaiting Votes... (${votingStats.cast}/${votingStats.eligibleCount})`}
+                                </p>
 
-                            <div className="flex gap-4">
-                                {(() => {
-                                    if (votingStats.isComplete) {
+                                <div className="flex gap-4">
+                                    {(() => {
+                                        if (votingStats.isComplete) {
+                                            return (
+                                                <div className="flex-1 py-4 text-center text-green-400 font-bold uppercase border border-green-700 rounded-xl bg-green-900/30">
+                                                    Voting Complete <br/>
+                                                    <span className="text-sm text-green-300/80 normal-case mt-1 inline-block">({yesVotes} Y / {noVotes} N)</span>
+                                                </div>
+                                            );
+                                        }
+
+                                        const subPlayerTeam = players.find(p => p.id === activeSubLatest?.player_id)?.team;
+                                        const myTeam = players.find(p => p.id === playerId)?.team;
+                                        const isMySubmission = playerId === activeSubLatest?.player_id;
+                                        const isMyTeamSubmission = teamMode === 'teams' && subPlayerTeam !== undefined && subPlayerTeam === myTeam;
+
+                                        if (isMySubmission || isMyTeamSubmission) {
+                                            return (
+                                                <div className="flex-1 py-4 text-center text-slate-400 font-bold uppercase border border-slate-700 rounded-xl bg-slate-900/50">
+                                                    {isMySubmission ? 'Your Submission' : 'Team Submission'} <br/>
+                                                    <span className="text-sm text-slate-500 normal-case mt-1 inline-block">Y: {yesVotes} | N: {noVotes}</span>
+                                                </div>
+                                            );
+                                        }
+
                                         return (
-                                            <div className="flex-1 py-4 text-center text-green-400 font-bold uppercase border border-green-700 rounded-xl bg-green-900/30">
-                                                Voting Complete <br/>
-                                                <span className="text-sm text-green-300/80 normal-case mt-1 inline-block">({yesVotes} Y / {noVotes} N)</span>
-                                            </div>
+                                            <>
+                                                <div className="flex-1 flex flex-col gap-2">
+                                                    <button type="button" onClick={() => activeSubLatest && handleVote(activeSubLatest, true)} className={`w-full py-4 rounded-xl font-black uppercase text-lg border transition-all ${activeSubLatest?.votes?.[playerId] === true ? 'bg-green-600 border-green-400 text-white shadow-[0_0_15px_rgba(34,197,94,0.5)]' : 'bg-slate-800 border-slate-600 text-slate-300 hover:border-green-500 hover:text-green-500 hover:bg-green-900/30'}`}>Yes</button>
+                                                    <div className="text-center text-green-400 font-bold text-sm tracking-wide">{yesVotes} Votes</div>
+                                                </div>
+                                                <div className="flex-1 flex flex-col gap-2">
+                                                    <button type="button" onClick={() => activeSubLatest && handleVote(activeSubLatest, false)} className={`w-full py-4 rounded-xl font-black uppercase text-lg border transition-all ${activeSubLatest?.votes?.[playerId] === false ? 'bg-red-600 border-red-400 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'bg-slate-800 border-slate-600 text-slate-300 hover:border-red-500 hover:text-red-500 hover:bg-red-900/30'}`}>No</button>
+                                                    <div className="text-center text-red-400 font-bold text-sm tracking-wide">{noVotes} Votes</div>
+                                                </div>
+                                            </>
                                         );
-                                    }
-
-                                    const subPlayerTeam = players.find(p => p.id === activeSubLatest?.player_id)?.team;
-                                    const myTeam = players.find(p => p.id === playerId)?.team;
-                                    const isMySubmission = playerId === activeSubLatest?.player_id;
-                                    const isMyTeamSubmission = teamMode === 'teams' && subPlayerTeam !== undefined && subPlayerTeam === myTeam;
-
-                                    if (isMySubmission || isMyTeamSubmission) {
-                                        return (
-                                            <div className="flex-1 py-4 text-center text-slate-400 font-bold uppercase border border-slate-700 rounded-xl bg-slate-900/50">
-                                                {isMySubmission ? 'Your Submission' : 'Team Submission'} <br/>
-                                                <span className="text-sm text-slate-500 normal-case mt-1 inline-block">Y: {yesVotes} | N: {noVotes}</span>
-                                            </div>
-                                        );
-                                    }
-
-                                    return (
-                                        <>
-                                            <div className="flex-1 flex flex-col gap-2">
-                                                <button type="button" onClick={() => activeSubLatest && handleVote(activeSubLatest, true)} className={`w-full py-4 rounded-xl font-black uppercase text-lg border transition-all ${activeSubLatest?.votes?.[playerId] === true ? 'bg-green-600 border-green-400 text-white shadow-[0_0_15px_rgba(34,197,94,0.5)]' : 'bg-slate-800 border-slate-600 text-slate-300 hover:border-green-500 hover:text-green-500 hover:bg-green-900/30'}`}>Yes</button>
-                                                <div className="text-center text-green-400 font-bold text-sm tracking-wide">{yesVotes} Votes</div>
-                                            </div>
-                                            <div className="flex-1 flex flex-col gap-2">
-                                                <button type="button" onClick={() => activeSubLatest && handleVote(activeSubLatest, false)} className={`w-full py-4 rounded-xl font-black uppercase text-lg border transition-all ${activeSubLatest?.votes?.[playerId] === false ? 'bg-red-600 border-red-400 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'bg-slate-800 border-slate-600 text-slate-300 hover:border-red-500 hover:text-red-500 hover:bg-red-900/30'}`}>No</button>
-                                                <div className="text-center text-red-400 font-bold text-sm tracking-wide">{noVotes} Votes</div>
-                                            </div>
-                                        </>
-                                    );
-                                })()}
+                                    })()}
+                                </div>
                             </div>
-                        </div>
+                        ) : selectedFinalMarker ? (
+                            <div className="max-w-xl mx-auto">
+                                <h3 className="text-xl sm:text-2xl font-black text-white mb-1 text-center truncate">
+                                    {selectedFinalMarker.categoryNames.join(' • ')}
+                                </h3>
+                                <p className="text-sm text-indigo-300 mb-4 text-center uppercase tracking-widest font-semibold">
+                                    Target Location
+                                </p>
+                                <button 
+                                    onClick={() => {
+                                        setSelectedFinalMarker(null);
+                                        setIsStreetViewVisible(false);
+                                    }} 
+                                    className="w-full py-4 rounded-xl font-black uppercase text-lg border bg-slate-800 border-slate-600 text-slate-300 hover:border-indigo-500 hover:text-indigo-500 transition-all shadow-lg"
+                                >
+                                    Back to Board
+                                </button>
+                            </div>
+                        ) : null}
                     </div>
                 </div>
 
-                {/* BINGO BOARD CONTAINER (Steuerung jetzt über isStreetViewVisible) */}
+                {/* BINGO BOARD CONTAINER */}
                 <div className={`absolute inset-0 flex flex-col items-center justify-center p-8 z-20 transition-all duration-500 ease-in-out ${isStreetViewVisible ? 'opacity-0 -translate-x-12 pointer-events-none' : 'opacity-100 translate-x-0 pointer-events-auto'}`}>
                     <div className="text-center mb-8">
                         <h2 className="text-3xl font-black text-indigo-400 tracking-widest">{currentPlayer?.name}'s Board</h2>

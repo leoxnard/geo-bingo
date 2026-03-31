@@ -30,7 +30,7 @@ interface LobbyMapProps {
     updateGameModeInfo: (updates: {
         starting_point?: string;
         gameBoundary?: string;
-        category_source?: 'manual' | 'generation';
+        category_source?: 'manual' | 'nearbyPlaces | nearbyStreetView';
     }) => void;
 }
 

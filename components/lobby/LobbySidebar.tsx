@@ -36,7 +36,8 @@ interface LobbySidebarProps {
     fastVoting: boolean;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     updateGameModeInfo: (updates: any) => void;
-    categorySource: 'manual' | 'generation';
+    categorySource: 'manual' | 'nearbyPlaces' | 'nearbyStreetView';
+    isGenerating: boolean;
 }
 
 const darkTeamColors = [
@@ -329,10 +330,10 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                 {props.isHost ? (
                     <button type="button" 
                         onClick={props.handleStartGame} 
-                        disabled={props.categories.length === 0 && props.categorySource === 'manual'}
-                        className={`w-full py-4 rounded-xl font-bold mt-8 tracking-wider uppercase ${props.categories.length === 0 && props.categorySource === 'manual' ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-500 text-white'}`}
+                        disabled={props.categories.length === 0 && props.categorySource === 'manual' || props.isGenerating}
+                        className={`w-full py-4 rounded-xl font-bold mt-8 tracking-wider uppercase ${props.categories.length === 0 && props.categorySource === 'manual' || props.isGenerating ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-500 text-white'}`}
                     >
-                        START GAME
+                        {props.isGenerating ? 'Generating...' : 'Start Game'}
                     </button>
                 ) : (
                     <div className="w-full bg-slate-700 text-slate-400 text-center py-4 rounded-xl font-bold mt-8 uppercase">Waiting for host...</div>

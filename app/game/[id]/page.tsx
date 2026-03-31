@@ -34,7 +34,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [isHost, setIsHost] = useState(false);
     const [gameHostId, setGameHostId] = useState<string>('');
     const [timeLimit, setTimeLimit] = useState(300);
-    const [categorySource, setCategorySource] = useState<'manual' | 'generation'>('manual');
+    const [categorySource, setCategorySource] = useState<'manual' | 'nearbyPlaces' | 'nearbyStreetView'>('manual');
     const [generationRadius, setGenerationRadius] = useState<number>(10); // in 100m
     const [generationNumber, setGenerationNumber] = useState<number>(10);
   
@@ -74,7 +74,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         hide_map_symbols?: boolean;
         fast_voting?: boolean;
         exclusive_mode?: boolean;
-        category_source?: 'manual' | 'generation';
+        category_source?: 'manual' | 'nearbyPlaces' | 'nearbyStreetView';
         generation_radius?: number;
         generation_number?: number;
     }) => {

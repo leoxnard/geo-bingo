@@ -116,7 +116,6 @@ export default function StreetView({
         return () => mql.removeEventListener('change', onChange);
     }, []);
 
-    // --- FETCH ALL SUBMISSIONS FOR EXCLUSIVE MODE ---
     useEffect(() => {
         const fetchAllSubmissions = async () => {
             const { data } = await supabase.from('submissions').select('*').eq('game_id', gameId);

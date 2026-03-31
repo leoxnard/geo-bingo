@@ -63,7 +63,7 @@ interface LobbyViewProps {
     setPlayers: (players: Player[] | ((prev: Player[]) => Player[])) => void;
     hideMapSymbols: boolean;
     fastVoting: boolean;
-    categorySource: 'manual' | 'generation';
+    categorySource: 'manual' | 'nearbyPlaces' | 'nearbyStreetView';
     generationRadius: number;
     generationNumber: number;
 }
@@ -85,6 +85,198 @@ export default function LobbyView(props: LobbyViewProps) {
     const [debugRadius, setDebugRadius] = useState<number>(0);
     const [debugSubRadius, setDebugSubRadius] = useState<number>(0);
     const [debugSearchCenters, setDebugSearchCenters] = useState<{lat: number, lng: number}[]>([]);
+
+    // Street-View-based category generation using Gemini Vision API
+    const generateStreetViewCategoriesAI = async (startPos: { lat: number, lng: number }, radius: number, requiredCount: number): Promise<BingoCategory[]> => {
+        try {
+            const googleApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+            const geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+            if (!googleApiKey || !geminiApiKey) throw new Error("API Keys missing!");
+
+            const radiusMeters = radius * 100;
+
+            const getRandomLocation = (center: {lat: number, lng: number}, radMeters: number) => {
+                const r = radMeters * Math.sqrt(Math.random());
+                const theta = Math.random() * 2 * Math.PI;
+                const dx = r * Math.cos(theta);
+                const dy = r * Math.sin(theta);
+                const lat = center.lat + (dy / 111320);
+                const lng = center.lng + (dx / (111320 * Math.cos(center.lat * Math.PI / 180)));
+                return { lat, lng };
+            };
+
+            const validImages: { id: string, lat: number, lng: number, base64: string }[] = [];
+            const seenImages = new Set<string>(); // NEU: Speichert die base64-Strings zur Duplikat-Prüfung
+            const maxAttempts = requiredCount * 10; 
+            let fetchCount = 0;
+
+            for (let i = 0; i < maxAttempts; i++) {
+                if (validImages.length >= requiredCount * 1.5) break; 
+                
+                const loc = getRandomLocation(startPos, radiusMeters);
+
+                const metaUrl = `https://maps.googleapis.com/maps/api/streetview/metadata?location=${loc.lat},${loc.lng}&source=outdoor&key=${googleApiKey}`;
+                
+                try {
+                    const metaRes = await fetch(metaUrl);
+                    const metaData = await metaRes.json();
+
+                    if (metaData.status === "OK" && metaData.location) {
+                        const exactLat = metaData.location.lat;
+                        const exactLng = metaData.location.lng;
+
+                        const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${exactLat},${exactLng}&result_type=street_address|route&key=${googleApiKey}`;
+                        const geoRes = await fetch(geoUrl);
+                        const geoData = await geoRes.json();
+
+                        if (geoData.status === "OK" && geoData.results.length > 0) {
+                            
+                            const svUrl = `https://maps.googleapis.com/maps/api/streetview?size=640x640&location=${exactLat},${exactLng}&fov=120&source=outdoor&key=${googleApiKey}`;
+                            
+                            const res = await fetch(svUrl);
+                            if (res.ok) {
+                                const blob = await res.blob();
+                                const base64 = await new Promise<string>((resolve, reject) => {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => {
+                                        const result = reader.result as string;
+                                        resolve(result.split(',')[1]);
+                                    };
+                                    reader.onerror = reject;
+                                    reader.readAsDataURL(blob);
+                                });
+                                
+                                if (!seenImages.has(base64)) {
+                                    seenImages.add(base64);
+                                    validImages.push({ 
+                                        id: `img_${fetchCount}`, 
+                                        lat: exactLat, 
+                                        lng: exactLng, 
+                                        base64 
+                                    });
+                                    fetchCount++;
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error("Error fetching Street View/Geocoding data:", e);
+                }
+            }
+
+            if (validImages.length < requiredCount) {
+                throw new Error(`Nicht genug echte Straßen-Bilder in diesem Bereich gefunden (${validImages.length}/${requiredCount}). Bitte wähle einen größeren Radius.`);
+            }
+
+            const parts: any[] = [
+                { text: `Du bist der Game-Master für das Spiel "GeoBingo".
+Deine Mission: Finde in den folgenden Street-View-Bildern besonders interessante, einzigartige oder kuriose Details, die Spieler in echt suchen sollen.
+
+Du erhältst ${validImages.length} Bilder. Jedes Bild ist mit einer "Bild-ID" markiert.
+Suche dir möglichst viele Merkmale aus den Bildern heraus und benenne das besondere Merkmal in 1 bis maximal 2 Wörtern (auf Deutsch), vermeide räumliche Beschreibungen (z.B. "gestapelt", "nebeneinander"). 
+Nenne Eigennamen nur, wenn sie von aussen klar erkennbar sind und nicht zu einzigartig sind (z.B. "EDEKA" ist gut aber "Frauenkirche" nicht, da man den Namen nicht direkt am Gebäude erkennen kann). Es sollte dann aber verständlich sein, was genau gesucht ist (z.B. "Samsonite Koffer" statt "Samsonite").
+Bewerte jedes gefundene Merkmal mit einem "interestScore" von 1 bis 100, um zu zeigen, wie interessant es für das Spiel ist und wie sicher du dir bist, dass es im Bild zu sehen ist:
+- Hoher Score (80-100): spezielle/kuriose Fahrzeuge (z.B. Oldtimer, Traktor), einmalige Architektur, besondere Statuen/Kunstwerke, Musiker, auffälliges Graffiti, ungewöhnliche Straßenszenen, Tiere.
+- Mittlerer Score (40-79): Spezifische Läden, Verkehrsschilder, auffällige Schaufenster, besondere Türen, Menschen mit erkennbaren Merkmalen (z.B. bunte Kleidung, Fahrradfahrer), interessante Pflanzen oder Bäume.
+- Niedriger Score (1-39): Normale Autos, generische Hotel- oder Firmenschilder, Ampeln, zu kleine Details, die schwer zu erkennen sind oder auch Begriffe mit denen man nicht sicher ist was gemeint ist (z.B. "Reifen", "Holz").
+
+WICHTIG: Erfinde nichts! Das Merkmal muss ZWEIFELSFREI im Bild erkennbar sein. Wenn du erkennst, dass das Bild ein indoor-Bild ist, gebe ihm ein score von 0!
+
+Antworte AUSSCHLIESSLICH mit einem validen JSON-Array in diesem Format, ohne Markdown drumherum:
+[
+  {
+    "categoryName": "Das gefundene Merkmal (z.B. Katze)",
+    "imageId": "Die exakte Bild-ID aus dem Prompt",
+    "interestScore": 95
+  }
+]` }
+            ];
+
+            validImages.forEach(img => {
+                parts.push({ text: `Bild-ID: ${img.id}` });
+                parts.push({
+                    inlineData: {
+                        mimeType: "image/jpeg",
+                        data: img.base64
+                    }
+                });
+            });
+
+            const geminiModels = ['gemini-2.5-flash', 'gemini-3-flash-preview', 'gemini-2.5-flash-lite'];
+            let aiResponse;
+            let currentModelIndex = 0;
+
+            while (currentModelIndex < geminiModels.length) {
+                try {
+                    aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModels[currentModelIndex]}:generateContent?key=${geminiApiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts }],
+                            generationConfig: {
+                                responseMimeType: "application/json",
+                            }
+                        })
+                    });
+
+                    if (!aiResponse.ok) throw new Error("API Error");
+                    break;
+                } catch (error) {
+                    currentModelIndex++;
+                }
+            }
+
+            if (!aiResponse || !aiResponse.ok) {
+                throw new Error("Failed to get a response from Gemini Vision API.");
+            }
+
+            const aiData = await aiResponse.json();
+            let aiTextResponse = aiData.candidates[0].content.parts[0].text;
+            aiTextResponse = aiTextResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+            const parsedItems = JSON.parse(aiTextResponse);
+
+            if (!Array.isArray(parsedItems) || parsedItems.length < requiredCount) {
+                throw new Error(`AI returned invalid format or fewer targets than required!`);
+            }
+
+            const finalCategories: BingoCategory[] = parsedItems
+                .map((item: { categoryName: string, imageId: string, interestScore: number }) => {
+                    const sourceImg = validImages.find(img => img.id === item.imageId);
+                    if (!sourceImg) return null;
+
+                    return {
+                        categoryName: item.categoryName,
+                        interestScore: item.interestScore || 0,
+                        matchedPlaces: [{
+                            name: item.categoryName,
+                            lat: sourceImg.lat,
+                            lng: sourceImg.lng
+                        }]
+                    };
+                })
+                .filter((item): item is (BingoCategory & { interestScore: number }) => item !== null)
+                .filter((cat, index, self) => index === self.findIndex(c => 
+                    c.categoryName.toLowerCase().trim() === cat.categoryName.toLowerCase().trim()
+                ))
+                .sort((a, b) => b.interestScore - a.interestScore)
+                .slice(0, requiredCount)
+                .map(cat => ({
+                    categoryName: cat.categoryName,
+                    matchedPlaces: cat.matchedPlaces
+                }))
+                .filter((cat, index, self) => index === self.findIndex(c => c.categoryName === cat.categoryName));
+
+            if (finalCategories.length < requiredCount) {
+                throw new Error("Could not map all generated targets to images. Please try again.");
+            }
+
+            return finalCategories;
+
+        } catch (error) {
+            console.error("Error during Street View generation:", error);
+            throw new Error("Error analyzing Street View images.");
+        }
+    };
 
     const generateCategoriesAI = async (startPos: { lat: number, lng: number }, radius: number, requiredCount: number): Promise<BingoCategory[]> => {
         try {
@@ -181,7 +373,6 @@ export default function LobbyView(props: LobbyViewProps) {
 
             const resultsArray = await Promise.all(searchPromises);
             const allPlaces = resultsArray.flat();
-            console.log(`Total places found across all searches: ${allPlaces}`);
 
             const uniquePlacesMap = new Map();
             const seenNames = new Set();
@@ -210,8 +401,6 @@ export default function LobbyView(props: LobbyViewProps) {
             if (shuffledPlaces.length < requiredCount) {
                 throw new Error(`Not enough places found within the specified radius (${shuffledPlaces.length}/${requiredCount}).`);
             }
-
-            console.log(`Found ${shuffledPlaces.length} unique places after filtering:`, shuffledPlaces);
 
             const geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
             if (!geminiApiKey) throw new Error("Gemini API Key is missing!");
@@ -290,7 +479,6 @@ Du darfst NUR dieses JSON-Format zurückgeben, keine Einleitung, keinen Markdown
 
                     if (!aiResponse.ok) {
                         const errorBody = await aiResponse.json();
-                        console.error(`Gemini API error with model ${geminiModels[currentModelIndex]}:`, errorBody);
                         throw new Error(`Gemini API error with model ${geminiModels[currentModelIndex]}: ${errorBody.error?.message || "Unknown AI error"}`);
                     }
 
@@ -305,7 +493,6 @@ Du darfst NUR dieses JSON-Format zurückgeben, keine Einleitung, keinen Markdown
             }
 
             if (!aiResponse) {
-                console.error("Failed to get a response from any Gemini model.");
                 throw new Error("Failed to get a response from Gemini API.");
             }
 
@@ -350,8 +537,6 @@ Du darfst NUR dieses JSON-Format zurückgeben, keine Einleitung, keinen Markdown
     };
 
     const handleStartGame = async () => {
-        if (isGenerating) return;
-
         let startPos;
         if (props.startingPoint !== 'open-world') {
             try {
@@ -363,7 +548,6 @@ Du darfst NUR dieses JSON-Format zurückgeben, keine Einleitung, keinen Markdown
                     }
                 }
             } catch (error) {
-                console.error("Invalid map configuration parsing:", error);
                 toast.error('Invalid map configuration!');
                 return;
             }
@@ -372,14 +556,21 @@ Du darfst NUR dieses JSON-Format zurückgeben, keine Einleitung, keinen Markdown
         let finalCategories = [...props.categories];
         const neededCount = props.gameMode === 'bingo' ? props.gridSize * props.gridSize : props.generationNumber;
 
-        // AI Generation Logic
-        if (props.categorySource === 'generation' && props.startingPoint !== 'open-world' && startPos) {
+        // --- ANGEPASSTE LOGIK: Verzweigung der beiden AI-Modi ---
+        if ((props.categorySource === 'nearbyPlaces' || props.categorySource === 'nearbyStreetView') && props.startingPoint !== 'open-world' && startPos) {
             setIsGenerating(true);
 
             try {
                 const generatedCategoryNames = await toast.promise(
                     (async () => {
-                        const complexResult = await generateCategoriesAI(startPos, props.generationRadius, neededCount);                        
+                        let complexResult;
+                        
+                        if (props.categorySource === 'nearbyStreetView') {
+                            complexResult = await generateStreetViewCategoriesAI(startPos, props.generationRadius, neededCount);
+                        } else {
+                            complexResult = await generateCategoriesAI(startPos, props.generationRadius, neededCount);
+                        }
+
                         const simpleCategoryNames = complexResult.map(cat => cat.categoryName);
 
                         const { error: dbError } = await props.supabase
@@ -395,7 +586,7 @@ Du darfst NUR dieses JSON-Format zurückgeben, keine Einleitung, keinen Markdown
                         return simpleCategoryNames;
                     })(),
                     {
-                        loading: 'Generating...',
+                        loading: props.categorySource === 'nearbyStreetView' ? 'Analysze Street-View-Panoramas...' : 'Generating...',
                         success: <b>Categories generated successfully!</b>,
                         error: (err) => {
                             let errorMessage = err instanceof Error ? err.message : "Unknown error during generation";
@@ -424,12 +615,10 @@ Du darfst NUR dieses JSON-Format zurückgeben, keine Einleitung, keinen Markdown
         if (props.gameMode === 'bingo') {
             try {
                 const board = finalCategories.slice(0, neededCount);
-                // Bingo-Board bekommt wieder ein ganz normales String-Array!
                 const { error } = await props.supabase.from('players').update({ bingo_board: board }).eq('game_id', props.gameId);
                 if (error) throw error;
             } catch (err) {
                 const errorMessage = err instanceof Error ? err.message : "Unknown database error";
-                console.error("Failed to generate boards:", err);
                 toast.error(`Board Generation Failed: ${errorMessage}`);
                 return;
             }
@@ -448,7 +637,6 @@ Du darfst NUR dieses JSON-Format zurückgeben, keine Einleitung, keinen Markdown
         props.router.push('/');
     };
 
-
     if (debugCenter && debugPlaces.length > 0 && isLoaded && DEBUG) return (
         <div className="w-full mt-10 p-6 bg-slate-800 rounded-xl border border-red-500">
             <h2 className="text-2xl font-bold text-red-400 mb-4">
@@ -460,15 +648,12 @@ Du darfst NUR dieses JSON-Format zurückgeben, keine Einleitung, keinen Markdown
                     center={debugCenter}
                     zoom={14}
                 >
-                    {/* 1. Starting Point */}
                     <Marker
                         position={debugCenter}
                         icon={{ url: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png" }}
                         title="ORIGINAL STARTPUNKT"
                         zIndex={100}
                     />
-
-                    {/* 2. Radius */}
                     <Circle
                         center={debugCenter}
                         radius={debugRadius * 100} 
@@ -479,8 +664,6 @@ Du darfst NUR dieses JSON-Format zurückgeben, keine Einleitung, keinen Markdown
                             strokeWeight: 3,
                         }}
                     />
-
-                    {/* 3. Search Centers */}
                     {debugSearchCenters.map((center, index) => (
                         <div key={`search-center-${index}`}>
                             <Marker
@@ -501,8 +684,6 @@ Du darfst NUR dieses JSON-Format zurückgeben, keine Einleitung, keinen Markdown
                             />
                         </div>
                     ))}
-
-                    {/* 4. Found Places */}
                     {debugPlaces.map((place) => (
                         <Marker
                             key={place.id}
@@ -545,7 +726,7 @@ Du darfst NUR dieses JSON-Format zurückgeben, keine Einleitung, keinen Markdown
                         isLoaded={isLoaded}
                         startingPoint={props.startingPoint}
                         gameBoundary={props.gameBoundary}
-                        generationRadius={props.categorySource === 'generation' ? props.generationRadius : undefined}
+                        generationRadius={props.categorySource !== 'manual' ? props.generationRadius : undefined}
                         updateGameModeInfo={props.updateGameModeInfo}
                     />
 
@@ -587,6 +768,7 @@ Du darfst NUR dieses JSON-Format zurückgeben, keine Einleitung, keinen Markdown
                     fastVoting={props.fastVoting}
                     updateGameModeInfo={props.updateGameModeInfo}
                     categorySource={props.categorySource}
+                    isGenerating={isGenerating}
                 />
             </div>
         </div>
