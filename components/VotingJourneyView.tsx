@@ -478,7 +478,7 @@ export default function VotingJourneyView({
                 />
             );
         });
-    }, [displaySub?.id, isLineComplete, categoryDetails]);
+    }, [displaySub, isLineComplete, categoryDetails]);
 
     const groupedFinalPlaces = useMemo(() => {
         if (!categoryDetails) return [];
@@ -503,10 +503,10 @@ export default function VotingJourneyView({
         return Array.from(map.values());
     }, [categoryDetails]);
 
-    const finalCategoryMarkers = useMemo(() => {
-        if (!isLineComplete) return null;
+    let finalCategoryMarkers = null;
 
-        return groupedFinalPlaces.map((group, idx) => {
+    if (isLineComplete) {
+        finalCategoryMarkers = groupedFinalPlaces.map((group, idx) => {
             const mId = `final-group-${idx}`;
             const combinedCategories = group.categoryNames.join(' • ');
             
@@ -559,7 +559,7 @@ export default function VotingJourneyView({
                 />
             );
         });
-    }, [isLineComplete, groupedFinalPlaces, categorySource]);
+    }
 
     const currentMapOptions = useMemo(() => {
         const interactive = isLineComplete;
@@ -593,7 +593,7 @@ export default function VotingJourneyView({
             };
         }
         if (selectedFinalMarker) {
-             return {
+            return {
                 position: { lat: selectedFinalMarker.lat, lng: selectedFinalMarker.lng },
                 pov: { heading: 0, pitch: 0 },
                 zoom: 0,
@@ -610,7 +610,7 @@ export default function VotingJourneyView({
             };
         }
         return undefined;
-    }, [displaySub?.id, selectedFinalMarker]);
+    }, [displaySub, selectedFinalMarker]);
 
     if (!isLoaded || !isDataLoaded) {
         return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-indigo-400 font-bold text-2xl tracking-widest uppercase">Loading...</div>;

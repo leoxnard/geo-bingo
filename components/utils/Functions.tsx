@@ -1,4 +1,3 @@
-import { off } from 'process';
 import { Submission } from './types';
 
 
@@ -129,13 +128,13 @@ export const getGridLocations = (centerLat: number, centerLng: number, radiusMet
     for (const xFactor of offsetFactors) {
         for (const yFactor of offsetFactors) { 
         // skip corner points for larger grids to avoid too much overlap
-        if (offsetFactors.length > 2 && 
+            if (offsetFactors.length > 2 && 
             ((xFactor === offsetFactors[0] && yFactor === offsetFactors[0]) ||
             (xFactor === offsetFactors[0] && yFactor === offsetFactors[offsetFactors.length - 1]) ||
             (xFactor === offsetFactors[offsetFactors.length - 1] && yFactor === offsetFactors[0]) ||
             (xFactor === offsetFactors[offsetFactors.length - 1] && yFactor === offsetFactors[offsetFactors.length - 1]))) {
-            continue;
-        }
+                continue;
+            }
             const xOffsetMeters = radiusMeters * xFactor;
             const yOffsetMeters = radiusMeters * yFactor;
 

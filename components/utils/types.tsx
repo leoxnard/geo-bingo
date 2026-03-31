@@ -17,6 +17,15 @@ export interface Submission {
   votes: Record<string, boolean>;
 }
 
+export interface BingoCategory {
+    categoryName: string;
+    matchedPlaces: {
+        name: string;
+        lat: number;
+        lng: number;
+    }[];
+}
+
 export interface Player {
     id: string;
     name: string;
