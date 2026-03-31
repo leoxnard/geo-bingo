@@ -68,6 +68,19 @@ $$;
 
 ALTER FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) OWNER TO "postgres";
 
+
+CREATE OR REPLACE FUNCTION "public"."update_updated_at_column"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_updated_at_column"() OWNER TO "postgres";
+
 SET default_tablespace = '';
 
 SET default_table_access_method = "heap";
@@ -85,7 +98,6 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "game_mode" "text" DEFAULT 'list'::"text",
     "grid_size" integer DEFAULT 3,
     "team_mode" "text" DEFAULT 'ffa'::"text",
-    "bingo_board_mode" "text" DEFAULT 'shared'::"text",
     "starting_point" "text" DEFAULT 'open-world'::"text",
     "gameBoundary" "text" DEFAULT '[]'::"text" NOT NULL,
     "end_condition" "text" DEFAULT 'timer'::"text",
@@ -94,7 +106,11 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "suggested_categories" "text"[] DEFAULT '{}'::"text"[],
     "exclusive_mode" boolean DEFAULT false NOT NULL,
     "category_source" "text" DEFAULT 'manual'::"text" NOT NULL,
-    "generation_radius" bigint DEFAULT '10'::bigint NOT NULL
+    "generation_radius" bigint DEFAULT '10'::bigint NOT NULL,
+    "generation_number" integer DEFAULT 10 NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"(),
+    "category_details" "jsonb"[] DEFAULT '{}'::"jsonb"[] NOT NULL,
+    "language" "text" DEFAULT '''german''::text'::"text" NOT NULL
 );
 
 
@@ -145,6 +161,10 @@ ALTER TABLE ONLY "public"."players"
 
 ALTER TABLE ONLY "public"."submissions"
     ADD CONSTRAINT "submissions_pkey" PRIMARY KEY ("id");
+
+
+
+CREATE OR REPLACE TRIGGER "update_games_updated_at" BEFORE UPDATE ON "public"."games" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
 
 
 
@@ -240,6 +260,12 @@ GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p
 GRANT ALL ON FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) TO "anon";
 GRANT ALL ON FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "anon";
+GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "service_role";
 
 
 
