@@ -254,44 +254,47 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
         initializeRoom();
 
-        // Realtime Listeners
+       // Realtime Listeners
         const gameChannel = supabase.channel(`game-updates-${gameId}`)
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${gameId}` }, 
                 (payload) => {
-                    // Kicked player check
                     if (payload.new.banned_players?.includes(currentPlayerId)) {
                         router.push('/');
                         return;
                     }
                     
-                    const newHostId = payload.new.host_id || '';
-                    setGameHostId(newHostId);
-                    setIsHost(newHostId === currentPlayerId);
-                    if (newHostId === currentPlayerId) {
-                        localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
-                    } else {
-                        localStorage.removeItem(`geoBingoHost_${gameId}`);
+                    if (payload.new.host_id !== undefined) {
+                        const newHostId = payload.new.host_id;
+                        setGameHostId(newHostId);
+                        setIsHost(newHostId === currentPlayerId);
+                        if (newHostId === currentPlayerId) {
+                            localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
+                        } else {
+                            localStorage.removeItem(`geoBingoHost_${gameId}`);
+                        }
                     }
-                    setLastUpdated(payload.new.updated_at);
-                    setStatus(payload.new.status);
-                    setCategories(payload.new.categories);
-                    setSuggestedCategories(payload.new.suggested_categories || []);
-                    setReadyPlayers(payload.new.ready_players || []);
-                    setBannedPlayers(payload.new.banned_players || []);
-                    setTimeLimit(payload.new.time_limit || 300);
-                    setGameMode(payload.new.game_mode || 'list');
-                    setTeamMode(payload.new.team_mode || 'ffa');
-                    setGridSize(payload.new.grid_size || 3);
-                    setStartingPoint(payload.new.starting_point || 'open-world');
-                    setGameBoundary(payload.new.gameBoundary || '[]');
-                    setEndCondition(payload.new.end_condition || 'timer');
-                    setHideMapSymbols(payload.new.hide_map_symbols || false);
-                    setFastVoting(payload.new.fast_voting || false);
-                    setExclusiveMode(payload.new.exclusive_mode || false);
-                    setCategorySource(payload.new.category_source || 'manual');
-                    setGenerationRadius(payload.new.generation_radius || 10);
-                    setGenerationNumber(payload.new.generation_number || 10);
-                    setLanguage(payload.new.language || 'german');
+
+                    if (payload.new.updated_at !== undefined) setLastUpdated(payload.new.updated_at);
+                    if (payload.new.status !== undefined) setStatus(payload.new.status);
+                    if (payload.new.categories !== undefined) setCategories(payload.new.categories);
+                    if (payload.new.suggested_categories !== undefined) setSuggestedCategories(payload.new.suggested_categories);
+                    if (payload.new.ready_players !== undefined) setReadyPlayers(payload.new.ready_players);
+                    if (payload.new.banned_players !== undefined) setBannedPlayers(payload.new.banned_players);
+                    if (payload.new.time_limit !== undefined) setTimeLimit(payload.new.time_limit);
+                    if (payload.new.game_mode !== undefined) setGameMode(payload.new.game_mode);
+                    if (payload.new.team_mode !== undefined) setTeamMode(payload.new.team_mode);
+                    if (payload.new.grid_size !== undefined) setGridSize(payload.new.grid_size);
+                    if (payload.new.starting_point !== undefined) setStartingPoint(payload.new.starting_point);
+                    if (payload.new.gameBoundary !== undefined) setGameBoundary(payload.new.gameBoundary);
+                    if (payload.new.end_condition !== undefined) setEndCondition(payload.new.end_condition);
+                    if (payload.new.hide_map_symbols !== undefined) setHideMapSymbols(payload.new.hide_map_symbols);
+                    if (payload.new.fast_voting !== undefined) setFastVoting(payload.new.fast_voting);
+                    if (payload.new.exclusive_mode !== undefined) setExclusiveMode(payload.new.exclusive_mode);
+                    if (payload.new.category_source !== undefined) setCategorySource(payload.new.category_source);
+                    if (payload.new.generation_radius !== undefined) setGenerationRadius(payload.new.generation_radius);
+                    if (payload.new.generation_number !== undefined) setGenerationNumber(payload.new.generation_number);
+                    if (payload.new.language !== undefined) setLanguage(payload.new.language);
+                    if (payload.new.difficulty !== undefined) setDifficulty(payload.new.difficulty);
                 }
             ).subscribe();
 

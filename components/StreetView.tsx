@@ -11,7 +11,7 @@ import { supabase } from '../lib/supabase';
 import { FullscreenButton, GeoBingoLogo } from './utils/Elements';
 import { calculateBingoCounter } from './utils/Functions';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from './utils/mapUtils';
-import { Submission, StreetViewProps, PathPoint } from './utils/types';
+import { Submission, StreetViewProps, PathPoint, BoundaryPolygon } from './utils/types';
 
 const safeStartCenter = { lat:30, lng: 10 };
 const initialWorldZoom = 2.4;
@@ -413,8 +413,7 @@ export default function StreetView({
 
     const parsedStartParams = useMemo(() => {
         const polyString = gameBoundary || '[]';
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let parsedBoundaries: any[] = [];
+        let parsedBoundaries: BoundaryPolygon[] = [];
         let polyCenter = null;
         let polyZoom = null;
         
@@ -423,13 +422,16 @@ export default function StreetView({
                 const parsed = JSON.parse(polyString);
                 
                 if (Array.isArray(parsed) && parsed.length > 0) {
-                    if (parsed[0].lat !== undefined) {
+                    if (parsed[0].lat !== undefined && parsed[0].id === undefined) {
                         parsedBoundaries = [{ id: 'legacy', type: 'allow', points: parsed }];
                     } else {
                         parsedBoundaries = parsed;
                     }
 
-                    const allPoints = parsedBoundaries.flatMap(b => b.points || []);
+                    const allowBoundaries = parsedBoundaries.filter(b => b.type !== 'forbid');
+                    const boundariesToCalculate = allowBoundaries.length > 0 ? allowBoundaries : parsedBoundaries;
+                    
+                    const allPoints = boundariesToCalculate.flatMap(b => b.points || []);
 
                     if (allPoints.length >= 3) {
                         let minX = allPoints[0].lat, maxX = allPoints[0].lat;
@@ -542,10 +544,10 @@ export default function StreetView({
                                 zoom={mapZoom}
                                 options={mapOptions(additionalMapOptions)}
                             >
-                                {parsedBoundaries.map((boundary) => (
+                                {parsedBoundaries.map((boundary, index) => (
                                     boundary.points && boundary.points.length >= 3 && (
                                         <Polygon
-                                            key={boundary.id}
+                                            key={boundary.id || `poly-${index}`}
                                             paths={boundary.points}
                                             options={{
                                                 fillColor: boundary.type === 'allow' ? '#008000' : '#ff0000',

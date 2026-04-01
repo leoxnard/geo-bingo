@@ -7,18 +7,13 @@ import { FaPlus, FaTimes } from "react-icons/fa";
 
 import { FullscreenButton } from '../utils/Elements';
 import { insertPoint, mapOptions } from '../utils/mapUtils';
+import { BoundaryPolygon } from '../utils/types';
 
 const DEFAULT_CENTER = { lat: 20, lng: 0 };
 
 interface Point {
     lat: number;
     lng: number;
-}
-
-interface BoundaryPolygon {
-    id: string;
-    type: 'allow' | 'forbid';
-    points: Point[];
 }
 
 interface LobbyMapProps {
@@ -30,7 +25,7 @@ interface LobbyMapProps {
     updateGameModeInfo: (updates: {
         starting_point?: string;
         gameBoundary?: string;
-        category_source?: 'manual' | 'nearbyPlaces | nearbyStreetView';
+        category_source?: 'manual' | 'nearbyPlaces' | 'nearbyStreetView';
     }) => void;
 }
 
@@ -48,6 +43,14 @@ export default function LobbyMap({
     const [hoveredLocation, setHoveredLocation] = useState<Point | null>(null);
     const [selectedBoundaryId, setSelectedBoundaryId] = useState<string | null>(null);
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+    const [selectedPreset, setSelectedPreset] = useState<string>('');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
+    
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+    const [boundaryPresetsData, setBoundaryPresetsData] = useState<Record<string, any[]>>({});
+    const [presetsLoading, setPresetsLoading] = useState(true);
 
     const actualStart = startingPoint || 'open-world';
 
@@ -57,6 +60,62 @@ export default function LobbyMap({
         draggableCursor: isHost ? 'crosshair' : 'default',
         styles: [{ featureType: "all", elementType: "labels.icon", stylers: [{ visibility: "off" }] }]
     };
+
+    // Close dropdown if clicked outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Fetch the JSON file from the public folder on mount
+    useEffect(() => {
+        fetch('/geo_bingo_presets.json')
+            .then(res => res.json())
+            .then(data => {
+                setBoundaryPresetsData(data);
+                setPresetsLoading(false);
+            })
+            .catch(err => {
+                console.error("Failed to load boundary presets:", err);
+                setPresetsLoading(false);
+            });
+    }, []);
+
+    const groupedPresets = useMemo(() => {
+        const keys = Object.keys(boundaryPresetsData).sort();
+        
+        const groups: Record<string, string[]> = {
+            "Continents": [],
+            "Large Cities": [],
+            "Regions & Nature": [],
+            "US States": [],
+            "German States": [],
+            "Countries": []
+        };
+
+        const continents = ["Africa", "Antarctica", "Asia", "Europe", "North_America", "Oceania", "South_America"];
+        const regions = ["Scandinavia", "Balkans", "Benelux", "Iberia", "Baltic_States", "UK_and_Ireland", "Middle_East", "Sahara", "Alps", "Himalayas", "Amazon_Basin", "Nile_Delta", "Patagonia", "Central_America", "Polynesia"];
+
+        keys.forEach(k => {
+            if (continents.includes(k)) groups["Continents"].push(k);
+            else if (regions.includes(k)) groups["Regions & Nature"].push(k);
+            else if (k.startsWith("US_")) groups["US States"].push(k);
+            else if (k.startsWith("DE_")) groups["German States"].push(k);
+            else if (k.startsWith("Top_")) groups["Large Cities"].push(k);
+            else groups["Countries"].push(k);
+        });
+
+        Object.keys(groups).forEach(key => {
+            if (groups[key].length === 0) delete groups[key];
+        });
+
+        return groups;
+    }, [boundaryPresetsData]);
 
     const draftBoundaries: BoundaryPolygon[] = useMemo(() => {
         if (!gameBoundary || gameBoundary === '[]') return [];
@@ -119,6 +178,7 @@ export default function LobbyMap({
 
     const handleMapClick = (e: google.maps.MapMouseEvent) => {
         if (!isHost || !e.latLng) return;
+        setSelectedPreset(''); 
         const newPoint = { lat: e.latLng.lat(), lng: e.latLng.lng() };
 
         let newBoundaries = [...draftBoundaries];
@@ -140,39 +200,141 @@ export default function LobbyMap({
     };
 
     const handleAddBoundary = () => {
+        setSelectedPreset('');
         const newId = Date.now().toString();
         const newBoundaries = [...draftBoundaries, { id: newId, type: 'allow', points: [] }];
         updateGameModeInfo({ gameBoundary: JSON.stringify(newBoundaries) });
         setSelectedBoundaryId(newId);
     };
 
-    const handleRemoveBoundary = (id: string) => {
-        const newBoundaries = draftBoundaries.filter(b => b.id !== id);
+    const handleDrop = (dropIndex: number) => {
+        if (draggedIndex === null || draggedIndex === dropIndex) return;
+        setSelectedPreset('');
+        
+        const newGroups = [...displayBoundaries];
+        
+        const [draggedGroup] = newGroups.splice(draggedIndex, 1);
+        newGroups.splice(dropIndex, 0, draggedGroup);
+        
+        const newBoundaries: BoundaryPolygon[] = [];
+        newGroups.forEach(group => {
+            const itemsInGroup = draftBoundaries.filter(b => (b.groupId || b.id) === group.key);
+            newBoundaries.push(...itemsInGroup);
+        });
+        
         updateGameModeInfo({ gameBoundary: JSON.stringify(newBoundaries) });
-        if (activeBoundaryId === id) {
-            setSelectedBoundaryId(newBoundaries.length > 0 ? newBoundaries[newBoundaries.length - 1].id : null);
+        setDraggedIndex(null);
+    };
+
+    const searchResults = useMemo(() => {
+        if (!searchTerm.trim()) return [];
+        const term = searchTerm.toLowerCase();
+        return Object.keys(boundaryPresetsData).filter(key => 
+            key.replace(/_/g, ' ').toLowerCase().includes(term)
+        ).sort();
+    }, [searchTerm, boundaryPresetsData]);
+
+    // Flat list for keyboard navigation
+    const selectableItems = useMemo(() => {
+        if (searchTerm.trim() !== '') return searchResults;
+        const items: string[] = [];
+        Object.values(groupedPresets).forEach(group => items.push(...group));
+        return items;
+    }, [searchTerm, searchResults, groupedPresets]);
+
+    useEffect(() => { setHighlightedIndex(-1); }, [searchTerm]);
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setHighlightedIndex(prev => (prev < selectableItems.length - 1 ? prev + 1 : prev));
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setHighlightedIndex(prev => (prev > 0 ? prev - 1 : 0));
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (highlightedIndex >= 0 && highlightedIndex < selectableItems.length) {
+                handlePresetChange(selectableItems[highlightedIndex]);
+                setSearchTerm('');
+                setHighlightedIndex(-1);
+            } else if (searchResults.length === 1) {
+                handlePresetChange(searchResults[0]);
+                setSearchTerm('');
+            }
+        } else if (e.key === 'Escape') {
+            e.currentTarget.blur();
         }
     };
 
-    const handleToggleType = (id: string) => {
-        const newBoundaries = draftBoundaries.map(b => {
-            if (b.id === id) {
-                return { ...b, type: b.type === 'allow' ? 'forbid' : 'allow' };
+    const handlePresetChange = (presetKey: string) => {
+        setSelectedPreset(presetKey);
+        if (!presetKey) return;
+
+        const presetData = boundaryPresetsData[presetKey];
+        if (presetData && presetData.length > 0) {
+            const formattedName = presetKey.replace(/_/g, ' ');
+            const sharedGroupId = Date.now().toString();
+            
+            const newBoundaries: BoundaryPolygon[] = presetData.map(area => ({
+                id: area.id || (Date.now() + Math.random()).toString(),
+                groupId: sharedGroupId,
+                type: area.type || 'allow',
+                points: area.points,
+                name: formattedName
+            }));
+
+            const combinedBoundaries = [...draftBoundaries, ...newBoundaries];
+            updateGameModeInfo({ gameBoundary: JSON.stringify(combinedBoundaries) });
+            setSelectedBoundaryId(sharedGroupId);
+
+            if (mapInstance) {
+                const bounds = new google.maps.LatLngBounds();
+                newBoundaries.forEach(b => b.points.forEach(p => bounds.extend(p)));
+                mapInstance.fitBounds(bounds);
             }
+        }
+    };
+
+    const displayBoundaries = useMemo(() => {
+        const groups: { key: string, name: string, type: 'allow' | 'forbid' }[] = [];
+        const seen = new Set<string>();
+
+        draftBoundaries.forEach((b, index) => {
+            const key = b.groupId || b.id;
+            if (!seen.has(key)) {
+                seen.add(key);
+                groups.push({
+                    key,
+                    name: b.name || `Area ${groups.length + 1}`,
+                    type: b.type
+                });
+            }
+        });
+        return groups;
+    }, [draftBoundaries]);
+
+    const handleRemoveGroup = (key: string) => {
+        setSelectedPreset('');
+        const newBoundaries = draftBoundaries.filter(b => b.id !== key && b.groupId !== key);
+        updateGameModeInfo({ gameBoundary: JSON.stringify(newBoundaries) });
+        if (activeBoundaryId === key) setSelectedBoundaryId(null);
+    };
+
+    const handleToggleGroupType = (key: string) => {
+        setSelectedPreset('');
+        const groupItem = draftBoundaries.find(b => b.id === key || b.groupId === key);
+        const newType = groupItem?.type === 'allow' ? 'forbid' : 'allow';
+
+        const newBoundaries = draftBoundaries.map(b => {
+            if (b.id === key || b.groupId === key) return { ...b, type: newType };
             return b;
         });
         updateGameModeInfo({ gameBoundary: JSON.stringify(newBoundaries) });
     };
 
-    const handleDrop = (dropIndex: number) => {
-        if (draggedIndex === null || draggedIndex === dropIndex) return;
-        
-        const newBoundaries = [...draftBoundaries];
-        const [draggedItem] = newBoundaries.splice(draggedIndex, 1);
-        newBoundaries.splice(dropIndex, 0, draggedItem);
-        
-        updateGameModeInfo({ gameBoundary: JSON.stringify(newBoundaries) });
-        setDraggedIndex(null);
+    const getDisplayName = (key: string) => {
+        if (!key) return '';
+        return key.replace(/_/g, ' ').replace('US ', '').replace('DE ', '');
     };
 
     return (
@@ -186,8 +348,8 @@ export default function LobbyMap({
 
             <div className="mt-4 flex flex-col gap-2">
                 <div className="h-[400px] min-h-[400px] w-full rounded-lg overflow-hidden border border-slate-700 relative bg-slate-800/50 flex flex-col items-center justify-center">
-                    {!isLoaded ? (
-                        <div className="text-slate-400">Loading map configuration...</div>
+                    {!isLoaded || presetsLoading ? (
+                        <div className="text-slate-400">Loading map configuration and presets...</div>
                     ) : (
                         <div ref={containerRef} className="absolute inset-0 w-full h-full">
                             <GoogleMap
@@ -216,7 +378,7 @@ export default function LobbyMap({
                                     />
                                 )}
 
-                                {/* Generation Radius */}
+                                {/* Generation radius */}
                                 {generationRadius && actualStart.startsWith('{') && (
                                     <Circle
                                         center={JSON.parse(actualStart)} 
@@ -244,7 +406,7 @@ export default function LobbyMap({
                                             <img
                                                 src={`https://maps.googleapis.com/maps/api/streetview?size=240x120&location=${hoveredLocation.lat},${hoveredLocation.lng}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`}
                                                 alt="Street View Preview"
-                                                className="w-[240px] h-[120px] rounded object-cover"
+                                                className="w-[240px] h-[120px] rounded-lg object-cover"
                                             />
                                         </div>
                                     </OverlayViewF>
@@ -295,75 +457,161 @@ export default function LobbyMap({
                 {isHost && (
                     <div className="flex flex-col gap-4 my-2">
                         <div className="flex flex-col sm:flex-row justify-between items-center w-full text-sm text-slate-400 gap-2">
-                            <button type="button"
-                                onClick={() => updateGameModeInfo({ starting_point: 'open-world', category_source: 'manual' })}
-                                disabled={actualStart === 'open-world'}
-                                className="px-3 py-2 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-200 rounded flex gap-2 items-center transition-colors disabled:opacity-50 disabled:bg-slate-800 disabled:border-slate-700 disabled:text-slate-500"
-                            >
-                                Reset Starting Point
-                            </button>
-
                             <div className="flex gap-2 flex-wrap justify-end">
                                 <button 
                                     type="button" 
                                     onClick={handleAddBoundary}
-                                    className="px-3 py-2 bg-emerald-900/60 border border-emerald-700 hover:bg-emerald-800 text-emerald-100 rounded flex gap-2 items-center transition-colors"
+                                    className="px-3 py-2 bg-emerald-900/60 border border-emerald-700 hover:bg-emerald-800 text-emerald-100 rounded-lg flex gap-2 items-center transition-colors"
                                 >
                                     <FaPlus /> Add Area
                                 </button>
                                 <button 
                                     type="button"
-                                    onClick={() => updateGameModeInfo({ gameBoundary: '[]' })}
+                                    onClick={() => {
+                                        updateGameModeInfo({ gameBoundary: '[]' });
+                                        setSelectedPreset('');
+                                    }}
                                     disabled={draftBoundaries.length === 0}
-                                    className="px-3 py-2 bg-rose-900 border border-rose-700 hover:bg-rose-800 text-slate-200 rounded flex gap-2 items-center transition-colors disabled:opacity-50"
+                                    className="px-3 py-2 bg-rose-900 border border-rose-700 hover:bg-rose-800 text-slate-200 rounded-lg flex gap-2 items-center transition-colors disabled:opacity-50"
                                 >
                                     Reset Areas
                                 </button>
                             </div>
+
+                            <button type="button"
+                                onClick={() => updateGameModeInfo({ starting_point: 'open-world', category_source: 'manual' })}
+                                disabled={actualStart === 'open-world'}
+                                className="px-3 py-2 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-200 rounded-lg flex gap-2 items-center transition-colors disabled:opacity-50 disabled:bg-slate-800 disabled:border-slate-700 disabled:text-slate-500"
+                            >
+                                Reset Starting Point
+                            </button>
                         </div>
-                        {draftBoundaries.length > 0 && (
-                            <div className="flex flex-col gap-2 pr-2">
-                                {draftBoundaries.length > 0 && (
-                                    <div className="flex flex-col gap-2 pr-2">
-                                        {draftBoundaries.map((b, index) => (
-                                            <div 
-                                                key={b.id} 
-                                                draggable
-                                                onDragStart={() => setDraggedIndex(index)}
-                                                onDragOver={(e) => {e.preventDefault();}}
-                                                onDrop={() => handleDrop(index)}
-                                                className={`flex items-center justify-between p-3 rounded-lg border cursor-grab active:cursor-grabbing transition-all ${
-                                                    draggedIndex === index ? 'opacity-50 scale-95 border-dashed' : ''
-                                                } ${activeBoundaryId === b.id ? 'border-indigo-500 bg-indigo-900/40' : 'border-slate-700 bg-slate-800 hover:border-slate-500'}`} 
-                                                onClick={() => setSelectedBoundaryId(b.id)}
-                                            >
-                                                <div className="flex items-center gap-4">
-                                                    <span className="text-slate-500 cursor-grab px-1 text-lg">⋮⋮</span>
-                                                    <span className="text-slate-200 font-medium text-sm flex flex-col">
-                                                        <span>Area {index + 1}</span>
-                                                        <span className="text-[10px] text-slate-500 font-normal">
-                                                            {index === draftBoundaries.length - 1 ? 'Highest Priority' : 
-                                                                index === 0 ? 'Lowest Priority' : `Priority ${index + 1}`}
-                                                        </span>
-                                                    </span>
-                                                    <button 
-                                                        onClick={(e) => { e.stopPropagation(); handleToggleType(b.id); }} 
-                                                        className={`px-3 py-1 rounded text-xs font-bold transition-colors ${b.type === 'allow' ? 'bg-green-600/20 text-green-400 border border-green-700 hover:bg-green-600/40' : 'bg-red-600/20 text-red-400 border border-red-700 hover:bg-red-600/40'}`}
-                                                    >
-                                                        {b.type === 'allow' ? 'Allow' : 'Forbid'}
-                                                    </button>
+
+                        {/* Preset selection with search & click menu */}
+                        <div ref={dropdownRef} className="relative w-full sm:w-64 z-[100]">
+                            <span className="block text-xs text-slate-400 mb-1">Or select a preset boundary:</span>
+                            {/* Input field */}
+                            <div 
+                                onClick={() => setIsMenuOpen(true)}
+                                className={`w-full bg-slate-900 border border-slate-700 hover:border-slate-500 rounded-lg flex items-center transition-colors cursor-text ${presetsLoading ? 'opacity-50 pointer-events-none' : ''}`}
+                            >
+                                <input 
+                                    type="text"
+                                    placeholder={selectedPreset ? getDisplayName(selectedPreset) : '-- Search / Select Preset --'}
+                                    value={searchTerm}
+                                    onChange={(e) => {
+                                        setSearchTerm(e.target.value);
+                                        setIsMenuOpen(true);
+                                    }}
+                                    onKeyDown={handleKeyDown}
+                                    className="w-full bg-transparent px-4 py-2 text-slate-200 outline-none placeholder:text-slate-400 text-sm"
+                                />
+                                <span className="pr-4 text-xs text-slate-400 pointer-events-none">▼</span>
+                            </div>
+
+                            {/* Dropdown container */}
+                            {isMenuOpen && (
+                                <div className="absolute left-0 top-full w-full pt-1 z-[100]">
+                                    {searchTerm.trim() !== '' || highlightedIndex >= 0 ? (
+                                        <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-xl py-1 max-h-64 overflow-y-auto">
+                                            {selectableItems.length > 0 ? (
+                                                selectableItems.map((item: string, idx: number) => {
+                                                    const isHighlighted = idx === highlightedIndex;
+                                                    return (
+                                                        <div 
+                                                            key={item}
+                                                            ref={isHighlighted ? (el) => el?.scrollIntoView({ block: 'nearest' }) : null}
+                                                            onClick={() => {
+                                                                handlePresetChange(item);
+                                                                setSearchTerm('');
+                                                                setHighlightedIndex(-1);
+                                                                setIsMenuOpen(false);
+                                                            }}
+                                                            className={`px-4 py-2 cursor-pointer text-slate-200 text-sm truncate ${isHighlighted ? 'bg-indigo-500' : 'hover:bg-indigo-500'}`}
+                                                        >
+                                                            {getDisplayName(item)}
+                                                        </div>
+                                                    );
+                                                })
+                                            ) : (
+                                                <div className="px-4 py-2 text-slate-500 text-sm italic">No matches found</div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-xl py-1">
+                                            {Object.entries(groupedPresets).map(([groupName, items]) => (
+                                                <div key={groupName} className="relative group/sub">
+                                                    <div className="px-4 py-2 hover:bg-indigo-600/50 cursor-pointer flex justify-between items-center text-slate-200 text-sm">
+                                                        <span>{groupName}</span>
+                                                        <span className="text-xs">▶</span>
+                                                    </div>
+                                                    
+                                                    <div className="absolute left-full top-0 pl-1 hidden group-hover/sub:block w-48 z-[100]">
+                                                        <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-2xl py-1 max-h-64 overflow-y-auto">
+                                                            {items.map(item => (
+                                                                <div 
+                                                                    key={item}
+                                                                    onMouseDown={(e) => { e.preventDefault(); }}
+                                                                    onClick={() => {
+                                                                        handlePresetChange(item);
+                                                                        setSearchTerm(''); 
+                                                                        setIsMenuOpen(false);
+                                                                    }}
+                                                                    className="px-4 py-2 hover:bg-indigo-500 cursor-pointer text-slate-200 text-sm truncate"
+                                                                >
+                                                                    {getDisplayName(item)}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <button
-                                                    title='remove-boundary'
-                                                    onClick={(e) => { e.stopPropagation(); handleRemoveBoundary(b.id); }} 
-                                                    className="text-slate-500 hover:text-red-400 p-1"
-                                                >
-                                                    <FaTimes />
-                                                </button>
-                                            </div>
-                                        ))}
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* --- THE GROUPED BOUNDARY LIST BELOW --- */}
+                        {displayBoundaries.length > 0 && (
+                            <div className="flex flex-col gap-2 pr-2 mt-4">
+                                {displayBoundaries.map((g, index) => (
+                                    <div 
+                                        key={g.key} 
+                                        draggable
+                                        onDragStart={() => setDraggedIndex(index)}
+                                        onDragOver={(e) => {e.preventDefault();}}
+                                        onDrop={() => handleDrop(index)}
+                                        className={`flex items-center justify-between p-3 rounded-lg border cursor-grab active:cursor-grabbing transition-all ${
+                                            draggedIndex === index ? 'opacity-50 scale-95 border-dashed' : ''
+                                        } ${activeBoundaryId === g.key ? 'border-indigo-500 bg-indigo-900/40' : 'border-slate-700 bg-slate-800 hover:border-slate-500'}`} 
+                                        onClick={() => setSelectedBoundaryId(g.key)}
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <span className="text-slate-500 cursor-grab px-1 text-lg">⋮⋮</span>
+                                            <span className="text-slate-200 font-medium text-sm flex flex-col">
+                                                <span>{getDisplayName(g.name)}</span>
+                                                <span className="text-[10px] text-slate-500 font-normal">
+                                                    {index === displayBoundaries.length - 1 ? 'Highest Priority' : 
+                                                        index === 0 ? 'Lowest Priority' : `Priority ${index + 1}`}
+                                                </span>
+                                            </span>
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); handleToggleGroupType(g.key); }} 
+                                                className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${g.type === 'allow' ? 'bg-green-600/20 text-green-400 border border-green-700 hover:bg-green-600/40' : 'bg-red-600/20 text-red-400 border border-red-700 hover:bg-red-600/40'}`}
+                                            >
+                                                {g.type === 'allow' ? 'Allow' : 'Forbid'}
+                                            </button>
+                                        </div>
+                                        <button
+                                            title='remove-boundary'
+                                            onClick={(e) => { e.stopPropagation(); handleRemoveGroup(g.key); }} 
+                                            className="text-slate-500 hover:text-red-400 p-1"
+                                        >
+                                            <FaTimes />
+                                        </button>
                                     </div>
-                                )}
+                                ))}
                             </div>
                         )}
                     </div>

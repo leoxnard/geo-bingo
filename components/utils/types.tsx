@@ -48,6 +48,14 @@ export interface PlayerStats {
     bingoBoard?: string[];
 }
 
+export interface BoundaryPolygon {
+    id: string;
+    groupId?: string;
+    type: 'allow' | 'forbid';
+    points: { lat: number; lng: number }[];
+    name?: string;
+}
+
 export interface LobbyViewProps {
     gameMode: 'list' | 'bingo';
     teamMode: 'ffa' | 'teams';
