@@ -11,7 +11,7 @@ import { mapOptions, GOOGLE_MAPS_LIBRARIES } from './utils/mapUtils';
 import { VotingViewProps, Submission } from './utils/types';
 
 const ENABLE_PRELOADING = false; 
-const ANIMATION_DURATION = 8000;
+const MAX_ANIMATION_DURATION = 8000;
 
 type PathPoint = {
     lat: number;
@@ -268,6 +268,14 @@ export default function VotingJourneyView({
         }
     }, [mapInstance, pathData, isPreloading]);
 
+    const calculatedDuration = useMemo(() => {
+        if (!pathData) return MAX_ANIMATION_DURATION;
+        const numPoints = pathData.rawPath.length;
+        if (numPoints <= 10) return MAX_ANIMATION_DURATION * 0.25;
+        if (numPoints <= 50) return MAX_ANIMATION_DURATION * 0.5;
+        return MAX_ANIMATION_DURATION;
+    }, [pathData]);
+
     // Animation Loop
     useEffect(() => {
         if (!mapInstance || isPaused || isLineComplete || !pathData || pathData.rawPath.length === 0 || isPreloading) return;
@@ -284,7 +292,7 @@ export default function VotingJourneyView({
                 animationProgressRef.current = 1;
             }
 
-            let progress = animationProgressRef.current + (delta / ANIMATION_DURATION);
+            let progress = animationProgressRef.current + (delta / calculatedDuration);
             let hitSub = false;
 
             if (progress >= 1) progress = 1;
