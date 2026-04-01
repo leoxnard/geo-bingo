@@ -34,7 +34,7 @@ interface LobbySidebarProps {
     handleLeaveLobby: () => void;
     setPlayers: (players: Player[] | ((prev: Player[]) => Player[])) => void;
     hideMapSymbols: boolean;
-    fastVoting: boolean;
+    hideMiniMap: boolean;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     updateGameModeInfo: (updates: any) => void;
     categorySource: 'manual' | 'nearbyPlaces' | 'nearbyStreetView';
@@ -369,12 +369,12 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                         disabled={!props.isHost}
                         onChange={(checked) => props.updateGameModeInfo({ hide_map_symbols: checked })}
                     />
-                    {/* Toggle 2: Fast Voting */}
+                    {/* Toggle 2: Hide Mini Map */}
                     <ToggleSwitch
-                        label="Fast Voting aktivieren"
-                        checked={props.fastVoting}
+                        label="Hide Mini Map"
+                        checked={props.hideMiniMap}
                         disabled={!props.isHost}
-                        onChange={(checked) => props.updateGameModeInfo({ fast_voting: checked })}
+                        onChange={(checked) => props.updateGameModeInfo({ hide_minimap: checked })}
                     />
                     {!props.isHost && (
                         <p className="text-xs text-slate-500 pt-4 border-t border-slate-700/50 text-center">

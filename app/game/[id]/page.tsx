@@ -11,8 +11,7 @@ import PodiumView from '@/components/PodiumView';
 import StreetView from '@/components/StreetView';
 import { shuffle } from '@/components/utils/Functions';
 import { Player } from '@/components/utils/types';
-import VotingView from '@/components/VotingJourneyView';
-import FastVotingView from '@/components/VotingView';
+import { VotingView } from '@/components/VotingView';
 import { adjectives, animals } from '../../../lib/names';
 import { supabase } from '../../../lib/supabase';
 
@@ -62,7 +61,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     // more game options
     const [language, setLanguage] = useState<'german' | 'english'>('german');
     const [hideMapSymbols, setHideMapSymbols] = useState(false);
-    const [fastVoting, setFastVoting] = useState(false);
+    const [hideMiniMap, setHideMiniMap] = useState(false);
 
     const updateGameModeInfo = async (updates: {
         game_mode?: string;
@@ -74,7 +73,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         gameBoundary?: string;
         end_condition?: 'first_bingo' | 'timer';
         hide_map_symbols?: boolean;
-        fast_voting?: boolean;
+        hide_minimap?: boolean;
         exclusive_mode?: boolean;
         category_source?: 'manual' | 'nearbyPlaces' | 'nearbyStreetView';
         generation_radius?: number;
@@ -91,7 +90,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (updates.gameBoundary) setGameBoundary(updates.gameBoundary);
         if (updates.end_condition) setEndCondition(updates.end_condition as 'first_bingo' | 'timer');
         if (updates.hide_map_symbols !== undefined) setHideMapSymbols(updates.hide_map_symbols);
-        if (updates.fast_voting !== undefined) setFastVoting(updates.fast_voting);
+        if (updates.hide_minimap !== undefined) setHideMiniMap(updates.hide_minimap);
         if (updates.exclusive_mode !== undefined) setExclusiveMode(updates.exclusive_mode);
         if (updates.category_source !== undefined) setCategorySource(updates.category_source);
         if (updates.generation_radius !== undefined) setGenerationRadius(updates.generation_radius);
@@ -183,7 +182,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setGameBoundary(gameData.gameBoundary || '[]');
                 setEndCondition(gameData.end_condition || 'timer');
                 setHideMapSymbols(gameData.hide_map_symbols || false);
-                setFastVoting(gameData.fast_voting || false);
+                setHideMiniMap(gameData.hide_minimap || false);
                 setExclusiveMode(gameData.exclusive_mode || false);
                 setCategorySource(gameData.category_source || 'manual');
                 setGenerationRadius(gameData.generation_radius || 10);
@@ -288,7 +287,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     if (payload.new.gameBoundary !== undefined) setGameBoundary(payload.new.gameBoundary);
                     if (payload.new.end_condition !== undefined) setEndCondition(payload.new.end_condition);
                     if (payload.new.hide_map_symbols !== undefined) setHideMapSymbols(payload.new.hide_map_symbols);
-                    if (payload.new.fast_voting !== undefined) setFastVoting(payload.new.fast_voting);
+                    if (payload.new.hide_minimap !== undefined) setHideMiniMap(payload.new.hide_minimap);
                     if (payload.new.exclusive_mode !== undefined) setExclusiveMode(payload.new.exclusive_mode);
                     if (payload.new.category_source !== undefined) setCategorySource(payload.new.category_source);
                     if (payload.new.generation_radius !== undefined) setGenerationRadius(payload.new.generation_radius);
@@ -472,7 +471,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     updateStatus={updateStatus}
                     setPlayers={setPlayers}
                     hideMapSymbols={hideMapSymbols}
-                    fastVoting={fastVoting}
+                    hideMiniMap={hideMiniMap}
                     categorySource={categorySource}
                     generationRadius={generationRadius}
                     generationNumber={generationNumber}
@@ -503,6 +502,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     readyPlayers={readyPlayers}
                     players={players}
                     hideMapSymbols={hideMapSymbols}
+                    hideMiniMap={hideMiniMap}
                     exclusiveMode={exclusiveMode}
                 />
             );
@@ -510,19 +510,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
         // --- VIEW 3: VOTING ---
         if (status === 'voting') {
-            if (fastVoting) {
-                return (
-                    <FastVotingView
-                        gameId={gameId}
-                        isHost={isHost}
-                        categories={categories}
-                        playerId={playerId}
-                        players={players}
-                        teamMode={teamMode}
-                        onFinishGame={handleFinishGame}
-                    />
-                );
-            }
             return (
                 <VotingView
                     gameId={gameId}

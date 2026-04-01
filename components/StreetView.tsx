@@ -9,7 +9,7 @@ import { GoMoveToStart } from "react-icons/go";
 
 import { supabase } from '../lib/supabase';
 import { FullscreenButton, GeoBingoLogo } from './utils/Elements';
-import { calculateBingoCounter } from './utils/Functions';
+import { calculateBingoCounter, getDistance } from './utils/Functions';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from './utils/mapUtils';
 import { Submission, StreetViewProps, PathPoint, BoundaryPolygon } from './utils/types';
 
@@ -40,6 +40,7 @@ export default function StreetView({
     readyPlayers,
     players,
     hideMapSymbols = false,
+    hideMiniMap = false,
     exclusiveMode = false,
 }: StreetViewProps) {
 
@@ -61,6 +62,8 @@ export default function StreetView({
   
     const [panoInstance, setPanoInstance] = useState<google.maps.StreetViewPanorama | null>(null);
     const [minimapInstance, setMinimapInstance] = useState<google.maps.Map | null>(null);
+    const [mainMapInstance, setMainMapInstance] = useState<google.maps.Map | null>(null);
+    const mainMapDotRef = useRef<google.maps.Marker | null>(null);
 
     const streetViewRef = useRef<google.maps.StreetViewPanorama | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -109,27 +112,198 @@ export default function StreetView({
     };
 
     useEffect(() => {
-        if (minimapInstance && panoInstance) {
-            minimapInstance.setStreetView(panoInstance);
-
+        if (minimapInstance && panoInstance && !hideMiniMap) {
             const initialPos = panoInstance.getPosition();
             if (initialPos) {
                 minimapInstance.setCenter(initialPos);
             }
 
+            const fovCone = new google.maps.Marker({
+                map: minimapInstance,
+                position: initialPos,
+                icon: {
+                    path: "M -4,0 L -10,-30 A 30,30 0 0,1 10,-30 L 4,0 Z",
+                    fillColor: '#fac800',
+                    fillOpacity: 0.3,
+                    strokeWeight: 0,
+                    scale: 1.5,
+                    anchor: new google.maps.Point(0, 0),
+                    rotation: panoInstance.getPov().heading
+                },
+                zIndex: 99,
+                clickable: false
+            });
+
+            const fovDot = new google.maps.Marker({
+                map: minimapInstance,
+                position: initialPos,
+                icon: {
+                    path: "M 0,0 m -5,0 a 5,5 0 1,0 10,0 a 5,5 0 1,0 -10,0", // Nur der Kreis
+                    fillColor: '#fac800',
+                    fillOpacity: 1.0,
+                    strokeColor: '#ffffff',
+                    strokeWeight: 2,
+                    scale: 1.5,
+                    anchor: new google.maps.Point(0, 0),
+                },
+                zIndex: 100,
+                clickable: false
+            });
+
+            const polylines: google.maps.Polyline[] = [];
+
+            const renderPathSegments = () => {
+                if (!pathRef.current || pathRef.current.length === 0) return;
+
+                const segments: {lat: number, lng: number}[][] = [];
+                let currentSegment: {lat: number, lng: number}[] = [{ lat: pathRef.current[0].lat, lng: pathRef.current[0].lng }];
+
+                for (let i = 1; i < pathRef.current.length; i++) {
+                    const prev = pathRef.current[i - 1];
+                    const curr = pathRef.current[i];
+                    
+                    const dist = getDistance(prev.lat, prev.lng, curr.lat, curr.lng);
+                    
+                    if (dist > 150) {
+                        segments.push(currentSegment);
+                        currentSegment = [{ lat: curr.lat, lng: curr.lng }];
+                    } else {
+                        currentSegment.push({ lat: curr.lat, lng: curr.lng });
+                    }
+                }
+                segments.push(currentSegment);
+
+                segments.forEach((segment, index) => {
+                    if (!polylines[index]) {
+                        polylines[index] = new google.maps.Polyline({
+                            map: minimapInstance,
+                            strokeColor: '#fac800',
+                            strokeOpacity: 0.6,
+                            strokeWeight: 4,
+                            zIndex: 50,
+                            clickable: false
+                        });
+                    }
+                    polylines[index].setPath(segment);
+                });
+            };
+
+            renderPathSegments();
+
+            let animationFrameId: number;
+
+            const positionListener = panoInstance.addListener('position_changed', () => {
+                const endPos = panoInstance.getPosition();
+                if (!endPos) return;
+
+                minimapInstance.panTo(endPos);
+
+                const startPos = fovDot.getPosition() as google.maps.LatLng;
+                
+                if (animationFrameId) cancelAnimationFrame(animationFrameId);
+
+                if (!startPos) {
+                    fovCone.setPosition(endPos);
+                    fovDot.setPosition(endPos);
+                } else {
+                    const startLat = startPos.lat();
+                    const startLng = startPos.lng();
+                    const endLat = endPos.lat();
+                    const endLng = endPos.lng();
+
+                    const duration = 250; 
+                    const startTime = performance.now();
+
+                    const animate = (currentTime: number) => {
+                        const elapsed = currentTime - startTime;
+                        let progress = elapsed / duration;
+
+                        if (progress > 1) progress = 1;
+
+                        const ease = 1 - Math.pow(1 - progress, 3);
+
+                        const currentLat = startLat + (endLat - startLat) * ease;
+                        const currentLng = startLng + (endLng - startLng) * ease;
+                        
+                        const newPos = new google.maps.LatLng(currentLat, currentLng);
+
+                        fovCone.setPosition(newPos);
+                        fovDot.setPosition(newPos);
+
+                        if (progress < 1) {
+                            animationFrameId = requestAnimationFrame(animate);
+                        } else {
+                            fovCone.setPosition(endPos);
+                            fovDot.setPosition(endPos);
+                        }
+                    };
+
+                    animationFrameId = requestAnimationFrame(animate);
+                }
+
+                renderPathSegments();
+            });
+
+            const povListener = panoInstance.addListener('pov_changed', () => {
+                const pov = panoInstance.getPov();
+                const currentIcon = fovCone.getIcon() as google.maps.Symbol;
+                fovCone.setIcon({ ...currentIcon, rotation: pov.heading });
+            });
+
+            return () => {
+                if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                google.maps.event.removeListener(positionListener);
+                google.maps.event.removeListener(povListener);
+                fovCone.setMap(null);
+                fovDot.setMap(null);
+                polylines.forEach(line => line.setMap(null));
+            };
+        }
+    }, [minimapInstance, panoInstance, hideMiniMap]);
+
+    useEffect(() => {
+        if (mainMapInstance && panoInstance && startingPoint === 'open-world') {
+            mainMapDotRef.current = new google.maps.Marker({
+                map: mainMapInstance,
+                icon: {
+                    path: "M 0,0 m -5,0 a 5,5 0 1,0 10,0 a 5,5 0 1,0 -10,0",
+                    fillColor: '#fac800',
+                    fillOpacity: 1.0,
+                    strokeColor: '#ffffff',
+                    strokeWeight: 2,
+                    scale: 1.5,
+                    anchor: new google.maps.Point(0, 0),
+                },
+                zIndex: 100,
+                clickable: false,
+                visible: !inStreetView
+            });
+
+            const initialPos = panoInstance.getPosition();
+            if (initialPos) mainMapDotRef.current.setPosition(initialPos);
+
             const positionListener = panoInstance.addListener('position_changed', () => {
                 const currentPos = panoInstance.getPosition();
-                if (currentPos) {
-                    minimapInstance.setCenter(currentPos);
+                if (currentPos && mainMapDotRef.current) {
+                    mainMapDotRef.current.setPosition(currentPos);
                 }
             });
 
             return () => {
                 google.maps.event.removeListener(positionListener);
-                minimapInstance.setStreetView(null);
+                if (mainMapDotRef.current) {
+                    mainMapDotRef.current.setMap(null);
+                    mainMapDotRef.current = null;
+                }
             };
         }
-    }, [minimapInstance, panoInstance]);
+    }, [mainMapInstance, panoInstance, startingPoint]);
+
+    useEffect(() => {
+        if (mainMapDotRef.current) {
+            mainMapDotRef.current.setVisible(!inStreetView);
+        }
+    }, [inStreetView]);
 
     useEffect(() => {
         const handleFullscreenChange = () => {
@@ -223,6 +397,14 @@ export default function StreetView({
             : []
     }), [hideMapSymbols]);
 
+    const additionalMiniMapOptions = useMemo(() => ({
+        styles: hideMapSymbols 
+            ? [{ featureType: "all", elementType: "labels.icon", stylers: [{ visibility: "off" }] }]
+            : [],
+        streetViewControl: false, 
+        gestureHandling: startingPoint === 'open-world' ? 'greedy' : 'none',  
+        keyboardShortcuts: false,
+    }), [hideMapSymbols, startingPoint]);
 
     const onLoad = useCallback((pano: google.maps.StreetViewPanorama) => {
         streetViewRef.current = pano;
@@ -528,7 +710,7 @@ export default function StreetView({
                             onClick={handleVoteEndRound}
                             disabled={hasVotedToEnd}
                             className={`flex items-center justify-center whitespace-nowrap px-3 sm:px-6 rounded-lg font-bold transition-all uppercase text-[10px] sm:text-sm shadow-lg
-                ${hasVotedToEnd ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-red-600 hover:bg-red-500 text-white'}`}
+                                ${hasVotedToEnd ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-red-600 hover:bg-red-500 text-white'}`}
                         >
                             {hasVotedToEnd ? 'Wait...' : 'End Vote'}
                         </button>
@@ -547,6 +729,8 @@ export default function StreetView({
                                 center={mapCenter}
                                 zoom={mapZoom}
                                 options={mapOptions(additionalMapOptions)}
+                                onLoad={(map) => setMainMapInstance(map)}
+                                onUnmount={() => setMainMapInstance(null)}
                             >
                                 {parsedBoundaries.map((boundary, index) => (
                                     boundary.points && boundary.points.length >= 3 && (
@@ -579,7 +763,7 @@ export default function StreetView({
                             </GoogleMap>
 
                             {/* Minimap */}
-                            {inStreetView && (
+                            {inStreetView && !hideMiniMap && (
                                 <div className="absolute bottom-6 left-6 z-[500] w-28 h-28 sm:w-36 sm:h-36 hover:w-44 hover:h-44 sm:hover:w-56 sm:hover:h-56 rounded-xl overflow-hidden border-4 border-indigo-500 shadow-[0_0_20px_rgba(79,70,229,0.5)] transition-all duration-300 minimap-wrapper">
                                     <style>{`.minimap-wrapper .gmnoprint { display: none !important; }`}</style>
                                     <GoogleMap
@@ -588,14 +772,7 @@ export default function StreetView({
                                         onUnmount={() => setMinimapInstance(null)}
                                         center={lastValidPositionRef.current || mapCenter}
                                         zoom={16}
-                                        options={{
-                                            disableDefaultUI: true, 
-                                            streetViewControl: true,
-                                            gestureHandling: startingPoint === 'open-world' ? 'greedy' : 'none', 
-                                            keyboardShortcuts: false,
-                                            clickableIcons: false,
-                                            styles: [{ featureType: "all", elementType: "labels.icon", stylers: [{ visibility: "off" }] }]
-                                        }}
+                                        options={mapOptions(additionalMiniMapOptions)}
                                     />
                                     {startingPoint !== 'open-world' && (
                                         <div className="absolute inset-0 z-50 bg-transparent"></div>

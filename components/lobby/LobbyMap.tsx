@@ -194,13 +194,30 @@ export default function LobbyMap({
         if (!mapInstance || !isHost) return;
         const sv = mapInstance.getStreetView();
         
+        // Initialisiere den StreetViewService
+        const svService = new google.maps.StreetViewService();
+        
         const listener = google.maps.event.addListener(sv, 'position_changed', () => {
             const pos = sv.getPosition();
             
             if (pos) {
-                updateGameModeInfo({
-                    starting_point: JSON.stringify({ lat: pos.lat(), lng: pos.lng() }),
+                svService.getPanorama({
+                    location: pos,
+                    radius: 500, 
+                    source: google.maps.StreetViewSource.GOOGLE
+                }, (data, status) => {
+                    if (status === google.maps.StreetViewStatus.OK && data && data.links && data.links.length > 0) {
+                        updateGameModeInfo({
+                            starting_point: JSON.stringify({ 
+                                lat: data.location?.latLng?.lat(), 
+                                lng: data.location?.latLng?.lng() 
+                            }),
+                        });
+                    } else {
+                        console.warn("No navigable street point found nearby.");
+                    }
                 });
+
                 sv.setVisible(false);
             }
         });

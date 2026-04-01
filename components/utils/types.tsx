@@ -103,17 +103,8 @@ export interface StreetViewProps {
     players: Player[];
     endCondition?: 'first_bingo' | 'timer';
     hideMapSymbols?: boolean;
+    hideMiniMap?: boolean;
     exclusiveMode?: boolean;
-}
-
-export interface FastVotingViewProps {
-    gameId: string;
-    isHost: boolean;
-    categories: string[];
-    playerId: string;
-    players: Player[];
-    teamMode: 'ffa' | 'teams';
-    onFinishGame: () => Promise<void> | void;
 }
 
 export interface VotingViewProps {

@@ -53,7 +53,7 @@ interface LobbyViewProps {
     updateStatus: (nextStatus: GameStatus) => Promise<void>;
     setPlayers: (players: Player[] | ((prev: Player[]) => Player[])) => void;
     hideMapSymbols: boolean;
-    fastVoting: boolean;
+    hideMiniMap: boolean;
     categorySource: 'manual' | 'nearbyPlaces' | 'nearbyStreetView';
     generationRadius: number;
     generationNumber: number;
@@ -251,7 +251,7 @@ export default function LobbyView(props: LobbyViewProps) {
                     handleLeaveLobby={handleLeaveLobby}
                     setPlayers={props.setPlayers}
                     hideMapSymbols={props.hideMapSymbols}
-                    fastVoting={props.fastVoting}
+                    hideMiniMap={props.hideMiniMap}
                     updateGameModeInfo={props.updateGameModeInfo}
                     categorySource={props.categorySource}
                     isGenerating={isGenerating}
