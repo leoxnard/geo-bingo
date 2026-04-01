@@ -45,7 +45,10 @@ export default function LobbyMap({
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [selectedPreset, setSelectedPreset] = useState<string>('');
     const [searchTerm, setSearchTerm] = useState('');
-    const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
+    
+    // States für die Accordion / Tree-View Navigation
+    const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+    const [highlightedIndex, setHighlightedIndex] = useState<number>(0);
     
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -61,7 +64,6 @@ export default function LobbyMap({
         styles: [{ featureType: "all", elementType: "labels.icon", stylers: [{ visibility: "off" }] }]
     };
 
-    // Close dropdown if clicked outside
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -72,7 +74,6 @@ export default function LobbyMap({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Fetch the JSON file from the public folder on mount
     useEffect(() => {
         fetch('/geo_bingo_presets.json')
             .then(res => res.json())
@@ -117,6 +118,53 @@ export default function LobbyMap({
         return groups;
     }, [boundaryPresetsData]);
 
+    const filteredGroups = useMemo(() => {
+        const term = searchTerm.toLowerCase();
+        const result: Record<string, string[]> = {};
+        
+        Object.entries(groupedPresets).forEach(([groupName, items]) => {
+            result[groupName] = items.filter(item => 
+                item.replace(/_/g, ' ').toLowerCase().includes(term)
+            );
+        });
+        return result;
+    }, [searchTerm, groupedPresets]);
+
+    const groupNames = useMemo(() => Object.keys(filteredGroups), [filteredGroups]);
+
+    const visibleItems = useMemo(() => {
+        const list: { type: 'group' | 'item'; value: string; parentGroup?: string }[] = [];
+        groupNames.forEach(groupName => {
+            list.push({ type: 'group', value: groupName });
+            if (expandedGroup === groupName) {
+                filteredGroups[groupName].forEach(item => {
+                    list.push({ type: 'item', value: item, parentGroup: groupName });
+                });
+            }
+        });
+        return list;
+    }, [groupNames, expandedGroup, filteredGroups]);
+
+    useEffect(() => {
+        if (!isMenuOpen || searchTerm.trim() === '') return;
+        
+        const firstValidGroup = groupNames.find(g => filteredGroups[g].length > 0);
+        if (firstValidGroup) {
+            setExpandedGroup(firstValidGroup);
+            const groupIndex = groupNames.findIndex(g => g === firstValidGroup);
+            if (groupIndex !== -1) {
+                setHighlightedIndex(groupIndex + 1);
+            }
+        }
+    }, [searchTerm, isMenuOpen, groupNames, filteredGroups]);
+
+    useEffect(() => {
+        setHighlightedIndex(prev => {
+            if (visibleItems.length === 0) return 0;
+            return Math.min(prev, visibleItems.length - 1);
+        });
+    }, [visibleItems.length]);
+
     const draftBoundaries: BoundaryPolygon[] = useMemo(() => {
         if (!gameBoundary || gameBoundary === '[]') return [];
         try {
@@ -136,13 +184,9 @@ export default function LobbyMap({
 
     const activeBoundaryId = useMemo(() => {
         if (draftBoundaries.length === 0) return null;
-        
-        // If the user manually selected an ID and it still exists, use it
         if (selectedBoundaryId && draftBoundaries.some(b => b.id === selectedBoundaryId)) {
             return selectedBoundaryId;
         }
-        
-        // Otherwise, default to the most recently added boundary
         return draftBoundaries[draftBoundaries.length - 1].id;
     }, [draftBoundaries, selectedBoundaryId]);
 
@@ -157,16 +201,13 @@ export default function LobbyMap({
                 updateGameModeInfo({
                     starting_point: JSON.stringify({ lat: pos.lat(), lng: pos.lng() }),
                 });
-                
                 sv.setVisible(false);
             }
         });
 
         const visibleListener = google.maps.event.addListener(sv, 'visible_changed', () => {
             if (sv.getVisible()) {
-                setTimeout(() => {
-                    sv.setVisible(false);
-                }, 50);
+                setTimeout(() => sv.setVisible(false), 50);
             }
         });
 
@@ -212,7 +253,6 @@ export default function LobbyMap({
         setSelectedPreset('');
         
         const newGroups = [...displayBoundaries];
-        
         const [draggedGroup] = newGroups.splice(draggedIndex, 1);
         newGroups.splice(dropIndex, 0, draggedGroup);
         
@@ -226,42 +266,51 @@ export default function LobbyMap({
         setDraggedIndex(null);
     };
 
-    const searchResults = useMemo(() => {
-        if (!searchTerm.trim()) return [];
-        const term = searchTerm.toLowerCase();
-        return Object.keys(boundaryPresetsData).filter(key => 
-            key.replace(/_/g, ' ').toLowerCase().includes(term)
-        ).sort();
-    }, [searchTerm, boundaryPresetsData]);
-
-    // Flat list for keyboard navigation
-    const selectableItems = useMemo(() => {
-        if (searchTerm.trim() !== '') return searchResults;
-        const items: string[] = [];
-        Object.values(groupedPresets).forEach(group => items.push(...group));
-        return items;
-    }, [searchTerm, searchResults, groupedPresets]);
-
-    useEffect(() => { setHighlightedIndex(-1); }, [searchTerm]);
-
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (!isMenuOpen) {
+            if (e.key === 'ArrowDown' || e.key === 'Enter') setIsMenuOpen(true);
+            return;
+        }
+
+        const current = visibleItems[highlightedIndex];
+
         if (e.key === 'ArrowDown') {
             e.preventDefault();
-            setHighlightedIndex(prev => (prev < selectableItems.length - 1 ? prev + 1 : prev));
+            setHighlightedIndex(prev => Math.min(prev + 1, visibleItems.length - 1));
         } else if (e.key === 'ArrowUp') {
             e.preventDefault();
-            setHighlightedIndex(prev => (prev > 0 ? prev - 1 : 0));
+            setHighlightedIndex(prev => Math.max(prev - 1, 0));
+        } else if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            if (current?.type === 'group') {
+                const isEmpty = filteredGroups[current.value].length === 0;
+                if (!isEmpty && expandedGroup !== current.value) {
+                    setExpandedGroup(current.value);
+                } else if (!isEmpty) {
+                    setHighlightedIndex(prev => Math.min(prev + 1, visibleItems.length - 1));
+                }
+            }
+        } else if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            if (current?.type === 'item') {
+                const parentIdx = visibleItems.findIndex(i => i.type === 'group' && i.value === current.parentGroup);
+                if (parentIdx !== -1) setHighlightedIndex(parentIdx);
+            } else if (current?.type === 'group') {
+                // Ordner einklappen
+                setExpandedGroup(null);
+            }
         } else if (e.key === 'Enter') {
             e.preventDefault();
-            if (highlightedIndex >= 0 && highlightedIndex < selectableItems.length) {
-                handlePresetChange(selectableItems[highlightedIndex]);
+            if (current?.type === 'item') {
+                handlePresetChange(current.value);
                 setSearchTerm('');
-                setHighlightedIndex(-1);
-            } else if (searchResults.length === 1) {
-                handlePresetChange(searchResults[0]);
-                setSearchTerm('');
+                setIsMenuOpen(false);
+            } else if (current?.type === 'group') {
+                if (expandedGroup === current.value) setExpandedGroup(null);
+                else if (filteredGroups[current.value].length > 0) setExpandedGroup(current.value);
             }
         } else if (e.key === 'Escape') {
+            setIsMenuOpen(false);
             e.currentTarget.blur();
         }
     };
@@ -378,7 +427,6 @@ export default function LobbyMap({
                                     />
                                 )}
 
-                                {/* Generation radius */}
                                 {generationRadius && actualStart.startsWith('{') && (
                                     <Circle
                                         center={JSON.parse(actualStart)} 
@@ -453,7 +501,6 @@ export default function LobbyMap({
                     )}
                 </div>
                 
-                {/* Host Controls */}
                 {isHost && (
                     <div className="flex flex-col gap-4 my-2">
                         <div className="flex flex-col sm:flex-row justify-between items-center w-full text-sm text-slate-400 gap-2">
@@ -487,10 +534,8 @@ export default function LobbyMap({
                             </button>
                         </div>
 
-                        {/* Preset selection with search & click menu */}
                         <div ref={dropdownRef} className="relative w-full sm:w-64 z-[100]">
                             <span className="block text-xs text-slate-400 mb-1">Or select a preset boundary:</span>
-                            {/* Input field */}
                             <div 
                                 onClick={() => setIsMenuOpen(true)}
                                 className={`w-full bg-slate-900 border border-slate-700 hover:border-slate-500 rounded-lg flex items-center transition-colors cursor-text ${presetsLoading ? 'opacity-50 pointer-events-none' : ''}`}
@@ -509,70 +554,67 @@ export default function LobbyMap({
                                 <span className="pr-4 text-xs text-slate-400 pointer-events-none">▼</span>
                             </div>
 
-                            {/* Dropdown container */}
+                            {/* Dropdown-Menü */}
                             {isMenuOpen && (
                                 <div className="absolute left-0 top-full w-full pt-1 z-[100]">
-                                    {searchTerm.trim() !== '' || highlightedIndex >= 0 ? (
-                                        <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-xl py-1 max-h-64 overflow-y-auto">
-                                            {selectableItems.length > 0 ? (
-                                                selectableItems.map((item: string, idx: number) => {
-                                                    const isHighlighted = idx === highlightedIndex;
+                                    <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-xl py-1 max-h-64 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                                        {visibleItems.length > 0 ? (
+                                            visibleItems.map((item, idx) => {
+                                                const isHighlighted = highlightedIndex === idx;
+
+                                                if (item.type === 'group') {
+                                                    const count = filteredGroups[item.value].length;
+                                                    const isExpanded = expandedGroup === item.value;
+                                                    const isEmpty = count === 0;
+
                                                     return (
                                                         <div 
-                                                            key={item}
+                                                            key={`group-${item.value}`}
                                                             ref={isHighlighted ? (el) => el?.scrollIntoView({ block: 'nearest' }) : null}
+                                                            onMouseEnter={() => setHighlightedIndex(idx)}
                                                             onClick={() => {
-                                                                handlePresetChange(item);
-                                                                setSearchTerm('');
-                                                                setHighlightedIndex(-1);
-                                                                setIsMenuOpen(false);
+                                                                if (isExpanded) setExpandedGroup(null);
+                                                                else if (!isEmpty) setExpandedGroup(item.value);
                                                             }}
-                                                            className={`px-4 py-2 cursor-pointer text-slate-200 text-sm truncate ${isHighlighted ? 'bg-indigo-500' : 'hover:bg-indigo-500'}`}
+                                                            className={`px-4 py-2 cursor-pointer flex justify-between items-center text-sm transition-colors select-none
+                                                                ${isHighlighted ? 'bg-slate-700' : 'hover:bg-slate-700'}
+                                                                ${isEmpty ? 'text-slate-500' : 'text-slate-200'}
+                                                            `}
                                                         >
-                                                            {getDisplayName(item)}
+                                                            <span className="font-semibold">{item.value} <span className="text-xs font-normal opacity-50 ml-1">({count})</span></span>
+                                                            <span className={`text-[10px] transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
                                                         </div>
                                                     );
-                                                })
-                                            ) : (
-                                                <div className="px-4 py-2 text-slate-500 text-sm italic">No matches found</div>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-xl py-1">
-                                            {Object.entries(groupedPresets).map(([groupName, items]) => (
-                                                <div key={groupName} className="relative group/sub">
-                                                    <div className="px-4 py-2 hover:bg-indigo-600/50 cursor-pointer flex justify-between items-center text-slate-200 text-sm">
-                                                        <span>{groupName}</span>
-                                                        <span className="text-xs">▶</span>
-                                                    </div>
-                                                    
-                                                    <div className="absolute left-full top-0 pl-1 hidden group-hover/sub:block w-48 z-[100]">
-                                                        <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-2xl py-1 max-h-64 overflow-y-auto">
-                                                            {items.map(item => (
-                                                                <div 
-                                                                    key={item}
-                                                                    onMouseDown={(e) => { e.preventDefault(); }}
-                                                                    onClick={() => {
-                                                                        handlePresetChange(item);
-                                                                        setSearchTerm(''); 
-                                                                        setIsMenuOpen(false);
-                                                                    }}
-                                                                    className="px-4 py-2 hover:bg-indigo-500 cursor-pointer text-slate-200 text-sm truncate"
-                                                                >
-                                                                    {getDisplayName(item)}
-                                                                </div>
-                                                            ))}
+                                                } else {
+                                                    // Item Rendering
+                                                    return (
+                                                        <div 
+                                                            key={`item-${item.value}`}
+                                                            ref={isHighlighted ? (el) => el?.scrollIntoView({ block: 'nearest' }) : null}
+                                                            onMouseEnter={() => setHighlightedIndex(idx)}
+                                                            onMouseDown={(e) => { e.preventDefault(); }}
+                                                            onClick={() => {
+                                                                handlePresetChange(item.value);
+                                                                setSearchTerm(''); 
+                                                                setIsMenuOpen(false);
+                                                            }}
+                                                            className={`pl-8 pr-4 py-2 cursor-pointer text-sm truncate transition-colors
+                                                                ${isHighlighted ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-indigo-600/50 hover:text-white'}
+                                                            `}
+                                                        >
+                                                            {getDisplayName(item.value)}
                                                         </div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
+                                                    );
+                                                }
+                                            })
+                                        ) : (
+                                            <div className="px-4 py-2 text-slate-500 text-sm italic">No matching areas found</div>
+                                        )}
+                                    </div>
                                 </div>
                             )}
                         </div>
 
-                        {/* --- THE GROUPED BOUNDARY LIST BELOW --- */}
                         {displayBoundaries.length > 0 && (
                             <div className="flex flex-col gap-2 pr-2 mt-4">
                                 {displayBoundaries.map((g, index) => (
