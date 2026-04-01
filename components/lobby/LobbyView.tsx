@@ -89,6 +89,17 @@ export default function LobbyView(props: LobbyViewProps) {
             }
         }
 
+        try {
+            const { error } = await props.supabase
+                .from('players')
+                .update({ path: [] })
+                .eq('game_id', props.gameId);
+                
+            if (error) console.error("Error clearing player paths on game start:", error);
+        } catch (err) {
+            console.error("Unexpected error while clearing paths:", err);
+        }
+
         let finalCategories = [...props.categories];
         const neededCount = props.gameMode === 'bingo' ? props.gridSize * props.gridSize : props.generationNumber;
 
