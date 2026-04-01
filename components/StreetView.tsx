@@ -679,7 +679,7 @@ export default function StreetView({
                                                             <button type="button"
                                                                 onClick={(e) => { e.stopPropagation(); handleSubmit(cat); }}
                                                                 disabled={submittingCategory === cat || !inStreetView || isBlocked}
-                                                                className={`flex-1 text-[11px] px-2 py-2 font-bold rounded shadow uppercase transition-all ${isBlocked ? 'bg-red-900/50 text-red-300 cursor-not-allowed' : !inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-green-600/30 hover:bg-green-500/30 text-white'}`}
+                                                                className={`flex-1 text-[11px] px-2 py-2 font-bold rounded-lg shadow uppercase transition-all ${isBlocked ? 'bg-red-900/50 text-red-300 cursor-not-allowed' : !inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-green-600/30 hover:bg-green-500/30 text-white'}`}
                                                             >
                                                                 {submittingCategory === cat ? 'Saving...' : isBlocked ? 'Claimed' : !inStreetView ? 'Enter Streetview' : 'Save'}
                                                             </button>
@@ -691,7 +691,7 @@ export default function StreetView({
                                                                         type="button"
                                                                         onClick={(e) => { e.stopPropagation(); handleSubmit(cat); }}
                                                                         disabled={submittingCategory === cat || !inStreetView}
-                                                                        className={`flex-1 text-[10px] px-2 py-2 font-bold rounded shadow uppercase transition-all ${!inStreetView ? 'bg-slate-600/30 text-slate-300 cursor-not-allowed text-slate-300/30' : 'bg-amber-600/30 hover:bg-amber-500/30 text-white'}`}
+                                                                        className={`flex-1 text-[10px] px-2 py-2 font-bold rounded-lg shadow uppercase transition-all ${!inStreetView ? 'bg-slate-600/30 text-slate-300 cursor-not-allowed text-slate-300/30' : 'bg-amber-600/30 hover:bg-amber-500/30 text-white'}`}
                                                                     >
                                                                         {submittingCategory === cat ? '...' : !inStreetView ? 'Enter Streetview' : 'Overwrite'}
                                                                     </button>
@@ -701,7 +701,7 @@ export default function StreetView({
                                                                     <button
                                                                         type="button"
                                                                         onClick={(e) => { e.stopPropagation(); jumpToLocation(foundSub); }}
-                                                                        className={`${exclusiveMode ? 'flex-1' : 'flex-[0.5]'} bg-slate-700/40 hover:bg-slate-500/30 text-[10px] px-2 py-2 text-white font-bold rounded shadow uppercase transition-all`}
+                                                                        className={`${exclusiveMode ? 'flex-1' : 'flex-[0.5]'} bg-slate-700/40 hover:bg-slate-500/30 text-[10px] px-2 py-2 text-white font-bold rounded-lg shadow uppercase transition-all`}
                                                                     >
                                                                         View
                                                                     </button>

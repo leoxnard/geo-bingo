@@ -470,7 +470,7 @@ export default function VotingJourneyView({
                         },
                         label: {
                             text: place.name,
-                            className: "bg-slate-900/90 text-white p-3 rounded border border-indigo-500 text-[10px] font-bold mt-10 whitespace-nowrap shadow-lg",
+                            className: "bg-slate-900/90 text-white p-3 rounded-lg border border-indigo-500 text-[10px] font-bold mt-10 whitespace-nowrap shadow-lg",
                             color: '#a4b3ff'
                         },
                     }}
@@ -512,7 +512,7 @@ export default function VotingJourneyView({
             
             const labelConfig = {
                 text: combinedCategories,
-                className: "bg-slate-900/90 text-white p-3 rounded border border-indigo-500 text-[10px] font-bold mt-10 whitespace-nowrap shadow-lg",
+                className: "bg-slate-900/90 text-white p-3 rounded-lg border border-indigo-500 text-[10px] font-bold mt-10 whitespace-nowrap shadow-lg",
                 color: '#a4b3ff'
             };
 

@@ -426,7 +426,7 @@ export default function PodiumView({
                                                         return (
                                                             <div 
                                                                 key={idx} 
-                                                                className={`text-[9px] sm:text-[11px] flex items-center justify-center text-center p-1.5 rounded border overflow-hidden hyphens-auto break-all leading-tight h-full w-full ${styleClass}`}
+                                                                className={`text-[9px] sm:text-[11px] flex items-center justify-center text-center p-1.5 rounded-lg border overflow-hidden hyphens-auto break-all leading-tight h-full w-full ${styleClass}`}
                                                             >
                                                                 <span className="line-clamp-4">{word}</span>
                                                             </div>

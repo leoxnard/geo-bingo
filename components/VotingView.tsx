@@ -286,7 +286,7 @@ export default function FastVotingView({
                                         className={`${baseStyle} ${stateStyle}`}
                                     >
                                         <span className="truncate pr-2">{cat}</span>
-                                        <span className={`px-2 rounded text-xs py-1 whitespace-nowrap ${badgeColor}`}>
+                                        <span className={`px-2 rounded-lg text-xs py-1 whitespace-nowrap ${badgeColor}`}>
                                             {count}
                                         </span>
                                     </button>
@@ -401,7 +401,7 @@ export default function FastVotingView({
                                 const myVote = votesMap[playerId];
 
                                 const statusOverlay = (
-                                    <div className="absolute top-2 right-2 bg-indigo-600 px-3 py-1 rounded shadow uppercase font-bold text-xs">
+                                    <div className="absolute top-2 right-2 bg-indigo-600 px-3 py-1 rounded-lg shadow uppercase font-bold text-xs">
                                         {yesVotes} Points
                                     </div>
                                 );
@@ -429,7 +429,7 @@ export default function FastVotingView({
                                                 <span className="text-indigo-400">{playersMap[sub.player_id] || 'Unknown'}</span>
                                             </p>
                         
-                                            <div className="w-full h-2 bg-slate-700 rounded overflow-hidden flex mb-4">
+                                            <div className="w-full h-2 bg-slate-700 rounded-lg overflow-hidden flex mb-4">
                                                 {/* Voting percentage based on eligible voters */}
                                                 <div className="bg-green-500 h-full" style={{ width: `${totalVotesCast ? (yesVotes/totalVotesCast)*100 : 0}%` }}></div>
                                                 <div className="bg-red-500 h-full" style={{ width: `${totalVotesCast ? (noVotes/totalVotesCast)*100 : 0}%` }}></div>
@@ -444,7 +444,7 @@ export default function FastVotingView({
                                                     
                                                     if (isMySubmission || isMyTeamSubmission) {
                                                         return (
-                                                            <div className="flex-1 py-2 text-center text-slate-500 text-xs font-bold uppercase border border-slate-700 rounded bg-slate-800">
+                                                            <div className="flex-1 py-2 text-center text-slate-500 text-xs font-bold uppercase border border-slate-700 rounded-lg bg-slate-800">
                                                                 {isMySubmission ? 'Your Submission' : 'Team Submission'}
                                                             </div>
                                                         );
@@ -452,8 +452,8 @@ export default function FastVotingView({
                                                     
                                                     return (
                                                         <>
-                                                            <button type="button" onClick={() => handleVote(sub, true)} className={`flex-1 py-2 rounded font-bold uppercase text-xs border transition-all ${myVote === true ? 'bg-green-600 border-green-500 text-white' : 'bg-transparent border-slate-600 text-slate-400 hover:border-green-500 hover:text-green-500'}`}>Yes</button>
-                                                            <button type="button" onClick={() => handleVote(sub, false)} className={`flex-1 py-2 rounded font-bold uppercase text-xs border transition-all ${myVote === false ? 'bg-red-600 border-red-500 text-white' : 'bg-transparent border-slate-600 text-slate-400 hover:border-red-500 hover:text-red-500'}`}>No</button>
+                                                            <button type="button" onClick={() => handleVote(sub, true)} className={`flex-1 py-2 rounded-lg font-bold uppercase text-xs border transition-all ${myVote === true ? 'bg-green-600 border-green-500 text-white' : 'bg-transparent border-slate-600 text-slate-400 hover:border-green-500 hover:text-green-500'}`}>Yes</button>
+                                                            <button type="button" onClick={() => handleVote(sub, false)} className={`flex-1 py-2 rounded-lg font-bold uppercase text-xs border transition-all ${myVote === false ? 'bg-red-600 border-red-500 text-white' : 'bg-transparent border-slate-600 text-slate-400 hover:border-red-500 hover:text-red-500'}`}>No</button>
                                                         </>
                                                     );
                                                 })()}

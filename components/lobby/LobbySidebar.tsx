@@ -259,7 +259,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                         <div className="flex gap-2">
                             <button 
                                 onClick={handleRandomizeTeams}
-                                className="p-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded transition"
+                                className="p-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg transition"
                                 title="Randomize Teams"
                             >
                                 <FaRandom />
@@ -267,7 +267,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                             <button 
                                 onClick={() => setTeamCount(Math.min(displayTeamCount + 1, darkTeamColors.length))}
                                 disabled={displayTeamCount >= darkTeamColors.length}
-                                className={`p-2 rounded transition ${displayTeamCount >= darkTeamColors.length ? 'bg-slate-800 text-slate-600 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
+                                className={`p-2 rounded-lg transition ${displayTeamCount >= darkTeamColors.length ? 'bg-slate-800 text-slate-600 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
                                 title="Add Team"
                             >
                                 <FaPlus />
