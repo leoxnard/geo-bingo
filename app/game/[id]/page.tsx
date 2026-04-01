@@ -6,13 +6,13 @@ import { useRouter } from 'next/navigation';
 import toast, { Toaster } from 'react-hot-toast';
 import { CiCircleAlert, CiCircleCheck  } from "react-icons/ci";
 
-import LobbyView from '../../../components/lobby/LobbyView';
-import PodiumView from '../../../components/PodiumView';
-import StreetView from '../../../components/StreetView';
-import { shuffle } from '../../../components/utils/Functions';
-import { Player } from '../../../components/utils/types';
-import VotingView from '../../../components/VotingJourneyView';
-import FastVotingView from '../../../components/VotingView';
+import LobbyView from '@/components/lobby/LobbyView';
+import PodiumView from '@/components/PodiumView';
+import StreetView from '@/components/StreetView';
+import { shuffle } from '@/components/utils/Functions';
+import { Player } from '@/components/utils/types';
+import VotingView from '@/components/VotingJourneyView';
+import FastVotingView from '@/components/VotingView';
 import { adjectives, animals } from '../../../lib/names';
 import { supabase } from '../../../lib/supabase';
 
