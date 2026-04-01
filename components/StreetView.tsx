@@ -245,36 +245,40 @@ export default function StreetView({
             const pos = pano.getPosition();
             if (!pos) return;
 
-            const lastPoint = pathRef.current[pathRef.current.length - 1];
-            if (!lastPoint || lastPoint.lat !== pos.lat() || lastPoint.lng !== pos.lng()) {
-                pathRef.current.push({
-                    lat: pos.lat(),
-                    lng: pos.lng(),
-                    timestamp: Date.now()
-                });
-            }
-            
-            if (gameBoundary && gameBoundary !== '[]') {
-                const currentLoc = { lat: pos.lat(), lng: pos.lng() };
-                
-                if (isLocationAllowed(currentLoc, gameBoundary)) {
-                    lastValidPositionRef.current = pos;
-                    lastValidPanoRef.current = pano.getPano();
-                } else {
-                    isRevertingRef.current = true;
-                    toast("You've reached the edge of the allowed area or entered a forbidden zone!");
-                    if (lastValidPanoRef.current) {
-                        pano.setPano(lastValidPanoRef.current);
-                    } else if (lastValidPositionRef.current) {
-                        pano.setPosition(lastValidPositionRef.current);
-                    } else {
-                        pano.setVisible(false);
-                    }
+            let isValidLocation = true;
+            const currentLoc = { lat: pos.lat(), lng: pos.lng() };
 
-                    setTimeout(() => {
-                        isRevertingRef.current = false;
-                    }, 200);
+            if (gameBoundary && gameBoundary !== '[]') {
+                isValidLocation = isLocationAllowed(currentLoc, gameBoundary);
+            }
+
+            if (isValidLocation) {
+                lastValidPositionRef.current = pos;
+                lastValidPanoRef.current = pano.getPano();
+
+                const lastPoint = pathRef.current[pathRef.current.length - 1];
+                if (!lastPoint || lastPoint.lat !== pos.lat() || lastPoint.lng !== pos.lng()) {
+                    pathRef.current.push({
+                        lat: pos.lat(),
+                        lng: pos.lng(),
+                        timestamp: Date.now()
+                    });
                 }
+            } else {
+                isRevertingRef.current = true;
+                toast("You've reached the edge of the allowed area or entered a forbidden zone!");
+                
+                if (lastValidPanoRef.current) {
+                    pano.setPano(lastValidPanoRef.current);
+                } else if (lastValidPositionRef.current) {
+                    pano.setPosition(lastValidPositionRef.current);
+                } else {
+                    pano.setVisible(false);
+                }
+
+                setTimeout(() => {
+                    isRevertingRef.current = false;
+                }, 200);
             }
         });
 
