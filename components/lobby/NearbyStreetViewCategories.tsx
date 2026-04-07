@@ -11,7 +11,7 @@ Finds interesting visual elements and landmarks within game area.
 import { BingoCategory } from "../utils/types";
 import { getPromptForStreetViewCategories } from "./prompts/StreetViewPrompts";
 
-export const generateNearbyStreetViewCategories = async (startPos: { lat: number, lng: number }, radius: number, requiredCount: number, difficulty: 'default' | 'easy'): Promise<BingoCategory[]> => {
+export const generateNearbyStreetViewCategories = async (startPos: { lat: number, lng: number }, radius: number, requiredCount: number, difficulty: 'default' | 'easy', language: string): Promise<BingoCategory[]> => {
     try {
         const googleApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
         const geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
@@ -96,7 +96,7 @@ export const generateNearbyStreetViewCategories = async (startPos: { lat: number
             | { text: string }
             | { inlineData: { mimeType: string; data: string } };
 
-        const prompt = getPromptForStreetViewCategories(validImages.length, difficulty);
+        const prompt = getPromptForStreetViewCategories(validImages.length, difficulty, language);
         const parts: GeminiPart[] = [{ text: prompt }];
 
         validImages.forEach(img => {

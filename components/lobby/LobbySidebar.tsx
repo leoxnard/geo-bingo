@@ -47,7 +47,7 @@ interface LobbySidebarProps {
     hideMiniMap: boolean;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     updateGameModeInfo: (updates: any) => void;
-    categorySource: 'manual' | 'nearbyPlaces' | 'nearbyStreetView';
+    categorySource: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
     isGenerating: boolean;
 }
 
@@ -341,19 +341,23 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                 {props.isHost ? (
                     <button type="button" 
                         onClick={props.handleStartGame} 
-                        disabled={props.categories.length === 0 && props.categorySource === 'manual' || props.isGenerating}
-                        className={`w-full py-4 rounded-xl font-bold mt-8 tracking-wider uppercase ${props.categories.length === 0 && props.categorySource === 'manual' || props.isGenerating ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-500 text-white'}`}
+                        disabled={props.categories.length === 0 && (props.categorySource === 'manual' || props.categorySource === 'ai') || props.isGenerating}
+                        className={`w-full py-4 rounded-xl font-bold mt-8 tracking-wider ${
+                            props.categories.length === 0 && (props.categorySource === 'manual' || props.categorySource === 'ai') || props.isGenerating 
+                                ? 'bg-slate-700 text-slate-500 cursor-not-allowed' 
+                                : 'bg-green-700 text-white hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-green-500'
+                        }`}
                     >
                         {props.isGenerating ? 'Generating...' : 'Start Game'}
                     </button>
                 ) : (
-                    <div className="w-full bg-slate-700 text-slate-400 text-center py-4 rounded-xl font-bold mt-8 uppercase">
+                    <div className="w-full bg-slate-700 text-slate-400 text-center py-4 rounded-xl font-bold mt-8">
                         {props.isGenerating ? 'Generating...' : 'Waiting for host...'}
                     </div>
                 )}
 
                 <button type="button" onClick={props.handleLeaveLobby} className="w-full py-3 rounded-xl font-bold mt-3 border border-slate-600 text-slate-300 hover:bg-slate-700 transition-colors">
-                    LEAVE LOBBY
+                    Leave Lobby
                 </button>
             </div>
             <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 h-fit">

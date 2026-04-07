@@ -12,7 +12,7 @@ import { getGridLocations, getDistance, shuffle } from "../utils/Functions";
 import { BingoCategory } from "../utils/types";
 import { getPromptForNearbyPlaceCategories } from "./prompts/NearbyPlacePrompts";
 
-export const generateNearbyPlaceCategories = async (startPos: { lat: number, lng: number }, radius: number, requiredCount: number, difficulty: 'default' | 'easy'): Promise<BingoCategory[]> => {
+export const generateNearbyPlaceCategories = async (startPos: { lat: number, lng: number }, radius: number, requiredCount: number, difficulty: 'default' | 'easy', language: string): Promise<BingoCategory[]> => {
     try {
         const googleApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
         if (!googleApiKey) throw new Error("Google Maps API Key is missing!");
@@ -137,7 +137,7 @@ export const generateNearbyPlaceCategories = async (startPos: { lat: number, lng
 
         const cityCountry = shuffledPlaces[0].address?.split(',').slice(-2).join(',').trim() || shuffledPlaces[0].address;
 
-        const prompt = getPromptForNearbyPlaceCategories(cityCountry, uniquePlacesForLLM, requiredCount, difficulty);
+        const prompt = getPromptForNearbyPlaceCategories(cityCountry, uniquePlacesForLLM, requiredCount, difficulty, language);
 
         const geminiModels = ['gemini-2.5-flash', 'gemini-3-flash-preview', 'gemini-2.5-flash-lite', 'gemini-3.1-flash-lite-preview'];
         let aiResponse;

@@ -122,9 +122,9 @@ export default function LobbyView(props: LobbyViewProps) {
                         let complexResult;
                         
                         if (props.categorySource === 'nearbyStreetView') {
-                            complexResult = await generateNearbyStreetViewCategories(startPos, props.generationRadius, neededCount, props.difficulty);
+                            complexResult = await generateNearbyStreetViewCategories(startPos, props.generationRadius, neededCount, props.difficulty, props.language);
                         } else {
-                            complexResult = await generateNearbyPlaceCategories(startPos, props.generationRadius, neededCount, props.difficulty);
+                            complexResult = await generateNearbyPlaceCategories(startPos, props.generationRadius, neededCount, props.difficulty, props.language);
                         }
 
                         const simpleCategoryNames = complexResult.map(cat => cat.categoryName);

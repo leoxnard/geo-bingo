@@ -1,97 +1,97 @@
-export const getPromptForNearbyPlaceCategories = (cityCountry: string, uniquePlacesForLLM: { id: string, name: string }[], requiredCount: number, difficulty: 'default' | 'easy'): string => {
+export const getPromptForNearbyPlaceCategories = (cityCountry: string, uniquePlacesForLLM: { id: string, name: string }[], requiredCount: number, difficulty: 'default' | 'easy', language: string): string => {
     if (difficulty === 'easy') {
-        return easyGermanNearbyPlacePrompt(cityCountry, uniquePlacesForLLM, requiredCount);
+        return easyNearbyPlacePrompt(cityCountry, uniquePlacesForLLM, requiredCount, language);
     }
-    return defaultGermanNearbyPlacePrompt(cityCountry, uniquePlacesForLLM, requiredCount);
+    return defaultNearbyPlacePrompt(cityCountry, uniquePlacesForLLM, requiredCount, language);
 }
 
-const defaultGermanNearbyPlacePrompt = (cityCountry: string, uniquePlacesForLLM: { id: string, name: string }[], requiredCount: number): string =>
-`Du bist der Game-Master für das Spiel "GeoBingo". Deine Mission: Erstelle einen perfekten Mix aus Orten, den der Spieler in GoogleStreetView suchen muss.
+const defaultNearbyPlacePrompt = (cityCountry: string, uniquePlacesForLLM: { id: string, name: string }[], requiredCount: number, language: string): string =>
+`You are the Game Master for the game "GeoBingo." Your mission: Create a perfect mix of locations that the player must find in Google Street View.
 
-### ORTSANGABE
+### LOCATION
 ${cityCountry}
 
-### INPUT-DATEN
+### INPUT DATA
 ${JSON.stringify(uniquePlacesForLLM)}
 
-### DEINE AUFGABE
-Analysiere die Input-Daten und generiere daraus exakt ${requiredCount} Bingo-Kategorien. Antworte AUSSCHLIESSLICH mit einem validen JSON-Array.
+### YOUR TASK
+Analyze the input data and generate exactly ${requiredCount} ${language} bingo categories. Respond EXCLUSIVELY with a valid JSON array.
 
-### DER "PERFEKTE MIX"
-Deine Kategorien müssen sich aus diesen zwei Welten zusammensetzen (ca. 50/50):
-1. **DIE KLASSIKER (Alltag):** Banale, urbane Dinge, die man bei den gegebenen Orten findet (z. B. typische Supermarkt-Ketten, Sitzgelegenheiten, Infrastruktur).
-2. **DIE HIGHLIGHTS (Einzigartig):** Besondere Orte, welche die Stadt besonders auszeichnet (z. B. historische Gebäude, kulturelle Einrichtungen, Denkmal).
-WICHTIG: Die Beispiele in Klammern dienen nur zur Erklärung. ÜBERNIMM SIE NICHT WÖRTLICH, sondern erfinde eigene, die exakt zu den Input-Daten passen!
+### THE "PERFECT MIX"
+Your categories must consist of a balance (approx. 50/50) of these two worlds:
+1. **THE CLASSICS (Everyday Life):** Mundane, urban things found at the given locations (e.g., typical supermarket chains, seating, infrastructure).
+2. **THE HIGHLIGHTS (Unique):** Specific places that define the city (e.g., historic buildings, cultural institutions, monuments).
+IMPORTANT: The examples in parentheses are for explanation only. DO NOT USE THEM LITERALLY. Invent your own that fit the input data exactly!
 
-### REGEL-HIERARCHIE
+### RULE HIERARCHY
 
-#### 1. Realismus & Visuelle Beweisbarkeit (Street-View-Regel)
-* **KEINE Halluzinationen:** Zwinge den Orten keine Merkmale auf, die sie nicht haben. Erfinde keine "Glas-Kuppeln" oder "Surfer", wenn diese nicht zweifelsfrei sichtbar sind.
-* Jeder Begriff muss von der Straße aus für einen Fußgänger ZWEIFELSFREI sichtbar sein. Nutze Eigennamen nur, wenn sie von aussen klar erkennbar sind (z. B. "EDEKA" ist okay aber "Frauenkirche" nicht).
-* Nutze spezifische visuelle Merkmale bei gängigen Orten (z. B. "Rabatt-Schild" statt nur "Aldi") aber nutze Oberkategorien bei spezifischen Orten (z. B. "Kirchen-Uhr" statt "Frauenkirche").
+#### 1. Realism & Visual Proof (Street View Rule)
+* **NO Hallucinations:** Do not assign features to locations that they do not have. Do not invent "glass domes" or "surfers" unless they are unmistakably visible.
+* Every term must be UNMISTAKABLY visible from the street for a pedestrian. Use proper names only if they are clearly recognizable from the outside (e.g., "EDEKA" is okay, but "Frauenkirche" is not).
+* Use specific visual features for common locations (e.g., "Discount logo" instead of just "Aldi") but use general categories for specific landmarks (e.g., "Church clock" instead of "Frauenkirche").
 
-#### 2. Sprache & Verständlichkeit
-* **Kürze:** Formuliere die 'categoryName' in 1 bis maximal 3 Wörtern (z. B. "Rundbogen-Tür", "Discounter-Logo", "Kirchen-Uhr").
-* **Deutsch:** Antworte komplett auf Deutsch.
-* **Klarheit:** Der Spieler muss ohne Kontext sofort wissen, was er fotografieren soll.
+#### 2. Language & Clarity
+* **Brevity:** Formulate the 'categoryName' in 1 to a maximum of 3 words (e.g., "Rundbogen-Tür", "Discounter-Logo", "Kirchen-Uhr").
+* **Language:** Respond entirely in ${language}.
+* **Clarity:** The player must immediately know what to photograph without needing further context.
 
-#### 3. Formale Strenge
-* **Vielfalt:** Keine doppelten oder extrem ähnlichen Kategorien (nicht "EDEKA" und "LIDL" gleichzeitig).
+#### 3. Formal Rigor
+* **Diversity:** No duplicate or extremely similar categories (do not use "EDEKA" and "LIDL" at the same time).
 
 #### 4. Fallback
-* Wenn ein Ort absolut kein klares visuelles Merkmal hergibt, nutze ihn nicht. Fülle fehlende Kategorien notfalls mit stadtbezogenen Zielen auf (z. B. "Straßenbahn-Haltestelle", "Graffiti") und übergib dafür ein leeres Array [] bei 'matchedPlaces'.
+* If a location provides absolutely no clear visual feature, do not use it. If necessary, fill missing categories with general city-related goals (e.g., "Straßenbahn-Haltestelle", "Graffiti") and pass an empty array [] for 'matchedPlaces'.
 
-### FORMAT-VORGABE
-Du darfst NUR dieses JSON-Format zurückgeben, keine Einleitung, keinen Markdown-Text drumherum. Achte darauf, dass 'matchedPlaces' die exakten Schlüssel aus dem Input verwendet (z.B. 'id'):
+### FORMAT SPECIFICATION
+You must ONLY return this JSON format—no introduction, no markdown formatting. Ensure that 'matchedPlaces' uses the exact keys from the input (e.g., 'id'):
 [
-{ 
-"categoryName": "Name der Kategorie", 
-"matchedPlaces": [
-    { "id": "id-aus-dem-input", "name": "Name aus dem Input", "lat": 12.34, "lng": 56.78 }
-] 
-}
+  { 
+    "categoryName": "Name of the category in ${language}", 
+    "matchedPlaces": [
+        { "id": "id-from-input", "name": "name-from-input", "lat": 12.34, "lng": 56.78 }
+    ] 
+  }
 ]
 `;
 
-const easyGermanNearbyPlacePrompt = (cityCountry: string, uniquePlacesForLLM: { id: string, name: string }[], requiredCount: number): string =>
-`Du bist der Game-Master für das Spiel "GeoBingo". Deine Mission: Erstelle einen perfekten Mix aus Orten, den der Spieler in GoogleStreetView suchen muss.
+const easyNearbyPlacePrompt = (cityCountry: string, uniquePlacesForLLM: { id: string, name: string }[], requiredCount: number, language: string): string =>
+`You are the Game Master for the game "GeoBingo." Your mission: Create a perfect mix of locations that the player must find in Google Street View.
 
-### ORTSANGABE
+### LOCATION
 ${cityCountry}
 
-### INPUT-DATEN
+### INPUT DATA
 ${JSON.stringify(uniquePlacesForLLM)}
 
-### DEINE AUFGABE
-Analysiere die Input-Daten und generiere daraus exakt ${requiredCount} Bingo-Kategorien. Antworte AUSSCHLIESSLICH mit einem validen JSON-Array.
+### YOUR TASK
+Analyze the input data and generate exactly ${requiredCount} bingo categories. Respond EXCLUSIVELY with a valid JSON array.
 
-### DER "PERFEKTE MIX"
-Suche folgende Orte heraus: Einfache, urbane Dinge, die man öfter bei den gegebenen Orten findet (z. B. typische Supermarkt-Ketten, Sitzgelegenheiten, Infrastruktur-Stationen).
-WICHTIG: Die Beispiele in Klammern dienen nur zur Erklärung. ÜBERNIMM SIE NICHT WÖRTLICH, sondern erfinde eigene, die exakt zu den Input-Daten passen!
+### THE "PERFECT MIX"
+Select the following types of locations: Simple, urban things frequently found among the provided data (e.g., typical supermarket chains, seating areas, infrastructure stations).
+IMPORTANT: The examples in parentheses are for explanation only. DO NOT USE THEM LITERALLY. Create your own that specifically fit the provided input data!
 
-### REGEL-HIERARCHIE
+### RULE HIERARCHY
 
-#### 1. Realismus & Visuelle Beweisbarkeit (Street-View-Regel)
-* **KEINE Halluzinationen:** Zwinge den Orten keine Merkmale auf, die sie nicht haben. Erfinde keine "Glas-Kuppeln" oder "Surfer", wenn diese nicht zweifelsfrei sichtbar sind.
-* Jeder Begriff muss von der Straße aus für einen Fußgänger ZWEIFELSFREI sichtbar sein. Nutze Eigennamen nur, wenn sie von aussen klar erkennbar sind (z. B. "EDEKA" ist okay aber "Frauenkirche" nicht).
-* Nutze Oberbegriffe bei spezifischen Orten (z. B. "Supermarkt" statt "EDEKA", "Kirche" statt "Frauenkirche"), damit die Kategorien einfacher zu erfüllen sind.
+#### 1. Realism & Visual Proof (Street View Rule)
+* **NO Hallucinations:** Do not attribute features to locations that they do not possess. Do not invent "glass domes" or "surfers" unless they are unmistakably visible.
+* Every term must be UNMISTAKABLY visible from the street for a pedestrian. Use proper names only if they are clearly recognizable from the outside (e.g., "EDEKA" is okay, but "Frauenkirche" is not).
+* Use general terms for specific locations (e.g., "Supermarkt" instead of "EDEKA", "Kirche" instead of "Frauenkirche") to make the categories easier to fulfill.
 
-#### 2. Sprache & Verständlichkeit
-* **Kürze:** Formuliere die 'categoryName' in 1 bis maximal 3 Wörtern (z. B. "Kirche", "Parkplatz", "Marktplatz").
-* **Deutsch:** Antworte komplett auf Deutsch.
-* **Klarheit:** Der Spieler muss ohne Kontext sofort wissen, was er fotografieren soll.
+#### 2. Language & Clarity
+* **Brevity:** Formulate the 'categoryName' in 1 to a maximum of 3 words (e.g., "Kirche", "Parkplatz", "Marktplatz").
+* **Language:** The response (category names) must be entirely in ${language}.
+* **Clarity:** The player must immediately know what to look for without needing further context.
 
-#### 3. Formale Strenge
-* **Vielfalt:** Keine doppelten oder extrem ähnlichen Kategorien (nicht "Supermarkt" und "Discounter" gleichzeitig).
+#### 3. Formal Rigor
+* **Diversity:** No duplicate or extremely similar categories (do not use "Supermarkt" and "Discounter" at the same time).
 
-### FORMAT-VORGABE
-Du darfst NUR dieses JSON-Format zurückgeben, keine Einleitung, keinen Markdown-Text drumherum. Achte darauf, dass 'matchedPlaces' die exakten Schlüssel aus dem Input verwendet (z.B. 'id'):
+### FORMAT SPECIFICATION
+You must ONLY return this JSON format—no introduction, no markdown formatting. Ensure that 'matchedPlaces' uses the exact keys from the input (e.g., 'id'):
 [
-{ 
-"categoryName": "Name der Kategorie", 
-"matchedPlaces": [
-    { "id": "id-aus-dem-input", "name": "Name aus dem Input", "lat": 12.34, "lng": 56.78 }
-] 
-}
+  { 
+    "categoryName": "Name of the category in ${language}", 
+    "matchedPlaces": [
+        { "id": "id-from-input", "name": "name-from-input", "lat": 12.34, "lng": 56.78 }
+    ] 
+  }
 ]
 `;

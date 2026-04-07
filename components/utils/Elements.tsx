@@ -12,6 +12,7 @@ Provides consistent styling and interaction patterns across the app.
 
 
 import Image from 'next/image';
+import toast from 'react-hot-toast';
 
 
 const toggleFullscreen = async (containerRef: React.RefObject<HTMLDivElement | null>, setIsFullscreen: React.Dispatch<React.SetStateAction<boolean>>) => {
@@ -171,8 +172,9 @@ interface MultiToggleButtonProps<T extends string | number> {
     title: string;
     isHost?: boolean;
     position?: 'top' | 'middle' | 'bottom';
-    sizeRatios?: number[]; // Neues optionales Array für die Breiten
+    sizeRatios?: number[];
     description?: string;
+    allowedValues?: T[];
 }
 
 export const MultiToggleButton = <T extends string | number>({
@@ -186,6 +188,7 @@ export const MultiToggleButton = <T extends string | number>({
     position = 'middle',
     sizeRatios,
     description,
+    allowedValues,
 }: MultiToggleButtonProps<T>) => {
     const activeIndex = options.findIndex((opt) => opt.value === activeValue);
     const safeActiveIndex = activeIndex >= 0 ? activeIndex : 0;
@@ -229,14 +232,20 @@ export const MultiToggleButton = <T extends string | number>({
                 {/* Option Labels */}
                 {options.map((option, index) => {
                     const isActive = activeValue === option.value;
+                    const isOptionDisabled = disabled || (allowedValues && !allowedValues.includes(option.value));
                     return (
                         <button
                             key={option.value}
-                            onClick={() => onChange(option.value)}
-                            disabled={disabled}
+                            onClick={() => {
+                                if (!isOptionDisabled) {
+                                    onChange(option.value);
+                                } else {
+                                    toast.error('Set a starting point to enable this option');
+                                }
+                            }}
                             className={`
                                 relative z-10 py-2 text-sm font-semibold transition-colors duration-200 focus:outline-none
-                                ${isActive ? 'text-white' : 'text-slate-400 hover:text-slate-300'}
+                                ${isActive ? 'text-white' : isOptionDisabled ? 'text-slate-400/30' : 'text-slate-400 hover:text-slate-300'}
                             `}
                             style={{ flex: ratios[index] }}
                         >
