@@ -1,3 +1,13 @@
+/*
+================================================================================
+FUNCTIONS UTILITY MODULE
+================================================================================
+Common utility functions for the Geo Bingo application.
+Includes array shuffling, distance calculations, and game logic.
+Provides mathematical and data manipulation helpers.
+================================================================================
+*/
+
 import { Submission } from './types';
 
 

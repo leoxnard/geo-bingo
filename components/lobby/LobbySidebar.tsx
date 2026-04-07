@@ -1,5 +1,15 @@
 'use client';
 
+/*
+================================================================================
+LOBBY SIDEBAR COMPONENT
+================================================================================
+Manages player list, game settings, and lobby controls.
+Handles player joining, team assignment, and game start functionality.
+Provides game code sharing and lobby management features.
+================================================================================
+*/
+
 import { useState, useRef, useEffect } from 'react';
 
 import toast from 'react-hot-toast';
@@ -337,7 +347,9 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                         {props.isGenerating ? 'Generating...' : 'Start Game'}
                     </button>
                 ) : (
-                    <div className="w-full bg-slate-700 text-slate-400 text-center py-4 rounded-xl font-bold mt-8 uppercase">Waiting for host...</div>
+                    <div className="w-full bg-slate-700 text-slate-400 text-center py-4 rounded-xl font-bold mt-8 uppercase">
+                        {props.isGenerating ? 'Generating...' : 'Waiting for host...'}
+                    </div>
                 )}
 
                 <button type="button" onClick={props.handleLeaveLobby} className="w-full py-3 rounded-xl font-bold mt-3 border border-slate-600 text-slate-300 hover:bg-slate-700 transition-colors">

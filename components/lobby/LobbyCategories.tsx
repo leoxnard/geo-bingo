@@ -1,5 +1,15 @@
 'use client';
 
+/*
+================================================================================
+LOBBY CATEGORIES COMPONENT
+================================================================================
+Manages bingo category selection and game board configuration.
+Supports manual entry, nearby places, and street view-based generation.
+Provides category editing, shuffling, and validation functionality.
+================================================================================
+*/
+
 import React, { useState, useEffect, useRef } from 'react';
 
 import toast from 'react-hot-toast';

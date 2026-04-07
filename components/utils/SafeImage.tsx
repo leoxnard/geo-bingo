@@ -1,5 +1,15 @@
 'use client';
 
+/*
+================================================================================
+SAFE IMAGE COMPONENT
+================================================================================
+Error-handling image component with fallback functionality.
+Automatically retries failed images and handles loading states.
+Provides robust image display with multiple fallback strategies.
+================================================================================
+*/
+
 import { useState, useEffect } from 'react';
 
 export default function SafeImage({ src, alt, className }: { src: string, alt: string, className?: string }) {

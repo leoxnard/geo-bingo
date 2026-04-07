@@ -1,5 +1,15 @@
 'use client';
 
+/*
+================================================================================
+GAME PAGE
+================================================================================
+Main game interface controller for the Geo Bingo application.
+Manages game state transitions between lobby, playing, and voting phases.
+Integrates LobbyView, StreetView, VotingView, and PodiumView components.
+================================================================================
+*/
+
 import { useState, use, useEffect, useRef, useCallback } from 'react';
 
 import { useRouter } from 'next/navigation';

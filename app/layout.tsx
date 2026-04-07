@@ -1,3 +1,13 @@
+/*
+================================================================================
+ROOT LAYOUT
+================================================================================
+Global layout wrapper for the Geo Bingo application.
+Provides font configuration, metadata, and global styles.
+Sets up HTML structure and CSS imports for entire app.
+================================================================================
+*/
+
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";

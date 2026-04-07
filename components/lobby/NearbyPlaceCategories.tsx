@@ -1,3 +1,13 @@
+/*
+================================================================================
+NEARBY PLACE CATEGORIES MODULE
+================================================================================
+Generates bingo categories based on nearby places and POIs.
+Uses Google Places API to find interesting locations within radius.
+Supports difficulty levels and category filtering for game variety.
+================================================================================
+*/
+
 import { getGridLocations, getDistance, shuffle } from "../utils/Functions";
 import { BingoCategory } from "../utils/types";
 import { getPromptForNearbyPlaceCategories } from "./prompts/NearbyPlacePrompts";

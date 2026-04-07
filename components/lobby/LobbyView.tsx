@@ -1,5 +1,15 @@
 'use client';
 
+/*
+================================================================================
+LOBBY VIEW COMPONENT
+================================================================================
+Main game lobby interface for game setup and player management.
+Integrates categories, map, settings, and player management components.
+Handles game state synchronization and start game functionality.
+================================================================================
+*/
+
 import { useState } from 'react';
 
 import { useJsApiLoader } from '@react-google-maps/api';

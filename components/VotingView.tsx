@@ -1,5 +1,15 @@
 'use client';
 
+/*
+================================================================================
+VOTING VIEW COMPONENT
+================================================================================
+Displays player journey replay with real-time voting on submissions.
+Shows GPS path animation, submission markers, and street view integration.
+Features yellow submission markers and blue category markers on completed tracks.
+================================================================================
+*/
+
 import { useState, useEffect, useRef, useMemo } from 'react';
 
 import { GoogleMap, useJsApiLoader, Polyline, MarkerF, StreetViewPanorama, Circle, OverlayViewF, OverlayView } from '@react-google-maps/api';

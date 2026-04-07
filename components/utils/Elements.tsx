@@ -1,5 +1,15 @@
 'use client';
 
+/*
+================================================================================
+ELEMENTS UTILITY COMPONENTS
+================================================================================
+Reusable UI components for the Geo Bingo application.
+Includes buttons, sliders, toggles, input fields, and layout elements.
+Provides consistent styling and interaction patterns across the app.
+================================================================================
+*/
+
 
 import Image from 'next/image';
 

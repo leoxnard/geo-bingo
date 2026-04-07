@@ -1,3 +1,13 @@
+/*
+================================================================================
+MAP UTILS MODULE
+================================================================================
+Google Maps integration utilities and configuration.
+Provides map options, library definitions, and helper functions.
+Handles polygon insertion, boundary management, and map initialization.
+================================================================================
+*/
+
 export const GOOGLE_MAPS_LIBRARIES: ("places" | "geometry" | "drawing" | "visualization" | "marker")[] = ['places', 'geometry'];
 
 

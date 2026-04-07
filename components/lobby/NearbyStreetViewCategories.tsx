@@ -1,3 +1,13 @@
+/*
+================================================================================
+NEARBY STREET VIEW CATEGORIES MODULE
+================================================================================
+Generates bingo categories using AI analysis of street view locations.
+Combines Google Street View API with Gemini AI for creative categories.
+Finds interesting visual elements and landmarks within game area.
+================================================================================
+*/
+
 import { BingoCategory } from "../utils/types";
 import { getPromptForStreetViewCategories } from "./prompts/StreetViewPrompts";
 

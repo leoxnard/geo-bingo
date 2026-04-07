@@ -1,5 +1,15 @@
 'use client';
 
+/*
+================================================================================
+PODIUM VIEW COMPONENT
+================================================================================
+Displays final game results and winner announcements.
+Shows player rankings, scores, and voting statistics.
+Supports both individual and team game modes with animated podium display.
+================================================================================
+*/
+
 import { useState, useEffect } from 'react';
 
 import { supabase } from '../lib/supabase';

@@ -1,5 +1,15 @@
 'use client';
 
+/*
+================================================================================
+LOBBY MAP COMPONENT
+================================================================================
+Interactive map for game area and boundary configuration.
+Supports polygon drawing, radius setting, and starting point selection.
+Integrates with nearby place and street view category generation.
+================================================================================
+*/
+
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 
 import { GoogleMap, PolygonF, MarkerF, OverlayView, OverlayViewF, Circle } from '@react-google-maps/api';

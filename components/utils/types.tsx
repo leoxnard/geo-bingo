@@ -1,3 +1,13 @@
+/*
+================================================================================
+TYPES DEFINITIONS
+================================================================================
+Core TypeScript interfaces and type definitions for Geo Bingo.
+Includes game states, player data, submission structures, and component props.
+Provides type safety across the entire application.
+================================================================================
+*/
+
 // lib/types.ts
 
 export type GameStatus = 'lobby' | 'playing' | 'voting' | 'finished';

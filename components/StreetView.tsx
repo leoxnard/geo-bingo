@@ -1,5 +1,15 @@
 'use client';
 
+/*
+================================================================================
+STREET VIEW COMPONENT
+================================================================================
+Interactive street view interface for capturing submissions.
+Provides camera controls, position management, and submission recording.
+Features polygon drawing for category boundaries and real-time GPS tracking.
+================================================================================
+*/
+
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 
 import { GoogleMap, useJsApiLoader, StreetViewPanorama, Polygon } from '@react-google-maps/api';

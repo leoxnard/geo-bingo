@@ -1,3 +1,13 @@
+/*
+================================================================================
+GAME UTILS MODULE
+================================================================================
+Game-specific utility functions for player and team management.
+Handles visibility logic, team assignments, and game state calculations.
+Provides core game mechanics and player interaction helpers.
+================================================================================
+*/
+
 import { Player } from './types';
 
 export const getVisiblePlayerIds = (

@@ -1,5 +1,15 @@
 'use client';
 
+/*
+================================================================================
+LOBBY SETTINGS COMPONENT
+================================================================================
+Game configuration controls for mode and settings management.
+Handles grid size, team mode, and other game parameters.
+Provides toggle switches and range sliders for game customization.
+================================================================================
+*/
+
 import { useState } from 'react';
 
 import { ToggleButton, RangeSlider } from '../utils/Elements';

@@ -1,5 +1,15 @@
 'use client';
 
+/*
+================================================================================
+HOME PAGE
+================================================================================
+Main landing page for the Geo Bingo application.
+Provides game creation, joining, and player name setup.
+Features animated logo and name generation functionality.
+================================================================================
+*/
+
 import { useState } from 'react';
 
 import { useRouter } from 'next/navigation';

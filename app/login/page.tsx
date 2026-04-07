@@ -1,5 +1,15 @@
 'use client';
 
+/*
+================================================================================
+LOGIN PAGE
+================================================================================
+User authentication interface for the Geo Bingo application.
+Provides username/password input and authentication handling.
+Features error display and form validation functionality.
+================================================================================
+*/
+
 import { useState } from 'react';
 import { GeoBingoLogo } from '@/components/utils/Elements';
 import { authenticate } from './actions';
