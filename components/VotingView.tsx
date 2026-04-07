@@ -89,6 +89,7 @@ export function VotingView({
     const shownSubIdsRef = useRef<Set<string>>(new Set());
     const rAFRef = useRef(0);
     const markersRef = useRef<Map<string, google.maps.Marker>>(new Map());
+    const streetViewPanoramaRef = useRef<google.maps.StreetViewPanorama | null>(null);
 
     const dummyPath = useMemo(() => [], []);
     const dummyPos = useMemo(() => ({ lat: 0, lng: 0 }), []);
@@ -99,6 +100,8 @@ export function VotingView({
     const [categorySource, setCategorySource] = useState<string>('manual');
     const [hoveredFinalMarker, setHoveredFinalMarker] = useState<{lat: number, lng: number, categoryNames: string[]} | null>(null);
     const [selectedFinalMarker, setSelectedFinalMarker] = useState<{lat: number, lng: number, categoryNames: string[]} | null>(null);
+    const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
+    const [optimalHeading, setOptimalHeading] = useState<number | null>(null);
     
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
@@ -116,6 +119,11 @@ export function VotingView({
     }, [activeSubmission, submissions, currentPlayer]);
 
     useEffect(() => {
+        // Only auto-show street view for active submissions, not for manual selections
+        if (selectedFinalMarker || selectedSubmission) {
+            return; // Don't override manual selections
+        }
+        
         const delay = activeSubLatest ? 500 : 0;
         
         const timer = setTimeout(() => {
@@ -123,8 +131,46 @@ export function VotingView({
         }, delay); 
         
         return () => clearTimeout(timer);
-    }, [activeSubLatest]);
+    }, [activeSubLatest, selectedFinalMarker, selectedSubmission]);
 
+    // Fetch optimal heading from Street View metadata to match overlay preview
+    useEffect(() => {
+        if (selectedFinalMarker && isLoaded) {
+            const fetchOptimalHeading = async () => {
+                try {
+                    const response = await fetch(
+                        `https://maps.googleapis.com/maps/api/streetview/metadata?location=${selectedFinalMarker.lat},${selectedFinalMarker.lng}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
+                    );
+                    const data = await response.json();
+                    if (data.status === 'OK' && data.heading !== undefined) {
+                        setOptimalHeading(data.heading);
+                    } else {
+                        setOptimalHeading(null);
+                    }
+                } catch (error) {
+                    console.error('Error fetching Street View metadata:', error);
+                    setOptimalHeading(null);
+                }
+            };
+            
+            fetchOptimalHeading();
+        } else {
+            setOptimalHeading(null);
+        }
+    }, [selectedFinalMarker, isLoaded]);
+
+    // Manually set POV on Street View Panorama after it loads
+    useEffect(() => {
+        if (streetViewPanoramaRef.current && selectedFinalMarker && optimalHeading !== null) {
+            setTimeout(() => {
+                streetViewPanoramaRef.current?.setPov({
+                    heading: optimalHeading,
+                    pitch: 0
+                });
+            }, 500); // Small delay to ensure panorama is fully loaded
+        }
+    }, [selectedFinalMarker, optimalHeading]);
+    
     useEffect(() => {
         const calculateCapacity = () => {
             if (categoryRef.current) {
@@ -142,6 +188,7 @@ export function VotingView({
     }, []);
 
     const displaySub = activeSubLatest || lastActiveSub;
+    const streetViewDisplay = selectedSubmission || selectedFinalMarker || displaySub;
 
     const currentBoard = useMemo(() => {
         if (currentPlayer?.bingo_board && currentPlayer.bingo_board.length > 0) {
@@ -522,8 +569,53 @@ export function VotingView({
     }, [categoryDetails]);
 
     let finalCategoryMarkers = null;
+    let finalSubmissionMarkers = null;
 
     if (isLineComplete) {
+        // Add submission markers (yellow)
+        const currentPlayerSubmissions = submissions.filter(s => s.player_id === currentPlayer?.id);
+        finalSubmissionMarkers = currentPlayerSubmissions.map((sub, idx) => {
+            const mId = `final-sub-${sub.id}`;
+            return (
+                <MarkerF
+                    key={mId}
+                    position={{ lat: sub.lat, lng: sub.lng }}
+                    onLoad={(marker) => markersRef.current.set(mId, marker)}
+                    onUnmount={() => markersRef.current.delete(mId)}
+                    onMouseOver={() => {
+                        const marker = markersRef.current.get(mId);
+                        if (marker) {
+                            marker.setZIndex(100);
+                        }
+                    }}
+                    onMouseOut={() => {
+                        const marker = markersRef.current.get(mId);
+                        if (marker) {
+                            marker.setZIndex(6);
+                        }
+                    }}
+                    onClick={() => {
+                        setSelectedSubmission(sub);
+                        setSelectedFinalMarker(null);
+                        setIsStreetViewVisible(true);
+                    }}
+                    options={{
+                        icon: {
+                            path: window.google.maps.SymbolPath.CIRCLE,
+                            scale: 8,
+                            fillColor: '#fac800',
+                            fillOpacity: 1,
+                            strokeWeight: 2,
+                            strokeColor: '#ffffff',
+                        },
+                        zIndex: 6
+                    }}
+                    animation={typeof window !== 'undefined' && window.google ? window.google.maps.Animation.DROP : undefined}
+                />
+            );
+        });
+
+        // Add category markers (existing logic)
         finalCategoryMarkers = groupedFinalPlaces.map((group, idx) => {
             const mId = `final-group-${idx}`;
             const combinedCategories = group.categoryNames.join(' • ');
@@ -560,6 +652,7 @@ export function VotingView({
                     }}
                     onClick={() => {
                         setSelectedFinalMarker({ lat: group.lat, lng: group.lng, categoryNames: group.categoryNames });
+                        setSelectedSubmission(null);
                         setIsStreetViewVisible(true);
                     }}
                     options={{
@@ -593,6 +686,44 @@ export function VotingView({
     }, [isLineComplete]);
 
     const panoramaOptions = useMemo(() => {
+        if (selectedSubmission) {
+            return {
+                position: { lat: selectedSubmission.lat, lng: selectedSubmission.lng },
+                pov: { heading: selectedSubmission.heading, pitch: selectedSubmission.pitch },
+                zoom: selectedSubmission.zoom || 1,
+                visible: true, 
+                addressControl: false, 
+                showRoadLabels: false, 
+                enableCloseButton: false, 
+                linksControl: false, 
+                panControl: false, 
+                fullscreenControl: false, 
+                motionTracking: false,
+                zoomControl: false,
+                cameraControl: false,
+            };
+        }
+        if (selectedFinalMarker) {
+            const options: any = {
+                position: { lat: selectedFinalMarker.lat, lng: selectedFinalMarker.lng },
+                zoom: 1,
+                visible: true, 
+                addressControl: false, 
+                showRoadLabels: false, 
+                enableCloseButton: false, 
+                linksControl: false, 
+                panControl: false, 
+                fullscreenControl: false, 
+                motionTracking: false,
+                zoomControl: false,
+                cameraControl: false,
+            };
+            // Use fetched optimal heading if available
+            if (optimalHeading !== null) {
+                options.pov = { heading: optimalHeading, pitch: 0 };
+            }
+            return options;
+        }
         if (displaySub) {
             return {
                 position: { lat: displaySub.lat, lng: displaySub.lng },
@@ -610,25 +741,8 @@ export function VotingView({
                 cameraControl: false,
             };
         }
-        if (selectedFinalMarker) {
-            return {
-                position: { lat: selectedFinalMarker.lat, lng: selectedFinalMarker.lng },
-                pov: { heading: 0, pitch: 0 },
-                zoom: 0,
-                visible: true, 
-                addressControl: false, 
-                showRoadLabels: false, 
-                enableCloseButton: false, 
-                linksControl: false, 
-                panControl: false, 
-                fullscreenControl: false, 
-                motionTracking: false,
-                zoomControl: false,
-                cameraControl: false,
-            };
-        }
         return undefined;
-    }, [displaySub, selectedFinalMarker]);
+    }, [displaySub, selectedFinalMarker, selectedSubmission]);
 
     if (!isLoaded || !isDataLoaded) {
         return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-indigo-400 font-bold text-2xl tracking-widest uppercase">Loading...</div>;
@@ -700,6 +814,9 @@ export function VotingView({
 
                     {/* Final Category Markers */}
                     {finalCategoryMarkers}
+
+                    {/* Final Submission Markers */}
+                    {finalSubmissionMarkers}
 
                     {hoveredFinalMarker && categorySource === 'nearbyStreetView' && (
                         <OverlayViewF
@@ -801,19 +918,32 @@ export function VotingView({
                     <div className="flex-grow relative w-full">
                         <GoogleMap
                             mapContainerClassName="w-full h-full"
-                            center={displaySub ? { lat: displaySub.lat, lng: displaySub.lng } : selectedFinalMarker ? { lat: selectedFinalMarker.lat, lng: selectedFinalMarker.lng } : dummyPos}
+                            center={selectedSubmission ? { lat: selectedSubmission.lat, lng: selectedSubmission.lng } : selectedFinalMarker ? { lat: selectedFinalMarker.lat, lng: selectedFinalMarker.lng } : displaySub ? { lat: displaySub.lat, lng: displaySub.lng } : dummyPos}
                             options={{ disableDefaultUI: true, gestureHandling: 'greedy' }}
                         >
-                            {(displaySub || selectedFinalMarker) && (
+                            {(displaySub || selectedSubmission || selectedFinalMarker) && (
                                 <StreetViewPanorama 
+                                    key={`${selectedSubmission?.id || selectedFinalMarker?.lat || displaySub?.id || 'default'}-${Date.now()}`}
                                     options={panoramaOptions}
+                                    onLoad={(panorama) => {
+                                        streetViewPanoramaRef.current = panorama;
+                                        // Set POV immediately if we have optimal heading for category markers
+                                        if (selectedFinalMarker && optimalHeading !== null) {
+                                            setTimeout(() => {
+                                                panorama.setPov({
+                                                    heading: optimalHeading,
+                                                    pitch: 0
+                                                });
+                                            }, 100);
+                                        }
+                                    }}
                                 />
                             )}
                         </GoogleMap>
                     </div>
 
                     <div className="w-full bg-slate-900/95 backdrop-blur-xl border-t border-indigo-500/50 p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-20">
-                        {displaySub ? (
+                        {displaySub && !selectedSubmission && !selectedFinalMarker ? (
                             <div className="max-w-xl mx-auto">
                                 <h3 className="text-2xl font-black text-white mb-1 text-center truncate">{displaySub?.category}</h3>
                                 <p className="text-sm text-indigo-300 mb-4 text-center uppercase tracking-widest font-semibold">
@@ -863,6 +993,35 @@ export function VotingView({
                                         );
                                     })()}
                                 </div>
+                            </div>
+                        ) : selectedSubmission ? (
+                            <div className="max-w-xl mx-auto">
+                                <h3 className="text-xl sm:text-2xl font-black text-white mb-1 text-center truncate">
+                                    {selectedSubmission.category}
+                                </h3>
+                                <p className="text-sm text-indigo-300 mb-4 text-center uppercase tracking-widest font-semibold">
+                                    Submission by {players.find(p => p.id === selectedSubmission.player_id)?.name}
+                                </p>
+                                <div className="mb-4 text-center">
+                                    <div className="text-sm text-slate-400 mb-2">Voting Results</div>
+                                    <div className="flex gap-4 justify-center">
+                                        <div className="text-green-400 font-bold">
+                                            Yes: {Object.values(selectedSubmission.votes || {}).filter(v => v === true).length}
+                                        </div>
+                                        <div className="text-red-400 font-bold">
+                                            No: {Object.values(selectedSubmission.votes || {}).filter(v => v === false).length}
+                                        </div>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={() => {
+                                        setSelectedSubmission(null);
+                                        setIsStreetViewVisible(false);
+                                    }} 
+                                    className="w-full py-4 rounded-xl font-black uppercase text-lg border bg-slate-800 border-slate-600 text-slate-300 hover:border-indigo-500 hover:text-indigo-500 transition-all shadow-lg"
+                                >
+                                    Back to Board
+                                </button>
                             </div>
                         ) : selectedFinalMarker ? (
                             <div className="max-w-xl mx-auto">
