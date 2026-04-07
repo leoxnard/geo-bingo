@@ -22,6 +22,7 @@ import StreetView from '@/components/StreetView';
 import { shuffle } from '@/components/utils/Functions';
 import { Player } from '@/components/utils/types';
 import { VotingView } from '@/components/VotingView';
+
 import { adjectives, animals } from '../../../lib/names';
 import { supabase } from '../../../lib/supabase';
 
@@ -263,7 +264,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
         initializeRoom();
 
-       // Realtime Listeners
+        // Realtime Listeners
         const gameChannel = supabase.channel(`game-updates-${gameId}`)
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${gameId}` }, 
                 (payload) => {

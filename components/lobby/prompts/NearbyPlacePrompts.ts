@@ -6,7 +6,7 @@ export const getPromptForNearbyPlaceCategories = (cityCountry: string, uniquePla
 }
 
 const defaultNearbyPlacePrompt = (cityCountry: string, uniquePlacesForLLM: { id: string, name: string }[], requiredCount: number, language: string): string =>
-`You are the Game Master for the game "GeoBingo." Your mission: Create a perfect mix of locations that the player must find in Google Street View.
+    `You are the Game Master for the game "GeoBingo." Your mission: Create a perfect mix of locations that the player must find in Google Street View.
 
 ### LOCATION
 ${cityCountry}
@@ -54,7 +54,7 @@ You must ONLY return this JSON format—no introduction, no markdown formatting.
 `;
 
 const easyNearbyPlacePrompt = (cityCountry: string, uniquePlacesForLLM: { id: string, name: string }[], requiredCount: number, language: string): string =>
-`You are the Game Master for the game "GeoBingo." Your mission: Create a perfect mix of locations that the player must find in Google Street View.
+    `You are the Game Master for the game "GeoBingo." Your mission: Create a perfect mix of locations that the player must find in Google Street View.
 
 ### LOCATION
 ${cityCountry}

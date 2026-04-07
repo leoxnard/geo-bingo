@@ -62,6 +62,8 @@ export default function LobbyMap({
     
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [boundaryPresetsData, setBoundaryPresetsData] = useState<Record<string, any[]>>({});
     const [presetsLoading, setPresetsLoading] = useState(true);
 

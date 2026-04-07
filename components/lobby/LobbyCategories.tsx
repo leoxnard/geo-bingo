@@ -15,9 +15,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { CiCirclePlus, CiCircleMinus, CiCircleRemove, CiCircleCheck, CiCircleQuestion } from "react-icons/ci";
 
-import { RangeSlider, MultiToggleButton, Selection } from '../utils/Elements';
-import { shuffle } from '../utils/Functions';
 import { generateAICategories } from './AICategories';
+import { RangeSlider, MultiToggleButton } from '../utils/Elements';
+import { shuffle } from '../utils/Functions';
 
 interface CategoryItemProps {
     initialValue: string;
@@ -426,7 +426,7 @@ export default function LobbyCategories({
     const handleSuggestCategory = async () => {
         const trimmedCat = newCategory.trim();
         if (trimmedCat !== '' && !isHost) {
-           if (localCategories.some(c => (c ?? '').toLowerCase() === trimmedCat.toLowerCase())) {
+            if (localCategories.some(c => (c ?? '').toLowerCase() === trimmedCat.toLowerCase())) {
                 toast.error("This category already exists!");
                 return;
             }

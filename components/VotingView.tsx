@@ -188,7 +188,6 @@ export function VotingView({
     }, []);
 
     const displaySub = activeSubLatest || lastActiveSub;
-    const streetViewDisplay = selectedSubmission || selectedFinalMarker || displaySub;
 
     const currentBoard = useMemo(() => {
         if (currentPlayer?.bingo_board && currentPlayer.bingo_board.length > 0) {
@@ -434,7 +433,7 @@ export function VotingView({
 
         rAFRef.current = requestAnimationFrame(animate);
         return () => cancelAnimationFrame(rAFRef.current);
-    }, [isPaused, isLineComplete, mapInstance, pathData, isPreloading]);
+    }, [isPaused, isLineComplete, mapInstance, pathData, isPreloading, calculatedDuration]);
 
     // 
     useEffect(() => {

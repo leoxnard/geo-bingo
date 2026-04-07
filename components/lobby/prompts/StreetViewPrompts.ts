@@ -6,7 +6,7 @@ export const getPromptForStreetViewCategories = (validImagesLength: number, diff
 }
 
 const defaultGermanStreetViewPrompt = (validImagesLength: number, language: string): string =>
-`You are the Game Master for the game "GeoBingo."
+    `You are the Game Master for the game "GeoBingo."
 Your mission: Identify particularly interesting, unique, or curious details in the following Street View images that players should search for in real life.
 
 You will receive ${validImagesLength} images. Each image is marked with an "Image ID."
@@ -36,7 +36,7 @@ Respond EXCLUSIVELY with a valid JSON array in this format, with no markdown for
 ]`;
 
 const easyGermanStreetViewPrompt = (validImagesLength: number, language: string): string =>
-`You are the Game Master for the game "GeoBingo."
+    `You are the Game Master for the game "GeoBingo."
 Your mission: Identify particularly interesting, unique, or curious details in the following Street View images that players should search for in real life.
 
 You will receive ${validImagesLength} images. Each image is marked with an "Image ID."

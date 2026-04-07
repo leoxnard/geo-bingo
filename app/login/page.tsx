@@ -11,7 +11,9 @@ Features error display and form validation functionality.
 */
 
 import { useState } from 'react';
+
 import { GeoBingoLogo } from '@/components/utils/Elements';
+
 import { authenticate } from './actions';
 
 export default function LoginPage() {
