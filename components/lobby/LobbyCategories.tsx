@@ -183,6 +183,7 @@ interface LobbyCategoriesProps {
         generation_radius?: number;
         generation_number?: number;
         difficulty?: 'default' | 'easy';
+        categories_generated?: boolean;
     }) => void;
     isHost: boolean;
     gameMode: 'list' | 'bingo';
@@ -199,6 +200,7 @@ interface LobbyCategoriesProps {
     generationRadius: number;
     generationNumber: number;
     difficulty: 'default' | 'easy';
+    categoriesGenerated: boolean;
 }
 
 export default function LobbyCategories({
@@ -216,7 +218,8 @@ export default function LobbyCategories({
     categorySource,
     generationRadius,
     generationNumber,
-    difficulty
+    difficulty,
+    categoriesGenerated
 }: LobbyCategoriesProps) {
     const [newCategory, setNewCategory] = useState(''); 
     const [randomNumber, setRandomNumber] = useState<number | ''>(10);
@@ -230,8 +233,6 @@ export default function LobbyCategories({
     // AI Generation state
     const [customPrompt, setCustomPrompt] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
-    const [lastGenerationTime, setLastGenerationTime] = useState<number | null>(null);
-    const [categoriesGeneratedByAI, setCategoriesGeneratedByAI] = useState(false);
     
     const isPendingSyncRef = useRef(false);
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -255,8 +256,7 @@ export default function LobbyCategories({
             const newCategories = aiCategories.map((cat: any) => cat.categoryName);
             
             queueDBSave(newCategories);
-            setLastGenerationTime(Date.now());
-            setCategoriesGeneratedByAI(true);
+            await updateGameModeInfo({ categories_generated: true });
             toast.success(`Generated ${newCategories.length} AI categories successfully!`);
             
         } catch (error) {
@@ -513,7 +513,7 @@ export default function LobbyCategories({
 
     return (
         <div className="bg-slate-800 p-6 rounded-xl flex-1 border border-slate-700 h-fit">
-            {categoriesGeneratedByAI === false && (
+            {categoriesGenerated === false && (
                 <>
                     <MultiToggleButton
                         title='Category Source'
@@ -525,7 +525,7 @@ export default function LobbyCategories({
                         ]}
                         activeValue={categorySource}
                         onChange={(val) => updateGameModeInfo(
-                            val === 'ai' ? { category_source: val, categories: [] } : { category_source: val }
+                            val === 'ai' ? { category_source: val, categories: [], categories_generated: false } : { category_source: val, categories_generated: false }
                         )}
                         disabled={!isHost}
                         allowedValues={startingPoint === 'open-world' ? ['manual', 'ai'] : undefined}
@@ -639,7 +639,7 @@ export default function LobbyCategories({
                 </>
             )}
 
-            {(categorySource === 'manual' || (categorySource === 'ai' && categoriesGeneratedByAI)) && (
+            {(categorySource === 'manual' || (categorySource === 'ai' && categoriesGenerated)) && (
                 <>
                     <h3 className={`text-xl font-bold mb-4 text-slate-300 flex justify-between items-center transition-all ${categorySource === 'manual' ? 'pt-4 border-t border-slate-700' : ''}`}>
                         <span>Categories</span>
@@ -819,17 +819,19 @@ export default function LobbyCategories({
                         </div>
                     )}
 
-                    {suggestedCategories.length > 0 && (
-                        <div className="p-4 bg-slate-800/80 rounded-xl border border-dashed border-indigo-500/50 mt-6">
-                            <h4 className="text-xs font-bold text-indigo-400 mb-3 uppercase tracking-wider">
-                                Player Suggestions
-                            </h4>
-                            <ul className="space-y-2">
-                                {suggestedCategories.map((cat, i) => (
+                    <div className="p-4 bg-slate-800/80 rounded-xl border border-dashed border-indigo-500/50 mt-6">
+                        <h4 className="text-xs font-bold text-indigo-400 mb-3 uppercase tracking-wider">
+                            Player Suggestions
+                        </h4>
+                        <ul className="space-y-2">
+                            {suggestedCategories.length === 0 ? (
+                                <li className="text-slate-500 italic py-2">No suggestions yet</li>
+                            ) : (
+                                suggestedCategories.map((cat, i) => (
                                     <li key={i} className="bg-slate-700 rounded-lg flex justify-between items-center border border-slate-600 italic shadow-sm overflow-hidden p-1 h-[42px]">
                                         <span className="break-words py-2 px-3 flex items-center text-white">{cat}</span>
-                                        {isHost && (
-                                            <div className="flex shrink-0 border-l border-slate-600">
+                                            {isHost && (
+                                                <div className="flex shrink-0 border-l border-slate-600">
                                                 <button 
                                                     type="button" 
                                                     onClick={() => acceptSuggestion(cat)} 
@@ -849,10 +851,10 @@ export default function LobbyCategories({
                                             </div>
                                         )}
                                     </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
+                                ))
+                            )}
+                        </ul>
+                    </div>
                 </>
             )}
         </div>

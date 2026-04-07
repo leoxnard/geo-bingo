@@ -69,6 +69,7 @@ interface LobbyViewProps {
     generationNumber: number;
     language: 'english' | 'german';
     difficulty: 'default' | 'easy';
+    categoriesGenerated: boolean;
 }
 
 export default function LobbyView(props: LobbyViewProps) {
@@ -240,6 +241,7 @@ export default function LobbyView(props: LobbyViewProps) {
                         generationRadius={props.generationRadius}
                         generationNumber={props.generationNumber}
                         difficulty={props.difficulty}
+                        categoriesGenerated={props.categoriesGenerated}
                     />
                 </div>
 
