@@ -334,15 +334,23 @@ export default function LobbyCategories({
         queueDBSave(updated);
     };
 
-    // Helferfunktion für den Abruf der Wörter basierend auf der DB Source
     const getAvailableWords = async () => {
-        const { categoriesDe, categoriesEn, GEOGUESSR_DB_DE, GEOGUESSR_DB_EN } = await import('../../lib/categories');
+        const { 
+            categoriesDe, categoriesEn,
+            categoriesSimpleDe, categoriesSimpleEn,
+            categoriesHardDe, categoriesHardEn,
+            GeoGuessrMetaDe, GeoGuessrMetaEn,
+        } = await import('../../lib/categories');
         let allWords: string[] = [];
 
-        if (wordSource === 'standard') {
+        if (wordSource === 'balanced') {
             allWords = language === 'german' ? categoriesDe : categoriesEn;
+        } else if (wordSource === 'easy') {
+            allWords = language === 'german' ? categoriesSimpleDe : categoriesSimpleEn;
+        } else if (wordSource === 'hard') {
+            allWords = language === 'german' ? categoriesHardDe : categoriesHardEn;
         } else {
-            const geoDb = language === 'german' ? GEOGUESSR_DB_DE : GEOGUESSR_DB_EN;
+            const geoDb = language === 'german' ? GeoGuessrMetaDe : GeoGuessrMetaEn;
             if (wordSource === 'geo_all') {
                 allWords = geoDb.map((item: { term: string; category: string }) => item.term);
             } else {
@@ -772,7 +780,9 @@ export default function LobbyCategories({
                                     <Selection
                                         title="Database"
                                         options={[
-                                            { label: 'Standard', value: 'standard' },
+                                            { label: 'Balanced', value: 'balanced' },
+                                            { label: 'Easy', value: 'easy' },
+                                            { label: 'Hard', value: 'hard' },
                                             { label: 'GeoGuessr Meta (All)', value: 'geo_all' },
                                             { label: 'GeoGuessr Meta: Vehicles', value: 'geo_Vehicle' },
                                             { label: 'GeoGuessr Meta: Camera', value: 'geo_Camera' },

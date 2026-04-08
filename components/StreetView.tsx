@@ -22,7 +22,7 @@ import { FullscreenButton, GeoBingoLogo } from './utils/Elements';
 import { calculateBingoCounter, getDistance } from './utils/Functions';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from './utils/mapUtils';
 import { Submission, StreetViewProps, PathPoint, BoundaryPolygon } from './utils/types';
-import { GEOGUESSR_DB_DE, GEOGUESSR_DB_EN } from '../lib/categories';
+import { GeoGuessrMetaDe, GeoGuessrMetaEn } from '../lib/categories';
 
 const safeStartCenter = { lat:30, lng: 10 };
 const initialWorldZoom = 2.4;
@@ -39,9 +39,9 @@ const panoOptions = {
 
 // Hilfsfunktion, um den Hint für eine Kategorie aus der Datenbank zu fischen
 const getHintForCategory = (cat: string) => {
-    const foundDe = GEOGUESSR_DB_DE?.find(item => item.term === cat);
+    const foundDe = GeoGuessrMetaDe?.find(item => item.term === cat);
     if (foundDe) return foundDe.term_hint;
-    const foundEn = GEOGUESSR_DB_EN?.find(item => item.term === cat);
+    const foundEn = GeoGuessrMetaEn?.find(item => item.term === cat);
     if (foundEn) return foundEn.term_hint;
     return null;
 };

@@ -81,6 +81,66 @@ export const categoriesDe = [
     'Fitnessstudio', 'Zoo', 'Anhänger', 'Badende Person', 'Surfer', 'Gondelbahn', 'Riesenrad', 'Karusell',
 ];
 
+export const categoriesSimpleDe = [
+    'Auto', 'Baum', 'Haus', 'Straße', 'Schild', 'Himmel', 'Wolke', 
+    'Gras', 'Fenster', 'Tür', 'Schatten', 'Mensch', 'Fahrrad', 
+    'Laterne', 'Zaun', 'Busch', 'Mauer', 'Dach', 'Stein', 'Wasser', 
+    'Bank', 'Ampel', 'Kreuzung', 'Parkplatz', 'Mülleimer', 'LKW', 
+    'Bus', 'Motorrad', 'Hund', 'Katze', 'Vogel', 'Blume', 'Brücke', 
+    'Briefkasten', 'Gullydeckel', 'Schaufenster', 'Balkon', 'Treppe', 
+    'Kamin', 'Satellitenschüssel', 'Plakat', 'Haltestelle', 'Bürgersteig', 
+    'Zebrastreifen', 'Strommast', 'Gleise', 'Graffiti', 'Hydrant', 
+    'Weißes Auto', 'Schwarzes Auto', 'Rotes Auto', 'Silbernes Auto', 
+    'Verkehrsinsel', 'Wiese', 'Wald', 'Feld', 'Berg', 'Sand'
+];
+
+export const categoriesSimpleEn = [
+    'Car', 'Tree', 'House', 'Road', 'Sign', 'Sky', 'Cloud', 
+    'Grass', 'Window', 'Door', 'Shadow', 'Person', 'Bicycle', 
+    'Street lamp', 'Fence', 'Bush', 'Wall', 'Roof', 'Stone', 'Water', 
+    'Bench', 'Traffic light', 'Intersection', 'Parking lot', 'Trash can', 'Truck', 
+    'Bus', 'Motorcycle', 'Dog', 'Cat', 'Bird', 'Flower', 'Bridge', 
+    'Mailbox', 'Manhole cover', 'Storefront', 'Balcony', 'Stairs', 
+    'Chimney', 'Satellite dish', 'Billboard', 'Bus stop', 'Sidewalk', 
+    'Crosswalk', 'Utility pole', 'Railway track', 'Graffiti', 'Fire hydrant', 
+    'White car', 'Black car', 'Red car', 'Silver car', 
+    'Traffic island', 'Meadow', 'Forest', 'Field', 'Mountain', 'Sand'
+];
+
+export const categoriesHardDe = [
+    'Storchennest', 'Reetdach', 'Pferdekutsche', 'Solarpark', 'Wasserturm', 
+    'Schrottplatz', 'Leuchtturm', 'Windmühle', 'Fachwerkhaus', 'Obelisk', 
+    'Kreisverkehr mit Kunstwerk', 'Oberleitung für Busse', 'Müllwagen', 'Betonmischer', 
+    'Botschaftsgebäude', 'Gewächshaus-Anlage', 'Weinreben', 'Olivenbaum', 'Kaktus', 
+    'Palmenallee', 'Bananenstaude', 'Schneepflug', 'Seilbahn', 'Skilift', 
+    'Hubschrauberlandeplatz', 'Observatorium', 'Burgruine', 'Aquädukt', 'Wasserfall', 
+    'Geysir', 'Hängebrücke', 'Geschlossene Schranke', 'Mautstation', 'Grenzübergang', 
+    'Militärfahrzeug', 'Reiterstandbild (Pferd)', 'Sonnenuhr', 'Wetterstation', 
+    'Rot-weißer Funkmast', 'Blitzer (Radarfalle)', 'Straßenschild (3+ Sprachen)', 
+    'Unbefestigte Straße (Dirt Road)', 'Riesiges Schlagloch', 'Überflutete Straße', 
+    'Regenbogen', 'Heißluftballon', 'Gedenkkreuz am Straßenrand', 
+    'Telefonzelle (außer Betrieb)', 'Traktor mit Anhänger', 'Golfplatz', 
+    'Friedhof', 'Satellitenschüssel auf dem Boden', 'Glockenturm', 'Schneemann',
+    'Oldtimer', 'Wohnmobil mit Fahrrädern hinten', 'Verlassenes Gebäude'
+];
+
+export const categoriesHardEn = [
+    'Stork nest', 'Thatch roof', 'Horse-drawn carriage', 'Solar farm', 'Water tower', 
+    'Junkyard', 'Lighthouse', 'Windmill', 'Half-timbered house', 'Obelisk', 
+    'Roundabout with art', 'Trolleybus lines', 'Garbage truck', 'Cement mixer', 
+    'Embassy building', 'Greenhouse complex', 'Vineyards', 'Olive tree', 'Cactus', 
+    'Palm tree avenue', 'Banana plant', 'Snowplow', 'Cable car', 'Ski lift', 
+    'Helipad', 'Observatory', 'Castle ruins', 'Aqueduct', 'Waterfall', 
+    'Geyser', 'Suspension bridge', 'Closed boom barrier', 'Toll booth', 'Border crossing', 
+    'Military vehicle', 'Equestrian statue (Horse)', 'Sundial', 'Weather station', 
+    'Red and white radio mast', 'Speed camera', 'Street sign (3+ languages)', 
+    'Dirt road', 'Massive pothole', 'Flooded road', 
+    'Rainbow', 'Hot air balloon', 'Roadside memorial cross', 
+    'Out of order phone booth', 'Tractor with trailer', 'Golf course', 
+    'Cemetery', 'Ground-mounted satellite dish', 'Bell tower', 'Snowman',
+    'Classic / Vintage car', 'RV with bikes on back', 'Abandoned building'
+];
+
 interface GeoMeta {
   term: string;
   countries: string[];
@@ -89,7 +149,7 @@ interface GeoMeta {
   term_hint: string;
 }
 
-export const GEOGUESSR_DB_DE: GeoMeta[] = [
+export const GeoGuessrMetaDe: GeoMeta[] = [
   // --- VEHICLE ---
   { term: "Schwarzer Schnorchel", countries: ["Kenia", "Mongolei"], description: "Ansaugrohr vorne rechts.", category: 'Vehicle', term_hint: "Ostafrika oder zentralasiatische Steppe" },
   { term: "Dachträger + Reifen", countries: ["Guatemala"], description: "Dachträger mit Reserverad.", category: 'Vehicle', term_hint: "Zentralamerika" },
@@ -188,7 +248,7 @@ export const GEOGUESSR_DB_DE: GeoMeta[] = [
   { term: "Drohnen-Schatten", countries: ["Diverse Sehenswürdigkeiten"], description: "Luftaufnahmen.", category: 'Camera', term_hint: "Oft bei Denkmälern/Parks" },
 ];
 
-export const GEOGUESSR_DB_EN: GeoMeta[] = [
+export const GeoGuessrMetaEn: GeoMeta[] = [
   // --- VEHICLE ---
   { term: "Black Snorkel", countries: ["Kenya", "Mongolia"], description: "Air intake pipe on the front right.", category: 'Vehicle', term_hint: "East Africa or Central Asian Steppe" },
   { term: "Roof Rack + Tire", countries: ["Guatemala"], description: "Heavy duty rack with a spare tire.", category: 'Vehicle', term_hint: "Central America" },
