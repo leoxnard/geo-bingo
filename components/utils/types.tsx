@@ -115,6 +115,7 @@ export interface StreetViewProps {
     hideMapSymbols?: boolean;
     hideMiniMap?: boolean;
     exclusiveMode?: boolean;
+    allowHints?: boolean;
 }
 
 export interface VotingViewProps {

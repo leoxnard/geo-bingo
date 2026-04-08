@@ -16,7 +16,7 @@ import toast from 'react-hot-toast';
 import { CiCirclePlus, CiCircleMinus, CiCircleRemove, CiCircleCheck, CiCircleQuestion } from "react-icons/ci";
 
 import { generateAICategories } from './AICategories';
-import { RangeSlider, MultiToggleButton } from '../utils/Elements';
+import { RangeSlider, MultiToggleButton, Selection } from '../utils/Elements';
 import { shuffle } from '../utils/Functions';
 
 interface CategoryItemProps {
@@ -103,7 +103,7 @@ const CategoryItem = ({
                     <button
                         type="button"
                         onClick={() => onRandomize(index)}
-                        className="flex-1 flex justify-center items-center py-1.5 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 hover:bg-red-500/10 border-l border-slate-600/50 transition-colors"
+                        className="flex-1 flex justify-center items-center py-1.5 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 border-l border-slate-600/50 transition-colors"
                         title="Randomize word"
                     >
                         <CiCircleQuestion size={18} />
@@ -227,6 +227,9 @@ export default function LobbyCategories({
     const [localRadius, setLocalRadius] = useState(generationRadius);
     const [localGenerationNumber, setLocalGenerationNumber] = useState(generationNumber);
     const [localGridSize, setLocalGridSize] = useState(gridSize);
+    
+    // DB Source Selection State
+    const [wordSource, setWordSource] = useState<string>('standard');
 
     const [localCategories, setLocalCategories] = useState<string[]>(categories);
     
@@ -331,21 +334,41 @@ export default function LobbyCategories({
         queueDBSave(updated);
     };
 
+    // Helferfunktion für den Abruf der Wörter basierend auf der DB Source
+    const getAvailableWords = async () => {
+        const { categoriesDe, categoriesEn, GEOGUESSR_DB_DE, GEOGUESSR_DB_EN } = await import('../../lib/categories');
+        let allWords: string[] = [];
+
+        if (wordSource === 'standard') {
+            allWords = language === 'german' ? categoriesDe : categoriesEn;
+        } else {
+            const geoDb = language === 'german' ? GEOGUESSR_DB_DE : GEOGUESSR_DB_EN;
+            if (wordSource === 'geo_all') {
+                allWords = geoDb.map((item: { term: string; category: string }) => item.term);
+            } else {
+                const category = wordSource.replace('geo_', '');
+                allWords = geoDb
+                    .filter((item: { term: string; category: string }) => item.category === category)
+                    .map((item: { term: string; category: string }) => item.term);
+            }
+        }
+
+        return allWords.filter(w => 
+            !localCategories.map(c => (c || '').toLowerCase()).includes(w.toLowerCase())
+        );
+    };
+
     const randomizeSingle = async (index: number) => {
         try {
-            const { categoriesDe, categoriesEn } = await import('../../lib/categories');
-            const allWords = language === 'german' ? categoriesDe : categoriesEn;
+            const availableWords = await getAvailableWords();
             
-            const availableWords = allWords.filter(w => 
-                !localCategories.map(c => (c || '').toLowerCase()).includes(w.toLowerCase())
-            );
             if (availableWords.length > 0) {
                 const randomWord = availableWords[Math.floor(Math.random() * availableWords.length)];
                 const updated = [...localCategories];
                 updated[index] = randomWord;
                 queueDBSave(updated);
             } else {
-                toast.error("Not enough new words available!");
+                toast.error("Not enough new words available in this category!");
             }
         } catch (err) {
             console.error(err);
@@ -367,10 +390,7 @@ export default function LobbyCategories({
 
     const fillUpRandom = async () => {
         try {
-            const { categoriesDe, categoriesEn } = await import('../../lib/categories');
-            const allWords = language === 'german' ? categoriesDe : categoriesEn;
-            
-            const availableWords = shuffle(allWords.filter(w => !localCategories.map(c => (c || '').toLowerCase()).includes(w.toLowerCase())));
+            const availableWords = shuffle(await getAvailableWords());
             const updated = [...localCategories];
             let usedCount = 0;
 
@@ -392,7 +412,7 @@ export default function LobbyCategories({
             }
 
             if (usedCount === 0 && updated.length === localCategories.length) {
-                toast("Already full or no words left!");
+                toast("Already full or no words left in this category!");
                 return;
             }
 
@@ -728,9 +748,9 @@ export default function LobbyCategories({
                                 </div>
                             )}
 
-                            <div className="flex gap-2 items-stretch mt-2">
+                            <div className="flex flex-wrap gap-2 items-end mt-2">
                                 {gameMode === 'list' && (
-                                    <>
+                                    <div className="flex gap-2 items-stretch shrink-0">
                                         <input
                                             type="number"
                                             min="1"
@@ -746,15 +766,33 @@ export default function LobbyCategories({
                                         >
                                             + Add Empty
                                         </button>
-                                    </>
+                                    </div>
                                 )}
-                                <button
-                                    type="button"
-                                    onClick={fillUpRandom}
-                                    className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white px-4 rounded-lg font-bold transition-colors whitespace-nowrap shadow-sm h-[42px]"
-                                >
-                                    Fill Up (Random)
-                                </button>
+                                <div className="flex flex-1 gap-2 items-end justify-end min-w-[300px]">
+                                    <Selection
+                                        title="Database"
+                                        options={[
+                                            { label: 'Standard', value: 'standard' },
+                                            { label: 'GeoGuessr Meta (All)', value: 'geo_all' },
+                                            { label: 'GeoGuessr Meta: Vehicles', value: 'geo_Vehicle' },
+                                            { label: 'GeoGuessr Meta: Camera', value: 'geo_Camera' },
+                                            { label: 'GeoGuessr Meta: Infrastructure', value: 'geo_Infrastructure' },
+                                            { label: 'GeoGuessr Meta: Nature', value: 'geo_Nature' },
+                                            { label: 'GeoGuessr Meta: Plates', value: 'geo_Plate' },
+                                            { label: 'GeoGuessr Meta: Markings', value: 'geo_Marking' }
+                                        ]}
+                                        value={wordSource}
+                                        onChange={setWordSource}
+                                        position="clean"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={fillUpRandom}
+                                        className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 rounded-lg font-bold transition-colors whitespace-nowrap shadow-sm h-[42px]"
+                                    >
+                                        Fill Up
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     ) : (

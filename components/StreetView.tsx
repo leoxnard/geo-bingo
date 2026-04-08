@@ -14,7 +14,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 
 import { GoogleMap, useJsApiLoader, StreetViewPanorama, Polygon } from '@react-google-maps/api';
 import toast from 'react-hot-toast';
-import { FaEye, FaCamera } from 'react-icons/fa';
+import { FaEye, FaCamera, FaInfoCircle } from 'react-icons/fa';
 import { GoMoveToStart } from "react-icons/go";
 
 import { supabase } from '../lib/supabase';
@@ -22,6 +22,7 @@ import { FullscreenButton, GeoBingoLogo } from './utils/Elements';
 import { calculateBingoCounter, getDistance } from './utils/Functions';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from './utils/mapUtils';
 import { Submission, StreetViewProps, PathPoint, BoundaryPolygon } from './utils/types';
+import { GEOGUESSR_DB_DE, GEOGUESSR_DB_EN } from '../lib/categories';
 
 const safeStartCenter = { lat:30, lng: 10 };
 const initialWorldZoom = 2.4;
@@ -34,6 +35,15 @@ const panoOptions = {
     zoomControl: false,
     panControl: false,
     linksControl: false,
+};
+
+// Hilfsfunktion, um den Hint für eine Kategorie aus der Datenbank zu fischen
+const getHintForCategory = (cat: string) => {
+    const foundDe = GEOGUESSR_DB_DE?.find(item => item.term === cat);
+    if (foundDe) return foundDe.term_hint;
+    const foundEn = GEOGUESSR_DB_EN?.find(item => item.term === cat);
+    if (foundEn) return foundEn.term_hint;
+    return null;
 };
 
 export default function StreetView({ 
@@ -52,6 +62,7 @@ export default function StreetView({
     hideMapSymbols = false,
     hideMiniMap = false,
     exclusiveMode = false,
+    allowHints = true,
 }: StreetViewProps) {
 
     const { isLoaded } = useJsApiLoader({
@@ -148,7 +159,7 @@ export default function StreetView({
                 map: minimapInstance,
                 position: initialPos,
                 icon: {
-                    path: "M 0,0 m -5,0 a 5,5 0 1,0 10,0 a 5,5 0 1,0 -10,0", // Nur der Kreis
+                    path: "M 0,0 m -5,0 a 5,5 0 1,0 10,0 a 5,5 0 1,0 -10,0",
                     fillColor: '#fac800',
                     fillOpacity: 1.0,
                     strokeColor: '#ffffff',
@@ -837,6 +848,8 @@ export default function StreetView({
                                         const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
                                         const fov = foundSub?.zoom ? 180 / Math.pow(2, foundSub.zoom) : 90;
                                         
+                                        const hint = allowHints ? getHintForCategory(cat) : null;
+
                                         let bgStyle = {};
                                         if (foundSub) {
                                             let safeHeading = foundSub.heading % 360;
@@ -852,16 +865,30 @@ export default function StreetView({
                                         return (
                                             <li 
                                                 key={cat} 
-                                                style={bgStyle}
-                                                className={`relative overflow-hidden p-3 rounded-xl border transition-all cursor-pointer flex flex-col gap-2 ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'}`}
+                                                className={`relative p-3 rounded-xl border transition-all cursor-pointer flex flex-col gap-2 ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'}`}
                                             >
-                                                {foundSub && <div className="absolute inset-0 bg-black/40 z-0"></div>}
+                                                {/* Background Layer mit overflow hidden, damit der Tooltip ausbrechen darf */}
+                                                <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
+                                                    {foundSub && <div className="absolute inset-0" style={bgStyle}></div>}
+                                                    {foundSub && <div className="absolute inset-0 bg-black/40 z-0"></div>}
+                                                </div>
 
                                                 <div className="relative z-10 flex flex-col gap-2">
                                                     <div className="flex justify-between items-center w-full">
-                                                        <span className={`truncate font-medium flex-1 pr-2 ${foundSub ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400 line-through' : 'text-white'}`}>
-                                                            {cat}
-                                                        </span>
+                                                        <div className="flex items-center flex-1 pr-2 min-w-0">
+                                                            <span className={`truncate font-medium ${foundSub ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400 line-through' : 'text-white'}`}>
+                                                                {cat}
+                                                            </span>
+                                                            {hint && (
+                                                                <div className="ml-2 relative group flex-shrink-0 cursor-help" onClick={(e) => e.stopPropagation()}>
+                                                                    <FaInfoCircle className={`transition-colors ${foundSub ? 'text-white/70 hover:text-white' : 'text-slate-400 hover:text-white'}`} size={14}/>
+                                                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max max-w-[200px] bg-slate-800 text-white text-xs p-2 rounded-lg shadow-xl border border-slate-600 z-[100] whitespace-normal text-center cursor-default">
+                                                                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-800 border-b border-r border-slate-600 transform rotate-45"></div>
+                                                                        <span className="font-bold text-indigo-300">Tipp:</span> {hint}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                         <span className={`text-xs font-bold uppercase whitespace-nowrap ${foundSub ? 'text-green-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-500' : 'text-slate-500'}`}>
                                                             {foundSub ? 'Found' : isBlocked ? 'Locked' : 'Pending'}
                                                         </span>
@@ -878,7 +905,6 @@ export default function StreetView({
                                                             </button>
                                                         ) : (
                                                             <>
-                                                                {/* Added check for !exclusiveMode here */}
                                                                 {!exclusiveMode && (
                                                                     <button
                                                                         type="button"
@@ -912,6 +938,7 @@ export default function StreetView({
                                     {myBoard.map((cat) => {
                                         const foundSub = mySubmissions.find(s => s.category === cat);
                                         const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some(s => s.category === cat);
+                                        const hint = allowHints ? getHintForCategory(cat) : null;
                                         
                                         const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
                                         const fov = foundSub?.zoom ? 180 / Math.pow(2, foundSub.zoom) : 90;
@@ -924,13 +951,29 @@ export default function StreetView({
                                         return (
                                             <div 
                                                 key={cat} 
-                                                title={isBlocked ? "Claimed by another team" : cat}
-                                                style={bgStyle}
+                                                title={isBlocked ? "Claimed by another team" : undefined}
                                                 onClick={() => handleBingoTileClick(cat)}
-                                                className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-center items-center text-center overflow-hidden pb-2 sm:pb-12 ${foundSub ? 'text-white border-green-500' : isBlocked ? 'bg-slate-900/80 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700'}`}
+                                                className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-center items-center text-center pb-2 sm:pb-12 ${foundSub ? 'text-white border-green-500 shadow-md' : isBlocked ? 'bg-slate-900/80 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700'}`}
                                             >
-                                                {foundSub && <div className="absolute inset-0 bg-black/40 z-0"></div>}
-                                                <span className={`relative z-10 ${getSidebarTextSizeClass()} font-bold leading-tight line-clamp-2 [hyphens:auto] [word-break:break-word] mt-0 sm:mt-1 ${foundSub ? 'drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400 line-through' : 'text-white'}`}>
+                                                {/* Background Layer mit overflow hidden */}
+                                                <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
+                                                    {foundSub && <div className="absolute inset-0" style={bgStyle}></div>}
+                                                    {foundSub && <div className="absolute inset-0 bg-black/40 z-0"></div>}
+                                                </div>
+
+                                                {hint && (
+                                                    <div 
+                                                        className="absolute top-1 right-1 sm:top-2 sm:right-2 z-[60] group cursor-help"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    >
+                                                        <FaInfoCircle className={`transition-colors text-[11px] sm:text-sm drop-shadow-md ${foundSub ? 'text-white/70 hover:text-white' : 'text-slate-400/70 hover:text-white'}`} />
+                                                        <div className="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-1 sm:mb-2 hidden group-hover:block w-max max-w-[150px] sm:max-w-[200px] bg-slate-800 text-white text-[10px] sm:text-xs p-2 rounded-lg shadow-xl border border-slate-600 z-[100] whitespace-normal text-left sm:text-center cursor-default">
+                                                            <span className="font-bold text-indigo-300">Tipp:</span> {hint}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                <span className={`relative z-10 ${getSidebarTextSizeClass()} font-bold leading-tight line-clamp-3 [hyphens:auto] [word-break:break-word] mt-0 sm:mt-1 ${foundSub ? 'drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400 line-through' : 'text-white'}`}>
                                                     {cat}
                                                 </span>
                             
