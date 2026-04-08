@@ -13,8 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-    title: "Geo Bingo",
-    description: "Challenge your friends to a game of Geo Bingo! Explore the world around you and mark off items on your bingo card as you find them in real life. Who will be the first to get a bingo?",
+    title: "Geo-Bingo", 
+    description: "Play Geo-Bingo online for free! Challenge your friends, explore the world, and test your geography skills. Who will get the first bingo?",
+    keywords: ["Geo-Bingo", "Geobingo", "Geography Game", "Online Game", "Leonard Sima"], 
     icons: {
         icon: "/mappin.and.ellipse.png",
     },
