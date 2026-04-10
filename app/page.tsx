@@ -93,6 +93,11 @@ export default function Home() {
                     </button>
                 </form>
             </div>
+
+            <div className="mt-12 text-slate-500 text-sm font-medium flex gap-4">
+                <a href="/impressum" className="hover:text-slate-300 transition-colors">Legal Notice</a>
+                <a href="/privacy" className="hover:text-slate-300 transition-colors">Privacy Policy</a>
+            </div>
         </main>
     );
 }
