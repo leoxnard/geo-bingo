@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "starting_point" "text" DEFAULT 'open-world'::"text",
     "gameBoundary" "text" DEFAULT '[]'::"text" NOT NULL,
     "end_condition" "text" DEFAULT 'timer'::"text",
-    "fast_voting" boolean DEFAULT false,
+    "hide_mini_map" boolean DEFAULT false NOT NULL,
     "hide_map_symbols" boolean DEFAULT false,
     "suggested_categories" "text"[] DEFAULT '{}'::"text"[],
     "exclusive_mode" boolean DEFAULT false NOT NULL,
@@ -110,7 +110,8 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "generation_number" integer DEFAULT 10 NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"(),
     "category_details" "jsonb"[] DEFAULT '{}'::"jsonb"[] NOT NULL,
-    "language" "text" DEFAULT '''german''::text'::"text" NOT NULL
+    "language" "text" DEFAULT '''german''::text'::"text" NOT NULL,
+    "categories_generated" boolean DEFAULT false NOT NULL
 );
 
 

@@ -1,0 +1,9 @@
+if ! docker info >/dev/null 2>&1; then
+    echo "Docker is not running. Please start Docker and try again."
+    exit 1
+fi
+
+if ! npm run generate:schema; then
+    echo "Generating schema failed. Please make sure Docker is running."
+    exit 1
+fi
