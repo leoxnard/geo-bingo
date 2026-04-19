@@ -38,9 +38,41 @@ body {
   height: 100%;
 }
 
-/* Entfernt die Pfeile in Chrome, Safari, Edge und Opera */
+/* Chrome, Safari, Edge und Opera */
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-button:vertical:start:decrement,
+::-webkit-scrollbar-button:vertical:end:increment {
+  display: block;
+  height: 20px;
+  background-color: transparent;
+}
+
+::-webkit-scrollbar-track {
+  background: #1d293d; 
+  margin-block: 5px; 
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4f46e5;
+  border-radius: 12px;
+  border: 3px solid #1d293d; 
+  background-clip: padding-box; 
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #818cf8;
+}
+
+* {
+  scrollbar-color: #4f46e5 #1d293d;
 }

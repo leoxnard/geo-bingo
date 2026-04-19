@@ -47,5 +47,5 @@ out
 build
 .temp
 .vscode
-data
-*_ignore*
+*ignore.*
+data/

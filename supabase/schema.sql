@@ -23,6 +23,34 @@ COMMENT ON SCHEMA "public" IS 'standard public schema';
 
 
 
+CREATE OR REPLACE FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) RETURNS "jsonb"
+    LANGUAGE "plpgsql"
+    AS $$
+DECLARE
+  result_sub RECORD;
+BEGIN
+  -- 1. Wir "sperren" die Game-Reihe für einen Bruchteil einer Sekunde. 
+  -- Wenn 2 Spieler exakt gleichzeitig kommen, muss einer kurz in der Schlange warten.
+  PERFORM 1 FROM games WHERE id = p_game_id FOR UPDATE;
+
+  -- 2. Prüfen, ob die Kategorie in diesem Spiel schon von jemandem gefunden wurde
+  IF EXISTS (SELECT 1 FROM submissions WHERE game_id = p_game_id AND category = p_category) THEN
+    RETURN jsonb_build_object('success', false, 'error', 'ALREADY_CLAIMED');
+  END IF;
+
+  -- 3. Wenn sie noch frei ist, fügen wir sie sicher ein!
+  INSERT INTO submissions (game_id, player_id, category, lat, lng, heading, pitch, zoom)
+  VALUES (p_game_id, p_player_id, p_category, p_lat, p_lng, p_heading, p_pitch, p_zoom)
+  RETURNING * INTO result_sub;
+
+  RETURN jsonb_build_object('success', true, 'data', row_to_json(result_sub));
+END;
+$$;
+
+
+ALTER FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) RETURNS "void"
     LANGUAGE "plpgsql"
     AS $$
@@ -39,6 +67,19 @@ $$;
 
 
 ALTER FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."update_updated_at_column"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_updated_at_column"() OWNER TO "postgres";
 
 SET default_tablespace = '';
 
@@ -57,12 +98,20 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "game_mode" "text" DEFAULT 'list'::"text",
     "grid_size" integer DEFAULT 3,
     "team_mode" "text" DEFAULT 'ffa'::"text",
-    "bingo_board_mode" "text" DEFAULT 'shared'::"text",
     "starting_point" "text" DEFAULT 'open-world'::"text",
-    "gameBoundary" "text" DEFAULT 'null'::"text",
+    "gameBoundary" "text" DEFAULT '[]'::"text" NOT NULL,
     "end_condition" "text" DEFAULT 'timer'::"text",
-    "fast_voting" boolean DEFAULT false,
-    "hide_map_symbols" boolean DEFAULT false
+    "hide_mini_map" boolean DEFAULT false NOT NULL,
+    "hide_map_symbols" boolean DEFAULT false,
+    "suggested_categories" "text"[] DEFAULT '{}'::"text"[],
+    "exclusive_mode" boolean DEFAULT false NOT NULL,
+    "category_source" "text" DEFAULT 'manual'::"text" NOT NULL,
+    "generation_radius" bigint DEFAULT '10'::bigint NOT NULL,
+    "generation_number" integer DEFAULT 10 NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"(),
+    "category_details" "jsonb"[] DEFAULT '{}'::"jsonb"[] NOT NULL,
+    "language" "text" DEFAULT '''german''::text'::"text" NOT NULL,
+    "categories_generated" boolean DEFAULT false NOT NULL
 );
 
 
@@ -113,6 +162,10 @@ ALTER TABLE ONLY "public"."players"
 
 ALTER TABLE ONLY "public"."submissions"
     ADD CONSTRAINT "submissions_pkey" PRIMARY KEY ("id");
+
+
+
+CREATE OR REPLACE TRIGGER "update_games_updated_at" BEFORE UPDATE ON "public"."games" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
 
 
 
@@ -199,9 +252,21 @@ GRANT USAGE ON SCHEMA "public" TO "service_role";
 
 
 
+GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) TO "anon";
+GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) TO "anon";
 GRANT ALL ON FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "anon";
+GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "service_role";
 
 
 

@@ -1,12 +1,15 @@
 # 🌍 Geo Bingo
 
-Geo Bingo is a multiplayer geolocation game that brings the fun of Bingo into Google Street View! Players jump into a shared game, navigate through Street View, and try to find specific categories or locations to complete their Bingo boards. After the hunting phase, players vote on each other's finds, leading to a final podium ranking.
+Geo Bingo is a multiplayer geolocation game that brings the fun of Bingo into Google Street View! Players jump into a game, navigate through Street View, and try to find specific categories or locations to complete their Bingo boards or lists. After the hunting phase, players vote on each other's finds, leading to a final podium ranking.
 
 ## Features
 
 - **Real-Time Multiplayer:** Built with [Supabase](https://supabase.com) Realtime to instantly sync player states, submissions, and voting.
 - **Interactive Street View:** Utilizes the Google Maps JavaScript API and Street View Static API so players can explore and capture the perfect angle of their findings.
 - **Game Modes:** Choose between classic List mode or Bingo Mode (dynamic grid sizes).
+- **Dynamic Categories:** Powered by the Gemini API, each game generates unique and fun categories to keep things fresh.
+- **Map Areas:** Hosts can create allow and disallow regions on the map to guide players to specific areas or landmarks.
+- **Custom Settings:** Hosts can customize game duration, if categories can only be found by the first player or multiple players, win conditions, and more.
 - **Snapshot Memory:** Bingo tiles update with the Street View snapshot of your exact camera position, zoom, and angle once you find a category!
 - **Blind Voting System:** Players vote anonymously on the validity of other players' submissions.
 - **Podium Ceremony:** See who scored the most points with a clean, animated results view.
@@ -14,10 +17,9 @@ Geo Bingo is a multiplayer geolocation game that brings the fun of Bingo into Go
 ## Tech Stack
 
 - **Framework:** [Next.js](https://nextjs.org/) (App Router, Turbopack)
-- **Styling:** [Tailwind CSS](https://tailwindcss.com/)
 - **Backend & Database:** [Supabase](https://supabase.com/) (PostgreSQL & Realtime Channels)
+- **AI:** [Gemini API](https://ai.google.dev/gemini) for generating dynamic categories.
 - **Maps:** `@react-google-maps/api` & Google Maps APIs
-- **Icons:** `react-icons`
 
 ## Getting Started
 
@@ -45,6 +47,7 @@ Create a `.env.local` file in the root directory and add the following keys. You
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+NEXT_PUBLIC_GEMINI_API_KEY=your_gemini_api_key
 ```
 
 ### 4. Run the Development Server

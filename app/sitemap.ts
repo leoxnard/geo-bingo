@@ -1,12 +1,12 @@
-import { MetadataRoute } from 'next'
- 
+import { MetadataRoute } from "next";
+
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
     {
-      url: 'https://geo-bingo.leonardsima.de',
+      url: "https://geo-bingo.leonardsima.de",
       lastModified: new Date(),
-      changeFrequency: 'monthly',
+      changeFrequency: "monthly",
       priority: 1,
     },
-  ]
+  ];
 }
