@@ -194,6 +194,14 @@ export default function LobbyView(props: LobbyViewProps) {
       setIsGenerating(false);
     }
 
+    finalCategories = finalCategories.filter((cat) => cat.trim() !== "");
+    if (finalCategories.length === 0) {
+      toast.error(
+        "Please add at least one valid category before starting the game.",
+      );
+      return;
+    }
+
     if (props.gameMode === "bingo" && finalCategories.length < neededCount) {
       toast.error(
         `You need at least ${neededCount} categories to start a Bingo game with a grid size of ${props.gridSize}. Please add more categories or reduce the grid size.`,
@@ -214,6 +222,19 @@ export default function LobbyView(props: LobbyViewProps) {
         const errorMessage =
           err instanceof Error ? err.message : "Unknown database error";
         toast.error(`Board Generation Failed: ${errorMessage}`);
+        return;
+      }
+    } else {
+      try {
+        const { error } = await props.supabase
+          .from("games")
+          .update({ categories: finalCategories })
+          .eq("id", props.gameId);
+        if (error) throw error;
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Unknown database error";
+        toast.error(`Failed to update categories: ${errorMessage}`);
         return;
       }
     }
