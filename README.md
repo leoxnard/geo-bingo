@@ -1,6 +1,6 @@
-# 🌍 Geo Bingo
+# 🌍 Geo BingBong
 
-Geo Bingo is a multiplayer geolocation game that brings the fun of Bingo into Google Street View! Players jump into a game, navigate through Street View, and try to find specific categories or locations to complete their Bingo boards or lists. After the hunting phase, players vote on each other's finds, leading to a final podium ranking.
+Geo BingBong is a multiplayer geolocation game that brings the fun of Bingo into Google Street View! Players jump into a game, navigate through Street View, and try to find specific categories or locations to complete their Bingo boards or lists. After the hunting phase, players vote on each other's finds, leading to a final podium ranking.
 
 ## Features
 

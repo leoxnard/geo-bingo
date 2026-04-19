@@ -210,7 +210,7 @@ export default function LobbyView(props: LobbyViewProps) {
         <div className="min-h-screen flex flex-col items-center p-10 bg-slate-900 text-white relative">
             <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-12 hidden sm:flex">
                 <Image src="/mappin.and.ellipse.png" alt="Logo" width={60} height={60} className="w-auto h-auto" />
-                <h1 className="text-6xl font-bold text-indigo-400 tracking-tighter">GEO BINGO</h1>
+                <h1 className="text-6xl font-bold text-indigo-400 tracking-tighter">Geo BingBong</h1>
             </div>
 
             <div className="flex flex-col lg:flex-row gap-6 w-full max-w-5xl">
