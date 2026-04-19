@@ -73,7 +73,7 @@ export default function LoginPage() {
 
           {error && (
             <p className="text-red-500 text-xs font-medium text-center">
-              Login-Daten falsch!
+              Login failed!
             </p>
           )}
 
