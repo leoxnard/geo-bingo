@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint . --fix",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint . --ext ts,tsx --fix",
     "generate:schema": "supabase db dump --schema public -f supabase/schema.sql",
     "prepare": "husky"
@@ -51,8 +51,7 @@
       "prettier --write"
     ],
     "supabase/schema.sql": [
-      "npm run generate:schema",
-      "git add"
+      "npm run generate:schema"
     ]
   },
   "type": "module"
