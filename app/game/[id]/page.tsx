@@ -42,7 +42,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [suggestedCategories, setSuggestedCategories] = useState<string[]>([]);
     const [isHost, setIsHost] = useState(false);
     const [gameHostId, setGameHostId] = useState<string>('');
-    const [timeLimit, setTimeLimit] = useState(300);
+    const [timeLimit, setTimeLimit] = useState(600);
     const [categorySource, setCategorySource] = useState<'manual' | 'nearbyPlaces' | 'nearbyStreetView'>('manual');
     const [generationRadius, setGenerationRadius] = useState<number>(10); // in 100m
     const [generationNumber, setGenerationNumber] = useState<number>(10);
@@ -154,7 +154,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     status: 'lobby',
                     categories: [],
                     ready_players: [],
-                    time_limit: 300,
+                    time_limit: 600,
                     host_id: currentPlayerId,
                     banned_players: [],
                     game_mode: 'list',
@@ -186,7 +186,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setSuggestedCategories(gameData.suggested_categories || []);
                 setReadyPlayers(gameData.ready_players || []);
                 setBannedPlayers(gameData.banned_players || []);
-                setTimeLimit(gameData.time_limit || 300);
+                setTimeLimit(gameData.time_limit || 600);
                 setGameHostId(gameData.host_id || '');
                 setGameMode(gameData.game_mode || 'list');
                 setTeamMode(gameData.team_mode || 'ffa');

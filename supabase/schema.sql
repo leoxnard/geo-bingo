@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "categories" "jsonb" DEFAULT '[]'::"jsonb",
     "created_at" timestamp with time zone DEFAULT "now"(),
     "ready_players" "text"[] DEFAULT '{}'::"text"[],
-    "time_limit" integer DEFAULT 300,
+    "time_limit" integer DEFAULT 600,
     "host_id" "text",
     "banned_players" "text"[] DEFAULT '{}'::"text"[],
     "game_mode" "text" DEFAULT 'list'::"text",
