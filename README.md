@@ -28,12 +28,14 @@ Geo BingBong is a multiplayer geolocation game that brings the fun of Bingo into
 Make sure you have Node.js installed, as well as a Supabase project and a Google Cloud project with the Maps JavaScript API and Street View Static API enabled.
 
 ### 1. Clone the repository
+
 ```bash
 git clone https://github.com/leoxnard/geo-bingo.git
 cd geo-bingo
 ```
 
 ### 2. Install dependencies
+
 ```bash
 npm install
 # or
@@ -41,6 +43,7 @@ yarn install
 ```
 
 ### 3. Environment Variables
+
 Create a `.env.local` file in the root directory and add the following keys. You will need to get these from your Supabase dashboard and Google Cloud console.
 
 ```env
@@ -51,11 +54,13 @@ NEXT_PUBLIC_GEMINI_API_KEY=your_gemini_api_key
 ```
 
 ### 4. Run the Development Server
+
 ```bash
 npm run dev
 # or
 yarn dev
 ```
+
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the application.
 
 ## How to Play

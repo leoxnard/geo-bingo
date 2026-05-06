@@ -1,33 +1,12 @@
-export const getPromptForNearbyPlaceCategories = (
-  cityCountry: string,
-  uniquePlacesForLLM: { id: string; name: string }[],
-  requiredCount: number,
-  difficulty: "default" | "easy",
-  language: string,
-): string => {
-  if (difficulty === "easy") {
-    return easyNearbyPlacePrompt(
-      cityCountry,
-      uniquePlacesForLLM,
-      requiredCount,
-      language,
-    );
-  }
-  return defaultNearbyPlacePrompt(
-    cityCountry,
-    uniquePlacesForLLM,
-    requiredCount,
-    language,
-  );
+export const getPromptForNearbyPlaceCategories = (cityCountry: string, uniquePlacesForLLM: { id: string; name: string }[], requiredCount: number, difficulty: 'default' | 'easy', language: string): string => {
+    if (difficulty === 'easy') {
+        return easyNearbyPlacePrompt(cityCountry, uniquePlacesForLLM, requiredCount, language);
+    }
+    return defaultNearbyPlacePrompt(cityCountry, uniquePlacesForLLM, requiredCount, language);
 };
 
-const defaultNearbyPlacePrompt = (
-  cityCountry: string,
-  uniquePlacesForLLM: { id: string; name: string }[],
-  requiredCount: number,
-  language: string,
-): string =>
-  `You are the Game Master for the game "GeoBingo." Your mission: Create a perfect mix of locations that the player must find in Google Street View.
+const defaultNearbyPlacePrompt = (cityCountry: string, uniquePlacesForLLM: { id: string; name: string }[], requiredCount: number, language: string): string =>
+    `You are the Game Master for the game "GeoBingo." Your mission: Create a perfect mix of locations that the player must find in Google Street View.
 
 ### LOCATION
 ${cityCountry}
@@ -74,13 +53,8 @@ You must ONLY return this JSON format—no introduction, no markdown formatting.
 ]
 `;
 
-const easyNearbyPlacePrompt = (
-  cityCountry: string,
-  uniquePlacesForLLM: { id: string; name: string }[],
-  requiredCount: number,
-  language: string,
-): string =>
-  `You are the Game Master for the game "GeoBingo." Your mission: Create a perfect mix of locations that the player must find in Google Street View.
+const easyNearbyPlacePrompt = (cityCountry: string, uniquePlacesForLLM: { id: string; name: string }[], requiredCount: number, language: string): string =>
+    `You are the Game Master for the game "GeoBingo." Your mission: Create a perfect mix of locations that the player must find in Google Street View.
 
 ### LOCATION
 ${cityCountry}

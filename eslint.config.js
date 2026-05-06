@@ -14,9 +14,9 @@ export default tseslint.config(
         extends: [js.configs.recommended, ...tseslint.configs.recommended],
         files: ['**/*.{ts,tsx}'],
         plugins: {
-            'react': react,
+            react: react,
             'react-hooks': reactHooks,
-            'import': importPlugin, // 2. Plugin unter dem Namen 'import' registrieren
+            import: importPlugin, // 2. Plugin unter dem Namen 'import' registrieren
         },
         languageOptions: {
             parserOptions: {
@@ -27,44 +27,51 @@ export default tseslint.config(
         },
         settings: {
             react: { version: 'detect' },
-            'import/resolver': { // Hilft ESLint, TypeScript-Dateien zu finden
+            'import/resolver': {
+                // Hilft ESLint, TypeScript-Dateien zu finden
                 typescript: true,
                 node: true,
             },
         },
         rules: {
             ...reactHooks.configs.recommended.rules,
-            'indent': ['error', 4],
+            indent: ['error', 4],
             'react/jsx-indent': ['error', 4],
             'react/jsx-indent-props': ['error', 4],
-            
+
             // Deine Regel für sehr lange Zeilen
-            'max-len': ['error', { 
-                'code': 500,
-                'ignoreUrls': true,
-                'ignoreStrings': true,
-                'ignoreTemplateLiterals': true,
-                'ignoreRegExpLiterals': true,
-                'ignoreComments': true
-            }],
+            'max-len': [
+                'error',
+                {
+                    code: 500,
+                    ignoreUrls: true,
+                    ignoreStrings: true,
+                    ignoreTemplateLiterals: true,
+                    ignoreRegExpLiterals: true,
+                    ignoreComments: true,
+                },
+            ],
 
             // Die Import-Sortierung
-            'import/order': ['error', {
-                'groups': ['builtin', 'external', 'internal', ['parent', 'sibling']],
-                'pathGroups': [
-                    {
-                        'pattern': 'react',
-                        'group': 'external',
-                        'position': 'before'
-                    }
-                ],
-                'pathGroupsExcludedImportTypes': ['react'],
-                'newlines-between': 'always',
-                'alphabetize': {
-                    'order': 'asc',
-                    'caseInsensitive': true
-                }
-            }],
+            'import/order': [
+                'error',
+                {
+                    groups: ['builtin', 'external', 'internal', ['parent', 'sibling']],
+                    pathGroups: [
+                        {
+                            pattern: 'react',
+                            group: 'external',
+                            position: 'before',
+                        },
+                    ],
+                    pathGroupsExcludedImportTypes: ['react'],
+                    'newlines-between': 'always',
+                    alphabetize: {
+                        order: 'asc',
+                        caseInsensitive: true,
+                    },
+                },
+            ],
         },
     },
 );
