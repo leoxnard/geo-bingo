@@ -47,8 +47,8 @@
   },
   "lint-staged": {
     "*.{js,ts,jsx,tsx}": [
-      "eslint --fix",
-      "prettier --write"
+      "prettier --write --tab-width 4",
+      "eslint --fix --config eslint.config.js"
     ],
     "supabase/schema.sql": [
       "npm run generate:schema"
