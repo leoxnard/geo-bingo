@@ -24,6 +24,10 @@ export const mapOptions = (additionalOptions: { [key: string]: unknown | google.
     ...additionalOptions,
 });
 
+export const insertPointPhase1 = (newPoint: { lat: number; lng: number }, points: { lat: number; lng: number }[]) => {
+    return [...points, newPoint];
+};
+
 export const insertPoint = (newPoint: { lat: number; lng: number }, points: { lat: number; lng: number }[]) => {
     if (points.length < 3) return [...points, newPoint];
 

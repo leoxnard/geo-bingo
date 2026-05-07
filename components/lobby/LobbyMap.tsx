@@ -12,11 +12,11 @@ Integrates with nearby place and street view category generation.
 
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 
-import { GoogleMap, PolygonF, MarkerF, OverlayView, OverlayViewF, Circle } from '@react-google-maps/api';
+import { GoogleMap, PolygonF, MarkerF, OverlayView, OverlayViewF, Circle, PolylineF } from '@react-google-maps/api';
 import { FaPlus, FaTimes, FaCaretDown, FaCaretRight } from 'react-icons/fa';
 
 import { FullscreenButton } from '../utils/Elements';
-import { insertPoint, mapOptions } from '../utils/mapUtils';
+import { insertPoint, insertPointPhase1, mapOptions } from '../utils/mapUtils';
 import { BoundaryPolygon } from '../utils/types';
 
 const DEFAULT_CENTER = { lat: 20, lng: 0 };
@@ -44,6 +44,8 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [selectedPreset, setSelectedPreset] = useState<string>('');
     const [searchTerm, setSearchTerm] = useState('');
+    const [optimisticGameBoundary, setOptimisticGameBoundary] = useState(gameBoundary);
+    const optimisticGameBoundaryRef = useRef(gameBoundary);
 
     // States für die Accordion / Tree-View Navigation
     const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
@@ -93,6 +95,32 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                 setPresetsLoading(false);
             });
     }, []);
+
+    useEffect(() => {
+        optimisticGameBoundaryRef.current = gameBoundary;
+        setOptimisticGameBoundary(gameBoundary);
+    }, [gameBoundary]);
+
+    const parseBoundaryString = (boundaryString: string): BoundaryPolygon[] => {
+        if (!boundaryString || boundaryString === '[]') return [];
+
+        try {
+            const parsed = JSON.parse(boundaryString);
+            if (!Array.isArray(parsed)) return [];
+
+            if (parsed.length > 0 && parsed[0].lat !== undefined && parsed[0].id === undefined) {
+                return [{ id: 'legacy-1', type: 'allow', points: parsed, isComplete: true }];
+            }
+
+            return parsed.map((p) => ({
+                ...p,
+                isComplete: p.isComplete !== false, // Default to true if not explicitly set to false
+            }));
+        } catch (e) {
+            console.error('Invalid polygon data', e);
+            return [];
+        }
+    };
 
     const groupedPresets = useMemo(() => {
         const keys = Object.keys(boundaryPresetsData).sort();
@@ -182,21 +210,16 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     };
 
     const draftBoundaries: BoundaryPolygon[] = useMemo(() => {
-        if (!gameBoundary || gameBoundary === '[]') return [];
-        try {
-            const parsed = JSON.parse(gameBoundary);
-            if (!Array.isArray(parsed)) return [];
+        const boundarySource = optimisticGameBoundary || gameBoundary;
+        return parseBoundaryString(boundarySource);
+    }, [optimisticGameBoundary, gameBoundary]);
 
-            if (parsed.length > 0 && parsed[0].lat !== undefined && parsed[0].id === undefined) {
-                return [{ id: 'legacy-1', type: 'allow', points: parsed }];
-            }
-
-            return parsed;
-        } catch (e) {
-            console.error('Invalid polygon data', e);
-            return [];
-        }
-    }, [gameBoundary]);
+    const commitBoundaryChange = (nextBoundaries: BoundaryPolygon[]) => {
+        const nextBoundaryString = JSON.stringify(nextBoundaries);
+        optimisticGameBoundaryRef.current = nextBoundaryString;
+        setOptimisticGameBoundary(nextBoundaryString);
+        updateGameModeInfo({ gameBoundary: nextBoundaryString });
+    };
 
     const activeBoundaryId = useMemo(() => {
         if (draftBoundaries.length === 0) return null;
@@ -258,30 +281,57 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         setSelectedPreset('');
         const newPoint = { lat: e.latLng.lat(), lng: e.latLng.lng() };
 
-        let newBoundaries = [...draftBoundaries];
+        const currentBoundaries = parseBoundaryString(optimisticGameBoundaryRef.current || gameBoundary);
+        let newBoundaries = [...currentBoundaries];
 
         if (newBoundaries.length === 0) {
+            // eslint-disable-next-line react-hooks/purity
             const newId = Date.now().toString();
-            newBoundaries = [{ id: newId, type: 'allow', points: [newPoint] }];
+            newBoundaries = [{ id: newId, type: 'allow', points: [newPoint], isComplete: false }];
             setSelectedBoundaryId(newId);
         } else {
-            const targetId = activeBoundaryId || newBoundaries[newBoundaries.length - 1].id;
+            const targetId = selectedBoundaryId && newBoundaries.some((boundary) => boundary.id === selectedBoundaryId) ? selectedBoundaryId : newBoundaries[newBoundaries.length - 1].id;
             newBoundaries = newBoundaries.map((b) => {
                 if (b.id === targetId) {
-                    return { ...b, points: insertPoint(newPoint, b.points) };
+                    const targetBoundary = b;
+                    const points = targetBoundary.points;
+                    const isComplete = targetBoundary.isComplete ?? false;
+
+                    // Phase 1: If polygon is not complete and has at least 1 point
+                    if (!isComplete && points.length > 0) {
+                        // Phase 1: always append; closing handled via start-handle marker
+                        return { ...b, points: insertPointPhase1(newPoint, points) };
+                    }
+
+                    // Phase 2: If polygon is complete, use the smart insertion algorithm
+                    if (isComplete && points.length >= 3) {
+                        return { ...b, points: insertPoint(newPoint, points) };
+                    }
+
+                    // Fallback: append the point
+                    return { ...b, points: insertPointPhase1(newPoint, points) };
                 }
                 return b;
             });
         }
-        updateGameModeInfo({ gameBoundary: JSON.stringify(newBoundaries) });
+        commitBoundaryChange(newBoundaries);
     };
 
     const handleAddBoundary = () => {
         setSelectedPreset('');
+        // eslint-disable-next-line react-hooks/purity
         const newId = Date.now().toString();
-        const newBoundaries = [...draftBoundaries, { id: newId, type: 'allow', points: [] }];
-        updateGameModeInfo({ gameBoundary: JSON.stringify(newBoundaries) });
+        const newBoundaries: BoundaryPolygon[] = [...draftBoundaries, { id: newId, type: 'allow' as const, points: [], isComplete: false }];
+        commitBoundaryChange(newBoundaries);
         setSelectedBoundaryId(newId);
+    };
+
+    const handleCloseBoundary = (boundaryId: string) => {
+        const currentBoundaries = parseBoundaryString(optimisticGameBoundaryRef.current || gameBoundary);
+        const newBoundaries = currentBoundaries.map((b) => (b.id === boundaryId ? { ...b, isComplete: true } : b));
+        commitBoundaryChange(newBoundaries);
+        // keep selection as is or clear if it was the active
+        if (activeBoundaryId === boundaryId) setSelectedBoundaryId(null);
     };
 
     const handleDrop = (dropIndex: number) => {
@@ -298,7 +348,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
             newBoundaries.push(...itemsInGroup);
         });
 
-        updateGameModeInfo({ gameBoundary: JSON.stringify(newBoundaries) });
+        commitBoundaryChange(newBoundaries);
         setDraggedIndex(null);
     };
 
@@ -358,18 +408,20 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         const presetData = boundaryPresetsData[presetKey];
         if (presetData && presetData.length > 0) {
             const formattedName = presetKey.replace(/_/g, ' ');
+            // eslint-disable-next-line react-hooks/purity
             const sharedGroupId = Date.now().toString();
 
             const newBoundaries: BoundaryPolygon[] = presetData.map((area) => ({
                 id: area.id || (Date.now() + Math.random()).toString(),
                 groupId: sharedGroupId,
-                type: area.type || 'allow',
+                type: (area.type || 'allow') as 'allow' | 'forbid',
                 points: area.points,
                 name: formattedName,
+                isComplete: true, // Preset polygons are already complete
             }));
 
-            const combinedBoundaries = [...draftBoundaries, ...newBoundaries];
-            updateGameModeInfo({ gameBoundary: JSON.stringify(combinedBoundaries) });
+            const combinedBoundaries: BoundaryPolygon[] = [...draftBoundaries, ...newBoundaries];
+            commitBoundaryChange(combinedBoundaries);
             setSelectedBoundaryId(sharedGroupId);
 
             if (mapInstance) {
@@ -401,20 +453,20 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     const handleRemoveGroup = (key: string) => {
         setSelectedPreset('');
         const newBoundaries = draftBoundaries.filter((b) => b.id !== key && b.groupId !== key);
-        updateGameModeInfo({ gameBoundary: JSON.stringify(newBoundaries) });
+        commitBoundaryChange(newBoundaries);
         if (activeBoundaryId === key) setSelectedBoundaryId(null);
     };
 
     const handleToggleGroupType = (key: string) => {
         setSelectedPreset('');
         const groupItem = draftBoundaries.find((b) => b.id === key || b.groupId === key);
-        const newType = groupItem?.type === 'allow' ? 'forbid' : 'allow';
+        const newType: 'allow' | 'forbid' = groupItem?.type === 'allow' ? 'forbid' : 'allow';
 
-        const newBoundaries = draftBoundaries.map((b) => {
+        const newBoundaries: BoundaryPolygon[] = draftBoundaries.map((b) => {
             if (b.id === key || b.groupId === key) return { ...b, type: newType };
             return b;
         });
-        updateGameModeInfo({ gameBoundary: JSON.stringify(newBoundaries) });
+        commitBoundaryChange(newBoundaries);
     };
 
     const getDisplayName = (key: string) => {
@@ -425,7 +477,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     return (
         <div className="bg-slate-800 p-4 sm:p-6 rounded-xl flex-1 border border-slate-700 h-fit">
             <label className="block font-bold cursor-pointer text-slate-200 mb-2">Starting Location & Game Boundary</label>
-            <p className="text-xs text-slate-400 mb-4">Left-click the map to draw movement boundaries. If multiple areas are defined, the priority defines the order of precedence. Drop the Pegman to set a custom starting point, or select a recommended city marker. Selecting a starting point will automatically disable exiting street view ingame.</p>
+            <p className="text-xs text-slate-400 mb-4">Left-click the map to draw movement boundaries. Click on the starting point again to close and fill the polygon. After closing, you can add more points to refine it. If multiple areas are defined, the priority defines the order of precedence. Drop the Pegman to set a custom starting point, or select a recommended city marker. Selecting a starting point will automatically disable exiting street view ingame.</p>
 
             <div className="mt-4 flex flex-col gap-2">
                 <div className="h-[320px] min-h-[320px] sm:h-[400px] sm:min-h-[400px] w-full rounded-lg overflow-hidden border border-slate-700 relative bg-slate-800/50 flex flex-col items-center justify-center">
@@ -483,14 +535,14 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
 
                                 {draftBoundaries.map((boundary) => (
                                     <Fragment key={boundary.id}>
-                                        {boundary.points.length > 0 && (
+                                        {boundary.isComplete && boundary.points.length > 0 && (
                                             <PolygonF
                                                 paths={boundary.points}
                                                 options={{
-                                                    fillOpacity: 0.1,
+                                                    fillOpacity: boundary.isComplete ? 0.1 : 0,
                                                     fillColor: boundary.type === 'allow' ? '#008000' : '#ff0000',
                                                     strokeColor: boundary.type === 'allow' ? '#008000' : '#ff0000',
-                                                    strokeOpacity: 0.6,
+                                                    strokeOpacity: boundary.isComplete ? 0.6 : 0,
                                                     strokeWeight: activeBoundaryId === boundary.id ? 4 : 2,
                                                     clickable: false,
                                                 }}
@@ -508,12 +560,49 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                                         scale: 4,
                                                         fillColor: '#ffffff',
                                                         fillOpacity: 1,
-                                                        strokeColor: boundary.type === 'allow' ? '#008000' : '#ff0000',
+                                                        strokeColor: boundary.isComplete ? (boundary.type === 'allow' ? '#008000' : '#ff0000') : '#7a7a7a',
                                                         strokeWeight: 2,
                                                     },
                                                 }}
                                             />
                                         ))}
+                                        {/* Start-handle: visible during initial drawing phase to close polygon */}
+                                        {!boundary.isComplete && boundary.points.length > 0 && (
+                                            // add polyline in phase 1 instead of polygon to show live preview of closing line
+                                            <>
+                                                <PolylineF
+                                                    path={boundary.points}
+                                                    options={{
+                                                        strokeColor: '#7a7a7a',
+                                                        strokeOpacity: 0.8,
+                                                        strokeWeight: 2,
+                                                        clickable: false,
+                                                        zIndex: 998,
+                                                        geodesic: true,
+                                                    }}
+                                                />
+                                                <MarkerF
+                                                    key={`start-handle-${boundary.id}`}
+                                                    position={boundary.points[0]}
+                                                    onClick={() => handleCloseBoundary(boundary.id)}
+                                                    options={{
+                                                        clickable: true,
+                                                        title: 'Click to close polygon',
+                                                        cursor: 'pointer',
+                                                        zIndex: 999,
+                                                        icon: {
+                                                            path: google.maps.SymbolPath.CIRCLE,
+                                                            scale: 10,
+                                                            fillColor: '#ffd166',
+                                                            fillOpacity: 0,
+                                                            strokeColor: '#fca311',
+                                                            strokeOpacity: 0,
+                                                            strokeWeight: 2,
+                                                        },
+                                                    }}
+                                                />
+                                            </>
+                                        )}
                                     </Fragment>
                                 ))}
                             </GoogleMap>
@@ -532,6 +621,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                 <button
                                     type="button"
                                     onClick={() => {
+                                        setOptimisticGameBoundary('[]');
                                         updateGameModeInfo({ gameBoundary: '[]' });
                                         setSelectedPreset('');
                                     }}

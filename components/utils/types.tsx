@@ -64,6 +64,7 @@ export interface BoundaryPolygon {
     type: 'allow' | 'forbid';
     points: { lat: number; lng: number }[];
     name?: string;
+    isComplete?: boolean; // true if polygon drawing is complete and in refinement phase
 }
 
 export interface LobbyViewProps {

@@ -15,6 +15,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { GeoBingoLogo } from '@/components/utils/Elements';
+import { useViewport } from '@/components/utils/useViewport';
 
 import { adjectives, badAdjectives, animals } from '../lib/names';
 
@@ -33,6 +34,7 @@ export default function Home() {
         }
         return '';
     });
+    const { isNarrow } = useViewport();
 
     const handleSaveName = () => {
         const finalName = playerName.trim() || `${showBadNames ? badAdjectives[Math.floor(Math.random() * badAdjectives.length)] : adjectives[Math.floor(Math.random() * adjectives.length)]}${animals[Math.floor(Math.random() * animals.length)]}`;
@@ -54,13 +56,13 @@ export default function Home() {
     };
 
     return (
-        <main className="flex min-h-screen flex-col items-center justify-start sm:justify-center px-4 py-10 sm:px-8 sm:py-16 lg:p-24 bg-slate-900 text-white">
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 mb-8 sm:mb-12 hover">
-                <GeoBingoLogo size={80} className="animate-pulse" />
+        <main className="flex min-h-dvh flex-col items-center justify-start sm:justify-center px-4 py-0 sm:px-8 sm:pb-0 sm:py-16 lg:p-24 lg:pb-0 bg-slate-900 text-white">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 mb-6 sm:mb-12 hover">
+                <GeoBingoLogo size={isNarrow ? 50 : 80} className="animate-pulse" />
                 <h1 className="text-3xl sm:text-6xl font-bold text-indigo-400 tracking-tighter text-center sm:text-left">Geo BingBong</h1>
             </div>
 
-            <div className="bg-slate-800 p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-700 w-full max-w-md flex flex-col gap-6">
+            <div className="bg-slate-800 p-4 md:p-8 rounded-2xl shadow-2xl border border-slate-700 w-full max-w-md flex flex-col gap-3 md:gap-6">
                 {/* PLAYER NAME INPUT */}
                 <div>
                     <button type="button" className="text-sm text-slate-400 font-bold uppercase mb-2 block" onClick={() => setShowBadNames(!showBadNames)}>
@@ -69,7 +71,7 @@ export default function Home() {
                     <input type="text" placeholder="Enter your name..." className="w-full p-4 rounded-xl bg-slate-900 border border-slate-600 focus:outline-none focus:border-indigo-500 text-white font-medium text-lg" value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
                 </div>
 
-                <div className="w-full h-px bg-slate-700 my-2"></div>
+                <div className="w-full h-px bg-slate-700 md:my-2"></div>
 
                 <button type="button" onClick={createGame} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-xl transition-all tracking-wide uppercase">
                     Create New Game
@@ -85,7 +87,7 @@ export default function Home() {
                 </form>
             </div>
 
-            <div className="mt-8 sm:mt-12 text-slate-500 text-sm font-medium flex gap-4">
+            <div className="mt-auto mb-2 pt-8 text-slate-500 text-sm font-medium flex gap-4">
                 <a href="/impressum" className="hover:text-slate-300 transition-colors">
                     Legal Notice
                 </a>
