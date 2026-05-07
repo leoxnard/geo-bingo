@@ -36,12 +36,12 @@ export default function LoginPage() {
     };
 
     return (
-        <main className="flex min-h-screen flex-col items-center justify-center p-24 bg-slate-900 text-white">
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-12">
-                <h1 className="text-6xl font-bold text-indigo-400 tracking-tighter hidden sm:block uppercase">Preview Login</h1>
+        <main className="flex min-h-screen flex-col items-center justify-start sm:justify-center px-4 py-10 sm:px-8 sm:py-16 lg:p-24 bg-slate-900 text-white">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 mb-8 sm:mb-12">
+                <h1 className="text-3xl sm:text-6xl font-bold text-indigo-400 tracking-tighter uppercase text-center sm:text-left">Preview Login</h1>
             </div>
 
-            <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700 w-full max-w-md flex flex-col gap-4">
+            <div className="bg-slate-800 p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-700 w-full max-w-md flex flex-col gap-4">
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                     <div>
                         <label className="text-xs text-slate-400 font-bold uppercase mb-1 block">Username</label>

@@ -36,7 +36,7 @@ export default function LobbySettings({ isHost, gameMode, teamMode, timeLimit, e
     };
 
     return (
-        <div className="bg-slate-800 p-6 rounded-xl flex-1 border border-slate-700 h-fit">
+        <div className="bg-slate-800 p-4 sm:p-6 rounded-xl flex-1 border border-slate-700 h-fit">
             {/* <h2 className="text-xl font-semibold mb-4 text-slate-300">Settings</h2> */}
 
             {/* Team Mode Selection */}

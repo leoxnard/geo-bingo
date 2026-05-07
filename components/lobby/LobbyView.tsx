@@ -10,7 +10,7 @@ Handles game state synchronization and start game functionality.
 ================================================================================
 */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 import { useJsApiLoader } from '@react-google-maps/api';
 import Image from 'next/image';
@@ -64,8 +64,9 @@ interface LobbyViewProps {
     setPlayers: (players: Player[] | ((prev: Player[]) => Player[])) => void;
     hideMapSymbols: boolean;
     hideMiniMap: boolean;
-    categorySource: 'manual' | 'nearbyPlaces' | 'nearbyStreetView';
+    categorySource: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
     aiEnabled: boolean;
+    isDeveloper: boolean;
     generationRadius: number;
     generationNumber: number;
     language: 'english' | 'german';
@@ -83,6 +84,16 @@ export default function LobbyView(props: LobbyViewProps) {
     });
 
     const MAXGRIDSIZE = 6;
+
+    useEffect(() => {
+        const today = new Date().toDateString();
+        const storedDate = localStorage.getItem('geoBingoPromptDate');
+
+        if (storedDate !== today) {
+            localStorage.setItem('geoBingoPromptDate', today);
+            localStorage.setItem('geoBingoPromptCount', '0');
+        }
+    }, []);
 
     const handleStartGame = async () => {
         let startPos;
@@ -113,6 +124,11 @@ export default function LobbyView(props: LobbyViewProps) {
         const neededCount = props.gameMode === 'bingo' ? props.gridSize * props.gridSize : props.generationNumber;
 
         if ((props.categorySource === 'nearbyPlaces' || props.categorySource === 'nearbyStreetView') && props.startingPoint !== 'open-world' && startPos) {
+            if (!props.isDeveloper) {
+                const currentCount = parseInt(localStorage.getItem('geoBingoPromptCount') || '0', 10);
+                localStorage.setItem('geoBingoPromptCount', (currentCount + 1).toString());
+            }
+
             setIsGenerating(true);
 
             try {
@@ -207,14 +223,14 @@ export default function LobbyView(props: LobbyViewProps) {
     };
 
     return (
-        <div className="min-h-screen flex flex-col items-center p-10 bg-slate-900 text-white relative">
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-12 hidden sm:flex">
+        <div className="min-h-screen flex flex-col items-center px-4 py-6 sm:px-6 sm:py-8 lg:p-10 bg-slate-900 text-white relative">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 mb-8 sm:mb-12 hidden sm:flex">
                 <Image src="/mappin.and.ellipse.png" alt="Logo" width={60} height={60} className="w-auto h-auto" />
                 <h1 className="text-6xl font-bold text-indigo-400 tracking-tighter">Geo BingBong</h1>
             </div>
 
-            <div className="flex flex-col lg:flex-row gap-6 w-full max-w-5xl">
-                <div className="flex-1 gap-6 flex flex-col">
+            <div className="flex flex-col lg:flex-row gap-4 sm:gap-6 w-full max-w-5xl">
+                <div className="flex-1 gap-4 sm:gap-6 flex flex-col">
                     <LobbySettings key={`settings-${props.gameId}-${props.lastUpdated}`} isHost={props.isHost} gameMode={props.gameMode} teamMode={props.teamMode} gridSize={props.gridSize} timeLimit={props.timeLimit} endCondition={props.endCondition} exclusiveMode={props.exclusiveMode} updateGameModeInfo={props.updateGameModeInfo} />
 
                     <LobbyMap isHost={props.isHost} isLoaded={isLoaded} startingPoint={props.startingPoint} gameBoundary={props.gameBoundary} generationRadius={props.categorySource !== 'manual' ? props.generationRadius : undefined} updateGameModeInfo={props.updateGameModeInfo} />
@@ -234,6 +250,7 @@ export default function LobbyView(props: LobbyViewProps) {
                         startingPoint={props.startingPoint}
                         categorySource={props.categorySource}
                         aiEnabled={props.aiEnabled}
+                        isDeveloper={props.isDeveloper}
                         generationRadius={props.generationRadius}
                         generationNumber={props.generationNumber}
                         difficulty={props.difficulty}

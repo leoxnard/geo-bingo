@@ -103,6 +103,7 @@ export const ToggleButton = ({ classname, active, labelLeft, labelRight, onClick
 export type ToggleOption<T extends string | number> = {
     value: T;
     label: string;
+    shortLabel?: string;
 };
 
 interface MultiToggleButtonProps<T extends string | number> {
@@ -117,17 +118,30 @@ interface MultiToggleButtonProps<T extends string | number> {
     sizeRatios?: number[];
     description?: string;
     allowedValues?: T[];
+    columns?: number;
 }
 
-export const MultiToggleButton = <T extends string | number>({ classname = '', options, activeValue, onChange, disabled, title, isHost, position = 'middle', sizeRatios, description, allowedValues }: MultiToggleButtonProps<T>) => {
+export const MultiToggleButton = <T extends string | number>({ classname = '', options, activeValue, onChange, disabled, title, isHost, position = 'middle', sizeRatios, description, allowedValues, columns }: MultiToggleButtonProps<T>) => {
     const activeIndex = options.findIndex((opt) => opt.value === activeValue);
     const safeActiveIndex = activeIndex >= 0 ? activeIndex : 0;
 
-    const ratios = sizeRatios && sizeRatios.length === options.length ? sizeRatios : options.map(() => 1);
+    /* --- POSITION COMPUTATION --- */
+    const isGrid = !!columns && columns > 0;
+    const cols = columns || options.length;
+    const rows = Math.ceil(options.length / cols);
 
+    const activeRow = Math.floor(safeActiveIndex / cols);
+    const activeCol = safeActiveIndex % cols;
+
+    const ratios = !isGrid && sizeRatios && sizeRatios.length === options.length ? sizeRatios : options.map(() => 1);
     const totalRatioSum = ratios.reduce((acc, val) => acc + val, 0);
     const currentRatio = ratios[safeActiveIndex];
     const prevRatiosSum = ratios.slice(0, safeActiveIndex).reduce((acc, val) => acc + val, 0);
+
+    const widthPct = isGrid ? 100 / cols : (currentRatio / totalRatioSum) * 100;
+    const heightPct = isGrid ? 100 / rows : 100;
+    const leftPct = isGrid ? activeCol * (100 / cols) : (prevRatiosSum / totalRatioSum) * 100;
+    const topPct = isGrid ? activeRow * (100 / rows) : 0;
 
     return (
         <div
@@ -140,48 +154,55 @@ export const MultiToggleButton = <T extends string | number>({ classname = '', o
                 <span>{title}</span>
             </label>
 
-            {/* Button-Container */}
-            <div className={`relative w-full flex bg-slate-900 rounded-lg p-1 transition-all ${disabled ? 'opacity-50 pointer-events-none' : ''}`} title={title}>
-                {/* Dynamischer Slider */}
-                <div
-                    className={`
-                        absolute top-1 bottom-1 left-1 rounded-md shadow-lg 
-                        transition-transform duration-300 ease-in-out
-                        ${isHost ? 'bg-indigo-600' : 'bg-slate-700'}
-                    `}
-                    style={{
-                        width: `calc((100% - 8px) * ${currentRatio / totalRatioSum})`,
-                        transform: `translateX(${(prevRatiosSum / currentRatio) * 100}%)`,
-                    }}
-                />
+            {/* --- BUTTON CONTAINER --- */}
+            <div className={`bg-slate-900 rounded-lg p-1 w-full ${disabled ? 'opacity-50 pointer-events-none' : ''}`} title={title}>
+                <div className={`relative w-full ${isGrid ? 'grid' : 'flex'}`} style={isGrid ? { gridTemplateColumns: `repeat(${cols}, 1fr)` } : undefined}>
+                    {/* --- SLIDER BACKGROUND --- */}
+                    <div
+                        className={`
+                            absolute rounded-md shadow-lg pointer-events-none z-0
+                            transition-all duration-300 ease-in-out
+                            ${isHost ? 'bg-indigo-600' : 'bg-slate-700'}
+                        `}
+                        style={{
+                            width: `${widthPct}%`,
+                            height: `${heightPct}%`,
+                            left: `${leftPct}%`,
+                            top: `${topPct}%`,
+                        }}
+                    />
 
-                {/* Option Labels */}
-                {options.map((option, index) => {
-                    const isActive = activeValue === option.value;
-                    const isOptionDisabled = disabled || (allowedValues && !allowedValues.includes(option.value));
-                    return (
-                        <button
-                            key={option.value}
-                            onClick={() => {
-                                if (!isOptionDisabled) {
-                                    onChange(option.value);
-                                } else {
-                                    toast.error('Set a starting point to enable this option');
-                                }
-                            }}
-                            className={`
-                                relative z-10 py-2 text-sm font-semibold transition-colors duration-200 focus:outline-none
-                                ${isActive ? 'text-white' : isOptionDisabled ? 'text-slate-400/30' : 'text-slate-400 hover:text-slate-300'}
-                            `}
-                            style={{ flex: ratios[index] }}
-                        >
-                            {option.label}
-                        </button>
-                    );
-                })}
+                    {/* --- OPTIONS --- */}
+                    {options.map((option, index) => {
+                        const isActive = activeValue === option.value;
+                        const isOptionDisabled = disabled || (allowedValues && !allowedValues.includes(option.value));
+                        return (
+                            <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => {
+                                    if (!isOptionDisabled) {
+                                        onChange(option.value);
+                                    } else {
+                                        toast.error('Set a starting point to enable this option');
+                                    }
+                                }}
+                                className={`
+                                    relative z-10 py-2 px-1 text-sm font-semibold transition-colors duration-200 focus:outline-none cursor-pointer
+                                    whitespace-nowrap overflow-hidden text-ellipsis
+                                    ${isActive ? 'text-white' : isOptionDisabled ? 'text-slate-400/30' : 'text-slate-400 hover:text-slate-300'}
+                                `}
+                                style={!isGrid ? { flex: ratios[index] } : undefined}
+                                title={option.label}
+                            >
+                                {option.label}
+                            </button>
+                        );
+                    })}
+                </div>
             </div>
 
-            {/* Description */}
+            {/* --- DESCRIPTION --- */}
             {description && <p className="mt-2 text-xs text-slate-400 text-center min-h-[16px]">{description}</p>}
         </div>
     );

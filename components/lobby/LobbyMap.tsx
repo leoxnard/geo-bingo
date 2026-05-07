@@ -13,7 +13,7 @@ Integrates with nearby place and street view category generation.
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 
 import { GoogleMap, PolygonF, MarkerF, OverlayView, OverlayViewF, Circle } from '@react-google-maps/api';
-import { FaPlus, FaTimes } from 'react-icons/fa';
+import { FaPlus, FaTimes, FaCaretDown, FaCaretRight } from 'react-icons/fa';
 
 import { FullscreenButton } from '../utils/Elements';
 import { insertPoint, mapOptions } from '../utils/mapUtils';
@@ -130,7 +130,10 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         const result: Record<string, string[]> = {};
 
         Object.entries(groupedPresets).forEach(([groupName, items]) => {
-            result[groupName] = items.filter((item) => item.replace(/_/g, ' ').toLowerCase().includes(term));
+            result[groupName] = items.filter((item) => {
+                const normalizedItem = item.replace(/_/g, ' ').toLowerCase();
+                return normalizedItem.startsWith(term) || normalizedItem.includes(` ${term}`);
+            });
         });
         return result;
     }, [searchTerm, groupedPresets]);
@@ -160,8 +163,13 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
 
         if (value.trim() === '') return;
 
-        const normalized = value.toLowerCase();
-        const firstValidGroup = groupNames.find((g) => groupedPresets[g]?.some((item) => item.replace(/_/g, ' ').toLowerCase().includes(normalized)));
+        const term = value.toLowerCase();
+        const firstValidGroup = groupNames.find((g) =>
+            groupedPresets[g]?.some((item) => {
+                const normalizedItem = item.replace(/_/g, ' ').toLowerCase();
+                return normalizedItem.startsWith(term) || normalizedItem.includes(` ${term}`);
+            }),
+        );
 
         if (!firstValidGroup) return;
 
@@ -415,12 +423,12 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     };
 
     return (
-        <div className="bg-slate-800 p-6 rounded-xl flex-1 border border-slate-700 h-fit">
+        <div className="bg-slate-800 p-4 sm:p-6 rounded-xl flex-1 border border-slate-700 h-fit">
             <label className="block font-bold cursor-pointer text-slate-200 mb-2">Starting Location & Game Boundary</label>
             <p className="text-xs text-slate-400 mb-4">Left-click the map to draw movement boundaries. If multiple areas are defined, the priority defines the order of precedence. Drop the Pegman to set a custom starting point, or select a recommended city marker. Selecting a starting point will automatically disable exiting street view ingame.</p>
 
             <div className="mt-4 flex flex-col gap-2">
-                <div className="h-[400px] min-h-[400px] w-full rounded-lg overflow-hidden border border-slate-700 relative bg-slate-800/50 flex flex-col items-center justify-center">
+                <div className="h-[320px] min-h-[320px] sm:h-[400px] sm:min-h-[400px] w-full rounded-lg overflow-hidden border border-slate-700 relative bg-slate-800/50 flex flex-col items-center justify-center">
                     {!isLoaded || presetsLoading ? (
                         <div className="text-slate-400">Loading map configuration and presets...</div>
                     ) : (
@@ -562,7 +570,9 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                     onKeyDown={handleKeyDown}
                                     className="w-full bg-transparent px-4 py-2 text-slate-200 outline-none placeholder:text-slate-400 text-sm"
                                 />
-                                <span className="pr-4 text-xs text-slate-400 pointer-events-none">▼</span>
+                                <span className="pr-4 text-xs text-slate-400 pointer-events-none">
+                                    <FaCaretDown size={15} />
+                                </span>
                             </div>
 
                             {/* Dropdown-Menü */}
@@ -595,7 +605,9 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                                             <span className="font-semibold">
                                                                 {item.value} <span className="text-xs font-normal opacity-50 ml-1">({count})</span>
                                                             </span>
-                                                            <span className={`text-[10px] transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
+                                                            <span className={`text-[10px] transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}>
+                                                                <FaCaretRight size={15} />
+                                                            </span>
                                                         </div>
                                                     );
                                                 } else {

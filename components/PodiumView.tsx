@@ -12,6 +12,8 @@ Supports both individual and team game modes with animated podium display.
 
 import { useState, useEffect } from 'react';
 
+import Confetti from 'react-confetti';
+
 import { supabase } from '../lib/supabase';
 import { GeoBingoLogo } from './utils/Elements';
 import { ScoreEntity, PlayerStats, PodiumViewProps } from './utils/types';
@@ -21,6 +23,30 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
     const [loading, setLoading] = useState(true);
     const [gameMode, setGameMode] = useState<string>('list');
     const [endCondition, setEndCondition] = useState<string>('');
+    const [animPhase, setAnimPhase] = useState(0);
+    const [windowDim, setWindowDim] = useState({ width: 0, height: 0 });
+
+    useEffect(() => {
+        setWindowDim({ width: window.innerWidth, height: window.innerHeight });
+    }, []);
+
+    useEffect(() => {
+        if (!loading) {
+            const t0 = setTimeout(() => setAnimPhase(1), 1000);
+            const t1 = setTimeout(() => setAnimPhase(2), 1600);
+            const t2 = setTimeout(() => setAnimPhase(3), 2400);
+            const t3 = setTimeout(() => setAnimPhase(4), 3200);
+            const t4 = setTimeout(() => setAnimPhase(5), 5000);
+
+            return () => {
+                clearTimeout(t0);
+                clearTimeout(t1);
+                clearTimeout(t2);
+                clearTimeout(t3);
+                clearTimeout(t4);
+            };
+        }
+    }, [loading]);
 
     useEffect(() => {
         const fetchResults = async () => {
@@ -271,9 +297,42 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
 
     return (
         <div className="min-h-screen flex flex-col items-center p-4 bg-slate-900 text-white">
-            <div className="w-full max-w-6xl mx-auto flex flex-col items-center text-white">
+            {animPhase >= 4 && (
+                <div className="absolute inset-0 pointer-events-none z-[100] overflow-hidden">
+                    <Confetti width={windowDim.width} height={windowDim.height} recycle={false} numberOfPieces={500} gravity={0.15} />
+                </div>
+            )}
+            <style>{`
+                @keyframes bounceIn {
+                    0% { opacity: 0; transform: scale(0.1) translateY(50px); }
+                    60% { opacity: 1; transform: scale(1.2) translateY(-10px); }
+                    80% { transform: scale(0.95) translateY(5px); }
+                    100% { opacity: 1; transform: scale(1) translateY(0); }
+                }
+                .animate-bounce-in {
+                    animation: bounceIn 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+                }
+                
+                @keyframes growUp {
+                    0% { transform: scaleY(0); opacity: 0; }
+                    100% { transform: scaleY(1); opacity: 1; }
+                }
+                .animate-grow-up {
+                    animation: growUp 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.1) both;
+                }
+
+                /* NEU: Der Fade-In für die Statistiken */
+                @keyframes fadeIn {
+                    0% { opacity: 0; transform: translateY(20px); }
+                    100% { opacity: 1; transform: translateY(0); }
+                }
+                .animate-fade-in {
+                    animation: fadeIn 1.5s ease-in-out both;
+                }
+            `}</style>
+            <div className="w-full max-w-6xl mx-auto flex flex-col items-center text-white relative z-10">
                 {/* HEADER / TOP BAR */}
-                <div className="w-full flex justify-between items-center mb-4 mt-4">
+                <div className="w-full flex justify-between items-center md:mb-4">
                     <div className="flex items-center gap-4">
                         <GeoBingoLogo size={50} className="hidden sm:block" />
                         <h1 className="text-4xl font-black uppercase tracking-widest text-indigo-400">Results</h1>
@@ -291,24 +350,30 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
                             Back to Lobby
                         </button>
                     ) : (
-                        <div className="text-slate-400 italic font-medium bg-slate-800 px-6 py-3 rounded-lg border border-slate-700">Waiting for Host...</div>
+                        <div className="text-slate-400 italic font-medium bg-slate-800 px-2 md:px-6 py-2 rounded-lg border border-slate-700">Waiting for Host...</div>
                     )}
                 </div>
 
                 {/* THE PODIUM */}
-                <div className="flex items-end justify-center gap-4 md:gap-8 h-65 mt-16 w-full">
+                <div className="flex items-end justify-center gap-4 md:gap-8 mt-4 w-full">
                     {/* 2nd Place */}
                     {rank2.length > 0 && (
-                        <div className="flex flex-col items-center w-32 md:w-40 animate-[slideUp_1s_ease-out]">
-                            <div className="flex flex-col items-center mb-2 w-full">
-                                {rank2.map((p) => (
-                                    <span key={p.id} className="text-xl md:text-2xl font-bold w-full text-center" title={p.name}>
-                                        {p.name}
-                                    </span>
-                                ))}
+                        <div className={`flex flex-col items-center w-32 md:w-40 origin-bottom ${animPhase >= 1 ? 'animate-grow-up' : 'scale-y-0 opacity-0'}`}>
+                            <div className="flex flex-col items-center w-full min-h-[80px] justify-end">
+                                {animPhase >= 3 && (
+                                    <div className="animate-bounce-in flex flex-col items-center w-full">
+                                        <div className="flex flex-col items-center mb-2 w-full">
+                                            {rank2.map((p) => (
+                                                <span key={p.id} className="text-xl md:text-2xl font-bold w-full text-center" title={p.name}>
+                                                    {p.name}
+                                                </span>
+                                            ))}
+                                        </div>
+                                        <span className="text-slate-400 mb-4 font-bold bg-slate-800 px-4 py-1 rounded-full">{renderScoreBadge(rank2[0])}</span>
+                                    </div>
+                                )}
                             </div>
-                            <span className="text-slate-400 mb-4 font-bold bg-slate-800 px-4 py-1 rounded-full">{renderScoreBadge(rank2[0])}</span>
-                            <div className="w-full bg-slate-300 h-32 rounded-t-2xl flex justify-center items-start pt-6 shadow-[0_0_40px_rgba(203,213,225,0.2)]">
+                            <div className="w-full bg-slate-300 h-24 md:h-32 rounded-t-2xl flex justify-center items-start pt-6 shadow-[0_0_40px_rgba(203,213,225,0.2)]">
                                 <span className="text-5xl font-black text-slate-500">2</span>
                             </div>
                         </div>
@@ -316,16 +381,22 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
 
                     {/* 1st Place */}
                     {rank1.length > 0 && (
-                        <div className="flex flex-col items-center w-40 md:w-48 animate-[slideUp_0.8s_ease-out]">
-                            <div className="flex flex-col items-center mb-2 w-full">
-                                {rank1.map((p) => (
-                                    <span key={p.id} className="text-2xl md:text-3xl font-black text-yellow-400 w-full text-center" title={p.name}>
-                                        {p.name}
-                                    </span>
-                                ))}
+                        <div className={`flex flex-col items-center w-40 md:w-48 origin-bottom ${animPhase >= 1 ? 'animate-grow-up' : 'scale-y-0 opacity-0'}`} style={{ animationDelay: '0.1s' }}>
+                            <div className="flex flex-col items-center w-full min-h-[100px] justify-end">
+                                {animPhase >= 4 && (
+                                    <div className="animate-bounce-in flex flex-col items-center w-full">
+                                        <div className="flex flex-col items-center mb-2 w-full">
+                                            {rank1.map((p) => (
+                                                <span key={p.id} className="text-2xl md:text-3xl font-black text-yellow-400 w-full text-center" title={p.name}>
+                                                    {p.name}
+                                                </span>
+                                            ))}
+                                        </div>
+                                        <span className="text-yellow-200 mb-4 font-bold bg-yellow-900/50 px-5 py-1 rounded-full">{renderScoreBadge(rank1[0])}</span>
+                                    </div>
+                                )}
                             </div>
-                            <span className="text-yellow-200 mb-4 font-bold bg-yellow-900/50 px-5 py-1 rounded-full">{renderScoreBadge(rank1[0])}</span>
-                            <div className="w-full bg-yellow-400 h-48 rounded-t-2xl flex justify-center items-start pt-6 shadow-[0_0_60px_rgba(250,204,21,0.4)] relative overflow-hidden">
+                            <div className="w-full bg-yellow-400 h-36 md:h-48 rounded-t-2xl flex justify-center items-start pt-6 shadow-[0_0_60px_rgba(250,204,21,0.4)] relative overflow-hidden">
                                 <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-white/20 to-transparent"></div>
                                 <span className="text-6xl font-black text-yellow-600 relative z-10">1</span>
                             </div>
@@ -334,141 +405,151 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
 
                     {/* 3rd Place */}
                     {rank3.length > 0 && (
-                        <div className="flex flex-col items-center w-32 md:w-40 animate-[slideUp_1.2s_ease-out]">
-                            <div className="flex flex-col items-center mb-2 w-full">
-                                {rank3.map((p) => (
-                                    <span key={p.id} className="text-xl md:text-2xl font-bold w-full text-center" title={p.name}>
-                                        {p.name}
-                                    </span>
-                                ))}
+                        <div className={`flex flex-col items-center w-32 md:w-40 origin-bottom ${animPhase >= 1 ? 'animate-grow-up' : 'scale-y-0 opacity-0'}`} style={{ animationDelay: '0.2s' }}>
+                            <div className="flex flex-col items-center w-full min-h-[80px] justify-end">
+                                {animPhase >= 2 && (
+                                    <div className="animate-bounce-in flex flex-col items-center w-full">
+                                        <div className="flex flex-col items-center mb-2 w-full">
+                                            {rank3.map((p) => (
+                                                <span key={p.id} className="text-xl md:text-2xl font-bold w-full text-center" title={p.name}>
+                                                    {p.name}
+                                                </span>
+                                            ))}
+                                        </div>
+                                        <span className="text-amber-600 mb-4 font-bold bg-amber-900/30 px-4 py-1 rounded-full">{renderScoreBadge(rank3[0])}</span>
+                                    </div>
+                                )}
                             </div>
-                            <span className="text-amber-600 mb-4 font-bold bg-amber-900/30 px-4 py-1 rounded-full">{renderScoreBadge(rank3[0])}</span>
-                            <div className="w-full bg-amber-700 h-24 rounded-t-2xl flex justify-center items-start pt-6 shadow-[0_0_40px_rgba(180,83,9,0.2)]">
+                            <div className="w-full bg-amber-700 h-18 md:h-24 rounded-t-2xl flex justify-center items-start pt-6 shadow-[0_0_40px_rgba(180,83,9,0.2)]">
                                 <span className="text-5xl font-black text-amber-900">3</span>
                             </div>
                         </div>
                     )}
                 </div>
 
-                {/* WINNING MESSAGE BANNER */}
-                <div className="mt-6 mb-10 w-full flex justify-center animate-[fadeIn_2s_ease-in-out]">
-                    <span className="bg-slate-800 border border-slate-700 text-slate-300 px-6 py-2 rounded-full text-sm font-bold shadow-lg uppercase tracking-wide">{getWinningMessage()}</span>
-                </div>
+                {/* WINNING MESSAGE & STATS */}
+                {animPhase >= 5 && (
+                    <div className="w-full animate-fade-in">
+                        <div className="my-3 md:my-6 w-full flex justify-center">
+                            <span className="bg-slate-800 border border-slate-700 text-slate-300 px-6 py-2 rounded-full text-sm font-bold shadow-lg uppercase tracking-wide text-center">{getWinningMessage()}</span>
+                        </div>
 
-                {/* DETAILED STATISTICS */}
-                <div className="w-full bg-slate-800 rounded-3xl border border-slate-700 p-8 md:p-10 shadow-2xl">
-                    <h3 className="text-2xl font-black text-white mb-8 uppercase tracking-widest border-b border-slate-700 pb-4 text-center">Match Statistics</h3>
+                        {/* DETAILED STATISTICS */}
+                        <div className="w-full bg-slate-800 rounded-3xl border border-slate-700 p-3 md:p-6 shadow-2xl">
+                            <h3 className="text-2xl font-black text-white mb-4 md:mb-8 uppercase tracking-widest border-b border-slate-700 pb-2 md:pb-4 text-center">Match Statistics</h3>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {stats.map((player) => (
-                            <div key={player.id} className="bg-slate-900 p-6 rounded-2xl border border-slate-700 flex flex-col gap-4">
-                                {/* Header: Rank & Name */}
-                                <div className="flex justify-between items-center border-b border-slate-800 pb-4">
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-2xl font-black text-slate-600">#{player.rank}</span>
-                                        <span className="font-bold text-xl text-indigo-400">{player.name}</span>
-                                    </div>
-                                    <span className="bg-indigo-600 px-4 py-1 rounded-lg text-lg font-bold text-white shadow-lg">{player.score} Pts</span>
-                                </div>
-
-                                {/* Stats Grid */}
-                                <div className={`grid ${gameMode === 'bingo' ? 'grid-cols-3' : 'grid-cols-2'} gap-3 mt-2`}>
-                                    {/* Bingos */}
-                                    {gameMode === 'bingo' && (
-                                        <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
-                                            <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">Bingos</span>
-                                            <div className="flex-1 flex items-center justify-center w-full">
-                                                <span className="text-xl font-medium text-yellow-400 leading-none">{player.bingos || 0}</span>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-6">
+                                {stats.map((player) => (
+                                    <div key={player.id} className="bg-slate-900 p-3 md:p-6 rounded-2xl border border-slate-700 flex flex-col gap-4">
+                                        {/* Header: Rank & Name */}
+                                        <div className="flex justify-between items-center border-b border-slate-800 pb-2 md:pb-4">
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-2xl font-black text-slate-600">#{player.rank}</span>
+                                                <span className="font-bold text-xl text-indigo-400">{player.name}</span>
                                             </div>
+                                            <span className="bg-indigo-600 px-4 py-1 rounded-lg text-lg font-bold text-white shadow-lg">{player.score} Pts</span>
                                         </div>
-                                    )}
-                                    {/* Approved Words */}
-                                    <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
-                                        <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">Approved words</span>
-                                        <div className="flex-1 flex items-center justify-center w-full">
-                                            <span className="text-xl font-medium leading-none">{player.totalFound || 0}</span>
-                                        </div>
-                                    </div>
-                                    {/* Mini Bingo Board */}
-                                    {gameMode === 'bingo' ? (
-                                        <div className="relative group bg-slate-800 p-3 rounded-xl flex flex-col items-center justify-center">
-                                            <span className="text-[10px] text-slate-400 uppercase font-bold mb-2 text-center">Bingo-Board</span>
-                                            <div
-                                                className="grid gap-1"
-                                                style={{
-                                                    gridTemplateColumns: `repeat(${player.gridSize || 3}, minmax(0, 1fr))`,
-                                                }}
-                                            >
-                                                {player.gridStatus?.map((status: number, idx: number) => (
-                                                    <div key={idx} className={`w-2 h-2 rounded-sm ${status === 3 ? 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)] z-10' : status === 1 ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.4)]' : status === 2 ? 'bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.4)]' : 'bg-slate-700'}`} />
-                                                ))}
-                                            </div>
 
-                                            {/* --- HOVER OVERLAY --- */}
-                                            <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 hidden group-hover:flex z-50 w-[280px] h-[280px] sm:w-[400px] sm:h-[400px] p-3 bg-slate-900 border border-indigo-500/50 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] pointer-events-none flex-col">
-                                                <div
-                                                    className="grid gap-1.5 flex-1"
-                                                    style={{
-                                                        gridTemplateColumns: `repeat(${player.gridSize || 3}, 1fr)`,
-                                                        gridTemplateRows: `repeat(${player.gridSize || 3}, 1fr)`,
-                                                    }}
-                                                >
-                                                    {player.bingoBoard?.map((word: string, idx: number) => {
-                                                        const status = player.gridStatus[idx];
-                                                        let styleClass = 'bg-slate-800 text-slate-400 border-slate-700';
-
-                                                        if (status === 3) styleClass = 'bg-yellow-900/40 text-yellow-400 border-yellow-500/50 shadow-[0_0_10px_rgba(250,204,21,0.2)] font-bold';
-                                                        else if (status === 1) styleClass = 'bg-green-900/30 text-green-400 border-green-500/40';
-                                                        else if (status === 2) styleClass = 'bg-red-900/20 text-red-500 border-red-500/30 line-through opacity-60';
-
-                                                        return (
-                                                            <div key={idx} className={`text-[9px] sm:text-[11px] flex items-center justify-center text-center p-1.5 rounded-lg border overflow-hidden hyphens-auto break-all leading-tight h-full w-full ${styleClass}`}>
-                                                                <span className="line-clamp-4">{word}</span>
-                                                            </div>
-                                                        );
-                                                    })}
+                                        {/* Stats Grid */}
+                                        <div className={`grid ${gameMode === 'bingo' ? 'grid-cols-3' : 'grid-cols-2'} gap-3`}>
+                                            {/* Bingos */}
+                                            {gameMode === 'bingo' && (
+                                                <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
+                                                    <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">Bingos</span>
+                                                    <div className="flex-1 flex items-center justify-center w-full">
+                                                        <span className="text-xl font-medium text-yellow-400 leading-none">{player.bingos || 0}</span>
+                                                    </div>
                                                 </div>
-
-                                                {/* Pfeil-Icon unten */}
-                                                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-slate-900 border-b border-r border-indigo-500/50 rotate-45"></div>
+                                            )}
+                                            {/* Approved Words */}
+                                            <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
+                                                <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">Approved words</span>
+                                                <div className="flex-1 flex items-center justify-center w-full">
+                                                    <span className="text-xl font-medium leading-none">{player.totalFound || 0}</span>
+                                                </div>
                                             </div>
-                                        </div>
-                                    ) : (
-                                        <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
-                                            <span className="text-[10px] text-slate-400 uppercase font-bold mb-1 text-center">Approve-Rate</span>
-                                            <span className={`text-xl font-medium ${player.communityApproval >= 75 ? 'text-green-400' : player.communityApproval >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>{player.communityApproval}%</span>
-                                        </div>
-                                    )}
+                                            {/* Mini Bingo Board */}
+                                            {gameMode === 'bingo' ? (
+                                                <div className="relative group bg-slate-800 p-3 rounded-xl flex flex-col items-center justify-center">
+                                                    <span className="text-[10px] text-slate-400 uppercase font-bold mb-2 text-center">Bingo-Board</span>
+                                                    <div
+                                                        className="grid gap-1"
+                                                        style={{
+                                                            gridTemplateColumns: `repeat(${player.gridSize || 3}, minmax(0, 1fr))`,
+                                                        }}
+                                                    >
+                                                        {player.gridStatus?.map((status: number, idx: number) => (
+                                                            <div key={idx} className={`w-2 h-2 rounded-sm ${status === 3 ? 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)] z-10' : status === 1 ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.4)]' : status === 2 ? 'bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.4)]' : 'bg-slate-700'}`} />
+                                                        ))}
+                                                    </div>
 
-                                    <div className={`bg-slate-800 p-3 rounded-xl flex flex-col ${gameMode === 'bingo' ? 'col-span-3' : 'col-span-2'}`}>
-                                        <span className="text-xs text-slate-400 uppercase font-bold mb-2">Total Votes Received</span>
-                                        <div className="flex items-center gap-4">
-                                            <div className="flex-1 h-3 bg-slate-700 rounded-full overflow-hidden flex">
-                                                <div
-                                                    className="bg-green-500 h-full"
-                                                    style={{
-                                                        width: `${player.totalYes + player.totalNo > 0 ? (player.totalYes / (player.totalYes + player.totalNo)) * 100 : 0}%`,
-                                                    }}
-                                                ></div>
-                                                <div
-                                                    className="bg-red-500 h-full"
-                                                    style={{
-                                                        width: `${player.totalYes + player.totalNo > 0 ? (player.totalNo / (player.totalYes + player.totalNo)) * 100 : 0}%`,
-                                                    }}
-                                                ></div>
-                                            </div>
-                                            <div className="flex gap-3 text-sm font-bold">
-                                                <span className="text-green-500">{player.totalYes} Yes</span>
-                                                <span className="text-slate-500">|</span>
-                                                <span className="text-red-500">{player.totalNo} No</span>
+                                                    {/* --- HOVER OVERLAY --- */}
+                                                    <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 hidden group-hover:flex z-50 w-[280px] h-[280px] sm:w-[400px] sm:h-[400px] p-3 bg-slate-900 border border-indigo-500/50 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] pointer-events-none flex-col">
+                                                        <div
+                                                            className="grid gap-1.5 flex-1"
+                                                            style={{
+                                                                gridTemplateColumns: `repeat(${player.gridSize || 3}, 1fr)`,
+                                                                gridTemplateRows: `repeat(${player.gridSize || 3}, 1fr)`,
+                                                            }}
+                                                        >
+                                                            {player.bingoBoard?.map((word: string, idx: number) => {
+                                                                const status = player.gridStatus[idx];
+                                                                let styleClass = 'bg-slate-800 text-slate-400 border-slate-700';
+
+                                                                if (status === 3) styleClass = 'bg-yellow-900/40 text-yellow-400 border-yellow-500/50 shadow-[0_0_10px_rgba(250,204,21,0.2)] font-bold';
+                                                                else if (status === 1) styleClass = 'bg-green-900/30 text-green-400 border-green-500/40';
+                                                                else if (status === 2) styleClass = 'bg-red-900/20 text-red-500 border-red-500/30 line-through opacity-60';
+
+                                                                return (
+                                                                    <div key={idx} className={`text-[9px] sm:text-[11px] flex items-center justify-center text-center p-1.5 rounded-lg border overflow-hidden hyphens-auto break-all leading-tight h-full w-full ${styleClass}`}>
+                                                                        <span className="line-clamp-4">{word}</span>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+
+                                                        {/* Pfeil-Icon unten */}
+                                                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-slate-900 border-b border-r border-indigo-500/50 rotate-45"></div>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
+                                                    <span className="text-[10px] text-slate-400 uppercase font-bold mb-1 text-center">Approve-Rate</span>
+                                                    <span className={`text-xl font-medium ${player.communityApproval >= 75 ? 'text-green-400' : player.communityApproval >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>{player.communityApproval}%</span>
+                                                </div>
+                                            )}
+
+                                            <div className={`bg-slate-800 p-3 rounded-xl flex flex-col ${gameMode === 'bingo' ? 'col-span-3' : 'col-span-2'}`}>
+                                                <span className="text-xs text-slate-400 uppercase font-bold mb-2">Total Votes Received</span>
+                                                <div className="flex items-center gap-4">
+                                                    <div className="flex-1 h-3 bg-slate-700 rounded-full overflow-hidden flex">
+                                                        <div
+                                                            className="bg-green-500 h-full"
+                                                            style={{
+                                                                width: `${player.totalYes + player.totalNo > 0 ? (player.totalYes / (player.totalYes + player.totalNo)) * 100 : 0}%`,
+                                                            }}
+                                                        ></div>
+                                                        <div
+                                                            className="bg-red-500 h-full"
+                                                            style={{
+                                                                width: `${player.totalYes + player.totalNo > 0 ? (player.totalNo / (player.totalYes + player.totalNo)) * 100 : 0}%`,
+                                                            }}
+                                                        ></div>
+                                                    </div>
+                                                    <div className="flex gap-3 text-sm font-bold">
+                                                        <span className="text-green-500">{player.totalYes} Yes</span>
+                                                        <span className="text-slate-500">|</span>
+                                                        <span className="text-red-500">{player.totalNo} No</span>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
+                                ))}
                             </div>
-                        ))}
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
         </div>
     );

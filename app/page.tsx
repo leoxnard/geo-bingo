@@ -54,13 +54,13 @@ export default function Home() {
     };
 
     return (
-        <main className="flex min-h-screen flex-col items-center justify-center p-24 bg-slate-900 text-white">
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-12 hover">
+        <main className="flex min-h-screen flex-col items-center justify-start sm:justify-center px-4 py-10 sm:px-8 sm:py-16 lg:p-24 bg-slate-900 text-white">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 mb-8 sm:mb-12 hover">
                 <GeoBingoLogo size={80} className="animate-pulse" />
-                <h1 className="text-6xl font-bold text-indigo-400 tracking-tighter hidden sm:block">Geo BingBong</h1>
+                <h1 className="text-3xl sm:text-6xl font-bold text-indigo-400 tracking-tighter text-center sm:text-left">Geo BingBong</h1>
             </div>
 
-            <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700 w-full max-w-md flex flex-col gap-6">
+            <div className="bg-slate-800 p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-700 w-full max-w-md flex flex-col gap-6">
                 {/* PLAYER NAME INPUT */}
                 <div>
                     <button type="button" className="text-sm text-slate-400 font-bold uppercase mb-2 block" onClick={() => setShowBadNames(!showBadNames)}>
@@ -85,7 +85,7 @@ export default function Home() {
                 </form>
             </div>
 
-            <div className="mt-12 text-slate-500 text-sm font-medium flex gap-4">
+            <div className="mt-8 sm:mt-12 text-slate-500 text-sm font-medium flex gap-4">
                 <a href="/impressum" className="hover:text-slate-300 transition-colors">
                     Legal Notice
                 </a>

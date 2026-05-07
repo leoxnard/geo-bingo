@@ -214,9 +214,9 @@ export default function LobbySidebar(props: LobbySidebarProps) {
     );
 
     return (
-        <div className="flex flex-col gap-6 w-full lg:w-80">
+        <div className="flex flex-col gap-4 sm:gap-6 w-full lg:w-80">
             {/* Invite Box */}
-            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 h-fit">
+            <div className="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 h-fit">
                 <h2 className="text-xl font-semibold mb-4 text-slate-300">Invite Friends</h2>
                 <div className="space-y-3">
                     <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 p-2 rounded-lg">
@@ -237,7 +237,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
             </div>
 
             {/* Player / Teams List */}
-            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 h-fit">
+            <div className="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 h-fit">
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-semibold text-slate-300">Players ({props.players.length})</h2>
 

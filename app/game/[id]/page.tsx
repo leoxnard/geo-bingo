@@ -43,12 +43,13 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [isHost, setIsHost] = useState(false);
     const [gameHostId, setGameHostId] = useState<string>('');
     const [timeLimit, setTimeLimit] = useState(600);
-    const [categorySource, setCategorySource] = useState<'manual' | 'nearbyPlaces' | 'nearbyStreetView'>('manual');
+    const [categorySource, setCategorySource] = useState<'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView'>('manual');
     const [generationRadius, setGenerationRadius] = useState<number>(10); // in 100m
     const [generationNumber, setGenerationNumber] = useState<number>(10);
     const [difficulty, setDifficulty] = useState<'default' | 'easy'>('default');
     const [categoriesGenerated, setCategoriesGenerated] = useState<boolean>(false);
-    const [apiStatus, setApiStatus] = useState({ aiEnabled: false, mapsEnabled: false });
+    const [apiStatus, setApiStatus] = useState({ aiEnabled: false, mapsEnabled: false, isDeveloper: false });
+    const apiStatusRef = useRef({ aiEnabled: false, mapsEnabled: false, isDeveloper: false });
 
     // Bingo Mode State
     const [gameMode, setGameMode] = useState<'list' | 'bingo'>('list');
@@ -69,13 +70,14 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [timeLeft, setTimeLeft] = useState<number>(0);
 
     const timeUpTriggeredRef = useRef(false);
+    const pendingOptimisticUpdatesRef = useRef<Set<string>>(new Set());
 
     // more game options
     const [language, setLanguage] = useState<'german' | 'english'>('german');
     const [hideMapSymbols, setHideMapSymbols] = useState(false);
     const [hideMiniMap, setHideMiniMap] = useState(false);
 
-    const updateGameModeInfo = async (updates: {
+    const updateGameModeInfo = (updates: {
         game_mode?: string;
         team_mode?: string;
         time_limit?: number;
@@ -87,7 +89,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         hide_map_symbols?: boolean;
         hide_minimap?: boolean;
         exclusive_mode?: boolean;
-        category_source?: 'manual' | 'nearbyPlaces' | 'nearbyStreetView';
+        category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
         generation_radius?: number;
         generation_number?: number;
         language?: 'english' | 'german';
@@ -95,35 +97,106 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         categories_generated?: boolean;
     }) => {
         if (!isHost) return;
-        if (updates.game_mode) setGameMode(updates.game_mode as 'list' | 'bingo');
-        if (updates.team_mode) setTeamMode(updates.team_mode as 'ffa' | 'teams');
-        if (updates.time_limit) setTimeLimit(updates.time_limit);
-        if (updates.grid_size) setGridSize(updates.grid_size);
-        if (updates.starting_point) setStartingPoint(updates.starting_point);
-        if (updates.gameBoundary) setGameBoundary(updates.gameBoundary);
-        if (updates.end_condition) setEndCondition(updates.end_condition as 'first_bingo' | 'timer');
-        if (updates.hide_map_symbols !== undefined) setHideMapSymbols(updates.hide_map_symbols);
-        if (updates.hide_minimap !== undefined) setHideMiniMap(updates.hide_minimap);
-        if (updates.exclusive_mode !== undefined) setExclusiveMode(updates.exclusive_mode);
-        if (updates.category_source !== undefined) setCategorySource(updates.category_source);
-        if (updates.generation_radius !== undefined) setGenerationRadius(updates.generation_radius);
-        if (updates.generation_number !== undefined) setGenerationNumber(updates.generation_number);
-        if (updates.language !== undefined) setLanguage(updates.language);
-        if (updates.difficulty !== undefined) setDifficulty(updates.difficulty);
-        if (updates.categories_generated !== undefined) setCategoriesGenerated(updates.categories_generated);
-        await supabase.from('games').update(updates).eq('id', gameId);
+
+        // Track which fields we're optimistically updating to prevent subscription from overwriting
+        const fieldsToUpdate: string[] = [];
+
+        // Optimistic update: update UI immediately
+        if (updates.game_mode) {
+            setGameMode(updates.game_mode as 'list' | 'bingo');
+            fieldsToUpdate.push('game_mode');
+        }
+        if (updates.team_mode) {
+            setTeamMode(updates.team_mode as 'ffa' | 'teams');
+            fieldsToUpdate.push('team_mode');
+        }
+        if (updates.time_limit) {
+            setTimeLimit(updates.time_limit);
+            fieldsToUpdate.push('time_limit');
+        }
+        if (updates.grid_size) {
+            setGridSize(updates.grid_size);
+            fieldsToUpdate.push('grid_size');
+        }
+        if (updates.starting_point) {
+            setStartingPoint(updates.starting_point);
+            fieldsToUpdate.push('starting_point');
+        }
+        if (updates.gameBoundary) {
+            setGameBoundary(updates.gameBoundary);
+            fieldsToUpdate.push('gameBoundary');
+        }
+        if (updates.end_condition) {
+            setEndCondition(updates.end_condition as 'first_bingo' | 'timer');
+            fieldsToUpdate.push('end_condition');
+        }
+        if (updates.hide_map_symbols !== undefined) {
+            setHideMapSymbols(updates.hide_map_symbols);
+            fieldsToUpdate.push('hide_map_symbols');
+        }
+        if (updates.hide_minimap !== undefined) {
+            setHideMiniMap(updates.hide_minimap);
+            fieldsToUpdate.push('hide_minimap');
+        }
+        if (updates.exclusive_mode !== undefined) {
+            setExclusiveMode(updates.exclusive_mode);
+            fieldsToUpdate.push('exclusive_mode');
+        }
+        if (updates.category_source !== undefined) {
+            setCategorySource(updates.category_source);
+            fieldsToUpdate.push('category_source');
+        }
+        if (updates.generation_radius !== undefined) {
+            setGenerationRadius(updates.generation_radius);
+            fieldsToUpdate.push('generation_radius');
+        }
+        if (updates.generation_number !== undefined) {
+            setGenerationNumber(updates.generation_number);
+            fieldsToUpdate.push('generation_number');
+        }
+        if (updates.language !== undefined) {
+            setLanguage(updates.language);
+            fieldsToUpdate.push('language');
+        }
+        if (updates.difficulty !== undefined) {
+            setDifficulty(updates.difficulty);
+            fieldsToUpdate.push('difficulty');
+        }
+        if (updates.categories_generated !== undefined) {
+            setCategoriesGenerated(updates.categories_generated);
+            fieldsToUpdate.push('categories_generated');
+        }
+
+        // Add to pending optimistic updates to prevent subscription from overwriting
+        fieldsToUpdate.forEach((field) => pendingOptimisticUpdatesRef.current.add(field));
+
+        // Background DB update: fire-and-forget without awaiting
+        (async () => {
+            try {
+                await supabase.from('games').update(updates).eq('id', gameId);
+            } catch (err) {
+                console.error('Failed to update game settings:', err);
+                toast.error('Failed to save settings');
+            } finally {
+                // Clear pending updates after a delay to allow subscription to process
+                setTimeout(() => {
+                    fieldsToUpdate.forEach((field) => pendingOptimisticUpdatesRef.current.delete(field));
+                }, 500);
+            }
+        })();
     };
 
     useEffect(() => {
         checkAiKeysAvailable().then((status) => {
             setApiStatus(status);
+            apiStatusRef.current = status;
         });
         let localId = sessionStorage.getItem('geoBingoSessionUUID');
         if (!localId) {
             localId = crypto.randomUUID();
             sessionStorage.setItem('geoBingoSessionUUID', localId);
         }
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+         
         setPlayerId(localId);
 
         const currentPlayerId = localId;
@@ -134,6 +207,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             if (!storedName.trim() || storedName === 'Unknown Player') {
                 localStorage.setItem('geoBingoPlayerName', playerName);
             }
+
+            console.log('[GameRoom] Initializing room for gameId:', gameId, 'at', new Date().toISOString());
 
             const [gameResponse, playerResponse] = await Promise.all([supabase.from('games').select('*').eq('id', gameId).single(), supabase.from('players').select('id, bingo_board').eq('id', currentPlayerId).single()]);
 
@@ -180,6 +255,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     console.error('CRITICAL: Failed to create game.', error);
                 }
             } else {
+                console.log('[GameRoom] Loading existing game, status:', gameData.status);
                 setLastUpdated(gameData.updated_at);
                 setStatus(gameData.status || 'lobby');
                 setCategories(gameData.categories || []);
@@ -248,6 +324,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             }
 
             fetchPlayers();
+            console.log('[GameRoom] Init complete, gameLoaded=true at', new Date().toISOString());
             setGameLoaded(true);
         };
 
@@ -293,33 +370,32 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     }
 
                     if (payload.new.updated_at !== undefined) setLastUpdated(payload.new.updated_at);
-                    if (payload.new.status !== undefined) setStatus(payload.new.status);
+                    if (payload.new.status !== undefined) {
+                        console.log('[GameRoom] Subscription status update:', payload.new.status, 'at', new Date().toISOString());
+                        setStatus(payload.new.status);
+                    }
                     if (payload.new.categories !== undefined) setCategories(payload.new.categories);
                     if (payload.new.suggested_categories !== undefined) setSuggestedCategories(payload.new.suggested_categories);
                     if (payload.new.ready_players !== undefined) setReadyPlayers(payload.new.ready_players);
                     if (payload.new.banned_players !== undefined) setBannedPlayers(payload.new.banned_players);
-                    if (payload.new.time_limit !== undefined) setTimeLimit(payload.new.time_limit);
-                    if (payload.new.game_mode !== undefined) setGameMode(payload.new.game_mode);
-                    if (payload.new.team_mode !== undefined) setTeamMode(payload.new.team_mode);
-                    if (payload.new.grid_size !== undefined) setGridSize(payload.new.grid_size);
-                    if (payload.new.starting_point !== undefined) setStartingPoint(payload.new.starting_point);
-                    if (payload.new.gameBoundary !== undefined) setGameBoundary(payload.new.gameBoundary);
-                    if (payload.new.end_condition !== undefined) setEndCondition(payload.new.end_condition);
-                    if (payload.new.hide_map_symbols !== undefined) setHideMapSymbols(payload.new.hide_map_symbols);
-                    if (payload.new.hide_minimap !== undefined) setHideMiniMap(payload.new.hide_minimap);
-                    if (payload.new.exclusive_mode !== undefined) setExclusiveMode(payload.new.exclusive_mode);
-                    if (payload.new.category_source !== undefined) {
-                        if (!apiStatus.aiEnabled && payload.new.category_source !== 'manual') {
-                            setCategorySource('manual');
-                        } else {
-                            setCategorySource(payload.new.category_source);
-                        }
+                    if (payload.new.time_limit !== undefined && !pendingOptimisticUpdatesRef.current.has('time_limit')) setTimeLimit(payload.new.time_limit);
+                    if (payload.new.game_mode !== undefined && !pendingOptimisticUpdatesRef.current.has('game_mode')) setGameMode(payload.new.game_mode);
+                    if (payload.new.team_mode !== undefined && !pendingOptimisticUpdatesRef.current.has('team_mode')) setTeamMode(payload.new.team_mode);
+                    if (payload.new.grid_size !== undefined && !pendingOptimisticUpdatesRef.current.has('grid_size')) setGridSize(payload.new.grid_size);
+                    if (payload.new.starting_point !== undefined && !pendingOptimisticUpdatesRef.current.has('starting_point')) setStartingPoint(payload.new.starting_point);
+                    if (payload.new.gameBoundary !== undefined && !pendingOptimisticUpdatesRef.current.has('gameBoundary')) setGameBoundary(payload.new.gameBoundary);
+                    if (payload.new.end_condition !== undefined && !pendingOptimisticUpdatesRef.current.has('end_condition')) setEndCondition(payload.new.end_condition);
+                    if (payload.new.hide_map_symbols !== undefined && !pendingOptimisticUpdatesRef.current.has('hide_map_symbols')) setHideMapSymbols(payload.new.hide_map_symbols);
+                    if (payload.new.hide_minimap !== undefined && !pendingOptimisticUpdatesRef.current.has('hide_minimap')) setHideMiniMap(payload.new.hide_minimap);
+                    if (payload.new.exclusive_mode !== undefined && !pendingOptimisticUpdatesRef.current.has('exclusive_mode')) setExclusiveMode(payload.new.exclusive_mode);
+                    if (payload.new.category_source !== undefined && !pendingOptimisticUpdatesRef.current.has('category_source')) {
+                        setCategorySource(payload.new.category_source);
                     }
-                    if (payload.new.generation_radius !== undefined) setGenerationRadius(payload.new.generation_radius);
-                    if (payload.new.generation_number !== undefined) setGenerationNumber(payload.new.generation_number);
-                    if (payload.new.language !== undefined) setLanguage(payload.new.language);
-                    if (payload.new.difficulty !== undefined) setDifficulty(payload.new.difficulty);
-                    if (payload.new.categories_generated !== undefined) setCategoriesGenerated(payload.new.categories_generated);
+                    if (payload.new.generation_radius !== undefined && !pendingOptimisticUpdatesRef.current.has('generation_radius')) setGenerationRadius(payload.new.generation_radius);
+                    if (payload.new.generation_number !== undefined && !pendingOptimisticUpdatesRef.current.has('generation_number')) setGenerationNumber(payload.new.generation_number);
+                    if (payload.new.language !== undefined && !pendingOptimisticUpdatesRef.current.has('language')) setLanguage(payload.new.language);
+                    if (payload.new.difficulty !== undefined && !pendingOptimisticUpdatesRef.current.has('difficulty')) setDifficulty(payload.new.difficulty);
+                    if (payload.new.categories_generated !== undefined && !pendingOptimisticUpdatesRef.current.has('categories_generated')) setCategoriesGenerated(payload.new.categories_generated);
                 },
             )
             .subscribe();
@@ -371,6 +447,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             supabase.removeChannel(gameChannel);
             supabase.removeChannel(playerChannel);
             supabase.removeChannel(presenceChannel);
+            pendingOptimisticUpdatesRef.current.clear();
         };
     }, [gameId, router]);
 
@@ -479,6 +556,45 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         await supabase.from('games').update({ status: 'finished' }).eq('id', gameId);
     };
 
+    const handleVoteEndOptimistic = useCallback(() => {
+        const updatedReadyPlayers = [...readyPlayers, playerId];
+        const votesNeeded = players.length;
+
+        setReadyPlayers(updatedReadyPlayers);
+
+        if (updatedReadyPlayers.length >= votesNeeded) {
+            setStatus('voting');
+        }
+
+        pendingOptimisticUpdatesRef.current.add('ready_players');
+        if (updatedReadyPlayers.length >= votesNeeded) {
+            pendingOptimisticUpdatesRef.current.add('status');
+        }
+
+        (async () => {
+            try {
+                if (updatedReadyPlayers.length >= votesNeeded) {
+                    await supabase
+                        .from('games')
+                        .update({
+                            ready_players: updatedReadyPlayers,
+                            status: 'voting',
+                        })
+                        .eq('id', gameId);
+                } else {
+                    await supabase.from('games').update({ ready_players: updatedReadyPlayers }).eq('id', gameId);
+                }
+            } catch (err) {
+                console.error('Failed to vote:', err);
+            } finally {
+                setTimeout(() => {
+                    pendingOptimisticUpdatesRef.current.delete('ready_players');
+                    pendingOptimisticUpdatesRef.current.delete('status');
+                }, 500);
+            }
+        })();
+    }, [gameId, playerId, readyPlayers, players.length]);
+
     const selectView = () => {
         // --- VIEW 1: LOBBY ---
         if (status === 'lobby') {
@@ -513,6 +629,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     hideMiniMap={hideMiniMap}
                     categorySource={categorySource}
                     aiEnabled={apiStatus.aiEnabled}
+                    isDeveloper={apiStatus.isDeveloper}
                     generationRadius={generationRadius}
                     generationNumber={generationNumber}
                     language={language}
@@ -526,7 +643,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (status === 'playing') {
             const currentPlayer = players.find((p) => p.id === playerId);
             const myBoard = gameMode === 'bingo' && currentPlayer?.bingo_board && currentPlayer.bingo_board.length > 0 ? currentPlayer.bingo_board : categories;
-            return <StreetView myBoard={myBoard} gameId={gameId} playerId={playerId} gameMode={gameMode} teamMode={teamMode} gridSize={gridSize} startingPoint={startingPoint} gameBoundary={gameBoundary} endCondition={endCondition} timeLeft={timeLeft} readyPlayers={readyPlayers} players={players} hideMapSymbols={hideMapSymbols} hideMiniMap={hideMiniMap} exclusiveMode={exclusiveMode} />;
+            return <StreetView myBoard={myBoard} gameId={gameId} playerId={playerId} gameMode={gameMode} teamMode={teamMode} gridSize={gridSize} startingPoint={startingPoint} gameBoundary={gameBoundary} endCondition={endCondition} timeLeft={timeLeft} readyPlayers={readyPlayers} players={players} hideMapSymbols={hideMapSymbols} hideMiniMap={hideMiniMap} exclusiveMode={exclusiveMode} onVoteEnd={handleVoteEndOptimistic} />;
         }
 
         // --- VIEW 3: VOTING ---

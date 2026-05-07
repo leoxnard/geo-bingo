@@ -19,6 +19,7 @@ import { supabase } from '../lib/supabase';
 import { GeoBingoLogo } from './utils/Elements';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES } from './utils/mapUtils';
 import { VotingViewProps, Submission } from './utils/types';
+import { useViewport } from './utils/useViewport';
 
 const ENABLE_PRELOADING = false;
 const MAX_ANIMATION_DURATION = 8000;
@@ -53,6 +54,7 @@ const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => 
 };
 
 export function VotingView({ gameId, isHost, playerId, players, teamMode, onFinishGame }: VotingViewProps) {
+    const { isNarrow } = useViewport();
     const [gameCategories, setGameCategories] = useState<string[]>([]);
     const [gridSize, setGridSize] = useState<number>(3);
     const [gameMode, setGameMode] = useState<string>('list');
@@ -266,7 +268,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                 shownSubIdsRef.current.clear();
                 setShownSubIds(new Set());
                 animationProgressRef.current = 0;
-                if (progressBarRef.current) progressBarRef.current.style.transform = `scaleY(0)`;
+                if (progressBarRef.current) progressBarRef.current.style.transform = `scale${isNarrow ? 'X' : 'Y'}(0)`;
 
                 setCurrentPlayerIndex(payload.payload.index);
             })
@@ -385,7 +387,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
             animationProgressRef.current = progress;
 
             if (progressBarRef.current) {
-                progressBarRef.current.style.transform = `scaleY(${progress})`;
+                progressBarRef.current.style.transform = `scale${isNarrow ? 'X' : 'Y'}(${progress})`;
             }
 
             let currentPoint;
@@ -445,7 +447,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
         rAFRef.current = requestAnimationFrame(animate);
         return () => cancelAnimationFrame(rAFRef.current);
-    }, [isPaused, isLineComplete, mapInstance, pathData, isPreloading, calculatedDuration]);
+    }, [isPaused, isLineComplete, mapInstance, pathData, isPreloading, calculatedDuration, isNarrow]);
 
     //
     useEffect(() => {
@@ -496,7 +498,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
             shownSubIdsRef.current.clear();
             setShownSubIds(new Set());
             animationProgressRef.current = 0;
-            if (progressBarRef.current) progressBarRef.current.style.transform = `scaleY(0)`;
+            if (progressBarRef.current) progressBarRef.current.style.transform = `scale${isNarrow ? 'X' : 'Y'}(0)`;
 
             setCurrentPlayerIndex(nextIndex);
 
@@ -804,9 +806,9 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     }
 
     return (
-        <div className="flex h-screen w-screen overflow-hidden bg-slate-900">
-            {/* Left Panel */}
-            <div className="relative w-1/2 h-full z-10 flex-shrink-0">
+        <div className={`flex ${isNarrow ? 'flex-col' : 'flex-row'} h-[100dvh] w-screen overflow-hidden bg-slate-900`}>
+            {/* Left Panel (Map) */}
+            <div className={`relative ${isNarrow ? 'w-full h-1/2' : 'w-1/2 h-full'} z-10 flex-shrink-0`}>
                 <GoogleMap onLoad={(map) => setMapInstance(map)} mapContainerClassName="w-full h-full" options={currentMapOptions}>
                     <Polyline
                         path={isLineComplete ? finalPath : dummyPath}
@@ -920,21 +922,34 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
             </div>
 
             {/* Right Panel */}
-            <div className="relative w-1/2 h-full bg-slate-800 z-20 shadow-[-20px_0_50px_rgba(0,0,0,0.5)] overflow-hidden">
+            <div className={`relative ${isNarrow ? 'w-full h-1/2' : 'w-1/2 h-full'} bg-slate-800 z-20 shadow-[-20px_0_50px_rgba(0,0,0,0.5)] overflow-hidden`}>
                 {/* Progress Bar */}
-                <div className="absolute left-0 top-0 bottom-0 w-1.5 z-40 bg-slate-900/60 border-r border-slate-700">
-                    <div
-                        ref={progressBarRef}
-                        className="absolute top-0 left-0 w-full h-full bg-indigo-500 shadow-[0_0_20px_2px_rgba(79,70,229,1)] origin-top"
-                        style={{
-                            transform: 'scaleY(0)',
-                            transition: 'transform 0.1s linear',
-                        }}
-                    ></div>
-                </div>
+                {isNarrow ? (
+                    <div className="absolute left-0 top-0 right-0 h-1.5 z-40 bg-slate-900/60 border-b border-slate-700">
+                        <div
+                            ref={progressBarRef}
+                            className={`absolute top-0 left-0 w-full h-full bg-indigo-500 shadow-[0_0_20px_2px_rgba(79,70,229,1)] origin-left`}
+                            style={{
+                                transform: 'scaleX(0)',
+                                transition: 'transform 0.1s linear',
+                            }}
+                        ></div>
+                    </div>
+                ) : (
+                    <div className="absolute left-0 top-0 bottom-0 w-1.5 z-40 bg-slate-900/60 border-r border-slate-700">
+                        <div
+                            ref={progressBarRef}
+                            className={`absolute top-0 left-0 w-full h-full bg-indigo-500 shadow-[0_0_20px_2px_rgba(79,70,229,1)] origin-top`}
+                            style={{
+                                transform: 'scaleY(0)',
+                                transition: 'transform 0.1s linear',
+                            }}
+                        ></div>
+                    </div>
+                )}
 
                 {/* STREETVIEW CONTAINER */}
-                <div className={`absolute inset-0 pl-1.5 flex flex-col z-30 bg-slate-800 transition-all duration-500 ease-in-out ${isStreetViewVisible ? 'opacity-100 translate-x-0 pointer-events-auto' : 'opacity-0 translate-x-12 pointer-events-none'}`}>
+                <div className={`absolute inset-0 ${isNarrow ? 'pt-1.5' : 'pl-1.5'} flex flex-col z-30 bg-slate-800 transition-all duration-500 ease-in-out ${isStreetViewVisible ? 'opacity-100 translate-x-0 pointer-events-auto' : 'opacity-0 translate-x-12 pointer-events-none'}`}>
                     <div className="flex-grow relative w-full">
                         <GoogleMap
                             mapContainerClassName="w-full h-full"
@@ -942,13 +957,13 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                                 selectedSubmission
                                     ? { lat: selectedSubmission.lat, lng: selectedSubmission.lng }
                                     : selectedFinalMarker
-                                      ? {
+                                        ? {
                                             lat: selectedFinalMarker.lat,
                                             lng: selectedFinalMarker.lng,
                                         }
-                                      : displaySub
-                                        ? { lat: displaySub.lat, lng: displaySub.lng }
-                                        : dummyPos
+                                        : displaySub
+                                            ? { lat: displaySub.lat, lng: displaySub.lng }
+                                            : dummyPos
                             }
                             options={{ disableDefaultUI: true, gestureHandling: 'greedy' }}
                         >

@@ -18,10 +18,11 @@ import { FaEye, FaCamera, FaInfoCircle } from 'react-icons/fa';
 import { GoMoveToStart } from 'react-icons/go';
 
 import { supabase } from '../lib/supabase';
-import { FullscreenButton, GeoBingoLogo } from './utils/Elements';
+import { FullscreenButton } from './utils/Elements';
 import { calculateBingoCounter, getDistance } from './utils/Functions';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from './utils/mapUtils';
 import { Submission, StreetViewProps, PathPoint, BoundaryPolygon } from './utils/types';
+import { useViewport } from './utils/useViewport';
 import { GeoGuessrMetaDe, GeoGuessrMetaEn } from '../lib/categories';
 
 const safeStartCenter = { lat: 30, lng: 10 };
@@ -46,7 +47,7 @@ const getHintForCategory = (cat: string) => {
     return null;
 };
 
-export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list', teamMode = 'ffa', gridSize = 3, startingPoint = 'open-world', gameBoundary = '[]', endCondition = 'timer', timeLeft, readyPlayers, players, hideMapSymbols = false, hideMiniMap = false, exclusiveMode = false, allowHints = true }: StreetViewProps) {
+export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list', teamMode = 'ffa', gridSize = 3, startingPoint = 'open-world', gameBoundary = '[]', endCondition = 'timer', timeLeft, readyPlayers, players, hideMapSymbols = false, hideMiniMap = false, exclusiveMode = false, allowHints = true, onVoteEnd }: StreetViewProps) {
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
         googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
@@ -57,10 +58,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
     const [inStreetView, setInStreetView] = useState(false);
     const [allSubmissions, setAllSubmissions] = useState<Submission[]>([]);
     const [isFullscreen, setIsFullscreen] = useState(false);
-    const [isMobileLandscape, setIsMobileLandscape] = useState(() => {
-        if (typeof window === 'undefined') return false;
-        return window.matchMedia('(max-width: 932px) and (orientation: landscape)').matches;
-    });
+    const { isNarrow, isPortrait, isMobileLandscape } = useViewport();
 
     const [panoInstance, setPanoInstance] = useState<google.maps.StreetViewPanorama | null>(null);
     const [minimapInstance, setMinimapInstance] = useState<google.maps.Map | null>(null);
@@ -69,6 +67,8 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
     const streetViewRef = useRef<google.maps.StreetViewPanorama | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const [gridEl, setGridEl] = useState<HTMLDivElement | null>(null);
+    const [forceCompact, setForceCompact] = useState(false);
     const lastValidPositionRef = useRef<google.maps.LatLng | null>(null);
     const lastValidPanoRef = useRef<string | null>(null);
     const isRevertingRef = useRef(false);
@@ -92,27 +92,18 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
     const handleVoteEndRound = async () => {
         if (pathRef.current.length > lastSavedLengthRef.current) {
-            await supabase.from('players').update({ path: pathRef.current }).eq('id', playerId);
+            void (async () => {
+                try {
+                    await supabase.from('players').update({ path: pathRef.current }).eq('id', playerId);
+                } catch (err) {
+                    console.error('Failed to save path:', err);
+                }
+            })();
             lastSavedLengthRef.current = pathRef.current.length;
         }
 
-        const updatedReadyPlayers = [...readyPlayers, playerId];
-        const votesNeeded = players.length;
-
-        try {
-            if (updatedReadyPlayers.length >= votesNeeded) {
-                await supabase
-                    .from('games')
-                    .update({
-                        ready_players: updatedReadyPlayers,
-                        status: 'voting',
-                    })
-                    .eq('id', gameId);
-            } else {
-                await supabase.from('games').update({ ready_players: updatedReadyPlayers }).eq('id', gameId);
-            }
-        } catch (error) {
-            console.error('Failed to vote:', error);
+        if (onVoteEnd) {
+            onVoteEnd();
         }
     };
 
@@ -319,14 +310,6 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
     }, []);
 
     useEffect(() => {
-        const mql = window.matchMedia('(max-width: 932px) and (orientation: landscape)');
-        const onChange = (e: MediaQueryListEvent) => setIsMobileLandscape(e.matches);
-
-        mql.addEventListener('change', onChange);
-        return () => mql.removeEventListener('change', onChange);
-    }, []);
-
-    useEffect(() => {
         const fetchAllSubmissions = async () => {
             const { data } = await supabase.from('submissions').select('*').eq('game_id', gameId);
             if (data) setAllSubmissions(data);
@@ -526,6 +509,48 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
             streetViewRef.current = null;
         }
     }, []);
+
+    useEffect(() => {
+        if (isNarrow) {
+            setForceCompact(false);
+            return;
+        }
+
+        if (!gridEl) return;
+
+        const check = () => {
+            const availableHeight = gridEl.getBoundingClientRect().height;
+            if (availableHeight <= 0) return;
+
+            const isDesktop = window.innerWidth >= 932;
+            const ITEM_MIN_HEIGHT = isDesktop ? 60 : 64;
+            const GAP_HEIGHT = 8;
+            const PADDING = isDesktop ? 0 : 16;
+
+            const requiredHeight = myBoard.length * ITEM_MIN_HEIGHT + (myBoard.length - 1) * GAP_HEIGHT + PADDING + 5;
+
+            const needsCompact = availableHeight < requiredHeight;
+
+            setForceCompact((prev) => {
+                if (prev !== needsCompact) return needsCompact;
+                return prev;
+            });
+        };
+
+        check();
+
+        const ro = new ResizeObserver(() => {
+            requestAnimationFrame(check);
+        });
+
+        ro.observe(gridEl);
+        window.addEventListener('resize', check);
+
+        return () => {
+            ro.disconnect();
+            window.removeEventListener('resize', check);
+        };
+    }, [gridEl, myBoard.length, isNarrow, isPortrait]);
 
     const handleSubmit = async (targetCategory: string) => {
         if (!streetViewRef.current || !inStreetView) return;
@@ -749,42 +774,39 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
     };
 
     return (
-        <div className="min-h-screen p-4 bg-slate-900">
-            {/* Header */}
-            <div className="flex justify-between items-center mb-4 w-full max-w-[95%] xl:max-w-[90vw] mx-auto text-white">
-                <div className="flex items-center gap-4 hidden sm:flex">
-                    <GeoBingoLogo size={40} />
-                    <h1 className="text-2xl font-bold text-indigo-400">Hunt in Progress</h1>
-                </div>
+        <div className="overflow-hidden p-4 bg-slate-900 flex flex-col">
+            {/* Header (portrait only) */}
+            {isPortrait && (
+                <div className={`flex justify-between w-full mx-auto text-white ${isNarrow ? 'flex-col gap-3 mb-3' : 'items-center mb-4'}`}>
+                    <div className="flex items-stretch gap-3 sm:gap-6 w-full sm:w-auto">
+                        <div className="flex items-center justify-center text-xl sm:text-3xl font-black bg-slate-800 px-3 sm:px-6 rounded-lg sm:rounded-xl border border-slate-700 shadow-lg tracking-wider py-1.5 sm:py-2">{timeLeft <= 60 ? <span className="text-red-500 animate-pulse">{formatTime(timeLeft)}</span> : <span className="text-white">{formatTime(timeLeft)}</span>}</div>
 
-                <div className="flex items-stretch gap-3 sm:gap-6 w-full sm:w-auto">
-                    <div className="flex items-center justify-center text-xl sm:text-3xl font-black bg-slate-800 px-3 sm:px-6 rounded-lg sm:rounded-xl border border-slate-700 shadow-lg tracking-wider py-1.5 sm:py-2">{timeLeft <= 60 ? <span className="text-red-500 animate-pulse">{formatTime(timeLeft)}</span> : <span className="text-white">{formatTime(timeLeft)}</span>}</div>
-
-                    <div className="ml-auto flex items-stretch justify-end gap-2 sm:gap-4">
-                        <span className="flex items-center text-slate-400 font-medium">
-                            Votes to end:&nbsp;
-                            <strong className="text-white">
-                                {readyPlayers.length} / {votesNeeded}
-                            </strong>
-                        </span>
-                        <button
-                            type="button"
-                            onClick={handleVoteEndRound}
-                            disabled={hasVotedToEnd}
-                            className={`flex items-center justify-center whitespace-nowrap px-3 sm:px-6 rounded-lg font-bold transition-all uppercase text-[10px] sm:text-sm shadow-lg
-                                ${hasVotedToEnd ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-red-600 hover:bg-red-500 text-white'}`}
-                        >
-                            {hasVotedToEnd ? 'Wait...' : 'End Vote'}
-                        </button>
+                        <div className="ml-auto flex items-stretch justify-end gap-2 sm:gap-4">
+                            <span className="flex items-center text-slate-400 font-medium">
+                                Votes to end:&nbsp;
+                                <strong className="text-white">
+                                    {readyPlayers.length} / {votesNeeded}
+                                </strong>
+                            </span>
+                            <button
+                                type="button"
+                                onClick={handleVoteEndRound}
+                                disabled={hasVotedToEnd}
+                                className={`flex items-center justify-center whitespace-nowrap px-3 sm:px-6 rounded-lg font-bold transition-all uppercase text-[10px] sm:text-sm shadow-lg
+                                    ${hasVotedToEnd ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-red-600 hover:bg-red-500 text-white'}`}
+                            >
+                                {hasVotedToEnd ? 'Wait...' : 'End Vote'}
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
 
-            <div className="w-full max-w-[95%] xl:max-w-[90vw] mx-auto">
+            <div className="w-full mx-auto shrink-0">
                 {playerId && (
-                    <div className={`flex gap-6 ${isMobileLandscape ? 'flex-row h-[calc(100dvh-7rem)] min-h-0' : 'flex-col lg:flex-row h-[calc(100vh-8rem)] min-h-[600px]'}`}>
+                    <div className={`flex gap-4 sm:gap-6 ${isMobileLandscape ? 'flex-row h-[calc(100dvh-2rem)] min-h-0' : isPortrait ? 'flex-col h-[calc(100dvh-6rem)] min-h-0' : 'flex-col lg:flex-row h-[calc(100dvh-2rem)] min-h-0'}`}>
                         {/* Left: Map */}
-                        <div ref={containerRef} className={`${isMobileLandscape ? 'basis-[58%] min-h-0 h-full' : 'flex-1 min-h-[400px] h-full'} border-4 border-slate-700 rounded-2xl overflow-hidden shadow-2xl relative bg-slate-800 absolute-safari-fix`}>
+                        <div ref={containerRef} className={`${isMobileLandscape ? 'basis-[58%] min-h-0 h-full' : isPortrait ? 'flex-[1.2] min-h-[48svh] h-full' : 'flex-1 h-full'} border-4 border-slate-700 rounded-2xl overflow-hidden shadow-2xl relative bg-slate-800 absolute-safari-fix`}>
                             <GoogleMap key={gameId} mapContainerClassName="google-map-container absolute inset-0" center={mapCenter} zoom={mapZoom} options={mapOptions(additionalMapOptions)} onLoad={(map) => setMainMapInstance(map)} onUnmount={() => setMainMapInstance(null)}>
                                 {parsedBoundaries.map(
                                     (boundary, index) =>
@@ -820,9 +842,9 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
                             {/* Minimap */}
                             {inStreetView && !hideMiniMap && (
-                                <div className="absolute bottom-6 left-6 z-[500] w-28 h-28 sm:w-36 sm:h-36 hover:w-44 hover:h-44 sm:hover:w-56 sm:hover:h-56 rounded-xl overflow-hidden border-4 border-indigo-500 shadow-[0_0_20px_rgba(79,70,229,0.5)] transition-all duration-300 minimap-wrapper">
+                                <div className={`absolute ${isNarrow ? 'w-20 h-20 bottom-1 left-1 hover:w-28 hover:h-28' : 'w-28 h-28 bottom-6 left-6 hover:w-44 hover:h-44'} z-[500] rounded-xl overflow-hidden border-4 border-indigo-500 shadow-[0_0_20px_rgba(79,70,229,0.5)] transition-all duration-300 minimap-wrapper`}>
                                     <style>{`.minimap-wrapper .gmnoprint { display: none !important; }`}</style>
-                                    <GoogleMap mapContainerClassName="w-full h-full" onLoad={(map) => setMinimapInstance(map)} onUnmount={() => setMinimapInstance(null)} center={lastValidPositionRef.current || mapCenter} zoom={16} options={mapOptions(additionalMiniMapOptions)} />
+                                    <GoogleMap mapContainerClassName="w-full h-full" onLoad={(map) => setMinimapInstance(map)} onUnmount={() => setMinimapInstance(null)} center={lastValidPositionRef.current || mapCenter} zoom={isNarrow ? 14 : 16} options={mapOptions(additionalMiniMapOptions)} />
                                     {startingPoint !== 'open-world' && <div className="absolute inset-0 z-50 bg-transparent"></div>}
                                 </div>
                             )}
@@ -847,8 +869,32 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                         </div>
 
                         {/* Right: Checklist */}
-                        <div className={`${isMobileLandscape ? 'basis-[42%] max-w-[42%]' : `w-full ${getSidebarWidthClass()}`} flex flex-col gap-4 bg-slate-800 p-6 rounded-2xl shadow-xl h-full border border-slate-700 overflow-y-auto transition-all`}>
-                            <div className="flex justify-between items-center mb-2 border-b border-slate-700 pb-2 hidden sm:flex">
+                        <div className={`${isMobileLandscape ? 'basis-[42%] max-w-[42%]' : `w-full ${getSidebarWidthClass()}`} flex flex-col gap-4 bg-slate-800 sm:p-6 rounded-2xl shadow-xl h-full min-h-0 border border-slate-700 overflow-hidden transition-all`}>
+                            {!isPortrait && (
+                                <div className="flex items-stretch gap-2 sm:gap-4 pb-3 border-b border-slate-700">
+                                    <div className="flex items-center justify-center text-base sm:text-2xl font-black bg-slate-700 px-3 sm:px-4 rounded-lg border border-slate-600 shadow-lg tracking-wider py-1.5 sm:py-2">{timeLeft <= 60 ? <span className="text-red-500 animate-pulse">{formatTime(timeLeft)}</span> : <span className="text-white">{formatTime(timeLeft)}</span>}</div>
+
+                                    <div className="ml-auto flex items-stretch justify-end gap-2">
+                                        <span className="hidden sm:flex items-center text-slate-400 font-medium text-sm">
+                                            Votes:&nbsp;
+                                            <strong className="text-white">
+                                                {readyPlayers.length} / {votesNeeded}
+                                            </strong>
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={handleVoteEndRound}
+                                            disabled={hasVotedToEnd}
+                                            className={`flex items-center justify-center whitespace-nowrap px-3 sm:px-4 rounded-lg font-bold transition-all uppercase text-[10px] sm:text-xs shadow-lg
+                                                ${hasVotedToEnd ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-red-600 hover:bg-red-500 text-white'}`}
+                                        >
+                                            {hasVotedToEnd ? 'Wait...' : 'End Vote'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex justify-between items-center hidden sm:flex">
                                 <h2 className="text-indigo-400 font-bold text-xl tracking-wide uppercase">{gameMode === 'bingo' ? 'Bingo Board' : 'Checklist'}</h2>
                                 <span className="bg-slate-700 text-slate-300 font-bold px-3 py-1 rounded-full text-sm">
                                     {mySubmissions.length} / {myBoard.length}
@@ -856,104 +902,186 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                             </div>
 
                             {gameMode === 'list' ? (
-                                <ul className="flex flex-col gap-3 flex-1">
-                                    {myBoard.map((cat) => {
-                                        const foundSub = mySubmissions.find((s) => s.category === cat);
-                                        const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some((s) => s.category === cat);
+                                <div ref={setGridEl} className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                                    {isNarrow || forceCompact ? (
+                                        // Compact List View
+                                        <ul className="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto p-2 sm:p-0">
+                                            {myBoard.map((cat) => {
+                                                const foundSub = mySubmissions.find((s) => s.category === cat);
+                                                const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some((s) => s.category === cat);
+                                                const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+                                                const fov = foundSub?.zoom ? 180 / Math.pow(2, foundSub.zoom) : 90;
+                                                const hint = allowHints ? getHintForCategory(cat) : null;
 
-                                        const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
-                                        const fov = foundSub?.zoom ? 180 / Math.pow(2, foundSub.zoom) : 90;
+                                                let streetViewImageUrl = '';
+                                                if (foundSub) {
+                                                    let safeHeading = foundSub.heading % 360;
+                                                    if (safeHeading < 0) safeHeading += 360;
+                                                    streetViewImageUrl = `https://maps.googleapis.com/maps/api/streetview?size=600x600&location=${foundSub.lat},${foundSub.lng}&heading=${safeHeading}&pitch=${foundSub.pitch}&fov=${fov}&key=${apiKey}`;
+                                                }
 
-                                        const hint = allowHints ? getHintForCategory(cat) : null;
-
-                                        let bgStyle = {};
-                                        if (foundSub) {
-                                            let safeHeading = foundSub.heading % 360;
-                                            if (safeHeading < 0) safeHeading += 360;
-
-                                            bgStyle = {
-                                                backgroundImage: `url(https://maps.googleapis.com/maps/api/streetview?size=600x600&location=${foundSub.lat},${foundSub.lng}&heading=${safeHeading}&pitch=${foundSub.pitch}&fov=${fov}&key=${apiKey})`,
-                                                backgroundSize: 'cover',
-                                                backgroundPosition: 'center center',
-                                            };
-                                        }
-
-                                        return (
-                                            <li key={cat} className={`relative p-3 rounded-xl border transition-all cursor-pointer flex flex-col gap-2 ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'}`}>
-                                                {/* Background Layer mit overflow hidden, damit der Tooltip ausbrechen darf */}
-                                                <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
-                                                    {foundSub && <div className="absolute inset-0" style={bgStyle}></div>}
-                                                    {foundSub && <div className="absolute inset-0 bg-black/40 z-0"></div>}
-                                                </div>
-
-                                                <div className="relative z-10 flex flex-col gap-2">
-                                                    <div className="flex justify-between items-center w-full">
-                                                        <div className="flex items-center flex-1 pr-2 min-w-0">
-                                                            <span className={`truncate font-medium ${foundSub ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400 line-through' : 'text-white'}`}>{cat}</span>
-                                                            {hint && (
-                                                                <div className="ml-2 relative group flex-shrink-0 cursor-help" onClick={(e) => e.stopPropagation()}>
-                                                                    <FaInfoCircle className={`transition-colors ${foundSub ? 'text-white/70 hover:text-white' : 'text-slate-400 hover:text-white'}`} size={14} />
-                                                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max max-w-[200px] bg-slate-800 text-white text-xs p-2 rounded-lg shadow-xl border border-slate-600 z-[100] whitespace-normal text-center cursor-default">
-                                                                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-800 border-b border-r border-slate-600 transform rotate-45"></div>
-                                                                        <span className="font-bold text-indigo-300">Tipp:</span> {hint}
-                                                                    </div>
-                                                                </div>
-                                                            )}
+                                                return (
+                                                    <li key={cat} className={`relative p-1.5 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 flex-1 min-h-[35px] max-h-[80px] w-full ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'}`}>
+                                                        <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
+                                                            {foundSub && <img src={streetViewImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />}
+                                                            {foundSub && <div className="absolute inset-0 bg-black/50 z-0"></div>}
                                                         </div>
-                                                        <span className={`text-xs font-bold uppercase whitespace-nowrap ${foundSub ? 'text-green-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-500' : 'text-slate-500'}`}>{foundSub ? 'Found' : isBlocked ? 'Locked' : 'Pending'}</span>
-                                                    </div>
 
-                                                    <div className="flex justify-between items-center gap-2 mt-1">
-                                                        {!foundSub ? (
-                                                            <button
-                                                                type="button"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleSubmit(cat);
-                                                                }}
-                                                                disabled={submittingCategory === cat || !inStreetView || isBlocked}
-                                                                className={`flex-1 text-[11px] px-2 py-2 font-bold rounded-lg shadow uppercase transition-all ${isBlocked ? 'bg-red-900/50 text-red-300 cursor-not-allowed' : !inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-green-600/30 hover:bg-green-500/30 text-white'}`}
-                                                            >
-                                                                {submittingCategory === cat ? 'Saving...' : isBlocked ? 'Claimed' : !inStreetView ? 'Enter Streetview' : 'Save'}
-                                                            </button>
-                                                        ) : (
-                                                            <>
-                                                                {!exclusiveMode && (
+                                                        <div className="relative z-10 flex items-center justify-between w-full h-full gap-1.5 min-w-0">
+                                                            <div className="flex items-center flex-1 min-w-0 gap-1 h-full">
+                                                                <span className={`text-xs leading-tight truncate font-medium px-1 ${foundSub ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400 line-through' : 'text-white'}`}>{cat}</span>
+                                                                {hint && (
+                                                                    <div className="relative group flex-shrink-0 cursor-help" onClick={(e) => e.stopPropagation()}>
+                                                                        <FaInfoCircle className={`transition-colors ${foundSub ? 'text-white/70 hover:text-white' : 'text-slate-400 hover:text-white'}`} size={12} />
+                                                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max max-w-[200px] bg-slate-800 text-white text-xs p-2 rounded-lg shadow-xl border border-slate-600 z-[100] whitespace-normal text-center cursor-default">
+                                                                            <span className="font-bold text-indigo-300">Tipp:</span> {hint}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+
+                                                            <div className="flex items-center gap-1 h-full">
+                                                                {!foundSub ? (
                                                                     <button
                                                                         type="button"
                                                                         onClick={(e) => {
                                                                             e.stopPropagation();
                                                                             handleSubmit(cat);
                                                                         }}
-                                                                        disabled={submittingCategory === cat || !inStreetView}
-                                                                        className={`flex-1 text-[10px] px-2 py-2 font-bold rounded-lg shadow uppercase transition-all ${!inStreetView ? 'bg-slate-600/30 text-slate-300 cursor-not-allowed text-slate-300/30' : 'bg-amber-600/30 hover:bg-amber-500/30 text-white'}`}
+                                                                        disabled={submittingCategory === cat || !inStreetView || isBlocked}
+                                                                        className={`h-full px-4 py-1 text-[8px] font-bold rounded-lg shadow uppercase transition-all whitespace-nowrap ${isBlocked ? 'bg-red-900/50 text-red-300 cursor-not-allowed' : !inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-green-600/30 hover:bg-green-500/30 text-white'}`}
                                                                     >
-                                                                        {submittingCategory === cat ? '...' : !inStreetView ? 'Enter Streetview' : 'Overwrite'}
+                                                                        {submittingCategory === cat ? 'Saving...' : isBlocked ? 'Claimed' : !inStreetView ? 'Enter Streetview' : 'Save'}
                                                                     </button>
+                                                                ) : (
+                                                                    <>
+                                                                        {!exclusiveMode && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    handleSubmit(cat);
+                                                                                }}
+                                                                                disabled={submittingCategory === cat || !inStreetView}
+                                                                                className={`px-2 py-1 text-[7px] font-bold rounded-lg shadow uppercase transition-all whitespace-nowrap ${!inStreetView ? 'bg-slate-600/30 text-slate-300 cursor-not-allowed' : 'bg-amber-700/40 hover:bg-amber-600/40 text-white'}`}
+                                                                            >
+                                                                                {submittingCategory === cat ? '...' : !inStreetView ? 'Enter Streetview' : 'Overwrite'}
+                                                                            </button>
+                                                                        )}
+                                                                        {startingPoint === 'open-world' && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    jumpToLocation(foundSub);
+                                                                                }}
+                                                                                className={`${exclusiveMode ? 'flex-1' : 'flex-[0.5]'} bg-slate-700/40 hover:bg-slate-500/30 px-2 py-1 text-[7px] text-white font-bold rounded-lg shadow uppercase transition-all whitespace-nowrap`}
+                                                                            >
+                                                                                View
+                                                                            </button>
+                                                                        )}
+                                                                    </>
                                                                 )}
+                                                            </div>
+                                                        </div>
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
+                                    ) : (
+                                        // Regular Grid View
+                                        <ul className="categories-grid flex-1 min-h-0 overflow-y-auto p-2 sm:p-0" data-cat-rows={String(myBoard.length)}>
+                                            {myBoard.map((cat) => {
+                                                const foundSub = mySubmissions.find((s) => s.category === cat);
+                                                const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some((s) => s.category === cat);
+                                                const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+                                                const fov = foundSub?.zoom ? 180 / Math.pow(2, foundSub.zoom) : 90;
+                                                const hint = allowHints ? getHintForCategory(cat) : null;
 
-                                                                {startingPoint === 'open-world' && (
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            jumpToLocation(foundSub);
-                                                                        }}
-                                                                        className={`${exclusiveMode ? 'flex-1' : 'flex-[0.5]'} bg-slate-700/40 hover:bg-slate-500/30 text-[10px] px-2 py-2 text-white font-bold rounded-lg shadow uppercase transition-all`}
-                                                                    >
-                                                                        View
-                                                                    </button>
-                                                                )}
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </li>
-                                        );
-                                    })}
-                                </ul>
+                                                let streetViewImageUrl = '';
+                                                if (foundSub) {
+                                                    let safeHeading = foundSub.heading % 360;
+                                                    if (safeHeading < 0) safeHeading += 360;
+                                                    streetViewImageUrl = `https://maps.googleapis.com/maps/api/streetview?size=600x600&location=${foundSub.lat},${foundSub.lng}&heading=${safeHeading}&pitch=${foundSub.pitch}&fov=${fov}&key=${apiKey}`;
+                                                }
+
+                                                return (
+                                                    // max-h-[140px] verhindert Hässlichkeit | flex-col justify-between = Text oben, Buttons unten
+                                                    <li key={cat} className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-between w-full h-full max-h-[140px] ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'}`}>
+                                                        <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
+                                                            {foundSub && <img src={streetViewImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />}
+                                                            {foundSub && <div className="absolute inset-0 bg-black/50 z-0"></div>}
+                                                        </div>
+
+                                                        {/* OBERER TEIL: Text und Hint */}
+                                                        <div className="relative z-10 flex flex-col w-full">
+                                                            <div className="flex justify-between items-start w-full gap-1">
+                                                                <div className="flex items-center flex-1 min-w-0">
+                                                                    <span className={`text-sm truncate font-medium ${foundSub ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400 line-through' : 'text-white'}`}>{cat}</span>
+                                                                    {hint && (
+                                                                        <div className="ml-1.5 relative group flex-shrink-0 cursor-help" onClick={(e) => e.stopPropagation()}>
+                                                                            <FaInfoCircle className={`transition-colors ${foundSub ? 'text-white/70 hover:text-white' : 'text-slate-400 hover:text-white'}`} size={12} />
+                                                                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max max-w-[200px] bg-slate-800 text-white text-xs p-2 rounded-lg shadow-xl border border-slate-600 z-[100] whitespace-normal text-center cursor-default">
+                                                                                <span className="font-bold text-indigo-300">Tipp:</span> {hint}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <span className={`text-[10px] font-bold uppercase whitespace-nowrap flex-shrink-0 ${foundSub ? 'text-green-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-500' : 'text-slate-500'}`}>{foundSub ? 'Found' : isBlocked ? 'Locked' : 'Pending'}</span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="relative z-10 flex justify-between items-center gap-1 mt-auto w-full">
+                                                            {!foundSub ? (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleSubmit(cat);
+                                                                    }}
+                                                                    disabled={submittingCategory === cat || !inStreetView || isBlocked}
+                                                                    className={`flex-1 text-[10px] px-2 py-1.5 font-bold rounded-lg shadow uppercase transition-all ${isBlocked ? 'bg-red-900/50 text-red-300 cursor-not-allowed' : !inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-green-600/30 hover:bg-green-500/30 text-white'}`}
+                                                                >
+                                                                    {submittingCategory === cat ? 'Saving...' : isBlocked ? 'Claimed' : !inStreetView ? 'Enter Streetview' : 'Save'}
+                                                                </button>
+                                                            ) : (
+                                                                <>
+                                                                    {!exclusiveMode && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                handleSubmit(cat);
+                                                                            }}
+                                                                            disabled={submittingCategory === cat || !inStreetView}
+                                                                            className={`flex-1 text-[9px] px-2 py-1.5 font-bold rounded-lg shadow uppercase transition-all ${!inStreetView ? 'bg-slate-600/30 text-slate-300 cursor-not-allowed' : 'bg-amber-700/40 hover:bg-amber-600/40 text-white'}`}
+                                                                        >
+                                                                            {submittingCategory === cat ? '...' : !inStreetView ? 'Enter Streetview' : 'Overwrite'}
+                                                                        </button>
+                                                                    )}
+                                                                    {startingPoint === 'open-world' && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                jumpToLocation(foundSub);
+                                                                            }}
+                                                                            className={`${exclusiveMode ? 'flex-1' : 'flex-[0.5]'} bg-slate-700/40 hover:bg-slate-500/30 text-[9px] px-2 py-1.5 text-white font-bold rounded-lg shadow uppercase transition-all`}
+                                                                        >
+                                                                            View
+                                                                        </button>
+                                                                    )}
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
+                                    )}
+                                </div>
                             ) : (
-                                <div className={`grid gap-2 flex-1 auto-rows-fr bingo-grid-${gridSize}`}>
+                                <div className={`grid gap-2 flex-1 min-h-0 overflow-y-auto pr-1 auto-rows-fr bingo-grid-${gridSize}`}>
                                     {myBoard.map((cat) => {
                                         const foundSub = mySubmissions.find((s) => s.category === cat);
                                         const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some((s) => s.category === cat);
@@ -961,20 +1089,14 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
                                         const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
                                         const fov = foundSub?.zoom ? 180 / Math.pow(2, foundSub.zoom) : 90;
-                                        const bgStyle = foundSub
-                                            ? {
-                                                backgroundImage: `url(https://maps.googleapis.com/maps/api/streetview?size=400x400&location=${foundSub.lat},${foundSub.lng}&heading=${foundSub.heading}&pitch=${foundSub.pitch}&fov=${fov}&key=${apiKey})`,
-                                                backgroundSize: 'cover',
-                                                backgroundPosition: 'center',
-                                            }
-                                            : {};
+                                        const streetViewImageUrl = foundSub ? `https://maps.googleapis.com/maps/api/streetview?size=400x400&location=${foundSub.lat},${foundSub.lng}&heading=${foundSub.heading}&pitch=${foundSub.pitch}&fov=${fov}&key=${apiKey}` : '';
 
                                         return (
                                             <div key={cat} title={isBlocked ? 'Claimed by another team' : undefined} onClick={() => handleBingoTileClick(cat)} className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-center items-center text-center pb-2 sm:pb-12 ${foundSub ? 'text-white border-green-500 shadow-md' : isBlocked ? 'bg-slate-900/80 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700'}`}>
                                                 {/* Background Layer mit overflow hidden */}
                                                 <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
-                                                    {foundSub && <div className="absolute inset-0" style={bgStyle}></div>}
-                                                    {foundSub && <div className="absolute inset-0 bg-black/40 z-0"></div>}
+                                                    {foundSub && <img src={streetViewImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />}
+                                                    {foundSub && <div className="absolute inset-0 bg-black/50 z-0"></div>}
                                                 </div>
 
                                                 {hint && (
@@ -1012,7 +1134,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                                     handleSubmit(cat);
                                                                 }}
                                                                 disabled={submittingCategory === cat || !inStreetView}
-                                                                className={`flex-1 h-full font-bold rounded-lg uppercase transition-all flex justify-center items-center ${!inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed opacity-50' : 'bg-amber-600/30 hover:bg-amber-500/30 text-white'}`}
+                                                                className={`flex-1 h-full font-bold rounded-lg uppercase transition-all flex justify-center items-center ${!inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed opacity-50' : 'bg-amber-700/40 hover:bg-amber-600/40 text-white'}`}
                                                             >
                                                                 {submittingCategory === cat ? '...' : <FaCamera className="h-[60%] w-auto" />}
                                                             </button>

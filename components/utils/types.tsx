@@ -109,6 +109,7 @@ export interface StreetViewProps {
     hideMiniMap?: boolean;
     exclusiveMode?: boolean;
     allowHints?: boolean;
+    onVoteEnd?: () => void;
 }
 
 export interface VotingViewProps {

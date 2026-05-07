@@ -18,6 +18,7 @@ import { CiCirclePlus, CiCircleMinus, CiCircleRemove, CiCircleCheck, CiCircleQue
 import { generateAICategories } from './AICategories';
 import { RangeSlider, MultiToggleButton, Selection } from '../utils/Elements';
 import { shuffle } from '../utils/Functions';
+import { useViewport } from '../utils/useViewport';
 
 interface CategoryItemProps {
     initialValue: string;
@@ -39,18 +40,18 @@ const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, o
     const getTextSize = (gameMode: string, gridSize: number) => {
         if (gameMode !== 'bingo') return '';
         switch (gridSize) {
-            case 2:
-                return 'text-base sm:text-xl';
-            case 3:
-                return 'text-xs sm:text-base';
-            case 4:
-                return 'text-xs sm:text-sm';
-            case 5:
-                return 'text-[10px] sm:text-sm';
-            case 6:
-                return 'text-[9px] sm:text-xs';
-            default:
-                return 'text-xs sm:text-xl';
+        case 2:
+            return 'text-base sm:text-xl';
+        case 3:
+            return 'text-xs sm:text-base';
+        case 4:
+            return 'text-xs sm:text-sm';
+        case 5:
+            return 'text-[10px] sm:text-sm';
+        case 6:
+            return 'text-[9px] sm:text-xs';
+        default:
+            return 'text-xs sm:text-xl';
         }
     };
 
@@ -159,23 +160,24 @@ interface LobbyCategoriesProps {
     startingPoint: string;
     categorySource: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
     aiEnabled: boolean;
+    isDeveloper?: boolean;
     generationRadius: number;
     generationNumber: number;
     difficulty: 'default' | 'easy';
     categoriesGenerated: boolean;
 }
 
-export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, language, gridSize, categories, suggestedCategories, gameId, supabase, maxGridSize, startingPoint, categorySource, aiEnabled, generationRadius, generationNumber, difficulty, categoriesGenerated }: LobbyCategoriesProps) {
+export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, language, gridSize, categories, suggestedCategories, gameId, supabase, maxGridSize, startingPoint, categorySource, aiEnabled, isDeveloper, generationRadius, generationNumber, difficulty, categoriesGenerated }: LobbyCategoriesProps) {
     const [newCategory, setNewCategory] = useState('');
     const [randomNumber, setRandomNumber] = useState<number | ''>(10);
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [localRadius, setLocalRadius] = useState(generationRadius);
     const [localGenerationNumber, setLocalGenerationNumber] = useState(generationNumber);
     const [localGridSize, setLocalGridSize] = useState(gridSize);
+    const { isNarrow } = useViewport();
 
     // DB Source Selection State
     const [wordSource, setWordSource] = useState<string>('balanced');
-
     const [localCategories, setLocalCategories] = useState<string[]>(categories);
 
     // AI Generation state
@@ -186,6 +188,22 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
     const echoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+    const DAILY_AI_LIMIT = 3;
+
+    const handleCategorySourceChange = (value: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView') => {
+        const isAiOption = value === 'ai' || value === 'nearbyPlaces' || value === 'nearbyStreetView';
+
+        const currentCount = parseInt(localStorage.getItem('geoBingoPromptCount') || '0', 10);
+        const canUseAI = isDeveloper || currentCount < 3;
+
+        if (isAiOption && !canUseAI) {
+            toast.error('Daily limit (3/3) reached. Login to unlock unlimited prompts.');
+            return;
+        }
+
+        updateGameModeInfo({ category_source: value });
+    };
+
     useEffect(() => {
         if (!isPendingSyncRef.current) {
             setLocalCategories(categories);
@@ -194,6 +212,17 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
 
     const handleAIGeneration = async () => {
         if (!isHost) return;
+
+        if (!isDeveloper) {
+            const currentCount = parseInt(localStorage.getItem('geoBingoPromptCount') || '0', 10);
+
+            if (currentCount >= DAILY_AI_LIMIT) {
+                toast.error(`Daily limit (${DAILY_AI_LIMIT}/${DAILY_AI_LIMIT}) reached.`);
+                return;
+            }
+
+            localStorage.setItem('geoBingoPromptCount', (currentCount + 1).toString());
+        }
 
         setIsGenerating(true);
 
@@ -365,7 +394,8 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
 
     const clearCategories = () => {
         if (!isHost) return;
-        queueDBSave([]);
+        const length = gameMode === 'bingo' ? gridSize * gridSize : localCategories.length;
+        queueDBSave(new Array(length).fill(''));
     };
 
     const handleDragStart = (e: React.DragEvent, index: number) => {
@@ -483,38 +513,26 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                                 { value: 'manual', label: 'Manual' },
                                 { value: 'ai', label: 'AI Generator' },
                                 { value: 'nearbyPlaces', label: 'Nearby Places' },
-                                {
-                                    value: 'nearbyStreetView',
-                                    label: 'Nearby Street View Features',
-                                },
+                                { value: 'nearbyStreetView', label: isNarrow ? 'Street View' : 'Nearby Street View Features' },
                             ]}
                             activeValue={categorySource}
-                            onChange={(val) =>
-                                updateGameModeInfo(
-                                    val === 'ai'
-                                        ? {
-                                              category_source: val,
-                                              categories: [],
-                                              categories_generated: false,
-                                          }
-                                        : { category_source: val, categories_generated: false },
-                                )
-                            }
+                            onChange={handleCategorySourceChange}
                             disabled={!isHost}
                             allowedValues={startingPoint === 'open-world' ? ['manual', 'ai'] : undefined}
                             isHost={isHost}
                             position="top"
+                            columns={2}
                             sizeRatios={[1, 1.5, 1.5, 2.5]}
                             description={
                                 categorySource === 'manual'
                                     ? 'Players submit categories manually.'
                                     : categorySource === 'ai'
-                                      ? 'Generate categories using AI with custom prompts or random themes. Categories appear immediately for editing.'
-                                      : categorySource === 'nearbyPlaces'
-                                        ? 'Categories will be auto-generated by AI based on nearby points of interest. They remain hidden until the game starts!'
-                                        : categorySource === 'nearbyStreetView'
-                                          ? 'Categories will be auto-generated by AI based on nearby Street View features. They remain hidden until the game starts!'
-                                          : 'Generate categories using AI with custom prompts or random themes. Categories appear immediately for editing.'
+                                        ? 'Generate categories using AI with custom prompts or random themes. Categories appear immediately for editing.'
+                                        : categorySource === 'nearbyPlaces'
+                                            ? 'Categories will be auto-generated by AI based on nearby points of interest. They remain hidden until the game starts!'
+                                            : categorySource === 'nearbyStreetView'
+                                                ? 'Categories will be auto-generated by AI based on nearby Street View features. They remain hidden until the game starts!'
+                                                : 'Generate categories using AI with custom prompts or random themes. Categories appear immediately for editing.'
                             }
                         />
                     )}
@@ -655,36 +673,36 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                             </div>
                         </div>
                     ) : /* === NON-HOST ANSICHT === */
-                    gameMode === 'bingo' ? (
-                        <div className={`grid gap-3 mb-6 bingo-grid-${gridSize}`}>
-                            {Array.from({
-                                length: Math.max(gridSize * gridSize, categories.length),
-                            }).map((_, i) => {
-                                const cat = categories[i] || '';
-                                if (i >= gridSize * gridSize) return null;
-                                return (
-                                    <div
-                                        key={`view-bingo-${i}`}
-                                        className={`relative flex items-center justify-center p-2 rounded-lg border text-center min-h-[80px] [hyphens:auto] break-words transition-all
+                        gameMode === 'bingo' ? (
+                            <div className={`grid gap-3 mb-6 bingo-grid-${gridSize}`}>
+                                {Array.from({
+                                    length: Math.max(gridSize * gridSize, categories.length),
+                                }).map((_, i) => {
+                                    const cat = categories[i] || '';
+                                    if (i >= gridSize * gridSize) return null;
+                                    return (
+                                        <div
+                                            key={`view-bingo-${i}`}
+                                            className={`relative flex items-center justify-center p-2 rounded-lg border text-center min-h-[80px] [hyphens:auto] break-words transition-all
                                             ${cat ? 'bg-slate-700 border-slate-600' : 'bg-slate-800/50 border-dashed border-slate-600/50 text-slate-500'}
                                             `}
-                                    >
-                                        <span className={`italic w-full ${cat ? 'text-white font-medium' : 'text-slate-500'}`}>{cat || 'Empty'}</span>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    ) : categories.length > 0 ? (
-                        <ul className="mb-6 space-y-2">
-                            {categories.map((cat, i) => (
-                                <li key={`view-list-${i}`} className="bg-slate-700 rounded-lg flex items-center border border-slate-600 italic shadow-sm overflow-hidden h-[42px]">
-                                    <span className="break-words py-2 px-3 flex items-center text-white w-full h-full">{cat || <span className="text-slate-400">Empty Slot...</span>}</span>
-                                </li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <div className="text-center text-slate-500 italic py-6 border-2 border-dashed border-slate-700 rounded-lg">No categories yet. Suggest some categories or wait for the Host to generate them.</div>
-                    )}
+                                        >
+                                            <span className={`italic w-full ${cat ? 'text-white font-medium' : 'text-slate-500'}`}>{cat || 'Empty'}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : categories.length > 0 ? (
+                            <ul className="mb-6 space-y-2">
+                                {categories.map((cat, i) => (
+                                    <li key={`view-list-${i}`} className="bg-slate-700 rounded-lg flex items-center border border-slate-600 italic shadow-sm overflow-hidden h-[42px]">
+                                        <span className="break-words py-2 px-3 flex items-center text-white w-full h-full">{cat || <span className="text-slate-400">Empty Slot...</span>}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <div className="text-center text-slate-500 italic py-6 border-2 border-dashed border-slate-700 rounded-lg">No categories yet. Suggest some categories or wait for the Host to generate them.</div>
+                        )}
 
                     {!isHost && (
                         <div className="flex gap-2 mb-4 mt-6 pt-4 border-t border-slate-700">
