@@ -53,6 +53,22 @@ export const FullscreenButton = ({ isFullscreen, containerRef, setIsFullscreen }
     );
 };
 
+interface ExitButtonProps {
+    onExit: () => void;
+    style?: React.CSSProperties;
+}
+
+export const ExitButton = ({ onExit, style }: ExitButtonProps) => {
+    return (
+        <button type="button" onClick={onExit} style={style} className="hidden sm:flex w-12 h-12 bg-red-500/30 hover:bg-red-500/80 text-white items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-red-400 font-bold transition-transform duration-300 hover:scale-105 active:scale-95 backdrop-blur-sm" title="Exit Street View">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        </button>
+    );
+};
+
 export const GeoBingoLogo = ({ size = 60, className = '' }: { size?: number; className?: string }) => {
     return <Image src="/mappin.and.ellipse.png" alt="Geo BingBong Logo" loading="eager" width={size} height={size} className={`w-auto h-auto drop-shadow-[0_0_15px_rgba(96,165,250,0.5)] transform-gpu transition-transform ${className}`} />;
 };

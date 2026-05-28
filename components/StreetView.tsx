@@ -14,11 +14,11 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 
 import { GoogleMap, useJsApiLoader, StreetViewPanorama, Polygon } from '@react-google-maps/api';
 import toast from 'react-hot-toast';
-import { FaEye, FaCamera, FaInfoCircle } from 'react-icons/fa';
+import { FaEye, FaCamera, FaInfoCircle, FaChevronLeft } from 'react-icons/fa';
 import { GoMoveToStart } from 'react-icons/go';
 
 import { supabase } from '../lib/supabase';
-import { FullscreenButton } from './utils/Elements';
+import { FullscreenButton, ExitButton } from './utils/Elements';
 import { calculateBingoCounter, getDistance } from './utils/Functions';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from './utils/mapUtils';
 import { Submission, StreetViewProps, PathPoint, BoundaryPolygon } from './utils/types';
@@ -27,6 +27,13 @@ import { GeoGuessrMetaDe, GeoGuessrMetaEn } from '../lib/categories';
 
 const safeStartCenter = { lat: 30, lng: 10 };
 const initialWorldZoom = 2.4;
+
+const ROOMY_MAX = 90;
+const ROOMY_MIN = 67;
+const COMPACT_MAX = 48;
+const COMPACT_MIN = 33;
+const ROOMY_GAP = 12;
+const COMPACT_GAP = 8;
 
 const panoOptions = {
     addressControl: false,
@@ -58,6 +65,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
     const [inStreetView, setInStreetView] = useState(false);
     const [allSubmissions, setAllSubmissions] = useState<Submission[]>([]);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [fsPanelOpen, setFsPanelOpen] = useState(true);
     const { isNarrow, isPortrait, isMobileLandscape } = useViewport();
 
     const [panoInstance, setPanoInstance] = useState<google.maps.StreetViewPanorama | null>(null);
@@ -67,8 +75,11 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
     const streetViewRef = useRef<google.maps.StreetViewPanorama | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const panelRef = useRef<HTMLDivElement | null>(null);
     const [gridEl, setGridEl] = useState<HTMLDivElement | null>(null);
-    const [forceCompact, setForceCompact] = useState(false);
+    const [listLayout, setListLayout] = useState<'roomy' | 'compact'>('roomy');
+    const [measuredPanelWidth, setMeasuredPanelWidth] = useState<number>(0);
+    const maxFsPanelWidth = 420; // px maximum panel width when expanded
     const lastValidPositionRef = useRef<google.maps.LatLng | null>(null);
     const lastValidPanoRef = useRef<string | null>(null);
     const isRevertingRef = useRef(false);
@@ -303,7 +314,9 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
     useEffect(() => {
         const handleFullscreenChange = () => {
-            setIsFullscreen(!!document.fullscreenElement);
+            const fs = !!document.fullscreenElement;
+            setIsFullscreen(fs);
+            if (!fs) setFsPanelOpen(false);
         };
         document.addEventListener('fullscreenchange', handleFullscreenChange);
         return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
@@ -512,7 +525,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
     useEffect(() => {
         if (isNarrow) {
-            setForceCompact(false);
+            setListLayout('compact');
             return;
         }
 
@@ -522,19 +535,17 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
             const availableHeight = gridEl.getBoundingClientRect().height;
             if (availableHeight <= 0) return;
 
-            const isDesktop = window.innerWidth >= 932;
-            const ITEM_MIN_HEIGHT = isDesktop ? 60 : 64;
-            const GAP_HEIGHT = 8;
-            const PADDING = isDesktop ? 0 : 16;
+            const isAtLeastSm = window.innerWidth >= 640;
+            const PADDING = isAtLeastSm ? 0 : 16;
 
-            const requiredHeight = myBoard.length * ITEM_MIN_HEIGHT + (myBoard.length - 1) * GAP_HEIGHT + PADDING + 5;
+            const n = myBoard.length;
+            const usable = availableHeight - PADDING - Math.max(0, n - 1) * ROOMY_GAP;
+            const perItemRoomy = n > 0 ? usable / n : 0;
 
-            const needsCompact = availableHeight < requiredHeight;
+            // Stay in roomy while each item can be at least ROOMY_MIN tall; otherwise switch to compact.
+            const nextLayout: 'roomy' | 'compact' = perItemRoomy >= ROOMY_MIN ? 'roomy' : 'compact';
 
-            setForceCompact((prev) => {
-                if (prev !== needsCompact) return needsCompact;
-                return prev;
-            });
+            setListLayout((prev) => (prev !== nextLayout ? nextLayout : prev));
         };
 
         check();
@@ -551,6 +562,24 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
             window.removeEventListener('resize', check);
         };
     }, [gridEl, myBoard.length, isNarrow, isPortrait]);
+
+    useEffect(() => {
+        if (!panelRef.current) return;
+        const measure = () => {
+            const w = panelRef.current ? panelRef.current.getBoundingClientRect().width : 0;
+            setMeasuredPanelWidth(w);
+        };
+
+        // measure now and when layout changes
+        measure();
+        const ro = new ResizeObserver(() => requestAnimationFrame(measure));
+        ro.observe(panelRef.current);
+        window.addEventListener('resize', measure);
+        return () => {
+            ro.disconnect();
+            window.removeEventListener('resize', measure);
+        };
+    }, [myBoard.length, isFullscreen, fsPanelOpen]);
 
     const handleSubmit = async (targetCategory: string) => {
         if (!streetViewRef.current || !inStreetView) return;
@@ -735,6 +764,8 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
         return 2;
     }, [polyZoom, startingPoint]);
 
+    
+
     if (!isLoaded) return <div className="h-screen flex items-center justify-center text-indigo-400">Loading Maps...</div>;
 
     const getSidebarWidthClass = () => {
@@ -804,9 +835,9 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
             <div className="w-full mx-auto shrink-0">
                 {playerId && (
-                    <div className={`flex gap-4 sm:gap-6 ${isMobileLandscape ? 'flex-row h-[calc(100dvh-2rem)] min-h-0' : isPortrait ? 'flex-col h-[calc(100dvh-6rem)] min-h-0' : 'flex-col lg:flex-row h-[calc(100dvh-2rem)] min-h-0'}`}>
+                    <div className={`flex gap-4 ${isMobileLandscape ? 'flex-row h-[calc(100dvh-2rem)] min-h-0' : isPortrait ? 'flex-col h-[calc(100dvh-6rem)] min-h-0' : 'flex-col lg:flex-row h-[calc(100dvh-2rem)] min-h-0'}`}>
                         {/* Left: Map */}
-                        <div ref={containerRef} className={`${isMobileLandscape ? 'basis-[58%] min-h-0 h-full' : isPortrait ? 'flex-[1.2] min-h-[48svh] h-full' : 'flex-1 h-full'} border-4 border-slate-700 rounded-2xl overflow-hidden shadow-2xl relative bg-slate-800 absolute-safari-fix`}>
+                        <div ref={containerRef} className={`${isMobileLandscape ? 'basis-[58%] min-h-0 h-full' : isPortrait ? 'flex-[1.2] min-h-[48svh] h-full' : 'flex-1 h-full'} border-2 border-slate-700 rounded-2xl overflow-hidden shadow-2xl relative bg-slate-800 absolute-safari-fix`}>
                             <GoogleMap key={gameId} mapContainerClassName="google-map-container absolute inset-0" center={mapCenter} zoom={mapZoom} options={mapOptions(additionalMapOptions)} onLoad={(map) => setMainMapInstance(map)} onUnmount={() => setMainMapInstance(null)}>
                                 {parsedBoundaries.map(
                                     (boundary, index) =>
@@ -822,6 +853,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                     strokeOpacity: 0.6,
                                                     strokeWeight: 2,
                                                     clickable: false,
+                                                    geodesic: true,
                                                 }}
                                             />
                                         ),
@@ -842,7 +874,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
                             {/* Minimap */}
                             {inStreetView && !hideMiniMap && (
-                                <div className={`absolute ${isNarrow ? 'w-20 h-20 bottom-1 left-1 hover:w-28 hover:h-28' : 'w-28 h-28 bottom-6 left-6 hover:w-44 hover:h-44'} z-[500] rounded-xl overflow-hidden border-4 border-indigo-500 shadow-[0_0_20px_rgba(79,70,229,0.5)] transition-all duration-300 minimap-wrapper`}>
+                                <div style={{ transform: isFullscreen && fsPanelOpen ? `translateX(${measuredPanelWidth}px)` : undefined }} className={`absolute ${isNarrow ? 'w-20 h-20 bottom-1 left-1 hover:w-28 hover:h-28' : 'w-28 h-28 bottom-6 left-6 hover:w-44 hover:h-44'} z-[500] rounded-xl overflow-hidden border-2 border-indigo-500 shadow-[0_0_20px_rgba(79,70,229,0.5)] transition-all duration-300 minimap-wrapper`}>
                                     <style>{`.minimap-wrapper .gmnoprint { display: none !important; }`}</style>
                                     <GoogleMap mapContainerClassName="w-full h-full" onLoad={(map) => setMinimapInstance(map)} onUnmount={() => setMinimapInstance(null)} center={lastValidPositionRef.current || mapCenter} zoom={isNarrow ? 14 : 16} options={mapOptions(additionalMiniMapOptions)} />
                                     {startingPoint !== 'open-world' && <div className="absolute inset-0 z-50 bg-transparent"></div>}
@@ -851,10 +883,72 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
                             {!isMobileLandscape && <FullscreenButton isFullscreen={isFullscreen} containerRef={containerRef} setIsFullscreen={setIsFullscreen} />}
 
+                            {isFullscreen && (
+                                <div ref={panelRef} className={`absolute top-0 left-0 bottom-0 z-4 h-full bg-slate-900/40 backdrop-blur-md border-r border-white/10 transition-transform duration-300 ease-out ${fsPanelOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                                        <ul className={`h-full inline-grid grid-cols-1 auto-rows-min p-1 gap-1.5 overflow-y-auto ${fsPanelOpen ? '' : 'pointer-events-none'}`}>
+                                            {myBoard.map((cat) => {
+                                                const foundSub = mySubmissions.find((s) => s.category === cat);
+                                                const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some((s) => s.category === cat);
+                                                const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+                                                const fov = foundSub?.zoom ? 180 / Math.pow(2, foundSub.zoom) : 90;
+                                                const hint = allowHints ? getHintForCategory(cat) : null;
+                                                const isDisabled = submittingCategory === cat || !inStreetView || isBlocked;
+
+                                                let streetViewImageUrl = '';
+                                                if (foundSub) {
+                                                    let safeHeading = foundSub.heading % 360;
+                                                    if (safeHeading < 0) safeHeading += 360;
+                                                    streetViewImageUrl = `https://maps.googleapis.com/maps/api/streetview?size=600x600&location=${foundSub.lat},${foundSub.lng}&heading=${foundSub.heading}&pitch=${foundSub.pitch}&fov=${fov}&key=${apiKey}`;
+                                                }
+
+                                                return (
+                                                    <li
+                                                        key={cat}
+                                                        role="button"
+                                                        tabIndex={0}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter' || e.key === ' ') {
+                                                                e.preventDefault();
+                                                                if (!isDisabled) handleSubmit(cat);
+                                                            }
+                                                        }}
+                                                        onClick={() => {
+                                                            if (!isDisabled) handleSubmit(cat);
+                                                        }}
+                                                        style={{ minHeight: ROOMY_MIN, maxHeight: ROOMY_MAX }}
+                                                        className={`relative p-1 whitespace-nowrap flex items-center justify-center w-full rounded-xl border transition-colors ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'} ${!foundSub && !isBlocked && inStreetView ? 'cursor-pointer' : ''} ${isDisabled ? 'opacity-70' : ''}`}
+                                                    >
+                                                        <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
+                                                            {foundSub && <img src={streetViewImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />}
+                                                            {foundSub && <div className="absolute inset-0 bg-black/50 z-0"></div>}
+                                                        </div>
+                                                        <div className={`relative z-10 font-bold text-center ${foundSub ? 'text-white' : isBlocked ? 'text-red-400' : 'text-slate-300'} ${getSidebarTextSizeClass()}`}>
+                                                            {cat}
+                                                            {hint && (
+                                                                <div className="mt-1 text-xs text-slate-400 font-normal">
+                                                                    Hint: <em>{hint}</em>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </li>
+                                                )
+                                            })}
+                                        </ul>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFsPanelOpen((open) => !open)}
+                                        className="absolute top-1/2 left-full -translate-y-1/2 -ml-px w-5 h-14 rounded-r-lg bg-slate-900/40 backdrop-blur-md border border-l-0 border-white/10 text-white shadow-md flex items-center justify-center"
+                                        title={fsPanelOpen ? 'Hide categories' : 'Show categories'}
+                                    >
+                                        <FaChevronLeft className={`transition-transform duration-300 ${fsPanelOpen ? '' : 'rotate-180'}`} size={11} />
+                                    </button>
+                                </div>
+                            )}
+
                             {inStreetView && startingPoint === 'open-world' && (
-                                <button type="button" onClick={() => streetViewRef.current?.setVisible(false)} className="absolute top-2 left-2 z-[1000] w-12 h-12 bg-red-500/30 hover:bg-red-500/80 text-white flex items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-red-400 font-bold text-2xl transition-transform hover:scale-105 active:scale-95" title="Exit Street View">
-                                    ✕
-                                </button>
+                                <div style={isFullscreen && fsPanelOpen ? { transform: `translateX(${measuredPanelWidth}px)` } : undefined} className="absolute top-2 left-2 z-50">
+                                    <ExitButton onExit={() => streetViewRef.current?.setVisible(false)} />
+                                </div>
                             )}
                             {startingPoint !== 'open-world' && (
                                 <button
@@ -869,7 +963,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                         </div>
 
                         {/* Right: Checklist */}
-                        <div className={`${isMobileLandscape ? 'basis-[42%] max-w-[42%]' : `w-full ${getSidebarWidthClass()}`} flex flex-col gap-4 bg-slate-800 sm:p-6 rounded-2xl shadow-xl h-full min-h-0 border border-slate-700 overflow-hidden transition-all`}>
+                        <div className={`${isMobileLandscape ? 'basis-[42%] max-w-[42%]' : `w-full ${getSidebarWidthClass()}`} flex flex-col gap-4 bg-slate-800 sm:p-6 rounded-2xl shadow-xl h-full min-h-0 border border-2 border-slate-700 overflow-hidden transition-all`}>
                             {!isPortrait && (
                                 <div className="flex items-stretch gap-2 sm:gap-4 pb-3 border-b border-slate-700">
                                     <div className="flex items-center justify-center text-base sm:text-2xl font-black bg-slate-700 px-3 sm:px-4 rounded-lg border border-slate-600 shadow-lg tracking-wider py-1.5 sm:py-2">{timeLeft <= 60 ? <span className="text-red-500 animate-pulse">{formatTime(timeLeft)}</span> : <span className="text-white">{formatTime(timeLeft)}</span>}</div>
@@ -894,7 +988,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                 </div>
                             )}
 
-                            <div className="flex justify-between items-center hidden sm:flex">
+                            <div className="flex justify-between items-center hidden sm:flex mb-2">
                                 <h2 className="text-indigo-400 font-bold text-xl tracking-wide uppercase">{gameMode === 'bingo' ? 'Bingo Board' : 'Checklist'}</h2>
                                 <span className="bg-slate-700 text-slate-300 font-bold px-3 py-1 rounded-full text-sm">
                                     {mySubmissions.length} / {myBoard.length}
@@ -902,10 +996,10 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                             </div>
 
                             {gameMode === 'list' ? (
-                                <div ref={setGridEl} className="flex-1 min-h-0 flex flex-col overflow-hidden">
-                                    {isNarrow || forceCompact ? (
+                                <div ref={setGridEl} className="flex flex-1 min-h-0 flex-col overflow-hidden">
+                                    {listLayout === 'compact' ? (
                                         // Compact List View
-                                        <ul className="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto p-2 sm:p-0">
+                                        <ul className="flex flex-col flex-1 min-h-0 overflow-y-auto p-2 sm:p-0" style={{ gap: COMPACT_GAP }}>
                                             {myBoard.map((cat) => {
                                                 const foundSub = mySubmissions.find((s) => s.category === cat);
                                                 const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some((s) => s.category === cat);
@@ -921,7 +1015,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                 }
 
                                                 return (
-                                                    <li key={cat} className={`relative p-1.5 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 flex-1 min-h-[35px] max-h-[80px] w-full ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'}`}>
+                                                    <li key={cat} style={{ minHeight: COMPACT_MIN, maxHeight: COMPACT_MAX }} className={`relative p-1.5 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 flex-1 w-full ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'}`}>
                                                         <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
                                                             {foundSub && <img src={streetViewImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />}
                                                             {foundSub && <div className="absolute inset-0 bg-black/50 z-0"></div>}
@@ -989,8 +1083,8 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                             })}
                                         </ul>
                                     ) : (
-                                        // Regular Grid View
-                                        <ul className="categories-grid flex-1 min-h-0 overflow-y-auto p-2 sm:p-0" data-cat-rows={String(myBoard.length)}>
+                                        // Regular View
+                                        <ul className="flex flex-col flex-1 min-h-0 overflow-y-auto p-2 sm:p-0" style={{ gap: ROOMY_GAP }}>
                                             {myBoard.map((cat) => {
                                                 const foundSub = mySubmissions.find((s) => s.category === cat);
                                                 const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some((s) => s.category === cat);
@@ -1006,18 +1100,17 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                 }
 
                                                 return (
-                                                    // max-h-[140px] verhindert Hässlichkeit | flex-col justify-between = Text oben, Buttons unten
-                                                    <li key={cat} className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-between w-full h-full max-h-[140px] ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'}`}>
+                                                    <li key={cat} style={{ minHeight: ROOMY_MIN, maxHeight: ROOMY_MAX }} className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-between flex-1 w-full ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'}`}>
                                                         <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
                                                             {foundSub && <img src={streetViewImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />}
                                                             {foundSub && <div className="absolute inset-0 bg-black/50 z-0"></div>}
                                                         </div>
 
-                                                        {/* OBERER TEIL: Text und Hint */}
+                                                        {/* TOP PART */}
                                                         <div className="relative z-10 flex flex-col w-full">
                                                             <div className="flex justify-between items-start w-full gap-1">
                                                                 <div className="flex items-center flex-1 min-w-0">
-                                                                    <span className={`text-sm truncate font-medium ${foundSub ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400 line-through' : 'text-white'}`}>{cat}</span>
+                                                                    <span className={`text-sm truncate font-medium pb-1 ${foundSub ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400 line-through' : 'text-white'}`}>{cat}</span>
                                                                     {hint && (
                                                                         <div className="ml-1.5 relative group flex-shrink-0 cursor-help" onClick={(e) => e.stopPropagation()}>
                                                                             <FaInfoCircle className={`transition-colors ${foundSub ? 'text-white/70 hover:text-white' : 'text-slate-400 hover:text-white'}`} size={12} />
@@ -1082,6 +1175,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                 </div>
                             ) : (
                                 <div className={`grid gap-2 flex-1 min-h-0 overflow-y-auto pr-1 auto-rows-fr bingo-grid-${gridSize}`}>
+                                    {/* Bingo Mode Grid View */}
                                     {myBoard.map((cat) => {
                                         const foundSub = mySubmissions.find((s) => s.category === cat);
                                         const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some((s) => s.category === cat);
@@ -1093,7 +1187,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
                                         return (
                                             <div key={cat} title={isBlocked ? 'Claimed by another team' : undefined} onClick={() => handleBingoTileClick(cat)} className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-center items-center text-center pb-2 sm:pb-12 ${foundSub ? 'text-white border-green-500 shadow-md' : isBlocked ? 'bg-slate-900/80 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700'}`}>
-                                                {/* Background Layer mit overflow hidden */}
+                                                {/* Background Layer */}
                                                 <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
                                                     {foundSub && <img src={streetViewImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />}
                                                     {foundSub && <div className="absolute inset-0 bg-black/50 z-0"></div>}
