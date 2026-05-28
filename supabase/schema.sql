@@ -111,7 +111,8 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "updated_at" timestamp with time zone DEFAULT "now"(),
     "category_details" "jsonb"[] DEFAULT '{}'::"jsonb"[] NOT NULL,
     "language" "text" DEFAULT '''german''::text'::"text" NOT NULL,
-    "categories_generated" boolean DEFAULT false NOT NULL
+    "categories_generated" boolean DEFAULT false NOT NULL,
+    "blur_lobby_info" boolean DEFAULT false NOT NULL
 );
 
 
