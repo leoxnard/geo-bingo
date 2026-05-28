@@ -76,6 +76,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [language, setLanguage] = useState<'german' | 'english'>('german');
     const [hideMapSymbols, setHideMapSymbols] = useState(false);
     const [hideMiniMap, setHideMiniMap] = useState(false);
+    const [blurLobbyInfo, setBlurLobbyInfo] = useState(false);
 
     const updateGameModeInfo = (updates: {
         game_mode?: string;
@@ -88,6 +89,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         end_condition?: 'first_bingo' | 'timer';
         hide_map_symbols?: boolean;
         hide_minimap?: boolean;
+        blur_lobby_info?: boolean;
         exclusive_mode?: boolean;
         category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
         generation_radius?: number;
@@ -137,6 +139,10 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (updates.hide_minimap !== undefined) {
             setHideMiniMap(updates.hide_minimap);
             fieldsToUpdate.push('hide_minimap');
+        }
+        if (updates.blur_lobby_info !== undefined) {
+            setBlurLobbyInfo(updates.blur_lobby_info);
+            fieldsToUpdate.push('blur_lobby_info');
         }
         if (updates.exclusive_mode !== undefined) {
             setExclusiveMode(updates.exclusive_mode);
@@ -227,7 +233,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 const newGameData = {
                     id: gameId,
                     status: 'lobby',
-                    categories: [],
+                    categories: ['', '', '', '', ''],
                     ready_players: [],
                     time_limit: 600,
                     host_id: currentPlayerId,
@@ -238,6 +244,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     starting_point: 'open-world',
                     end_condition: 'timer',
                     hide_map_symbols: false,
+                    blur_lobby_info: false,
                     exclusive_mode: false,
                     category_source: 'manual',
                     generation_radius: 10,
@@ -272,6 +279,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setEndCondition(gameData.end_condition || 'timer');
                 setHideMapSymbols(gameData.hide_map_symbols || false);
                 setHideMiniMap(gameData.hide_minimap || false);
+                setBlurLobbyInfo(gameData.blur_lobby_info || false);
                 setExclusiveMode(gameData.exclusive_mode || false);
                 setCategorySource(gameData.category_source || 'manual');
                 setGenerationRadius(gameData.generation_radius || 10);
@@ -387,6 +395,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     if (payload.new.end_condition !== undefined && !pendingOptimisticUpdatesRef.current.has('end_condition')) setEndCondition(payload.new.end_condition);
                     if (payload.new.hide_map_symbols !== undefined && !pendingOptimisticUpdatesRef.current.has('hide_map_symbols')) setHideMapSymbols(payload.new.hide_map_symbols);
                     if (payload.new.hide_minimap !== undefined && !pendingOptimisticUpdatesRef.current.has('hide_minimap')) setHideMiniMap(payload.new.hide_minimap);
+                    if (payload.new.blur_lobby_info !== undefined && !pendingOptimisticUpdatesRef.current.has('blur_lobby_info')) setBlurLobbyInfo(payload.new.blur_lobby_info);
                     if (payload.new.exclusive_mode !== undefined && !pendingOptimisticUpdatesRef.current.has('exclusive_mode')) setExclusiveMode(payload.new.exclusive_mode);
                     if (payload.new.category_source !== undefined && !pendingOptimisticUpdatesRef.current.has('category_source')) {
                         setCategorySource(payload.new.category_source);
@@ -627,6 +636,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     setPlayers={setPlayers}
                     hideMapSymbols={hideMapSymbols}
                     hideMiniMap={hideMiniMap}
+                    blurLobbyInfo={blurLobbyInfo}
                     categorySource={categorySource}
                     aiEnabled={apiStatus.aiEnabled}
                     isDeveloper={apiStatus.isDeveloper}
