@@ -146,7 +146,7 @@ const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, o
 };
 
 interface LobbyCategoriesProps {
-    updateGameModeInfo: (updates: { game_mode?: string; team_mode?: string; grid_size?: number; starting_point?: string; gameBoundary?: string; categories?: string[]; category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView'; generation_radius?: number; generation_number?: number; difficulty?: 'default' | 'easy'; categories_generated?: boolean }) => void;
+    updateGameModeInfo: (updates: { game_mode?: string; team_mode?: string; grid_size?: number; starting_point?: string; gameBoundary?: string; categories?: string[]; category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView'; generation_radius?: number; generation_number?: number; difficulty?: 'default' | 'easy'; categories_generated?: boolean; language?: 'english' | 'german' }) => void;
     isHost: boolean;
     gameMode: 'list' | 'bingo';
     language: 'english' | 'german';
@@ -169,7 +169,6 @@ interface LobbyCategoriesProps {
 
 export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, language, gridSize, categories, suggestedCategories, gameId, supabase, maxGridSize, startingPoint, categorySource, aiEnabled, isDeveloper, generationRadius, generationNumber, difficulty, categoriesGenerated }: LobbyCategoriesProps) {
     const [newCategory, setNewCategory] = useState('');
-    const [randomNumber, setRandomNumber] = useState<number | ''>(10);
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [localRadius, setLocalRadius] = useState(generationRadius);
     const [localGenerationNumber, setLocalGenerationNumber] = useState(generationNumber);
@@ -345,17 +344,13 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
         }
     };
 
-    const addEmptyCategories = () => {
-        const count = Number(randomNumber) || 1;
-        const updated = [...localCategories];
-        for (let i = 0; i < count; i++) {
-            if (gameMode === 'bingo' && updated.length >= gridSize * gridSize) {
-                toast.error(`Bingo limit reached (${gridSize * gridSize})!`);
-                break;
-            }
-            updated.push('');
-        }
-        queueDBSave(updated);
+    const minusOneListCategory = () => {
+        if (localCategories.length <= 0) return;
+        queueDBSave(localCategories.slice(0, -1));
+    };
+
+    const plusOneListCategory = () => {
+        queueDBSave([...localCategories, '']);
     };
 
     const fillUpRandom = async () => {
@@ -504,6 +499,21 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
 
     return (
         <div className="bg-slate-800 p-6 rounded-xl flex-1 border border-slate-700 h-fit">
+            <div className="pb-3">
+                <label className="flex justify-between font-bold mb-2 text-xl text-slate-300">
+                    <span>Category Language</span>
+                </label>
+                <select
+                    title="Category Language"
+                    value={language}
+                    onChange={(e) => updateGameModeInfo({ language: e.target.value as 'english' | 'german' })}
+                    disabled={!isHost}
+                    className="h-[42px] px-3 w-full rounded-lg bg-slate-900 border border-slate-600 text-sm text-white cursor-pointer transition-colors focus:outline-none focus:border-indigo-500 hover:border-slate-500 disabled:opacity-50"
+                >
+                    <option value="german">German</option>
+                    <option value="english">English</option>
+                </select>
+            </div>
             {categoriesGenerated === false && (
                 <>
                     {aiEnabled && (
@@ -598,12 +608,12 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                         </div>
                     </h3>
 
-                    {gameMode === 'bingo' && isHost && (
+                    {isHost && (
                         <div className="grid grid-cols-2 gap-3 mb-4">
-                            <button title="a" type="button" onClick={minusOneGridSize} disabled={gridSize <= 2} className="flex items-center justify-center p-2 rounded-lg border border-dashed text-indigo-400 border-indigo-700 disabled:border-slate-600 disabled:text-slate-500 disabled:bg-slate-800 hover:bg-slate-700/20 transition-colors">
+                            <button title="Remove" type="button" onClick={gameMode === 'bingo' ? minusOneGridSize : minusOneListCategory} disabled={gameMode === 'bingo' ? gridSize <= 2 : localCategories.length <= 0} className="flex items-center justify-center p-2 rounded-lg border border-dashed text-indigo-400 border-indigo-700 disabled:border-slate-600 disabled:text-slate-500 disabled:bg-slate-800 hover:bg-slate-700/20 transition-colors">
                                 <CiCircleMinus size={24} />
                             </button>
-                            <button title="b" type="button" onClick={plusOneGridSize} disabled={gridSize >= maxGridSize} className="flex items-center justify-center p-2 rounded-lg border border-dashed text-indigo-400 border-indigo-700 disabled:border-slate-600 disabled:text-slate-500 disabled:bg-slate-800 hover:bg-slate-700/20 transition-colors">
+                            <button title="Add" type="button" onClick={gameMode === 'bingo' ? plusOneGridSize : plusOneListCategory} disabled={gameMode === 'bingo' && gridSize >= maxGridSize} className="flex items-center justify-center p-2 rounded-lg border border-dashed text-indigo-400 border-indigo-700 disabled:border-slate-600 disabled:text-slate-500 disabled:bg-slate-800 hover:bg-slate-700/20 transition-colors">
                                 <CiCirclePlus size={24} />
                             </button>
                         </div>
@@ -630,14 +640,6 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                             )}
 
                             <div className="flex flex-wrap gap-2 items-end mt-2">
-                                {gameMode === 'list' && (
-                                    <div className="flex gap-2 items-stretch shrink-0">
-                                        <input type="number" min="1" value={randomNumber} onChange={(e) => setRandomNumber(e.target.value === '' ? '' : Number(e.target.value))} className="w-20 p-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-center font-bold outline-none focus:border-indigo-500 h-[42px]" title="Amount" />
-                                        <button type="button" onClick={addEmptyCategories} className="bg-slate-700 hover:bg-slate-600 text-white px-4 rounded-lg font-bold transition-colors whitespace-nowrap shadow-sm h-[42px]">
-                                            + Add Empty
-                                        </button>
-                                    </div>
-                                )}
                                 <div className="flex flex-1 gap-2 items-end justify-end min-w-[300px]">
                                     <Selection
                                         title="Database"

@@ -317,11 +317,11 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         commitBoundaryChange(newBoundaries);
     };
 
-    const handleAddBoundary = () => {
+    const handleAddBoundary = (baseBoundaries: BoundaryPolygon[] = draftBoundaries) => {
         setSelectedPreset('');
         // eslint-disable-next-line react-hooks/purity
         const newId = Date.now().toString();
-        const newBoundaries: BoundaryPolygon[] = [...draftBoundaries, { id: newId, type: 'allow' as const, points: [], isComplete: false }];
+        const newBoundaries: BoundaryPolygon[] = [...baseBoundaries, { id: newId, type: 'allow' as const, points: [], isComplete: false }];
         commitBoundaryChange(newBoundaries);
         setSelectedBoundaryId(newId);
     };
@@ -330,8 +330,8 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         const currentBoundaries = parseBoundaryString(optimisticGameBoundaryRef.current || gameBoundary);
         const newBoundaries = currentBoundaries.map((b) => (b.id === boundaryId ? { ...b, isComplete: true } : b));
         commitBoundaryChange(newBoundaries);
-        // keep selection as is or clear if it was the active
-        if (activeBoundaryId === boundaryId) setSelectedBoundaryId(null);
+        // make new boundary active for better UX when drawing multiple areas
+        handleAddBoundary(newBoundaries);
     };
 
     const handleDrop = (dropIndex: number) => {
@@ -487,6 +487,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                         <div ref={containerRef} className="absolute inset-0 w-full h-full">
                             <GoogleMap onLoad={setMapInstance} mapContainerStyle={{ width: '100%', height: '100%' }} center={DEFAULT_CENTER} zoom={2} onClick={handleMapClick} options={mapOptions(additionalMapOptions)}>
                                 {actualStart.startsWith('{') && (
+                                    // Starting point marker with hover preview
                                     <MarkerF
                                         position={JSON.parse(actualStart)}
                                         onMouseOver={() => setHoveredLocation(JSON.parse(actualStart))}
@@ -505,6 +506,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                 )}
 
                                 {generationRadius && actualStart.startsWith('{') && (
+                                    // Radius circle around starting point
                                     <Circle
                                         center={JSON.parse(actualStart)}
                                         radius={generationRadius * 100}
@@ -519,6 +521,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                 )}
 
                                 {hoveredLocation && (
+                                    // Street View preview on marker hover
                                     <OverlayViewF
                                         position={hoveredLocation}
                                         mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
@@ -536,6 +539,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                 {draftBoundaries.map((boundary) => (
                                     <Fragment key={boundary.id}>
                                         {boundary.isComplete && boundary.points.length > 0 && (
+                                            // Phase 2: show filled polygon for completed boundaries
                                             <PolygonF
                                                 paths={boundary.points}
                                                 options={{
@@ -545,11 +549,13 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                                     strokeOpacity: boundary.isComplete ? 0.6 : 0,
                                                     strokeWeight: activeBoundaryId === boundary.id ? 4 : 2,
                                                     clickable: false,
+                                                    geodesic: true,
                                                 }}
                                             />
                                         )}
 
                                         {boundary.points.map((point, idx) => (
+                                            // Phase 1 & 2: show points with different styling based on completion and type
                                             <MarkerF
                                                 key={`poly-${boundary.id}-${idx}`}
                                                 position={point}
@@ -566,9 +572,9 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                                 }}
                                             />
                                         ))}
-                                        {/* Start-handle: visible during initial drawing phase to close polygon */}
+
                                         {!boundary.isComplete && boundary.points.length > 0 && (
-                                            // add polyline in phase 1 instead of polygon to show live preview of closing line
+                                            // Phase 1: show polyline and start-handle for incomplete boundaries
                                             <>
                                                 <PolylineF
                                                     path={boundary.points}
@@ -606,7 +612,6 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                     </Fragment>
                                 ))}
                             </GoogleMap>
-                            <FullscreenButton isFullscreen={isFullscreen} containerRef={containerRef} setIsFullscreen={setIsFullscreen} />
                         </div>
                     )}
                 </div>
@@ -615,7 +620,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                     <div className="flex flex-col gap-4 my-2">
                         <div className="flex flex-col sm:flex-row justify-between items-center w-full text-sm text-slate-400 gap-2">
                             <div className="flex gap-2 flex-wrap justify-end">
-                                <button type="button" onClick={handleAddBoundary} className="px-3 py-2 bg-emerald-900/60 border border-emerald-700 hover:bg-emerald-800 text-emerald-100 rounded-lg flex gap-2 items-center transition-colors">
+                                <button type="button" onClick={() => handleAddBoundary()} className="px-3 py-2 bg-emerald-900/60 border border-emerald-700 hover:bg-emerald-800 text-emerald-100 rounded-lg flex gap-2 items-center transition-colors">
                                     <FaPlus /> Add Area
                                 </button>
                                 <button

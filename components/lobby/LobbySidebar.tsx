@@ -13,9 +13,9 @@ Provides game code sharing and lobby management features.
 import { useState, useRef, useEffect } from 'react';
 
 import toast from 'react-hot-toast';
-import { FaRegCopy, FaCopy, FaRegEdit, FaPlus, FaRandom, FaTimes } from 'react-icons/fa';
+import { FaRegCopy, FaCopy, FaRegEdit, FaPlus, FaRandom, FaTimes, FaEye, FaEyeSlash } from 'react-icons/fa';
 
-import { ToggleSwitch, Selection } from '../utils/Elements';
+import { ToggleSwitch } from '../utils/Elements';
 import { shuffle } from '../utils/Functions';
 
 interface Player {
@@ -27,7 +27,6 @@ interface Player {
 
 interface LobbySidebarProps {
     gameId: string;
-    language: 'english' | 'german';
     players: Player[];
     onlinePlayers: string[];
     playerId: string;
@@ -45,6 +44,7 @@ interface LobbySidebarProps {
     setPlayers: (players: Player[] | ((prev: Player[]) => Player[])) => void;
     hideMapSymbols: boolean;
     hideMiniMap: boolean;
+    blurLobbyInfo: boolean;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     updateGameModeInfo: (updates: any) => void;
     categorySource: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
@@ -217,19 +217,31 @@ export default function LobbySidebar(props: LobbySidebarProps) {
         <div className="flex flex-col gap-4 sm:gap-6 w-full lg:w-80">
             {/* Invite Box */}
             <div className="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 h-fit">
-                <h2 className="text-xl font-semibold mb-4 text-slate-300">Invite Friends</h2>
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-semibold text-slate-300">Invite Friends</h2>
+                    {props.isHost && (
+                        <button
+                            type="button"
+                            onClick={() => props.updateGameModeInfo({ blur_lobby_info: !props.blurLobbyInfo })}
+                            className="p-2 mr-2 rounded-md transition-all bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-200"
+                            title={props.blurLobbyInfo ? 'Show lobby ID & link' : 'Blur lobby ID & link'}
+                        >
+                            {props.blurLobbyInfo ? <FaEyeSlash /> : <FaEye />}
+                        </button>
+                    )}
+                </div>
                 <div className="space-y-3">
-                    <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 p-2 rounded-lg">
-                        <span className="text-sm font-bold text-slate-400 w-12 tracking-widest">ID:</span>
-                        <span className="flex-1 font-mono text-slate-300 text-lg truncate">{props.gameId}</span>
-                        <button type="button" onClick={handleCopyGameId} className={`p-2 rounded-md transition-all ${copiedId ? 'bg-green-600/40 text-green-400' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}`} title="Copy Game ID">
+                    <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 p-2 rounded-lg overflow-hidden">
+                        <span className="text-sm font-bold text-slate-400 w-12 tracking-widest shrink-0">ID:</span>
+                        <span className="flex-1 min-w-0 font-mono text-slate-300 text-lg truncate select-none px-2" style={props.blurLobbyInfo ? { color: 'transparent', textShadow: '0 0 12px rgba(203, 213, 225, 0.9), 0 0 6px rgba(203, 213, 225, 0.7)' } : undefined}>{props.gameId}</span>
+                        <button type="button" onClick={handleCopyGameId} className={`shrink-0 p-2 rounded-md transition-all ${copiedId ? 'bg-green-600/40 text-green-400' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}`} title="Copy Game ID">
                             {copiedId ? <FaCopy /> : <FaRegCopy />}
                         </button>
                     </div>
-                    <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 p-2 rounded-lg">
-                        <span className="text-sm font-bold text-slate-400 w-12 tracking-widest">Link:</span>
-                        <span className="flex-1 font-mono text-slate-300 truncate">{isMounted ? window.location.href.replace('http://', '').replace('https://', '') : '...'}</span>
-                        <button type="button" onClick={handleCopyGameLink} className={`p-2 rounded-md transition-all ${copiedLink ? 'bg-green-600/40 text-green-400' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}`} title="Copy Game Link">
+                    <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 p-2 rounded-lg overflow-hidden">
+                        <span className="text-sm font-bold text-slate-400 w-12 tracking-widest shrink-0">Link:</span>
+                        <span className="flex-1 min-w-0 font-mono text-slate-300 truncate select-none px-2" style={props.blurLobbyInfo ? { color: 'transparent', textShadow: '0 0 12px rgba(203, 213, 225, 0.9), 0 0 6px rgba(203, 213, 225, 0.7)' } : undefined}>{isMounted ? window.location.href.replace('http://', '').replace('https://', '') : '...'}</span>
+                        <button type="button" onClick={handleCopyGameLink} className={`shrink-0 p-2 rounded-md transition-all ${copiedLink ? 'bg-green-600/40 text-green-400' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}`} title="Copy Game Link">
                             {copiedLink ? <FaCopy /> : <FaRegCopy />}
                         </button>
                     </div>
@@ -306,21 +318,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                 <h2 className="text-xl font-semibold mb-6 text-slate-100 border-b border-slate-700 pb-3">More Game Settings</h2>
 
                 <div className="flex flex-col gap-5">
-                    {/* Language Selection */}
-                    <Selection
-                        title="Category Language"
-                        options={[
-                            { value: 'german', label: 'German' },
-                            { value: 'english', label: 'English' },
-                        ]}
-                        value={props.language}
-                        onChange={(val) => props.updateGameModeInfo({ language: val })}
-                        disabled={!props.isHost}
-                        position="clean"
-                    />
-                    {/* Toggle 1: Hide Map Symbols */}
                     <ToggleSwitch label="Hide Map Symbols (POIs)" checked={props.hideMapSymbols} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ hide_map_symbols: checked })} />
-                    {/* Toggle 2: Hide Mini Map */}
                     <ToggleSwitch label="Hide Mini Map" checked={props.hideMiniMap} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ hide_minimap: checked })} />
                     {!props.isHost && <p className="text-xs text-slate-500 pt-4 border-t border-slate-700/50 text-center">Only the game host can change these settings.</p>}
                 </div>
