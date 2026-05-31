@@ -553,19 +553,7 @@ ALTER TABLE ONLY "public"."submissions"
 
 
 
-CREATE POLICY "Allow public delete players" ON "public"."players" FOR DELETE USING (true);
-
-
-
-CREATE POLICY "Allow public delete submissions" ON "public"."submissions" FOR DELETE USING (true);
-
-
-
 CREATE POLICY "Allow public insert games" ON "public"."games" FOR INSERT WITH CHECK (true);
-
-
-
-CREATE POLICY "Allow public insert submissions" ON "public"."submissions" FOR INSERT WITH CHECK (true);
 
 
 
@@ -578,18 +566,6 @@ CREATE POLICY "Allow public read players" ON "public"."players" FOR SELECT USING
 
 
 CREATE POLICY "Allow public read submissions" ON "public"."submissions" FOR SELECT USING (true);
-
-
-
-CREATE POLICY "Allow public update games" ON "public"."games" FOR UPDATE USING (true) WITH CHECK (true);
-
-
-
-CREATE POLICY "Allow public update players" ON "public"."players" FOR UPDATE USING (true) WITH CHECK (true);
-
-
-
-CREATE POLICY "Allow public update submissions" ON "public"."submissions" FOR UPDATE USING (true) WITH CHECK (true);
 
 
 
