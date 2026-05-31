@@ -406,6 +406,10 @@ CREATE OR REPLACE FUNCTION "public"."update_player"("p_id" "uuid", "p_patch" "js
 DECLARE
     allowed_keys text[] := ARRAY['name', 'score', 'bingo_board', 'team', 'path', 'game_id'];
     safe_patch jsonb;
+    new_game_id text;
+    current_game_id text;
+    target_status text;
+    target_banned text[];
 BEGIN
     SELECT jsonb_object_agg(key, value) INTO safe_patch
     FROM jsonb_each(p_patch)
@@ -413,6 +417,31 @@ BEGIN
 
     IF safe_patch IS NULL OR safe_patch = '{}'::jsonb THEN
         RETURN jsonb_build_object('success', false, 'error', 'NO_VALID_KEYS');
+    END IF;
+
+    -- Police game_id changes (joins). Other field updates are unaffected.
+    IF safe_patch ? 'game_id' THEN
+        new_game_id := safe_patch->>'game_id';
+        SELECT game_id INTO current_game_id FROM players WHERE id = p_id;
+
+        SELECT status, COALESCE(banned_players, '{}'::text[])
+        INTO target_status, target_banned
+        FROM games WHERE id = new_game_id;
+
+        IF target_status IS NULL THEN
+            RETURN jsonb_build_object('success', false, 'error', 'GAME_NOT_FOUND');
+        END IF;
+
+        -- Banned players can never (re)join, even by reconnecting.
+        IF p_id::text = ANY(target_banned) THEN
+            RETURN jsonb_build_object('success', false, 'error', 'BANNED');
+        END IF;
+
+        -- Moving INTO a different game is only allowed while it is a lobby.
+        -- (Reconnecting to the game you are already in keeps working mid-round.)
+        IF new_game_id IS DISTINCT FROM current_game_id AND target_status <> 'lobby' THEN
+            RETURN jsonb_build_object('success', false, 'error', 'GAME_IN_PROGRESS');
+        END IF;
     END IF;
 
     UPDATE players SET
