@@ -20,6 +20,7 @@ import { GoMoveToStart } from 'react-icons/go';
 import { supabase } from '../lib/supabase';
 import { useAiVerify } from './streetview/useAiVerify';
 import { useStreetViewPath } from './streetview/useStreetViewPath';
+import { useSubmissionsRealtime } from './streetview/useSubmissionsRealtime';
 import { FullscreenButton, ExitButton } from './utils/Elements';
 import { calculateBingoCounter, getDistance } from './utils/Functions';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from './utils/mapUtils';
@@ -65,7 +66,6 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
     const [submittingCategory, setSubmittingCategory] = useState<string | null>(null);
     const [inStreetView, setInStreetView] = useState(false);
-    const [allSubmissions, setAllSubmissions] = useState<Submission[]>([]);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [fsPanelOpen, setFsPanelOpen] = useState(true);
     const { isNarrow, isPortrait, isMobileLandscape } = useViewport();
@@ -89,11 +89,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
     const hasVotedToEnd = readyPlayers.includes(playerId);
     const votesNeeded = players.length;
 
-    const myTeam = useMemo(() => players.find((p) => p.id === playerId)?.team ?? -1, [players, playerId]);
-    const teamIds = useMemo(() => (teamMode === 'teams' ? players.filter((p) => p.team === myTeam).map((p) => p.id) : [playerId]), [teamMode, players, myTeam, playerId]);
-
-    const mySubmissions = useMemo(() => allSubmissions.filter((s) => teamIds.includes(s.player_id)), [allSubmissions, teamIds]);
-    const otherSubmissions = useMemo(() => allSubmissions.filter((s) => !teamIds.includes(s.player_id)), [allSubmissions, teamIds]);
+    const { allSubmissions, setAllSubmissions, mySubmissions, otherSubmissions } = useSubmissionsRealtime({ gameId, playerId, players, teamMode });
 
     const formatTime = (seconds: number) => {
         const m = Math.floor(seconds / 60);
@@ -314,55 +310,6 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
         document.addEventListener('fullscreenchange', handleFullscreenChange);
         return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
     }, []);
-
-    useEffect(() => {
-        const fetchAllSubmissions = async () => {
-            const { data } = await supabase.from('submissions').select('*').eq('game_id', gameId);
-            if (data) setAllSubmissions(data);
-        };
-        fetchAllSubmissions();
-
-        const channel = supabase
-            .channel(`game-submissions-${gameId}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'submissions',
-                    filter: `game_id=eq.${gameId}`,
-                },
-                (payload) => {
-                    console.log('New submission received via realtime:', payload);
-                    const newSub = payload.new as Submission;
-                    setAllSubmissions((prev) => {
-                        if (prev.find((s) => s.id === newSub.id)) return prev;
-                        return [...prev, newSub];
-                    });
-                },
-            )
-            .on(
-                'postgres_changes',
-                {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'submissions',
-                    filter: `game_id=eq.${gameId}`,
-                },
-                (payload) => {
-                    const updatedSub = payload.new as Submission;
-                    setAllSubmissions((prev) => prev.map((s) => (s.id === updatedSub.id ? { ...s, ...updatedSub } : s)));
-                },
-            )
-            .subscribe();
-
-        return () => {
-            const cleanup = async () => {
-                await supabase.removeChannel(channel);
-            };
-            cleanup();
-        };
-    }, [gameId]);
 
     // sound effects for timer
     useEffect(() => {
