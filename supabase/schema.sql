@@ -23,27 +23,53 @@ COMMENT ON SCHEMA "public" IS 'standard public schema';
 
 
 
-CREATE OR REPLACE FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) RETURNS "jsonb"
-    LANGUAGE "plpgsql"
+CREATE OR REPLACE FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
     AS $$
 DECLARE
-  result_sub RECORD;
+    result_sub RECORD;
 BEGIN
-  -- 1. Wir "sperren" die Game-Reihe für einen Bruchteil einer Sekunde. 
-  -- Wenn 2 Spieler exakt gleichzeitig kommen, muss einer kurz in der Schlange warten.
-  PERFORM 1 FROM games WHERE id = p_game_id FOR UPDATE;
+    IF NOT EXISTS (SELECT 1 FROM players WHERE id = p_player_id AND game_id = p_game_id) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_A_PLAYER');
+    END IF;
 
-  -- 2. Prüfen, ob die Kategorie in diesem Spiel schon von jemandem gefunden wurde
-  IF EXISTS (SELECT 1 FROM submissions WHERE game_id = p_game_id AND category = p_category) THEN
-    RETURN jsonb_build_object('success', false, 'error', 'ALREADY_CLAIMED');
-  END IF;
+    INSERT INTO submissions (game_id, player_id, category, lat, lng, heading, pitch, zoom)
+    VALUES (p_game_id, p_player_id, p_category, p_lat, p_lng, p_heading, p_pitch, p_zoom)
+    RETURNING * INTO result_sub;
 
-  -- 3. Wenn sie noch frei ist, fügen wir sie sicher ein!
-  INSERT INTO submissions (game_id, player_id, category, lat, lng, heading, pitch, zoom)
-  VALUES (p_game_id, p_player_id, p_category, p_lat, p_lng, p_heading, p_pitch, p_zoom)
-  RETURNING * INTO result_sub;
+    RETURN jsonb_build_object('success', true, 'data', row_to_json(result_sub));
+END;
+$$;
 
-  RETURN jsonb_build_object('success', true, 'data', row_to_json(result_sub));
+
+ALTER FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    result_sub RECORD;
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM players WHERE id = p_player_id AND game_id = p_game_id) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_A_PLAYER');
+    END IF;
+
+    -- Lock the game row briefly so two simultaneous claimers serialise.
+    PERFORM 1 FROM games WHERE id = p_game_id FOR UPDATE;
+
+    -- Reject if the category was already claimed in this game.
+    IF EXISTS (SELECT 1 FROM submissions WHERE game_id = p_game_id AND category = p_category) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'ALREADY_CLAIMED');
+    END IF;
+
+    INSERT INTO submissions (game_id, player_id, category, lat, lng, heading, pitch, zoom)
+    VALUES (p_game_id, p_player_id, p_category, p_lat, p_lng, p_heading, p_pitch, p_zoom)
+    RETURNING * INTO result_sub;
+
+    RETURN jsonb_build_object('success', true, 'data', row_to_json(result_sub));
 END;
 $$;
 
@@ -51,22 +77,190 @@ $$;
 ALTER FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) RETURNS "void"
-    LANGUAGE "plpgsql"
+CREATE OR REPLACE FUNCTION "public"."delete_submission"("p_id" "uuid", "p_player_id" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
     AS $$
 BEGIN
-  UPDATE submissions
-  SET votes = jsonb_set(
-    COALESCE(votes, '{}'::jsonb),
-    array[p_player_id],
-    to_jsonb(p_vote)
-  )
-  WHERE id = p_submission_id;
+    DELETE FROM submissions WHERE id = p_id AND player_id = p_player_id;
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_OWNER_OR_MISSING');
+    END IF;
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."delete_submission"("p_id" "uuid", "p_player_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+    UPDATE submissions
+    SET votes = jsonb_set(COALESCE(votes, '{}'::jsonb), array[p_player_id], to_jsonb(p_vote))
+    WHERE id = p_submission_id;
 END;
 $$;
 
 
 ALTER FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."set_game_status"("p_game_id" "text", "p_host_id" "text", "p_status" "text") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+    IF p_status NOT IN ('lobby', 'playing', 'voting', 'finished') THEN
+        RETURN jsonb_build_object('success', false, 'error', 'BAD_STATUS');
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM games WHERE id = p_game_id AND host_id = p_host_id) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_HOST');
+    END IF;
+
+    UPDATE games SET status = p_status WHERE id = p_game_id;
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."set_game_status"("p_game_id" "text", "p_host_id" "text", "p_status" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."set_submission_ai_verdict"("p_id" "uuid", "p_player_id" "uuid", "p_verdict" boolean, "p_hash" "text") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+    UPDATE submissions
+    SET ai_verdict = p_verdict, ai_verified_hash = p_hash
+    WHERE id = p_id AND player_id = p_player_id;
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_OWNER_OR_MISSING');
+    END IF;
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."set_submission_ai_verdict"("p_id" "uuid", "p_player_id" "uuid", "p_verdict" boolean, "p_hash" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."update_game_settings"("p_game_id" "text", "p_host_id" "text", "p_patch" "jsonb") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    allowed_keys text[] := ARRAY[
+        'categories', 'time_limit', 'game_mode', 'grid_size', 'team_mode',
+        'starting_point', 'gameBoundary', 'end_condition', 'hide_mini_map',
+        'hide_map_symbols', 'suggested_categories', 'exclusive_mode',
+        'category_source', 'generation_radius', 'generation_number',
+        'category_details', 'language', 'categories_generated', 'ai_end_game',
+        'ready_players', 'banned_players'
+    ];
+    safe_patch jsonb;
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM games WHERE id = p_game_id AND host_id = p_host_id) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_HOST');
+    END IF;
+
+    -- Strip any keys that aren't on the allowlist.
+    SELECT jsonb_object_agg(key, value) INTO safe_patch
+    FROM jsonb_each(p_patch)
+    WHERE key = ANY(allowed_keys);
+
+    IF safe_patch IS NULL OR safe_patch = '{}'::jsonb THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NO_VALID_KEYS');
+    END IF;
+
+    -- Scalar / jsonb columns use COALESCE because ->/->> return NULL for absent
+    -- keys, and COALESCE then picks the existing value. text[] and jsonb[]
+    -- columns must use CASE on `?` (key existence) because converting an
+    -- absent key through jsonb_array_elements_text(...) yields an empty
+    -- array, not NULL, which would wipe the column on every partial patch.
+    UPDATE games SET
+        categories            = COALESCE(safe_patch->'categories', categories),
+        time_limit            = COALESCE((safe_patch->>'time_limit')::int, time_limit),
+        game_mode             = COALESCE(safe_patch->>'game_mode', game_mode),
+        grid_size             = COALESCE((safe_patch->>'grid_size')::int, grid_size),
+        team_mode             = COALESCE(safe_patch->>'team_mode', team_mode),
+        starting_point        = COALESCE(safe_patch->>'starting_point', starting_point),
+        "gameBoundary"        = COALESCE(safe_patch->>'gameBoundary', "gameBoundary"),
+        end_condition         = COALESCE(safe_patch->>'end_condition', end_condition),
+        hide_mini_map         = COALESCE((safe_patch->>'hide_mini_map')::boolean, hide_mini_map),
+        hide_map_symbols      = COALESCE((safe_patch->>'hide_map_symbols')::boolean, hide_map_symbols),
+        suggested_categories  = CASE WHEN safe_patch ? 'suggested_categories'
+                                    THEN ARRAY(SELECT jsonb_array_elements_text(safe_patch->'suggested_categories'))
+                                    ELSE suggested_categories END,
+        exclusive_mode        = COALESCE((safe_patch->>'exclusive_mode')::boolean, exclusive_mode),
+        category_source       = COALESCE(safe_patch->>'category_source', category_source),
+        generation_radius     = COALESCE((safe_patch->>'generation_radius')::bigint, generation_radius),
+        generation_number     = COALESCE((safe_patch->>'generation_number')::int, generation_number),
+        category_details      = CASE WHEN safe_patch ? 'category_details'
+                                    THEN ARRAY(SELECT jsonb_array_elements(safe_patch->'category_details'))
+                                    ELSE category_details END,
+        language              = COALESCE(safe_patch->>'language', language),
+        categories_generated  = COALESCE((safe_patch->>'categories_generated')::boolean, categories_generated),
+        ai_end_game           = COALESCE((safe_patch->>'ai_end_game')::boolean, ai_end_game),
+        ready_players         = CASE WHEN safe_patch ? 'ready_players'
+                                    THEN ARRAY(SELECT jsonb_array_elements_text(safe_patch->'ready_players'))
+                                    ELSE ready_players END,
+        banned_players        = CASE WHEN safe_patch ? 'banned_players'
+                                    THEN ARRAY(SELECT jsonb_array_elements_text(safe_patch->'banned_players'))
+                                    ELSE banned_players END
+    WHERE id = p_game_id;
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_game_settings"("p_game_id" "text", "p_host_id" "text", "p_patch" "jsonb") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."update_player"("p_id" "uuid", "p_patch" "jsonb") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    allowed_keys text[] := ARRAY['name', 'score', 'bingo_board', 'team', 'path'];
+    safe_patch jsonb;
+BEGIN
+    SELECT jsonb_object_agg(key, value) INTO safe_patch
+    FROM jsonb_each(p_patch)
+    WHERE key = ANY(allowed_keys);
+
+    IF safe_patch IS NULL OR safe_patch = '{}'::jsonb THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NO_VALID_KEYS');
+    END IF;
+
+    UPDATE players SET
+        name         = COALESCE(safe_patch->>'name', name),
+        score        = COALESCE((safe_patch->>'score')::int, score),
+        bingo_board  = COALESCE(safe_patch->'bingo_board', bingo_board),
+        team         = COALESCE((safe_patch->>'team')::int, team),
+        path         = COALESCE(safe_patch->'path', path)
+    WHERE id = p_id;
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_FOUND');
+    END IF;
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_player"("p_id" "uuid", "p_patch" "jsonb") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."update_updated_at_column"() RETURNS "trigger"
@@ -187,23 +381,15 @@ ALTER TABLE ONLY "public"."submissions"
 
 
 
-CREATE POLICY "Allow all on games" ON "public"."games" USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public delete players" ON "public"."players" FOR DELETE USING (true);
 
 
 
-CREATE POLICY "Allow all on players" ON "public"."players" USING (true) WITH CHECK (true);
-
-
-
-CREATE POLICY "Allow all on submissions" ON "public"."submissions" USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public delete submissions" ON "public"."submissions" FOR DELETE USING (true);
 
 
 
 CREATE POLICY "Allow public insert games" ON "public"."games" FOR INSERT WITH CHECK (true);
-
-
-
-CREATE POLICY "Allow public insert players" ON "public"."players" FOR INSERT WITH CHECK (true);
 
 
 
@@ -223,19 +409,21 @@ CREATE POLICY "Allow public read submissions" ON "public"."submissions" FOR SELE
 
 
 
-CREATE POLICY "Allow public update players" ON "public"."players" FOR UPDATE USING (true);
+CREATE POLICY "Allow public update games" ON "public"."games" FOR UPDATE USING (true) WITH CHECK (true);
 
 
 
-CREATE POLICY "Allow public update submissions" ON "public"."submissions" FOR UPDATE USING (true);
+CREATE POLICY "Allow public update players" ON "public"."players" FOR UPDATE USING (true) WITH CHECK (true);
 
 
 
-CREATE POLICY "Host can update their game" ON "public"."games" FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public update submissions" ON "public"."submissions" FOR UPDATE USING (true) WITH CHECK (true);
 
 
 
-CREATE POLICY "Public delete submissions" ON "public"."submissions" FOR DELETE USING (true);
+CREATE POLICY "Insert players only into open lobbies" ON "public"."players" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."games"
+  WHERE (("games"."id" = "players"."game_id") AND ("games"."status" = 'lobby'::"text")))));
 
 
 
@@ -255,15 +443,51 @@ GRANT USAGE ON SCHEMA "public" TO "service_role";
 
 
 
+GRANT ALL ON FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) TO "anon";
+GRANT ALL ON FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) TO "anon";
 GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) TO "service_role";
 
 
 
+GRANT ALL ON FUNCTION "public"."delete_submission"("p_id" "uuid", "p_player_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."delete_submission"("p_id" "uuid", "p_player_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."delete_submission"("p_id" "uuid", "p_player_id" "uuid") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) TO "anon";
 GRANT ALL ON FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."set_game_status"("p_game_id" "text", "p_host_id" "text", "p_status" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."set_game_status"("p_game_id" "text", "p_host_id" "text", "p_status" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."set_game_status"("p_game_id" "text", "p_host_id" "text", "p_status" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."set_submission_ai_verdict"("p_id" "uuid", "p_player_id" "uuid", "p_verdict" boolean, "p_hash" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."set_submission_ai_verdict"("p_id" "uuid", "p_player_id" "uuid", "p_verdict" boolean, "p_hash" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."set_submission_ai_verdict"("p_id" "uuid", "p_player_id" "uuid", "p_verdict" boolean, "p_hash" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."update_game_settings"("p_game_id" "text", "p_host_id" "text", "p_patch" "jsonb") TO "anon";
+GRANT ALL ON FUNCTION "public"."update_game_settings"("p_game_id" "text", "p_host_id" "text", "p_patch" "jsonb") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_game_settings"("p_game_id" "text", "p_host_id" "text", "p_patch" "jsonb") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."update_player"("p_id" "uuid", "p_patch" "jsonb") TO "anon";
+GRANT ALL ON FUNCTION "public"."update_player"("p_id" "uuid", "p_patch" "jsonb") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_player"("p_id" "uuid", "p_patch" "jsonb") TO "service_role";
 
 
 
