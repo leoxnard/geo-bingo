@@ -13,6 +13,8 @@ Handles game state synchronization and start game functionality.
 import { useState, useEffect } from 'react';
 
 import { useJsApiLoader } from '@react-google-maps/api';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import Image from 'next/image';
 import toast from 'react-hot-toast';
 
@@ -40,8 +42,7 @@ interface LobbyViewProps {
     startingPoint: string;
     endCondition: 'first_bingo' | 'timer';
     gameBoundary: string;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    updateGameModeInfo: (updates: any) => void;
+    updateGameModeInfo: (updates: Record<string, unknown>) => void;
     isHost: boolean;
     gridSize: number;
     timeLimit: number;
@@ -56,10 +57,8 @@ interface LobbyViewProps {
     makeHost: (id: string) => void;
     kickPlayer: (id: string) => void;
     banPlayer: (id: string) => void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    router: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    supabase: any;
+    router: AppRouterInstance;
+    supabase: SupabaseClient;
     updateStatus: (nextStatus: GameStatus) => Promise<void>;
     setPlayers: (players: Player[] | ((prev: Player[]) => Player[])) => void;
     hideMapSymbols: boolean;

@@ -12,6 +12,7 @@ Provides category editing, shuffling, and validation functionality.
 
 import React, { useState, useEffect, useRef } from 'react';
 
+import type { SupabaseClient } from '@supabase/supabase-js';
 import toast from 'react-hot-toast';
 import { CiCirclePlus, CiCircleMinus, CiCircleRemove, CiCircleCheck, CiCircleQuestion } from 'react-icons/ci';
 
@@ -154,8 +155,7 @@ interface LobbyCategoriesProps {
     categories: string[];
     suggestedCategories: string[];
     gameId: string;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    supabase: any;
+    supabase: SupabaseClient;
     maxGridSize: number;
     startingPoint: string;
     categorySource: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';

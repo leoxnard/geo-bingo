@@ -10,6 +10,9 @@ Provides type safety across the entire application.
 
 // lib/types.ts
 
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
+
 export type GameStatus = 'lobby' | 'playing' | 'voting' | 'finished';
 
 export type PathPoint = { lat: number; lng: number; timestamp: number };
@@ -87,10 +90,8 @@ export interface LobbyViewProps {
     makeHost: (id: string) => void;
     kickPlayer: (id: string) => void;
     banPlayer: (id: string) => void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    router: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    supabase: any;
+    router: AppRouterInstance;
+    supabase: SupabaseClient;
     updateStatus: (nextStatus: GameStatus) => Promise<void>;
     setPlayers: (players: Player[] | ((prev: Player[]) => Player[])) => void;
 }

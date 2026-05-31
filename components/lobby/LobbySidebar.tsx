@@ -12,6 +12,7 @@ Provides game code sharing and lobby management features.
 
 import { useState, useRef, useEffect } from 'react';
 
+import type { SupabaseClient } from '@supabase/supabase-js';
 import toast from 'react-hot-toast';
 import { FaRegCopy, FaCopy, FaRegEdit, FaPlus, FaRandom, FaTimes, FaEye, FaEyeSlash } from 'react-icons/fa';
 
@@ -34,8 +35,7 @@ interface LobbySidebarProps {
     isHost: boolean;
     teamMode: 'ffa' | 'teams';
     categories: string[];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    supabase: any;
+    supabase: SupabaseClient;
     makeHost: (id: string) => void;
     kickPlayer: (id: string) => void;
     banPlayer: (id: string) => void;
@@ -45,8 +45,7 @@ interface LobbySidebarProps {
     hideMapSymbols: boolean;
     hideMiniMap: boolean;
     aiEndGame: boolean;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    updateGameModeInfo: (updates: any) => void;
+    updateGameModeInfo: (updates: Record<string, unknown>) => void;
     categorySource: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
     isGenerating: boolean;
 }
