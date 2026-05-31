@@ -18,17 +18,10 @@ import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { GeoBingoLogo } from './utils/Elements';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES } from './utils/mapUtils';
-import { VotingViewProps, Submission } from './utils/types';
+import { VotingViewProps, Submission, PathPoint } from './utils/types';
 import { useViewport } from './utils/useViewport';
 
-const ENABLE_PRELOADING = false;
 const MAX_ANIMATION_DURATION = 8000;
-
-type PathPoint = {
-    lat: number;
-    lng: number;
-    timestamp: number;
-};
 
 interface PlayerWithPaths {
     id: string;
@@ -71,7 +64,6 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
     const [isPaused, setIsPaused] = useState(false);
     const [isLineComplete, setIsLineComplete] = useState(false);
-    const [isPreloading, setIsPreloading] = useState(ENABLE_PRELOADING);
 
     const [activeSubmission, setActiveSubmission] = useState<Submission | null>(null);
     const [lastActiveSub, setLastActiveSub] = useState<Submission | null>(null);
@@ -260,7 +252,6 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                 },
             )
             .on('broadcast', { event: 'next_player' }, (payload) => {
-                setIsPreloading(ENABLE_PRELOADING);
                 setActiveSubmission(null);
                 setIsPaused(false);
                 setIsLineComplete(false);
@@ -327,16 +318,10 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
             }
         };
 
-        if (isPreloading && ENABLE_PRELOADING) {
-            initMap();
-            const timer = setTimeout(() => {
-                setIsPreloading(false);
-            }, 1000);
-            return () => clearTimeout(timer);
-        } else if (!ENABLE_PRELOADING && animationProgressRef.current === 0) {
+        if (animationProgressRef.current === 0) {
             initMap();
         }
-    }, [mapInstance, pathData, isPreloading]);
+    }, [mapInstance, pathData]);
 
     const calculatedDuration = useMemo(() => {
         if (!pathData) return MAX_ANIMATION_DURATION;
@@ -348,7 +333,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
     // Animation Loop
     useEffect(() => {
-        if (!mapInstance || isPaused || isLineComplete || !pathData || pathData.rawPath.length === 0 || isPreloading) return;
+        if (!mapInstance || isPaused || isLineComplete || !pathData || pathData.rawPath.length === 0) return;
 
         lastTimeRef.current = performance.now();
 
@@ -447,7 +432,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
         rAFRef.current = requestAnimationFrame(animate);
         return () => cancelAnimationFrame(rAFRef.current);
-    }, [isPaused, isLineComplete, mapInstance, pathData, isPreloading, calculatedDuration, isNarrow]);
+    }, [isPaused, isLineComplete, mapInstance, pathData, calculatedDuration, isNarrow]);
 
     //
     useEffect(() => {
@@ -490,7 +475,6 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         if (currentPlayerIndex < playersWithPaths.length - 1) {
             const nextIndex = currentPlayerIndex + 1;
 
-            setIsPreloading(ENABLE_PRELOADING);
             setActiveSubmission(null);
             setIsPaused(false);
             setIsLineComplete(false);
@@ -788,8 +772,6 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         );
     }
 
-    const preloadMarkerPos = pathData?.rawPath.length > 0 ? pathData.rawPath[0] : dummyPos;
-
     const yesVotes = activeSubLatest ? Object.values(activeSubLatest.votes || {}).filter((v) => v === true).length : 0;
     const noVotes = activeSubLatest ? Object.values(activeSubLatest.votes || {}).filter((v) => v === false).length : 0;
 
@@ -824,7 +806,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
                     {!isLineComplete && (
                         <MarkerF
-                            position={isPreloading ? preloadMarkerPos : dummyPos}
+                            position={dummyPos}
                             onLoad={(m) => (markerRef.current = m)}
                             icon={{
                                 path: window.google.maps.SymbolPath.CIRCLE,
@@ -905,7 +887,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                     )}
                 </div>
 
-                {isLineComplete && !activeSubLatest && !isPreloading && (
+                {isLineComplete && !activeSubLatest && (
                     <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-800/95 backdrop-blur p-6 rounded-2xl border-2 border-indigo-500 shadow-[0_0_50px_rgba(79,70,229,0.4)] w-[350px] text-center animate-in zoom-in-90 duration-300">
                         <h2 className="text-2xl font-black uppercase text-indigo-400 mb-2">{currentPlayer?.name}'s Journey</h2>
                         <p className="text-slate-300 font-medium mb-6">Complete.</p>
