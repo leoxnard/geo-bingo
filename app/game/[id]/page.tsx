@@ -235,6 +235,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             }
 
             // Setup or Load the Game Room
+            let justCreated = false;
             if (!gameData) {
                 const newGameData = {
                     id: gameId,
@@ -260,14 +261,27 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 };
                 const { error } = await supabase.from('games').insert([newGameData]);
                 if (!error) {
+                    justCreated = true;
                     setIsHost(true);
                     setGameHostId(currentPlayerId);
                     gameData = newGameData;
                     localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
                 } else {
-                    console.error('CRITICAL: Failed to create game.', error);
+                    // A concurrent initializer already created this room — React
+                    // strict mode runs this effect twice in dev, and two clients can
+                    // open the same fresh code at once. Re-fetch the now-existing row
+                    // and fall through to the load path instead of leaving gameData null.
+                    const { data: refetched } = await supabase.from('games').select('*').eq('id', gameId).single();
+                    gameData = refetched;
                 }
-            } else {
+            }
+
+            if (!gameData) {
+                console.error('CRITICAL: game unavailable after init', gameId);
+                return;
+            }
+
+            if (!justCreated) {
                 console.log('[GameRoom] Loading existing game, status:', gameData.status);
                 setLastUpdated(gameData.updated_at);
                 setStatus(gameData.status || 'lobby');
@@ -325,7 +339,9 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     ...(bingoBoardToAssign && { bingo_board: bingoBoardToAssign }),
                 };
                 const { error: playerInsertErr } = await supabase.from('players').insert([insertData]);
-                if (playerInsertErr) console.error('CRITICAL: Failed to insert player.', playerInsertErr);
+                // 23505 = this player row was already inserted by a concurrent init
+                // (strict-mode double effect); that's benign, not a failure.
+                if (playerInsertErr && playerInsertErr.code !== '23505') console.error('CRITICAL: Failed to insert player.', playerInsertErr);
             } else {
                 const shouldAssignBoard = (!existingPlayer.bingo_board || existingPlayer.bingo_board.length === 0) && bingoBoardToAssign;
                 // update_player allowlists name + bingo_board (game_id is
