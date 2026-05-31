@@ -100,7 +100,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
         localStorage.setItem('geoBingoPlayerName', nextName);
         props.setPlayers((prev) => prev.map((p) => (p.id === props.playerId ? { ...p, name: nextName } : p)));
 
-        const { error } = await props.supabase.from('players').update({ name: nextName }).eq('id', props.playerId);
+        const { error } = await props.supabase.rpc('update_player', { p_id: props.playerId, p_patch: { name: nextName } });
         if (error) toast.error('Could not update name.');
         else toast.success('Name updated.');
         setIsEditingSelfName(false);
@@ -108,7 +108,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
 
     const handleUpdatePlayerTeam = async (targetPlayerId: string, teamIndex: number) => {
         props.setPlayers((prev) => prev.map((p) => (p.id === targetPlayerId ? { ...p, team: teamIndex } : p)));
-        const { error } = await props.supabase.from('players').update({ team: teamIndex }).eq('id', targetPlayerId);
+        const { error } = await props.supabase.rpc('update_player', { p_id: targetPlayerId, p_patch: { team: teamIndex } });
         if (error) toast.error('Could not update team.');
     };
 
@@ -123,7 +123,8 @@ export default function LobbySidebar(props: LobbySidebarProps) {
 
         props.setPlayers(updatedPlayers);
 
-        const updates = updatedPlayers.map((p) => props.supabase.from('players').update({ team: p.team }).eq('id', p.id));
+        // No bulk rpc; loop over update_player. small enough to parallelize.
+        const updates = updatedPlayers.map((p) => props.supabase.rpc('update_player', { p_id: p.id, p_patch: { team: p.team } }));
 
         await Promise.all(updates);
     };
@@ -144,7 +145,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
         props.setPlayers(updatedPlayers);
         setTeamCount(displayTeamCount - 1);
 
-        const updates = updatedPlayers.filter((p) => (p.team || 0) >= teamIndexToRemove || props.players.find((old) => old.id === p.id)?.team === teamIndexToRemove).map((p) => props.supabase.from('players').update({ team: p.team }).eq('id', p.id));
+        const updates = updatedPlayers.filter((p) => (p.team || 0) >= teamIndexToRemove || props.players.find((old) => old.id === p.id)?.team === teamIndexToRemove).map((p) => props.supabase.rpc('update_player', { p_id: p.id, p_patch: { team: p.team } }));
 
         await Promise.all(updates);
     };

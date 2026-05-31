@@ -113,9 +113,11 @@ export default function LobbyView(props: LobbyViewProps) {
         }
 
         try {
-            const { error } = await props.supabase.from('players').update({ path: [] }).eq('game_id', props.gameId);
-
-            if (error) console.error('Error clearing player paths on game start:', error);
+            // Bulk reset paths via per-player update_player. Players in this
+            // game are already in props.players from the parent's realtime sub.
+            const results = await Promise.all(props.players.map((p) => props.supabase.rpc('update_player', { p_id: p.id, p_patch: { path: [] } })));
+            const failure = results.find((r) => r.error);
+            if (failure?.error) console.error('Error clearing player paths on game start:', failure.error);
         } catch (err) {
             console.error('Unexpected error while clearing paths:', err);
         }
@@ -191,8 +193,12 @@ export default function LobbyView(props: LobbyViewProps) {
         if (props.gameMode === 'bingo') {
             try {
                 const board = finalCategories.slice(0, neededCount);
-                const { error } = await props.supabase.from('players').update({ bingo_board: board }).eq('game_id', props.gameId);
-                if (error) throw error;
+                // Shared-board mode: every player gets the same board, written
+                // one rpc per row since direct bulk UPDATE on players is the
+                // policy we want to lock down.
+                const results = await Promise.all(props.players.map((p) => props.supabase.rpc('update_player', { p_id: p.id, p_patch: { bingo_board: board } })));
+                const failure = results.find((r) => r.error);
+                if (failure?.error) throw failure.error;
             } catch (err) {
                 const errorMessage = err instanceof Error ? err.message : 'Unknown database error';
                 toast.error(`Board Generation Failed: ${errorMessage}`);

@@ -29,7 +29,7 @@ export function useStreetViewPath(playerId: string) {
         const saveInterval = setInterval(async () => {
             const currentPath = pathRef.current;
             if (currentPath.length > lastSavedLengthRef.current) {
-                const { error } = await supabase.from('players').update({ path: currentPath }).eq('id', playerId);
+                const { error } = await supabase.rpc('update_player', { p_id: playerId, p_patch: { path: currentPath } });
                 if (error) {
                     console.error('SUPABASE ERROR:', error.message, error.details);
                 } else {
@@ -42,7 +42,7 @@ export function useStreetViewPath(playerId: string) {
             clearInterval(saveInterval);
             const pathAtCleanup = pathRef.current;
             if (pathAtCleanup.length > lastSavedLengthRef.current) {
-                supabase.from('players').update({ path: pathAtCleanup }).eq('id', playerId).then();
+                supabase.rpc('update_player', { p_id: playerId, p_patch: { path: pathAtCleanup } }).then();
             }
         };
     }, [playerId]);
@@ -66,7 +66,7 @@ export function useStreetViewPath(playerId: string) {
         if (pathRef.current.length > lastSavedLengthRef.current) {
             void (async () => {
                 try {
-                    await supabase.from('players').update({ path: pathRef.current }).eq('id', playerId);
+                    await supabase.rpc('update_player', { p_id: playerId, p_patch: { path: pathRef.current } });
                 } catch (err) {
                     console.error('Failed to save path:', err);
                 }

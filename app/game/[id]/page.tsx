@@ -328,12 +328,13 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 if (playerInsertErr) console.error('CRITICAL: Failed to insert player.', playerInsertErr);
             } else {
                 const shouldAssignBoard = (!existingPlayer.bingo_board || existingPlayer.bingo_board.length === 0) && bingoBoardToAssign;
+                // update_player allowlists name + bingo_board (game_id is
+                // immutable post-join), so we pass only the writable fields.
                 const updateData = {
                     name: playerName,
-                    game_id: gameId,
                     ...(shouldAssignBoard && { bingo_board: bingoBoardToAssign }),
                 };
-                const { error: playerUpdateErr } = await supabase.from('players').update(updateData).eq('id', currentPlayerId);
+                const { error: playerUpdateErr } = await supabase.rpc('update_player', { p_id: currentPlayerId, p_patch: updateData });
                 if (playerUpdateErr) console.error('CRITICAL: Failed to update player.', playerUpdateErr);
             }
 
