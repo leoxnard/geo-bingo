@@ -139,6 +139,30 @@ $$;
 ALTER FUNCTION "public"."delete_submission"("p_id" "uuid", "p_player_id" "uuid") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."player_end_round"("p_game_id" "text", "p_player_id" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM players WHERE id = p_player_id AND game_id = p_game_id) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_A_PLAYER');
+    END IF;
+
+    UPDATE games SET status = 'voting'
+    WHERE id = p_game_id AND status = 'playing';
+
+    -- If the game wasn't in 'playing' the UPDATE matches zero rows; that's
+    -- fine — it means someone else already advanced it (or the host is
+    -- finishing manually). No error, just no-op.
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."player_end_round"("p_game_id" "text", "p_player_id" "uuid") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -531,6 +555,12 @@ GRANT ALL ON FUNCTION "public"."delete_player"("p_id" "uuid", "p_host_id" "text"
 GRANT ALL ON FUNCTION "public"."delete_submission"("p_id" "uuid", "p_player_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."delete_submission"("p_id" "uuid", "p_player_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."delete_submission"("p_id" "uuid", "p_player_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."player_end_round"("p_game_id" "text", "p_player_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."player_end_round"("p_game_id" "text", "p_player_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."player_end_round"("p_game_id" "text", "p_player_id" "uuid") TO "service_role";
 
 
 
