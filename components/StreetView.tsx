@@ -19,10 +19,11 @@ import { GoMoveToStart } from 'react-icons/go';
 
 import { supabase } from '../lib/supabase';
 import { useAiVerify } from './streetview/useAiVerify';
+import { useStreetViewPath } from './streetview/useStreetViewPath';
 import { FullscreenButton, ExitButton } from './utils/Elements';
 import { calculateBingoCounter, getDistance } from './utils/Functions';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from './utils/mapUtils';
-import { Submission, StreetViewProps, PathPoint, BoundaryPolygon } from './utils/types';
+import { Submission, StreetViewProps, BoundaryPolygon } from './utils/types';
 import { useViewport } from './utils/useViewport';
 import { GeoGuessrMetaDe, GeoGuessrMetaEn } from '../lib/categories';
 
@@ -83,8 +84,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
     const lastValidPositionRef = useRef<google.maps.LatLng | null>(null);
     const lastValidPanoRef = useRef<string | null>(null);
     const isRevertingRef = useRef(false);
-    const pathRef = useRef<PathPoint[]>([]);
-    const lastSavedLengthRef = useRef<number>(0);
+    const { pathRef, recordPoint, flushNow: flushPathNow } = useStreetViewPath(playerId);
 
     const hasVotedToEnd = readyPlayers.includes(playerId);
     const votesNeeded = players.length;
@@ -102,16 +102,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
     };
 
     const handleVoteEndRound = async () => {
-        if (pathRef.current.length > lastSavedLengthRef.current) {
-            void (async () => {
-                try {
-                    await supabase.from('players').update({ path: pathRef.current }).eq('id', playerId);
-                } catch (err) {
-                    console.error('Failed to save path:', err);
-                }
-            })();
-            lastSavedLengthRef.current = pathRef.current.length;
-        }
+        flushPathNow();
 
         if (onVoteEnd) {
             onVoteEnd();
@@ -373,28 +364,6 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
         };
     }, [gameId]);
 
-    useEffect(() => {
-        const saveInterval = setInterval(async () => {
-            const currentPath = pathRef.current;
-            if (currentPath.length > lastSavedLengthRef.current) {
-                const { error } = await supabase.from('players').update({ path: currentPath }).eq('id', playerId);
-                if (error) {
-                    console.error('SUPABASE ERROR:', error.message, error.details);
-                } else {
-                    lastSavedLengthRef.current = currentPath.length;
-                }
-            }
-        }, 5000);
-
-        return () => {
-            clearInterval(saveInterval);
-            const pathAtCleanup = pathRef.current;
-            if (pathAtCleanup.length > lastSavedLengthRef.current) {
-                supabase.from('players').update({ path: pathAtCleanup }).eq('id', playerId).then();
-            }
-        };
-    }, [playerId]);
-
     // sound effects for timer
     useEffect(() => {
         if (timeLeft === 61) {
@@ -479,14 +448,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                     lastValidPositionRef.current = pos;
                     lastValidPanoRef.current = pano.getPano();
 
-                    const lastPoint = pathRef.current[pathRef.current.length - 1];
-                    if (!lastPoint || lastPoint.lat !== pos.lat() || lastPoint.lng !== pos.lng()) {
-                        pathRef.current.push({
-                            lat: pos.lat(),
-                            lng: pos.lng(),
-                            timestamp: Date.now(),
-                        });
-                    }
+                    recordPoint(pos.lat(), pos.lng());
                 } else {
                     isRevertingRef.current = true;
                     toast("You've reached the edge of the allowed area or entered a forbidden zone!");
