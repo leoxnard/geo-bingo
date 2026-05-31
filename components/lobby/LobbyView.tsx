@@ -65,6 +65,7 @@ interface LobbyViewProps {
     hideMapSymbols: boolean;
     hideMiniMap: boolean;
     blurLobbyInfo: boolean;
+    aiEndGame: boolean;
     categorySource: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
     aiEnabled: boolean;
     isDeveloper: boolean;
@@ -278,6 +279,7 @@ export default function LobbyView(props: LobbyViewProps) {
                     hideMapSymbols={props.hideMapSymbols}
                     hideMiniMap={props.hideMiniMap}
                     blurLobbyInfo={props.blurLobbyInfo}
+                    aiEndGame={props.aiEndGame}
                     updateGameModeInfo={props.updateGameModeInfo}
                     categorySource={props.categorySource}
                     isGenerating={isGenerating}

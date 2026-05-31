@@ -25,6 +25,8 @@ export interface Submission {
     zoom: number;
     is_valid: boolean | null;
     votes: Record<string, boolean>;
+    ai_verdict?: boolean | null;
+    ai_verified_hash?: string | null;
 }
 
 export interface BingoCategory {
@@ -110,6 +112,7 @@ export interface StreetViewProps {
     hideMiniMap?: boolean;
     exclusiveMode?: boolean;
     allowHints?: boolean;
+    aiEndGame?: boolean;
     onVoteEnd?: () => void;
 }
 

@@ -18,6 +18,7 @@ import { FaEye, FaCamera, FaInfoCircle, FaChevronLeft } from 'react-icons/fa';
 import { GoMoveToStart } from 'react-icons/go';
 
 import { supabase } from '../lib/supabase';
+import { verifySubmissions } from './utils/aiVerify';
 import { FullscreenButton, ExitButton } from './utils/Elements';
 import { calculateBingoCounter, getDistance } from './utils/Functions';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from './utils/mapUtils';
@@ -54,7 +55,7 @@ const getHintForCategory = (cat: string) => {
     return null;
 };
 
-export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list', teamMode = 'ffa', gridSize = 3, startingPoint = 'open-world', gameBoundary = '[]', endCondition = 'timer', timeLeft, readyPlayers, players, hideMapSymbols = false, hideMiniMap = false, exclusiveMode = false, allowHints = true, onVoteEnd }: StreetViewProps) {
+export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list', teamMode = 'ffa', gridSize = 3, startingPoint = 'open-world', gameBoundary = '[]', endCondition = 'timer', timeLeft, readyPlayers, players, hideMapSymbols = false, hideMiniMap = false, exclusiveMode = false, allowHints = true, aiEndGame = true, onVoteEnd }: StreetViewProps) {
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
         googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
@@ -66,6 +67,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
     const [allSubmissions, setAllSubmissions] = useState<Submission[]>([]);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [fsPanelOpen, setFsPanelOpen] = useState(true);
+    const [isVerifying, setIsVerifying] = useState(false);
     const { isNarrow, isPortrait, isMobileLandscape } = useViewport();
 
     const [panoInstance, setPanoInstance] = useState<google.maps.StreetViewPanorama | null>(null);
@@ -79,7 +81,6 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
     const [gridEl, setGridEl] = useState<HTMLDivElement | null>(null);
     const [listLayout, setListLayout] = useState<'roomy' | 'compact'>('roomy');
     const [measuredPanelWidth, setMeasuredPanelWidth] = useState<number>(0);
-    const maxFsPanelWidth = 420; // px maximum panel width when expanded
     const lastValidPositionRef = useRef<google.maps.LatLng | null>(null);
     const lastValidPanoRef = useRef<string | null>(null);
     const isRevertingRef = useRef(false);
@@ -115,6 +116,63 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
         if (onVoteEnd) {
             onVoteEnd();
+        }
+    };
+
+    const allCategoriesFilled = useMemo(() => myBoard.every((cat) => mySubmissions.some((s) => s.category === cat)), [myBoard, mySubmissions]);
+
+    const handleAiVerifyAndEnd = async () => {
+        if (isVerifying) return;
+        if (!allCategoriesFilled) {
+            toast.error('Fill every category before AI verification.');
+            return;
+        }
+        const geminiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+        const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+        if (!geminiKey || !mapsKey) {
+            toast.error('AI verification is unavailable: missing API keys.');
+            return;
+        }
+
+        const subsToCheck = myBoard.map((cat) => mySubmissions.find((s) => s.category === cat)).filter((s): s is Submission => !!s);
+
+        setIsVerifying(true);
+        const verifyPromise = (async () => {
+            const results = await verifySubmissions(subsToCheck, mapsKey, geminiKey);
+            console.log('[aiVerify] all results:', results);
+
+            const optimisticUpdates = new Map(results.map((r) => [r.submissionId, { ai_verdict: r.passed, ai_verified_hash: r.hash }]));
+            setAllSubmissions((prev) => prev.map((s) => (optimisticUpdates.has(s.id) ? { ...s, ...optimisticUpdates.get(s.id)! } : s)));
+
+            const persistTasks = results.filter((r) => !r.fromCache).map((r) => supabase.from('submissions').update({ ai_verdict: r.passed, ai_verified_hash: r.hash }).eq('id', r.submissionId));
+            await Promise.all(persistTasks);
+
+            const failed = results.filter((r) => !r.passed);
+            const errored = failed.filter((r) => !!r.error);
+            const rejected = failed.filter((r) => !r.error);
+            if (failed.length === 0) {
+                await supabase.from('games').update({ status: 'voting' }).eq('id', gameId);
+                return { success: true as const, rejectedCount: 0, erroredCount: 0 };
+            }
+            return { success: false as const, rejectedCount: rejected.length, erroredCount: errored.length };
+        })();
+
+        try {
+            await toast.promise(verifyPromise, {
+                loading: `Verifying ${subsToCheck.length} categories with AI...`,
+                success: (res) => {
+                    if (res.success) return 'All categories verified — ending round.';
+                    const parts: string[] = [];
+                    if (res.rejectedCount > 0) parts.push(`${res.rejectedCount} rejected by AI`);
+                    if (res.erroredCount > 0) parts.push(`${res.erroredCount} API error${res.erroredCount === 1 ? '' : 's'} (see console)`);
+                    return `${parts.join(', ')}. Retake or try again.`;
+                },
+                error: (err) => `AI verification failed: ${err instanceof Error ? err.message : 'unknown error'}`,
+            });
+        } catch (err) {
+            console.error('AI verification error:', err);
+        } finally {
+            setIsVerifying(false);
         }
     };
 
@@ -611,6 +669,8 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
             id: tempId,
             votes: existingSub?.votes || {},
             is_valid: null,
+            ai_verdict: null,
+            ai_verified_hash: null,
         } as Submission;
 
         const updatedAllSubmissions = existingSub ? allSubmissions.map((s) => (s.id === existingSub.id ? optimisticSub : s)) : [...allSubmissions, optimisticSub];
@@ -668,7 +728,10 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
         } else {
             // ffa update or insert
             if (existingSub) {
-                const { error } = await supabase.from('submissions').update(submissionData).eq('id', existingSub.id);
+                const { error } = await supabase
+                    .from('submissions')
+                    .update({ ...submissionData, ai_verdict: null, ai_verified_hash: null })
+                    .eq('id', existingSub.id);
                 if (error) {
                     console.error('Update error:', error);
                     toast.error('Error updating submission. Please try again.');
@@ -764,8 +827,6 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
         return 2;
     }, [polyZoom, startingPoint]);
 
-    
-
     if (!isLoaded) return <div className="h-screen flex items-center justify-center text-indigo-400">Loading Maps...</div>;
 
     const getSidebarWidthClass = () => {
@@ -819,6 +880,18 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                     {readyPlayers.length} / {votesNeeded}
                                 </strong>
                             </span>
+                            {aiEndGame && (
+                                <button
+                                    type="button"
+                                    onClick={handleAiVerifyAndEnd}
+                                    disabled={!allCategoriesFilled || isVerifying}
+                                    title={!allCategoriesFilled ? 'Fill every category to enable AI verification' : 'Verify all categories with AI and end the round'}
+                                    className={`flex items-center justify-center whitespace-nowrap px-3 sm:px-6 rounded-lg font-bold transition-all uppercase text-[10px] sm:text-sm shadow-lg
+                                        ${!allCategoriesFilled || isVerifying ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
+                                >
+                                    {isVerifying ? 'Verifying...' : 'AI Verify & End'}
+                                </button>
+                            )}
                             <button
                                 type="button"
                                 onClick={handleVoteEndRound}
@@ -885,61 +958,56 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
                             {isFullscreen && (
                                 <div ref={panelRef} className={`absolute top-0 left-0 bottom-0 z-4 h-full bg-slate-900/40 backdrop-blur-md border-r border-white/10 transition-transform duration-300 ease-out ${fsPanelOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                                        <ul className={`h-full inline-grid grid-cols-1 auto-rows-min p-1 gap-1.5 overflow-y-auto ${fsPanelOpen ? '' : 'pointer-events-none'}`}>
-                                            {myBoard.map((cat) => {
-                                                const foundSub = mySubmissions.find((s) => s.category === cat);
-                                                const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some((s) => s.category === cat);
-                                                const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
-                                                const fov = foundSub?.zoom ? 180 / Math.pow(2, foundSub.zoom) : 90;
-                                                const hint = allowHints ? getHintForCategory(cat) : null;
-                                                const isDisabled = submittingCategory === cat || !inStreetView || isBlocked;
+                                    <ul className={`h-full inline-grid grid-cols-1 auto-rows-min p-1 gap-1.5 overflow-y-auto ${fsPanelOpen ? '' : 'pointer-events-none'}`}>
+                                        {myBoard.map((cat) => {
+                                            const foundSub = mySubmissions.find((s) => s.category === cat);
+                                            const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some((s) => s.category === cat);
+                                            const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+                                            const fov = foundSub?.zoom ? 180 / Math.pow(2, foundSub.zoom) : 90;
+                                            const hint = allowHints ? getHintForCategory(cat) : null;
+                                            const isDisabled = submittingCategory === cat || !inStreetView || isBlocked;
 
-                                                let streetViewImageUrl = '';
-                                                if (foundSub) {
-                                                    let safeHeading = foundSub.heading % 360;
-                                                    if (safeHeading < 0) safeHeading += 360;
-                                                    streetViewImageUrl = `https://maps.googleapis.com/maps/api/streetview?size=600x600&location=${foundSub.lat},${foundSub.lng}&heading=${foundSub.heading}&pitch=${foundSub.pitch}&fov=${fov}&key=${apiKey}`;
-                                                }
+                                            let streetViewImageUrl = '';
+                                            if (foundSub) {
+                                                let safeHeading = foundSub.heading % 360;
+                                                if (safeHeading < 0) safeHeading += 360;
+                                                streetViewImageUrl = `https://maps.googleapis.com/maps/api/streetview?size=600x600&location=${foundSub.lat},${foundSub.lng}&heading=${foundSub.heading}&pitch=${foundSub.pitch}&fov=${fov}&key=${apiKey}`;
+                                            }
 
-                                                return (
-                                                    <li
-                                                        key={cat}
-                                                        role="button"
-                                                        tabIndex={0}
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === 'Enter' || e.key === ' ') {
-                                                                e.preventDefault();
-                                                                if (!isDisabled) handleSubmit(cat);
-                                                            }
-                                                        }}
-                                                        onClick={() => {
+                                            return (
+                                                <li
+                                                    key={cat}
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' || e.key === ' ') {
+                                                            e.preventDefault();
                                                             if (!isDisabled) handleSubmit(cat);
-                                                        }}
-                                                        style={{ minHeight: ROOMY_MIN, maxHeight: ROOMY_MAX }}
-                                                        className={`relative p-1 whitespace-nowrap flex items-center justify-center w-full rounded-xl border transition-colors ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'} ${!foundSub && !isBlocked && inStreetView ? 'cursor-pointer' : ''} ${isDisabled ? 'opacity-70' : ''}`}
-                                                    >
-                                                        <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
-                                                            {foundSub && <img src={streetViewImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />}
-                                                            {foundSub && <div className="absolute inset-0 bg-black/50 z-0"></div>}
-                                                        </div>
-                                                        <div className={`relative z-10 font-bold text-center ${foundSub ? 'text-white' : isBlocked ? 'text-red-400' : 'text-slate-300'} ${getSidebarTextSizeClass()}`}>
-                                                            {cat}
-                                                            {hint && (
-                                                                <div className="mt-1 text-xs text-slate-400 font-normal">
-                                                                    Hint: <em>{hint}</em>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </li>
-                                                )
-                                            })}
-                                        </ul>
-                                    <button
-                                        type="button"
-                                        onClick={() => setFsPanelOpen((open) => !open)}
-                                        className="absolute top-1/2 left-full -translate-y-1/2 -ml-px w-5 h-14 rounded-r-lg bg-slate-900/40 backdrop-blur-md border border-l-0 border-white/10 text-white shadow-md flex items-center justify-center"
-                                        title={fsPanelOpen ? 'Hide categories' : 'Show categories'}
-                                    >
+                                                        }
+                                                    }}
+                                                    onClick={() => {
+                                                        if (!isDisabled) handleSubmit(cat);
+                                                    }}
+                                                    style={{ minHeight: ROOMY_MIN, maxHeight: ROOMY_MAX }}
+                                                    className={`relative p-1 whitespace-nowrap flex items-center justify-center w-full rounded-xl border transition-colors ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'} ${foundSub?.ai_verdict === false ? ' !border-red-500' : ''} ${!foundSub && !isBlocked && inStreetView ? 'cursor-pointer' : ''} ${isDisabled ? 'opacity-70' : ''}`}
+                                                >
+                                                    <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
+                                                        {foundSub && <img src={streetViewImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />}
+                                                        {foundSub && <div className="absolute inset-0 bg-black/50 z-0"></div>}
+                                                    </div>
+                                                    <div className={`relative z-10 font-bold text-center ${foundSub ? 'text-white' : isBlocked ? 'text-red-400' : 'text-slate-300'} ${getSidebarTextSizeClass()}`}>
+                                                        {cat}
+                                                        {hint && (
+                                                            <div className="mt-1 text-xs text-slate-400 font-normal">
+                                                                Hint: <em>{hint}</em>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </li>
+                                            );
+                                        })}
+                                    </ul>
+                                    <button type="button" onClick={() => setFsPanelOpen((open) => !open)} className="absolute top-1/2 left-full -translate-y-1/2 -ml-px w-5 h-14 rounded-r-lg bg-slate-900/40 backdrop-blur-md border border-l-0 border-white/10 text-white shadow-md flex items-center justify-center" title={fsPanelOpen ? 'Hide categories' : 'Show categories'}>
                                         <FaChevronLeft className={`transition-transform duration-300 ${fsPanelOpen ? '' : 'rotate-180'}`} size={11} />
                                     </button>
                                 </div>
@@ -975,6 +1043,18 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                 {readyPlayers.length} / {votesNeeded}
                                             </strong>
                                         </span>
+                                        {aiEndGame && (
+                                            <button
+                                                type="button"
+                                                onClick={handleAiVerifyAndEnd}
+                                                disabled={!allCategoriesFilled || isVerifying}
+                                                title={!allCategoriesFilled ? 'Fill every category to enable AI verification' : 'Verify all categories with AI and end the round'}
+                                                className={`flex items-center justify-center whitespace-nowrap px-3 sm:px-4 rounded-lg font-bold transition-all uppercase text-[10px] sm:text-xs shadow-lg
+                                                    ${!allCategoriesFilled || isVerifying ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
+                                            >
+                                                {isVerifying ? 'Verifying...' : 'AI Verify & End'}
+                                            </button>
+                                        )}
                                         <button
                                             type="button"
                                             onClick={handleVoteEndRound}
@@ -1015,7 +1095,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                 }
 
                                                 return (
-                                                    <li key={cat} style={{ minHeight: COMPACT_MIN, maxHeight: COMPACT_MAX }} className={`relative p-1.5 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 flex-1 w-full ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'}`}>
+                                                    <li key={cat} style={{ minHeight: COMPACT_MIN, maxHeight: COMPACT_MAX }} className={`relative p-1.5 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 flex-1 w-full ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'} ${foundSub?.ai_verdict === false ? '!border-red-500' : ''}`}>
                                                         <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
                                                             {foundSub && <img src={streetViewImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />}
                                                             {foundSub && <div className="absolute inset-0 bg-black/50 z-0"></div>}
@@ -1100,7 +1180,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                 }
 
                                                 return (
-                                                    <li key={cat} style={{ minHeight: ROOMY_MIN, maxHeight: ROOMY_MAX }} className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-between flex-1 w-full ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'}`}>
+                                                    <li key={cat} style={{ minHeight: ROOMY_MIN, maxHeight: ROOMY_MAX }} className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-between flex-1 w-full ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'} ${foundSub?.ai_verdict === false ? '!border-red-500' : ''}`}>
                                                         <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
                                                             {foundSub && <img src={streetViewImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />}
                                                             {foundSub && <div className="absolute inset-0 bg-black/50 z-0"></div>}
@@ -1120,7 +1200,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                                         </div>
                                                                     )}
                                                                 </div>
-                                                                <span className={`text-[10px] font-bold uppercase whitespace-nowrap flex-shrink-0 ${foundSub ? 'text-green-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-500' : 'text-slate-500'}`}>{foundSub ? 'Found' : isBlocked ? 'Locked' : 'Pending'}</span>
+                                                                <span className={`text-[10px] font-bold uppercase whitespace-nowrap flex-shrink-0 ${foundSub?.ai_verdict === false ? 'text-red-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : foundSub ? 'text-green-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-500' : 'text-slate-500'}`}>{foundSub?.ai_verdict === false ? 'AI verification failed' : foundSub ? 'Found' : isBlocked ? 'Locked' : 'Pending'}</span>
                                                             </div>
                                                         </div>
 
@@ -1186,7 +1266,12 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                         const streetViewImageUrl = foundSub ? `https://maps.googleapis.com/maps/api/streetview?size=400x400&location=${foundSub.lat},${foundSub.lng}&heading=${foundSub.heading}&pitch=${foundSub.pitch}&fov=${fov}&key=${apiKey}` : '';
 
                                         return (
-                                            <div key={cat} title={isBlocked ? 'Claimed by another team' : undefined} onClick={() => handleBingoTileClick(cat)} className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-center items-center text-center pb-2 sm:pb-12 ${foundSub ? 'text-white border-green-500 shadow-md' : isBlocked ? 'bg-slate-900/80 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700'}`}>
+                                            <div
+                                                key={cat}
+                                                title={isBlocked ? 'Claimed by another team' : foundSub?.ai_verdict === false ? 'AI could not verify this category' : undefined}
+                                                onClick={() => handleBingoTileClick(cat)}
+                                                className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-center items-center text-center pb-2 sm:pb-12 ${foundSub ? 'text-white border-green-500 shadow-md' : isBlocked ? 'bg-slate-900/80 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700'} ${foundSub?.ai_verdict === false ? '!border-red-500' : ''}`}
+                                            >
                                                 {/* Background Layer */}
                                                 <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
                                                     {foundSub && <img src={streetViewImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />}

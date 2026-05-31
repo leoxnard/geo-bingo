@@ -112,7 +112,8 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "category_details" "jsonb"[] DEFAULT '{}'::"jsonb"[] NOT NULL,
     "language" "text" DEFAULT '''german''::text'::"text" NOT NULL,
     "categories_generated" boolean DEFAULT false NOT NULL,
-    "blur_lobby_info" boolean DEFAULT false NOT NULL
+    "blur_lobby_info" boolean DEFAULT false NOT NULL,
+    "ai_end_game" boolean DEFAULT false NOT NULL
 );
 
 
@@ -144,7 +145,9 @@ CREATE TABLE IF NOT EXISTS "public"."submissions" (
     "pitch" double precision,
     "zoom" double precision,
     "is_valid" boolean,
-    "votes" "jsonb" DEFAULT '{}'::"jsonb"
+    "votes" "jsonb" DEFAULT '{}'::"jsonb",
+    "ai_verdict" boolean,
+    "ai_verified_hash" "text"
 );
 
 

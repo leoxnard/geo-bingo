@@ -77,6 +77,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [hideMapSymbols, setHideMapSymbols] = useState(false);
     const [hideMiniMap, setHideMiniMap] = useState(false);
     const [blurLobbyInfo, setBlurLobbyInfo] = useState(false);
+    const [aiEndGame, setAiEndGame] = useState(true);
 
     const updateGameModeInfo = (updates: {
         game_mode?: string;
@@ -90,6 +91,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         hide_map_symbols?: boolean;
         hide_minimap?: boolean;
         blur_lobby_info?: boolean;
+        ai_end_game?: boolean;
         exclusive_mode?: boolean;
         category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
         generation_radius?: number;
@@ -143,6 +145,10 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (updates.blur_lobby_info !== undefined) {
             setBlurLobbyInfo(updates.blur_lobby_info);
             fieldsToUpdate.push('blur_lobby_info');
+        }
+        if (updates.ai_end_game !== undefined) {
+            setAiEndGame(updates.ai_end_game);
+            fieldsToUpdate.push('ai_end_game');
         }
         if (updates.exclusive_mode !== undefined) {
             setExclusiveMode(updates.exclusive_mode);
@@ -202,7 +208,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             localId = crypto.randomUUID();
             sessionStorage.setItem('geoBingoSessionUUID', localId);
         }
-         
+
         setPlayerId(localId);
 
         const currentPlayerId = localId;
@@ -245,6 +251,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     end_condition: 'timer',
                     hide_map_symbols: false,
                     blur_lobby_info: false,
+                    ai_end_game: true,
                     exclusive_mode: false,
                     category_source: 'manual',
                     generation_radius: 10,
@@ -280,6 +287,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setHideMapSymbols(gameData.hide_map_symbols || false);
                 setHideMiniMap(gameData.hide_minimap || false);
                 setBlurLobbyInfo(gameData.blur_lobby_info || false);
+                setAiEndGame(gameData.ai_end_game ?? true);
                 setExclusiveMode(gameData.exclusive_mode || false);
                 setCategorySource(gameData.category_source || 'manual');
                 setGenerationRadius(gameData.generation_radius || 10);
@@ -396,6 +404,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     if (payload.new.hide_map_symbols !== undefined && !pendingOptimisticUpdatesRef.current.has('hide_map_symbols')) setHideMapSymbols(payload.new.hide_map_symbols);
                     if (payload.new.hide_minimap !== undefined && !pendingOptimisticUpdatesRef.current.has('hide_minimap')) setHideMiniMap(payload.new.hide_minimap);
                     if (payload.new.blur_lobby_info !== undefined && !pendingOptimisticUpdatesRef.current.has('blur_lobby_info')) setBlurLobbyInfo(payload.new.blur_lobby_info);
+                    if (payload.new.ai_end_game !== undefined && !pendingOptimisticUpdatesRef.current.has('ai_end_game')) setAiEndGame(payload.new.ai_end_game);
                     if (payload.new.exclusive_mode !== undefined && !pendingOptimisticUpdatesRef.current.has('exclusive_mode')) setExclusiveMode(payload.new.exclusive_mode);
                     if (payload.new.category_source !== undefined && !pendingOptimisticUpdatesRef.current.has('category_source')) {
                         setCategorySource(payload.new.category_source);
@@ -637,6 +646,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     hideMapSymbols={hideMapSymbols}
                     hideMiniMap={hideMiniMap}
                     blurLobbyInfo={blurLobbyInfo}
+                    aiEndGame={aiEndGame}
                     categorySource={categorySource}
                     aiEnabled={apiStatus.aiEnabled}
                     isDeveloper={apiStatus.isDeveloper}
@@ -653,7 +663,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (status === 'playing') {
             const currentPlayer = players.find((p) => p.id === playerId);
             const myBoard = gameMode === 'bingo' && currentPlayer?.bingo_board && currentPlayer.bingo_board.length > 0 ? currentPlayer.bingo_board : categories;
-            return <StreetView myBoard={myBoard} gameId={gameId} playerId={playerId} gameMode={gameMode} teamMode={teamMode} gridSize={gridSize} startingPoint={startingPoint} gameBoundary={gameBoundary} endCondition={endCondition} timeLeft={timeLeft} readyPlayers={readyPlayers} players={players} hideMapSymbols={hideMapSymbols} hideMiniMap={hideMiniMap} exclusiveMode={exclusiveMode} onVoteEnd={handleVoteEndOptimistic} />;
+            return <StreetView myBoard={myBoard} gameId={gameId} playerId={playerId} gameMode={gameMode} teamMode={teamMode} gridSize={gridSize} startingPoint={startingPoint} gameBoundary={gameBoundary} endCondition={endCondition} timeLeft={timeLeft} readyPlayers={readyPlayers} players={players} hideMapSymbols={hideMapSymbols} hideMiniMap={hideMiniMap} exclusiveMode={exclusiveMode} aiEndGame={aiEndGame} onVoteEnd={handleVoteEndOptimistic} />;
         }
 
         // --- VIEW 3: VOTING ---
