@@ -28,15 +28,29 @@ CREATE OR REPLACE FUNCTION "public"."claim_category"("p_game_id" "text", "p_play
     SET "search_path" TO 'public'
     AS $$
 DECLARE
+    existing_id uuid;
     result_sub RECORD;
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM players WHERE id = p_player_id AND game_id = p_game_id) THEN
         RETURN jsonb_build_object('success', false, 'error', 'NOT_A_PLAYER');
     END IF;
 
-    INSERT INTO submissions (game_id, player_id, category, lat, lng, heading, pitch, zoom)
-    VALUES (p_game_id, p_player_id, p_category, p_lat, p_lng, p_heading, p_pitch, p_zoom)
-    RETURNING * INTO result_sub;
+    SELECT id INTO existing_id
+    FROM submissions
+    WHERE game_id = p_game_id AND player_id = p_player_id AND category = p_category
+    LIMIT 1;
+
+    IF existing_id IS NOT NULL THEN
+        UPDATE submissions SET
+            lat = p_lat, lng = p_lng, heading = p_heading, pitch = p_pitch, zoom = p_zoom,
+            ai_verdict = NULL, ai_verified_hash = NULL
+        WHERE id = existing_id
+        RETURNING * INTO result_sub;
+    ELSE
+        INSERT INTO submissions (game_id, player_id, category, lat, lng, heading, pitch, zoom)
+        VALUES (p_game_id, p_player_id, p_category, p_lat, p_lng, p_heading, p_pitch, p_zoom)
+        RETURNING * INTO result_sub;
+    END IF;
 
     RETURN jsonb_build_object('success', true, 'data', row_to_json(result_sub));
 END;
