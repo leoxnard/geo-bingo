@@ -127,20 +127,38 @@ Reply with ONLY one word: YES or NO. No punctuation, no explanation.`;
     throw lastErr instanceof Error ? lastErr : new Error('All Gemini models failed');
 }
 
+const VERIFY_CONCURRENCY = 3;
+
 export async function verifySubmissions(submissions: Submission[], mapsKey: string, geminiKey: string): Promise<VerifyResult[]> {
-    const tasks = submissions.map(async (sub): Promise<VerifyResult> => {
-        const hash = computeSubmissionHash(sub);
-        const cachedHash = sub.ai_verified_hash;
-        const cachedVerdict = sub.ai_verdict;
-        if (cachedHash === hash && (cachedVerdict === true || cachedVerdict === false)) {
-            return { submissionId: sub.id, category: sub.category, passed: cachedVerdict, hash, fromCache: true };
-        }
-        try {
-            const passed = await verifyOneAgainstGemini(sub, mapsKey, geminiKey);
-            return { submissionId: sub.id, category: sub.category, passed, hash, fromCache: false };
-        } catch (err) {
-            return { submissionId: sub.id, category: sub.category, passed: false, hash, fromCache: false, error: err instanceof Error ? err.message : 'Unknown error' };
+    const hashes = submissions.map(computeSubmissionHash);
+    const results: VerifyResult[] = new Array(submissions.length);
+    const pending: number[] = [];
+
+    submissions.forEach((sub, i) => {
+        const hash = hashes[i];
+        if (sub.ai_verified_hash === hash && (sub.ai_verdict === true || sub.ai_verdict === false)) {
+            results[i] = { submissionId: sub.id, category: sub.category, passed: sub.ai_verdict, hash, fromCache: true };
+        } else {
+            pending.push(i);
         }
     });
-    return await Promise.all(tasks);
+
+    let cursor = 0;
+    const workerCount = Math.min(VERIFY_CONCURRENCY, pending.length);
+    const workers = Array.from({ length: workerCount }, async () => {
+        while (cursor < pending.length) {
+            const i = pending[cursor++];
+            const sub = submissions[i];
+            const hash = hashes[i];
+            try {
+                const passed = await verifyOneAgainstGemini(sub, mapsKey, geminiKey);
+                results[i] = { submissionId: sub.id, category: sub.category, passed, hash, fromCache: false };
+            } catch (err) {
+                results[i] = { submissionId: sub.id, category: sub.category, passed: false, hash, fromCache: false, error: err instanceof Error ? err.message : 'Unknown error' };
+            }
+        }
+    });
+    await Promise.all(workers);
+
+    return results;
 }
