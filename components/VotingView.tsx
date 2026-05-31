@@ -20,6 +20,7 @@ import { GeoBingoLogo } from './utils/Elements';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES } from './utils/mapUtils';
 import { VotingViewProps, Submission, PathPoint } from './utils/types';
 import { useViewport } from './utils/useViewport';
+import { VotingPanel } from './voting/VotingPanel';
 
 const MAX_ANIMATION_DURATION = 8000;
 
@@ -972,58 +973,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
                     <div className="w-full bg-slate-900/95 backdrop-blur-xl border-t border-indigo-500/50 p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-20">
                         {displaySub && !selectedSubmission && !selectedFinalMarker ? (
-                            <div className="max-w-xl mx-auto">
-                                <h3 className="text-2xl font-black text-white mb-1 text-center truncate">{displaySub?.category}</h3>
-                                <p className="text-sm text-indigo-300 mb-4 text-center uppercase tracking-widest font-semibold">{votingStats.eligibleCount === 0 && activeSubLatest ? 'Single Player Vote - No votes needed' : votingStats.isComplete ? 'Voting Complete - Continuing...' : `Awaiting Votes... (${votingStats.cast}/${votingStats.eligibleCount})`}</p>
-
-                                <div className="flex gap-4">
-                                    {(() => {
-                                        if (votingStats.isComplete) {
-                                            return (
-                                                <div className="flex-1 py-4 text-center text-green-400 font-bold uppercase border border-green-700 rounded-xl bg-green-900/30">
-                                                    Voting Complete <br />
-                                                    <span className="text-sm text-green-300/80 normal-case mt-1 inline-block">
-                                                        ({yesVotes} Y / {noVotes} N)
-                                                    </span>
-                                                </div>
-                                            );
-                                        }
-
-                                        const subPlayerTeam = players.find((p) => p.id === activeSubLatest?.player_id)?.team;
-                                        const myTeam = players.find((p) => p.id === playerId)?.team;
-                                        const isMySubmission = playerId === activeSubLatest?.player_id;
-                                        const isMyTeamSubmission = teamMode === 'teams' && subPlayerTeam !== undefined && subPlayerTeam === myTeam;
-
-                                        if (isMySubmission || isMyTeamSubmission) {
-                                            return (
-                                                <div className="flex-1 py-4 text-center text-slate-400 font-bold uppercase border border-slate-700 rounded-xl bg-slate-900/50">
-                                                    {isMySubmission ? 'Your Submission' : 'Team Submission'} <br />
-                                                    <span className="text-sm text-slate-500 normal-case mt-1 inline-block">
-                                                        Y: {yesVotes} | N: {noVotes}
-                                                    </span>
-                                                </div>
-                                            );
-                                        }
-
-                                        return (
-                                            <>
-                                                <div className="flex-1 flex flex-col gap-2">
-                                                    <button type="button" onClick={() => activeSubLatest && handleVote(activeSubLatest, true)} className={`w-full py-4 rounded-xl font-black uppercase text-lg border transition-all ${activeSubLatest?.votes?.[playerId] === true ? 'bg-green-600 border-green-400 text-white shadow-[0_0_15px_rgba(34,197,94,0.5)]' : 'bg-slate-800 border-slate-600 text-slate-300 hover:border-green-500 hover:text-green-500 hover:bg-green-900/30'}`}>
-                                                        Yes
-                                                    </button>
-                                                    <div className="text-center text-green-400 font-bold text-sm tracking-wide">{yesVotes} Votes</div>
-                                                </div>
-                                                <div className="flex-1 flex flex-col gap-2">
-                                                    <button type="button" onClick={() => activeSubLatest && handleVote(activeSubLatest, false)} className={`w-full py-4 rounded-xl font-black uppercase text-lg border transition-all ${activeSubLatest?.votes?.[playerId] === false ? 'bg-red-600 border-red-400 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'bg-slate-800 border-slate-600 text-slate-300 hover:border-red-500 hover:text-red-500 hover:bg-red-900/30'}`}>
-                                                        No
-                                                    </button>
-                                                    <div className="text-center text-red-400 font-bold text-sm tracking-wide">{noVotes} Votes</div>
-                                                </div>
-                                            </>
-                                        );
-                                    })()}
-                                </div>
-                            </div>
+                            <VotingPanel displaySub={displaySub} activeSubLatest={activeSubLatest} votingStats={votingStats} yesVotes={yesVotes} noVotes={noVotes} players={players} playerId={playerId} teamMode={teamMode} onVote={handleVote} />
                         ) : selectedSubmission ? (
                             <div className="max-w-xl mx-auto">
                                 <h3 className="text-xl sm:text-2xl font-black text-white mb-1 text-center truncate">{selectedSubmission.category}</h3>
