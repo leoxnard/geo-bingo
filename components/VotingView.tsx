@@ -264,15 +264,18 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
                 setCurrentPlayerIndex(payload.payload.index);
             })
-            .on('broadcast', { event: 'finish_game' }, () => {
-                onFinishGame();
-            })
             .subscribe();
+        // NOTE: a previous 'finish_game' broadcast handler also called
+        // onFinishGame() here. That duplicated the host's DB write across
+        // every receiver, which now fails under the host-only set_game_status
+        // RPC. The page-level games subscription already picks up the host's
+        // status='finished' update and re-renders to PodiumView, so the
+        // broadcast handler is redundant and was removed.
 
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [gameId, onFinishGame]);
+    }, [gameId]);
 
     // Path Calculations
     const pathData = useMemo(() => {

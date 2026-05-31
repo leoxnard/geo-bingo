@@ -105,7 +105,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
         }
     };
 
-    const { isVerifying, aiVerificationSuccess, allCategoriesFilled, handleVerifyAndEnd: handleAiVerifyAndEnd } = useAiVerify({ gameId, myBoard, mySubmissions, setAllSubmissions });
+    const { isVerifying, aiVerificationSuccess, allCategoriesFilled, handleVerifyAndEnd: handleAiVerifyAndEnd } = useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSubmissions });
 
     useEffect(() => {
         if (minimapInstance && panoInstance && !hideMiniMap) {
@@ -548,7 +548,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                 }
                 toast(`${winnerNamesString} got Bingo!`);
                 try {
-                    await supabase.from('games').update({ status: 'voting' }).eq('id', gameId);
+                    await supabase.rpc('player_end_round', { p_game_id: gameId, p_player_id: playerId });
                 } catch (error) {
                     console.error('Failed to end game on Bingo:', error);
                 }

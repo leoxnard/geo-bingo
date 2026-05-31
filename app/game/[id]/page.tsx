@@ -466,13 +466,14 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         };
     }, [gameId, router]);
 
-    // Status update handler
+    // Status update handler (host-only path; uses the SECURITY DEFINER rpc so
+    // we don't depend on table-level UPDATE policies staying open).
     const updateStatus = useCallback(
         async (nextStatus: GameStatus) => {
-            const { error } = await supabase.from('games').update({ status: nextStatus }).eq('id', gameId);
+            const { error } = await supabase.rpc('set_game_status', { p_game_id: gameId, p_host_id: gameHostId, p_status: nextStatus });
             if (error) console.error('Error updating game status:', error);
         },
-        [gameId],
+        [gameId, gameHostId],
     );
 
     // --- TIMER LOGIC ---
@@ -568,7 +569,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     };
 
     const handleFinishGame = async () => {
-        await supabase.from('games').update({ status: 'finished' }).eq('id', gameId);
+        await supabase.rpc('set_game_status', { p_game_id: gameId, p_host_id: gameHostId, p_status: 'finished' });
     };
 
     const handleVoteEndOptimistic = useCallback(() => {

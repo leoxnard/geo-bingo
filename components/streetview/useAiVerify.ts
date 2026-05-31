@@ -21,12 +21,13 @@ import type { Submission } from '../utils/types';
 
 interface UseAiVerifyArgs {
     gameId: string;
+    playerId: string;
     myBoard: string[];
     mySubmissions: Submission[];
     setAllSubmissions: Dispatch<SetStateAction<Submission[]>>;
 }
 
-export function useAiVerify({ gameId, myBoard, mySubmissions, setAllSubmissions }: UseAiVerifyArgs) {
+export function useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSubmissions }: UseAiVerifyArgs) {
     const [isVerifying, setIsVerifying] = useState(false);
     const [aiVerificationSuccess, setAiVerificationSuccess] = useState(false);
 
@@ -63,7 +64,7 @@ export function useAiVerify({ gameId, myBoard, mySubmissions, setAllSubmissions 
             const errored = failed.filter((r) => !!r.error);
             const rejected = failed.filter((r) => !r.error);
             if (failed.length === 0) {
-                await supabase.from('games').update({ status: 'voting' }).eq('id', gameId);
+                await supabase.rpc('player_end_round', { p_game_id: gameId, p_player_id: playerId });
                 setAiVerificationSuccess(true);
                 return { success: true as const, rejectedCount: 0, erroredCount: 0 };
             }
