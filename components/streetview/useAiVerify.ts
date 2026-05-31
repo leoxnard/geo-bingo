@@ -57,7 +57,7 @@ export function useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSu
             const optimisticUpdates = new Map(results.map((r) => [r.submissionId, { ai_verdict: r.passed, ai_verified_hash: r.hash }]));
             setAllSubmissions((prev) => prev.map((s) => (optimisticUpdates.has(s.id) ? { ...s, ...optimisticUpdates.get(s.id)! } : s)));
 
-            const persistTasks = results.filter((r) => !r.fromCache).map((r) => supabase.from('submissions').update({ ai_verdict: r.passed, ai_verified_hash: r.hash }).eq('id', r.submissionId));
+            const persistTasks = results.filter((r) => !r.fromCache).map((r) => supabase.rpc('set_submission_ai_verdict', { p_id: r.submissionId, p_player_id: playerId, p_verdict: r.passed, p_hash: r.hash }));
             await Promise.all(persistTasks);
 
             const failed = results.filter((r) => !r.passed);

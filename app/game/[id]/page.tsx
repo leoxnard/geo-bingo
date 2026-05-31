@@ -540,7 +540,11 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
     const makeHost = async (newHostId: string) => {
         if (isHost) {
-            await supabase.from('games').update({ host_id: newHostId }).eq('id', gameId);
+            const { error } = await supabase.rpc('transfer_host', { p_game_id: gameId, p_current_host_id: gameHostId, p_new_host_id: newHostId });
+            if (error) {
+                console.error('Failed to transfer host:', error);
+                return;
+            }
             setIsHost(false);
             localStorage.removeItem(`geoBingoHost_${gameId}`);
             toast('You are no longer the host.');
@@ -663,7 +667,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
         // --- VIEW 4: PODIUM (FINISHED) ---
         if (status === 'finished') {
-            return <PodiumView gameId={gameId} isHost={isHost} teamMode={teamMode} />;
+            return <PodiumView gameId={gameId} gameHostId={gameHostId} isHost={isHost} teamMode={teamMode} />;
         }
     };
 

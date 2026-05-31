@@ -579,26 +579,25 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                 setAllSubmissions((prev) => prev.map((s) => (s.id === tempId ? data.data : s)));
             }
         } else {
-            // ffa update or insert
-            if (existingSub) {
-                const { error } = await supabase
-                    .from('submissions')
-                    .update({ ...submissionData, ai_verdict: null, ai_verified_hash: null })
-                    .eq('id', existingSub.id);
-                if (error) {
-                    console.error('Update error:', error);
-                    toast.error('Error updating submission. Please try again.');
-                    setAllSubmissions((prev) => prev.filter((s) => s.id !== tempId));
-                }
-            } else {
-                const { data, error } = await supabase.from('submissions').insert([submissionData]).select().single();
-                if (error) {
-                    console.error('Insert error:', error);
-                    toast.error('Error saving submission. Please try again.');
-                    setAllSubmissions((prev) => prev.filter((s) => s.id !== tempId));
-                } else if (data) {
-                    setAllSubmissions((prev) => prev.map((s) => (s.id === tempId ? data : s)));
-                }
+            // ffa insert-or-update via claim_category upsert: a re-take at a new
+            // camera angle patches the existing row and clears the cached AI verdict.
+            const { data, error } = await supabase.rpc('claim_category', {
+                p_game_id: gameId,
+                p_player_id: playerId,
+                p_category: targetCategory,
+                p_lat: submissionData.lat,
+                p_lng: submissionData.lng,
+                p_heading: submissionData.heading,
+                p_pitch: submissionData.pitch,
+                p_zoom: submissionData.zoom,
+            });
+
+            if (error || (data && data.success === false)) {
+                console.error('claim_category failed:', error || data.error);
+                toast.error('Error saving submission. Please try again.');
+                setAllSubmissions((prev) => (existingSub ? prev : prev.filter((s) => s.id !== tempId)));
+            } else if (data && data.success) {
+                setAllSubmissions((prev) => prev.map((s) => (s.id === tempId ? data.data : s)));
             }
         }
     };

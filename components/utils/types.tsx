@@ -129,6 +129,7 @@ export interface VotingViewProps {
 
 export interface PodiumViewProps {
     gameId: string;
+    gameHostId: string;
     isHost: boolean;
     teamMode: 'ffa' | 'teams';
 }
