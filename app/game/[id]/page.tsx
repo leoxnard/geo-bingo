@@ -344,10 +344,14 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 if (playerInsertErr && playerInsertErr.code !== '23505') console.error('CRITICAL: Failed to insert player.', playerInsertErr);
             } else {
                 const shouldAssignBoard = (!existingPlayer.bingo_board || existingPlayer.bingo_board.length === 0) && bingoBoardToAssign;
-                // update_player allowlists name + bingo_board (game_id is
-                // immutable post-join), so we pass only the writable fields.
+                // A session's player UUID is reused across games (one row, keyed
+                // by the session UUID), so re-joining/switching games has to move
+                // that row to the current game by patching game_id — otherwise the
+                // player stays stuck in their previous game and fetchPlayers here
+                // never sees them.
                 const updateData = {
                     name: playerName,
+                    game_id: gameId,
                     ...(shouldAssignBoard && { bingo_board: bingoBoardToAssign }),
                 };
                 const { error: playerUpdateErr } = await supabase.rpc('update_player', { p_id: currentPlayerId, p_patch: updateData });
