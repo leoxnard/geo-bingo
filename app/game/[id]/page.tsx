@@ -524,10 +524,10 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (isHost) {
             setPlayers((prev) => prev.filter((p) => p.id !== idToKick));
 
-            const { data, error } = await supabase.from('players').delete().eq('id', idToKick).select();
+            const { data, error } = await supabase.rpc('delete_player', { p_id: idToKick, p_host_id: gameHostId });
 
-            if (error || (data && data.length === 0)) {
-                console.error('Error deleting player (RLS Policy or Replica Identity):', error);
+            if (error || (data && data.success === false)) {
+                console.error('Error deleting player:', error || data?.error);
             }
 
             // Also remove them from ready_players if they were ready
@@ -555,10 +555,10 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             const updatedBanned = [...bannedPlayers, idToKick];
             await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: gameHostId, p_patch: { banned_players: updatedBanned } });
 
-            const { data, error } = await supabase.from('players').delete().eq('id', idToKick).select();
+            const { data, error } = await supabase.rpc('delete_player', { p_id: idToKick, p_host_id: gameHostId });
 
-            if (error || (data && data.length === 0)) {
-                console.error('Error deleting player (RLS Policy or Replica Identity):', error);
+            if (error || (data && data.success === false)) {
+                console.error('Error deleting player:', error || data?.error);
             }
 
             // Also remove them from ready_players if they were ready
