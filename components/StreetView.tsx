@@ -18,7 +18,7 @@ import { FaEye, FaCamera, FaInfoCircle, FaChevronLeft } from 'react-icons/fa';
 import { GoMoveToStart } from 'react-icons/go';
 
 import { supabase } from '../lib/supabase';
-import { verifySubmissions } from './utils/aiVerify';
+import { useAiVerify } from './streetview/useAiVerify';
 import { FullscreenButton, ExitButton } from './utils/Elements';
 import { calculateBingoCounter, getDistance } from './utils/Functions';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from './utils/mapUtils';
@@ -67,8 +67,6 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
     const [allSubmissions, setAllSubmissions] = useState<Submission[]>([]);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [fsPanelOpen, setFsPanelOpen] = useState(true);
-    const [isVerifying, setIsVerifying] = useState(false);
-    const [aiVerificationSuccess, setAiVerificationSuccess] = useState(false);
     const { isNarrow, isPortrait, isMobileLandscape } = useViewport();
 
     const [panoInstance, setPanoInstance] = useState<google.maps.StreetViewPanorama | null>(null);
@@ -120,66 +118,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
         }
     };
 
-    const allCategoriesFilled = useMemo(() => myBoard.every((cat) => mySubmissions.some((s) => s.category === cat)), [myBoard, mySubmissions]);
-
-    const handleAiVerifyAndEnd = async () => {
-        if (isVerifying) return;
-        if (!allCategoriesFilled) {
-            toast.error('Fill every category before AI verification.');
-            return;
-        }
-        const geminiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-        const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-        if (!geminiKey || !mapsKey) {
-            toast.error('AI verification is unavailable: missing API keys.');
-            return;
-        }
-
-        const subsToCheck = myBoard.map((cat) => mySubmissions.find((s) => s.category === cat)).filter((s): s is Submission => !!s);
-
-        setIsVerifying(true);
-        setAiVerificationSuccess(false);
-        const verifyPromise = (async () => {
-            const results = await verifySubmissions(subsToCheck, mapsKey, geminiKey);
-            console.log('[aiVerify] all results:', results);
-
-            const optimisticUpdates = new Map(results.map((r) => [r.submissionId, { ai_verdict: r.passed, ai_verified_hash: r.hash }]));
-            setAllSubmissions((prev) => prev.map((s) => (optimisticUpdates.has(s.id) ? { ...s, ...optimisticUpdates.get(s.id)! } : s)));
-
-            const persistTasks = results.filter((r) => !r.fromCache).map((r) => supabase.from('submissions').update({ ai_verdict: r.passed, ai_verified_hash: r.hash }).eq('id', r.submissionId));
-            await Promise.all(persistTasks);
-
-            const failed = results.filter((r) => !r.passed);
-            const errored = failed.filter((r) => !!r.error);
-            const rejected = failed.filter((r) => !r.error);
-            if (failed.length === 0) {
-                await supabase.from('games').update({ status: 'voting' }).eq('id', gameId);
-                setAiVerificationSuccess(true);
-                return { success: true as const, rejectedCount: 0, erroredCount: 0 };
-            }
-            setAiVerificationSuccess(false);
-            return { success: false as const, rejectedCount: rejected.length, erroredCount: errored.length };
-        })();
-
-        try {
-            await toast.promise(verifyPromise, {
-                loading: `Verifying ${subsToCheck.length} categories with AI...`,
-                success: (res) => {
-                    if (res.success) return 'All categories verified — ending round.';
-                    const parts: string[] = [];
-                    if (res.rejectedCount > 0) parts.push(`${res.rejectedCount} rejected by AI`);
-                    if (res.erroredCount > 0) parts.push(`${res.erroredCount} API error${res.erroredCount === 1 ? '' : 's'} (see console)`);
-                    return `${parts.join(', ')}. Retake or try again.`;
-                },
-                error: (err) => `AI verification failed: ${err instanceof Error ? err.message : 'unknown error'}`,
-            });
-        } catch (err) {
-            console.error('AI verification error:', err);
-            setAiVerificationSuccess(false);
-        } finally {
-            setIsVerifying(false);
-        }
-    };
+    const { isVerifying, aiVerificationSuccess, allCategoriesFilled, handleVerifyAndEnd: handleAiVerifyAndEnd } = useAiVerify({ gameId, myBoard, mySubmissions, setAllSubmissions });
 
     useEffect(() => {
         if (minimapInstance && panoInstance && !hideMiniMap) {
