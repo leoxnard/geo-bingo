@@ -11,7 +11,7 @@ submissions are not re-verified on subsequent runs.
 
 import { Submission } from './types';
 
-const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-3-flash-preview', 'gemini-2.5-flash-lite', 'gemini-3.1-flash-lite-preview'];
+const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview'];
 
 export const computeSubmissionHash = (sub: Pick<Submission, 'lat' | 'lng' | 'heading' | 'pitch' | 'zoom'>): string => {
     return `${sub.lat.toFixed(6)}|${sub.lng.toFixed(6)}|${sub.heading.toFixed(2)}|${sub.pitch.toFixed(2)}|${sub.zoom.toFixed(2)}`;
@@ -78,11 +78,10 @@ Reply with ONLY one word: YES or NO. No punctuation, no explanation.`;
         ],
         generationConfig: {
             temperature: 0,
-            // Give plenty of room: with thinking on, the model uses internal budget to reason.
             maxOutputTokens: 2000,
-            // -1 = dynamic thinking budget chosen by the model. Re-enables reasoning so the
-            // verdict is calibrated rather than a snap judgement.
-            thinkingConfig: { thinkingBudget: -1 },
+            // Cap thinking so it cannot consume the entire output budget and leave
+            // nothing for the YES/NO reply (the failure mode we recover from below).
+            thinkingConfig: { thinkingBudget: 1024 },
         },
     });
 
