@@ -404,7 +404,7 @@ CREATE OR REPLACE FUNCTION "public"."update_player"("p_id" "uuid", "p_patch" "js
     SET "search_path" TO 'public'
     AS $$
 DECLARE
-    allowed_keys text[] := ARRAY['name', 'score', 'bingo_board', 'team', 'path'];
+    allowed_keys text[] := ARRAY['name', 'score', 'bingo_board', 'team', 'path', 'game_id'];
     safe_patch jsonb;
 BEGIN
     SELECT jsonb_object_agg(key, value) INTO safe_patch
@@ -420,7 +420,8 @@ BEGIN
         score        = COALESCE((safe_patch->>'score')::int, score),
         bingo_board  = COALESCE(safe_patch->'bingo_board', bingo_board),
         team         = COALESCE((safe_patch->>'team')::int, team),
-        path         = COALESCE(safe_patch->'path', path)
+        path         = COALESCE(safe_patch->'path', path),
+        game_id      = COALESCE(safe_patch->>'game_id', game_id)
     WHERE id = p_id;
 
     IF NOT FOUND THEN
