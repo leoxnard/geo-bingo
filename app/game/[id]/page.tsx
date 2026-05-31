@@ -185,7 +185,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         // Background DB update: fire-and-forget without awaiting
         (async () => {
             try {
-                await supabase.from('games').update(updates).eq('id', gameId);
+                await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: gameHostId, p_patch: updates });
             } catch (err) {
                 console.error('Failed to update game settings:', err);
                 toast.error('Failed to save settings');
@@ -532,7 +532,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             // Also remove them from ready_players if they were ready
             if (readyPlayers.includes(idToKick)) {
                 const updatedReady = readyPlayers.filter((id) => id !== idToKick);
-                await supabase.from('games').update({ ready_players: updatedReady }).eq('id', gameId);
+                await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: gameHostId, p_patch: { ready_players: updatedReady } });
             }
         }
     };
@@ -552,7 +552,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
             // Add to banned list in the DB
             const updatedBanned = [...bannedPlayers, idToKick];
-            await supabase.from('games').update({ banned_players: updatedBanned }).eq('id', gameId);
+            await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: gameHostId, p_patch: { banned_players: updatedBanned } });
 
             const { data, error } = await supabase.from('players').delete().eq('id', idToKick).select();
 
@@ -563,7 +563,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             // Also remove them from ready_players if they were ready
             if (readyPlayers.includes(idToKick)) {
                 const updatedReady = readyPlayers.filter((id) => id !== idToKick);
-                await supabase.from('games').update({ ready_players: updatedReady }).eq('id', gameId);
+                await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: gameHostId, p_patch: { ready_players: updatedReady } });
             }
         }
     };
@@ -587,19 +587,11 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             pendingOptimisticUpdatesRef.current.add('status');
         }
 
+        // player_vote_to_end_round handles the dedup-append to ready_players
+        // and the status='voting' transition atomically when the last player votes.
         (async () => {
             try {
-                if (updatedReadyPlayers.length >= votesNeeded) {
-                    await supabase
-                        .from('games')
-                        .update({
-                            ready_players: updatedReadyPlayers,
-                            status: 'voting',
-                        })
-                        .eq('id', gameId);
-                } else {
-                    await supabase.from('games').update({ ready_players: updatedReadyPlayers }).eq('id', gameId);
-                }
+                await supabase.rpc('player_vote_to_end_round', { p_game_id: gameId, p_player_id: playerId });
             } catch (err) {
                 console.error('Failed to vote:', err);
             } finally {

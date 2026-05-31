@@ -200,7 +200,7 @@ export default function LobbyView(props: LobbyViewProps) {
             }
         } else {
             try {
-                const { error } = await props.supabase.from('games').update({ categories: finalCategories }).eq('id', props.gameId);
+                const { error } = await props.supabase.rpc('update_game_settings', { p_game_id: props.gameId, p_host_id: props.gameHostId, p_patch: { categories: finalCategories } });
                 if (error) throw error;
             } catch (err) {
                 const errorMessage = err instanceof Error ? err.message : 'Unknown database error';
@@ -245,6 +245,8 @@ export default function LobbyView(props: LobbyViewProps) {
                         categories={props.categories}
                         suggestedCategories={props.suggestedCategories}
                         gameId={props.gameId}
+                        gameHostId={props.gameHostId}
+                        playerId={props.playerId}
                         supabase={props.supabase}
                         maxGridSize={MAXGRIDSIZE}
                         startingPoint={props.startingPoint}

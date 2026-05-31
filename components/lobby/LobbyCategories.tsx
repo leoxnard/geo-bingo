@@ -155,6 +155,8 @@ interface LobbyCategoriesProps {
     categories: string[];
     suggestedCategories: string[];
     gameId: string;
+    gameHostId: string;
+    playerId: string;
     supabase: SupabaseClient;
     maxGridSize: number;
     startingPoint: string;
@@ -167,7 +169,7 @@ interface LobbyCategoriesProps {
     categoriesGenerated: boolean;
 }
 
-export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, language, gridSize, categories, suggestedCategories, gameId, supabase, maxGridSize, startingPoint, categorySource, aiEnabled, isDeveloper, generationRadius, generationNumber, difficulty, categoriesGenerated }: LobbyCategoriesProps) {
+export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, language, gridSize, categories, suggestedCategories, gameId, gameHostId, playerId, supabase, maxGridSize, startingPoint, categorySource, aiEnabled, isDeveloper, generationRadius, generationNumber, difficulty, categoriesGenerated }: LobbyCategoriesProps) {
     const [newCategory, setNewCategory] = useState('');
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [localRadius, setLocalRadius] = useState(generationRadius);
@@ -416,15 +418,15 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                 toast.error('This category already exists!');
                 return;
             }
-            const { data } = await supabase.from('games').select('suggested_categories').eq('id', gameId).single();
-            const currentSuggestions = data?.suggested_categories || [];
-
-            if (currentSuggestions.some((c: string) => c.toLowerCase() === trimmedCat.toLowerCase())) {
-                toast.error('This category was already suggested!');
+            // player_suggest_category does case-insensitive dedup against
+            // suggested_categories server-side, so we only need to filter
+            // the current categories list locally.
+            const { data, error } = await supabase.rpc('player_suggest_category', { p_game_id: gameId, p_player_id: playerId, p_category: trimmedCat });
+            if (error || (data && data.success === false)) {
+                if (data?.error === 'ALREADY_SUGGESTED') toast.error('This category was already suggested!');
+                else toast.error('Failed to send suggestion.');
                 return;
             }
-            const updatedSuggestions = [...currentSuggestions, trimmedCat];
-            await supabase.from('games').update({ suggested_categories: updatedSuggestions }).eq('id', gameId);
             setNewCategory('');
             toast.success('Suggestion sent to the host!');
         }
@@ -482,7 +484,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
     const rejectSuggestion = async (cat: string) => {
         if (!isHost) return;
         const updatedSug = suggestedCategories.filter((c) => c !== cat);
-        await supabase.from('games').update({ suggested_categories: updatedSug }).eq('id', gameId);
+        await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: gameHostId, p_patch: { suggested_categories: updatedSug } });
     };
 
     const minusOneGridSize = () => {
