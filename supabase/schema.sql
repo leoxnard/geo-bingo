@@ -77,6 +77,49 @@ $$;
 ALTER FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."clear_submissions_for_game"("p_game_id" "text", "p_host_id" "text") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM games WHERE id = p_game_id AND host_id = p_host_id) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_HOST');
+    END IF;
+
+    DELETE FROM submissions WHERE game_id = p_game_id;
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."clear_submissions_for_game"("p_game_id" "text", "p_host_id" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."delete_player"("p_id" "uuid", "p_host_id" "text") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    target_game_id text;
+BEGIN
+    SELECT game_id INTO target_game_id FROM players WHERE id = p_id;
+    IF target_game_id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'PLAYER_NOT_FOUND');
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM games WHERE id = target_game_id AND host_id = p_host_id) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_HOST');
+    END IF;
+
+    DELETE FROM players WHERE id = p_id;
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."delete_player"("p_id" "uuid", "p_host_id" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."delete_submission"("p_id" "uuid", "p_player_id" "uuid") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -152,6 +195,24 @@ $$;
 
 
 ALTER FUNCTION "public"."set_submission_ai_verdict"("p_id" "uuid", "p_player_id" "uuid", "p_verdict" boolean, "p_hash" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."transfer_host"("p_game_id" "text", "p_current_host_id" "text", "p_new_host_id" "text") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM games WHERE id = p_game_id AND host_id = p_current_host_id) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_HOST');
+    END IF;
+
+    UPDATE games SET host_id = p_new_host_id WHERE id = p_game_id;
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."transfer_host"("p_game_id" "text", "p_current_host_id" "text", "p_new_host_id" "text") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."update_game_settings"("p_game_id" "text", "p_host_id" "text", "p_patch" "jsonb") RETURNS "jsonb"
@@ -455,6 +516,18 @@ GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p
 
 
 
+GRANT ALL ON FUNCTION "public"."clear_submissions_for_game"("p_game_id" "text", "p_host_id" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."clear_submissions_for_game"("p_game_id" "text", "p_host_id" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."clear_submissions_for_game"("p_game_id" "text", "p_host_id" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."delete_player"("p_id" "uuid", "p_host_id" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."delete_player"("p_id" "uuid", "p_host_id" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."delete_player"("p_id" "uuid", "p_host_id" "text") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."delete_submission"("p_id" "uuid", "p_player_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."delete_submission"("p_id" "uuid", "p_player_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."delete_submission"("p_id" "uuid", "p_player_id" "uuid") TO "service_role";
@@ -476,6 +549,12 @@ GRANT ALL ON FUNCTION "public"."set_game_status"("p_game_id" "text", "p_host_id"
 GRANT ALL ON FUNCTION "public"."set_submission_ai_verdict"("p_id" "uuid", "p_player_id" "uuid", "p_verdict" boolean, "p_hash" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."set_submission_ai_verdict"("p_id" "uuid", "p_player_id" "uuid", "p_verdict" boolean, "p_hash" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_submission_ai_verdict"("p_id" "uuid", "p_player_id" "uuid", "p_verdict" boolean, "p_hash" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."transfer_host"("p_game_id" "text", "p_current_host_id" "text", "p_new_host_id" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."transfer_host"("p_game_id" "text", "p_current_host_id" "text", "p_new_host_id" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."transfer_host"("p_game_id" "text", "p_current_host_id" "text", "p_new_host_id" "text") TO "service_role";
 
 
 
