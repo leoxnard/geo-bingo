@@ -49,9 +49,10 @@ export default function Home() {
 
     const joinGame = (e: React.FormEvent) => {
         e.preventDefault();
-        if (lobbyId.trim() !== '') {
+        const normalized = lobbyId.trim().toLowerCase();
+        if (normalized !== '') {
             handleSaveName();
-            router.push(`/game/${lobbyId.trim()}`);
+            router.push(`/game/${normalized}`);
         }
     };
 

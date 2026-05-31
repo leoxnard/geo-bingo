@@ -64,7 +64,6 @@ interface LobbyViewProps {
     setPlayers: (players: Player[] | ((prev: Player[]) => Player[])) => void;
     hideMapSymbols: boolean;
     hideMiniMap: boolean;
-    blurLobbyInfo: boolean;
     aiEndGame: boolean;
     categorySource: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
     aiEnabled: boolean;
@@ -278,7 +277,6 @@ export default function LobbyView(props: LobbyViewProps) {
                     setPlayers={props.setPlayers}
                     hideMapSymbols={props.hideMapSymbols}
                     hideMiniMap={props.hideMiniMap}
-                    blurLobbyInfo={props.blurLobbyInfo}
                     aiEndGame={props.aiEndGame}
                     updateGameModeInfo={props.updateGameModeInfo}
                     categorySource={props.categorySource}

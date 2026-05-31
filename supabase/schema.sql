@@ -112,7 +112,6 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "category_details" "jsonb"[] DEFAULT '{}'::"jsonb"[] NOT NULL,
     "language" "text" DEFAULT '''german''::text'::"text" NOT NULL,
     "categories_generated" boolean DEFAULT false NOT NULL,
-    "blur_lobby_info" boolean DEFAULT false NOT NULL,
     "ai_end_game" boolean DEFAULT false NOT NULL
 );
 

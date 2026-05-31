@@ -44,7 +44,6 @@ interface LobbySidebarProps {
     setPlayers: (players: Player[] | ((prev: Player[]) => Player[])) => void;
     hideMapSymbols: boolean;
     hideMiniMap: boolean;
-    blurLobbyInfo: boolean;
     aiEndGame: boolean;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     updateGameModeInfo: (updates: any) => void;
@@ -64,6 +63,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
 
     const [isMounted, setIsMounted] = useState(false);
     const [teamCount, setTeamCount] = useState(1);
+    const [blurLobbyInfo, setBlurLobbyInfo] = useState(true);
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -220,16 +220,14 @@ export default function LobbySidebar(props: LobbySidebarProps) {
             <div className="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 h-fit">
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="text-xl font-semibold text-slate-300">Invite Friends</h2>
-                    {props.isHost && (
-                        <button type="button" onClick={() => props.updateGameModeInfo({ blur_lobby_info: !props.blurLobbyInfo })} className="p-2 mr-2 rounded-md transition-all bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-200" title={props.blurLobbyInfo ? 'Show lobby ID & link' : 'Blur lobby ID & link'}>
-                            {props.blurLobbyInfo ? <FaEyeSlash /> : <FaEye />}
-                        </button>
-                    )}
+                    <button type="button" onClick={() => setBlurLobbyInfo(!blurLobbyInfo)} className="p-2 mr-2 rounded-md transition-all bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-200" title={blurLobbyInfo ? 'Show lobby ID & link' : 'Blur lobby ID & link'}>
+                        {blurLobbyInfo ? <FaEyeSlash /> : <FaEye />}
+                    </button>
                 </div>
                 <div className="space-y-3">
                     <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 p-2 rounded-lg overflow-hidden">
                         <span className="text-sm font-bold text-slate-400 w-12 tracking-widest shrink-0">ID:</span>
-                        <span className="flex-1 min-w-0 font-mono text-slate-300 text-lg truncate select-none px-2" style={props.blurLobbyInfo ? { color: 'transparent', textShadow: '0 0 12px rgba(203, 213, 225, 0.9), 0 0 6px rgba(203, 213, 225, 0.7)' } : undefined}>
+                        <span className="flex-1 min-w-0 font-mono text-slate-300 text-lg truncate select-none px-2" style={blurLobbyInfo ? { color: 'transparent', textShadow: '0 0 12px rgba(203, 213, 225, 0.9), 0 0 6px rgba(203, 213, 225, 0.7)' } : undefined}>
                             {props.gameId}
                         </span>
                         <button type="button" onClick={handleCopyGameId} className={`shrink-0 p-2 rounded-md transition-all ${copiedId ? 'bg-green-600/40 text-green-400' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}`} title="Copy Game ID">
@@ -238,7 +236,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                     </div>
                     <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 p-2 rounded-lg overflow-hidden">
                         <span className="text-sm font-bold text-slate-400 w-12 tracking-widest shrink-0">Link:</span>
-                        <span className="flex-1 min-w-0 font-mono text-slate-300 truncate select-none px-2" style={props.blurLobbyInfo ? { color: 'transparent', textShadow: '0 0 12px rgba(203, 213, 225, 0.9), 0 0 6px rgba(203, 213, 225, 0.7)' } : undefined}>
+                        <span className="flex-1 min-w-0 font-mono text-slate-300 truncate select-none px-2" style={blurLobbyInfo ? { color: 'transparent', textShadow: '0 0 12px rgba(203, 213, 225, 0.9), 0 0 6px rgba(203, 213, 225, 0.7)' } : undefined}>
                             {isMounted ? window.location.href.replace('http://', '').replace('https://', '') : '...'}
                         </span>
                         <button type="button" onClick={handleCopyGameLink} className={`shrink-0 p-2 rounded-md transition-all ${copiedLink ? 'bg-green-600/40 text-green-400' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}`} title="Copy Game Link">

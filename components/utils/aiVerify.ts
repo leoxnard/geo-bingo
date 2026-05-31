@@ -53,10 +53,21 @@ async function verifyOneAgainstGemini(sub: Submission, mapsKey: string, geminiKe
 
     const { mime, data } = await fetchImageAsBase64(imageUrl);
 
-    const prompt = `You are verifying a Google Street View Bingo submission.
-Look at the attached image and decide: does it contain "${sub.category}"?
-Answer YES if the item, feature or concept is visible in the image (even partially).
-Answer NO only if it is clearly not present.
+    const prompt = `You are a STRICT verifier for a Google Street View Bingo game.
+The player claims this image shows: "${sub.category}".
+
+Your job is to approve ONLY when the category is clearly and unambiguously visible as the obvious subject of the image.
+
+REJECT (answer NO) if ANY of these apply:
+- The item is not centered or is a minor detail in the image, rather than the main focus
+- The item is small, distant, or blurry and you cannot identify it with high confidence
+- The item is only partially visible or heavily occluded by other objects
+- The image shows something visually similar but not the exact category
+- The match relies on guessing, context, or inference rather than direct visual evidence
+- You are not highly confident — when in doubt, REJECT
+
+Be skeptical. Most submissions should only be approved if a human reviewer would obviously agree.
+
 Reply with ONLY one word: YES or NO. No punctuation, no explanation.`;
 
     const body = JSON.stringify({
@@ -67,10 +78,11 @@ Reply with ONLY one word: YES or NO. No punctuation, no explanation.`;
         ],
         generationConfig: {
             temperature: 0,
-            maxOutputTokens: 10,
-            // 2.5+ flash models default to "thinking" which eats the output budget.
-            // Force thinking off so the budget is spent on the actual YES/NO reply.
-            thinkingConfig: { thinkingBudget: 0 },
+            // Give plenty of room: with thinking on, the model uses internal budget to reason.
+            maxOutputTokens: 2000,
+            // -1 = dynamic thinking budget chosen by the model. Re-enables reasoning so the
+            // verdict is calibrated rather than a snap judgement.
+            thinkingConfig: { thinkingBudget: -1 },
         },
     });
 
@@ -102,8 +114,10 @@ Reply with ONLY one word: YES or NO. No punctuation, no explanation.`;
                 lastErr = new Error(`Gemini ${model} returned empty text (finishReason=${finishReason}) for "${sub.category}"`);
                 continue;
             }
-            if (upper.includes('YES')) return true;
-            if (upper.includes('NO')) return false;
+            // Strict parse: match a leading YES or NO token, ignoring trailing punctuation.
+            const firstToken = upper.match(/^[A-Z]+/)?.[0];
+            if (firstToken === 'YES') return true;
+            if (firstToken === 'NO') return false;
             // Unrecognized reply — try next model.
             lastErr = new Error(`Gemini ${model} unrecognized reply for "${sub.category}": ${text}`);
         } catch (err) {

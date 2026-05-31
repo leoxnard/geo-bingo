@@ -31,8 +31,14 @@ type GameStatus = 'lobby' | 'playing' | 'voting' | 'finished';
 
 export default function GameRoom({ params }: { params: Promise<{ id: string }> }) {
     const unwrappedParams = use(params);
-    const gameId = unwrappedParams.id;
+    const gameId = unwrappedParams.id.toLowerCase();
     const router = useRouter();
+
+    useEffect(() => {
+        if (unwrappedParams.id !== gameId) {
+            router.replace(`/game/${gameId}`);
+        }
+    }, [unwrappedParams.id, gameId, router]);
 
     // Game state
     const [lastUpdated, setLastUpdated] = useState<string>('');
@@ -76,7 +82,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [language, setLanguage] = useState<'german' | 'english'>('german');
     const [hideMapSymbols, setHideMapSymbols] = useState(false);
     const [hideMiniMap, setHideMiniMap] = useState(false);
-    const [blurLobbyInfo, setBlurLobbyInfo] = useState(false);
     const [aiEndGame, setAiEndGame] = useState(true);
 
     const updateGameModeInfo = (updates: {
@@ -90,7 +95,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         end_condition?: 'first_bingo' | 'timer';
         hide_map_symbols?: boolean;
         hide_minimap?: boolean;
-        blur_lobby_info?: boolean;
         ai_end_game?: boolean;
         exclusive_mode?: boolean;
         category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
@@ -141,10 +145,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (updates.hide_minimap !== undefined) {
             setHideMiniMap(updates.hide_minimap);
             fieldsToUpdate.push('hide_minimap');
-        }
-        if (updates.blur_lobby_info !== undefined) {
-            setBlurLobbyInfo(updates.blur_lobby_info);
-            fieldsToUpdate.push('blur_lobby_info');
         }
         if (updates.ai_end_game !== undefined) {
             setAiEndGame(updates.ai_end_game);
@@ -250,7 +250,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     starting_point: 'open-world',
                     end_condition: 'timer',
                     hide_map_symbols: false,
-                    blur_lobby_info: false,
                     ai_end_game: true,
                     exclusive_mode: false,
                     category_source: 'manual',
@@ -286,7 +285,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setEndCondition(gameData.end_condition || 'timer');
                 setHideMapSymbols(gameData.hide_map_symbols || false);
                 setHideMiniMap(gameData.hide_minimap || false);
-                setBlurLobbyInfo(gameData.blur_lobby_info || false);
                 setAiEndGame(gameData.ai_end_game ?? true);
                 setExclusiveMode(gameData.exclusive_mode || false);
                 setCategorySource(gameData.category_source || 'manual');
@@ -403,7 +401,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     if (payload.new.end_condition !== undefined && !pendingOptimisticUpdatesRef.current.has('end_condition')) setEndCondition(payload.new.end_condition);
                     if (payload.new.hide_map_symbols !== undefined && !pendingOptimisticUpdatesRef.current.has('hide_map_symbols')) setHideMapSymbols(payload.new.hide_map_symbols);
                     if (payload.new.hide_minimap !== undefined && !pendingOptimisticUpdatesRef.current.has('hide_minimap')) setHideMiniMap(payload.new.hide_minimap);
-                    if (payload.new.blur_lobby_info !== undefined && !pendingOptimisticUpdatesRef.current.has('blur_lobby_info')) setBlurLobbyInfo(payload.new.blur_lobby_info);
                     if (payload.new.ai_end_game !== undefined && !pendingOptimisticUpdatesRef.current.has('ai_end_game')) setAiEndGame(payload.new.ai_end_game);
                     if (payload.new.exclusive_mode !== undefined && !pendingOptimisticUpdatesRef.current.has('exclusive_mode')) setExclusiveMode(payload.new.exclusive_mode);
                     if (payload.new.category_source !== undefined && !pendingOptimisticUpdatesRef.current.has('category_source')) {
@@ -645,7 +642,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     setPlayers={setPlayers}
                     hideMapSymbols={hideMapSymbols}
                     hideMiniMap={hideMiniMap}
-                    blurLobbyInfo={blurLobbyInfo}
                     aiEndGame={aiEndGame}
                     categorySource={categorySource}
                     aiEnabled={apiStatus.aiEnabled}
