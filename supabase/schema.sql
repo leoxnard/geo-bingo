@@ -163,6 +163,41 @@ $$;
 ALTER FUNCTION "public"."player_end_round"("p_game_id" "text", "p_player_id" "uuid") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."player_vote_to_end_round"("p_game_id" "text", "p_player_id" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    new_ready    text[];
+    total_players int;
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM players WHERE id = p_player_id AND game_id = p_game_id) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_A_PLAYER');
+    END IF;
+
+    -- Dedupe-append: union the existing ready_players array with the caller.
+    SELECT ARRAY(SELECT DISTINCT unnest(
+        COALESCE((SELECT ready_players FROM games WHERE id = p_game_id), '{}'::text[])
+        || ARRAY[p_player_id::text]
+    )) INTO new_ready;
+
+    SELECT count(*)::int INTO total_players FROM players WHERE game_id = p_game_id;
+
+    IF array_length(new_ready, 1) >= total_players THEN
+        UPDATE games SET ready_players = new_ready, status = 'voting'
+        WHERE id = p_game_id AND status = 'playing';
+    ELSE
+        UPDATE games SET ready_players = new_ready WHERE id = p_game_id;
+    END IF;
+
+    RETURN jsonb_build_object('success', true, 'ready_count', array_length(new_ready, 1), 'total_players', total_players);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."player_vote_to_end_round"("p_game_id" "text", "p_player_id" "uuid") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -561,6 +596,12 @@ GRANT ALL ON FUNCTION "public"."delete_submission"("p_id" "uuid", "p_player_id" 
 GRANT ALL ON FUNCTION "public"."player_end_round"("p_game_id" "text", "p_player_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."player_end_round"("p_game_id" "text", "p_player_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."player_end_round"("p_game_id" "text", "p_player_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."player_vote_to_end_round"("p_game_id" "text", "p_player_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."player_vote_to_end_round"("p_game_id" "text", "p_player_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."player_vote_to_end_round"("p_game_id" "text", "p_player_id" "uuid") TO "service_role";
 
 
 
