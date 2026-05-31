@@ -77,6 +77,13 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
     const timeUpTriggeredRef = useRef(false);
     const pendingOptimisticUpdatesRef = useRef<Set<string>>(new Set());
+    // Run initializeRoom once per game (guards against React strict-mode running
+    // the effect twice and racing two initializers).
+    const initedGameRef = useRef<string | null>(null);
+    // Only treat "I'm not in the players list" as a kick AFTER we've seen
+    // ourselves present at least once — otherwise the transient empty reads
+    // during startup would bounce us home.
+    const confirmedMemberRef = useRef(false);
 
     // more game options
     const [language, setLanguage] = useState<'german' | 'english'>('german');
@@ -354,8 +361,18 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     game_id: gameId,
                     ...(shouldAssignBoard && { bingo_board: bingoBoardToAssign }),
                 };
-                const { error: playerUpdateErr } = await supabase.rpc('update_player', { p_id: currentPlayerId, p_patch: updateData });
-                if (playerUpdateErr) console.error('CRITICAL: Failed to update player.', playerUpdateErr);
+                const { data: updateRes, error: playerUpdateErr } = await supabase.rpc('update_player', { p_id: currentPlayerId, p_patch: updateData });
+                if (playerUpdateErr) {
+                    console.error('CRITICAL: Failed to update player.', playerUpdateErr);
+                } else if (updateRes && updateRes.success === false) {
+                    // The join was refused server-side (banned, or trying to join a
+                    // game that's already in progress without having been in it).
+                    if (updateRes.error === 'BANNED') toast('You have been banned from this lobby.');
+                    else if (updateRes.error === 'GAME_IN_PROGRESS') toast('This game has already started.');
+                    else toast('Could not join this game.');
+                    setTimeout(() => router.push('/'), 1500);
+                    return;
+                }
             }
 
             fetchPlayers();
@@ -367,14 +384,25 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             const { data } = await supabase.from('players').select('id, name, bingo_board, team').eq('game_id', gameId);
             if (data) {
                 setPlayers(data);
-                // If the current player is no longer in the DB, they were kicked.
-                if (!data.some((p) => p.id === currentPlayerId)) {
+                if (data.some((p) => p.id === currentPlayerId)) {
+                    confirmedMemberRef.current = true;
+                } else if (confirmedMemberRef.current) {
+                    // We were in the game and now we're gone → actually kicked.
+                    // (A "not present yet" read during startup must not bounce us.)
                     router.push('/');
                 }
             }
         };
 
-        initializeRoom();
+        // Run init once per game. React strict mode mounts the effect twice in
+        // dev; without this guard both runs race (duplicate game/player inserts,
+        // 409s, and a premature kick-redirect). The realtime channels below still
+        // (re)subscribe every mount since the cleanup tears them down.
+        if (initedGameRef.current !== gameId) {
+            initedGameRef.current = gameId;
+            confirmedMemberRef.current = false;
+            initializeRoom();
+        }
 
         // Realtime Listeners
         const gameChannel = supabase
