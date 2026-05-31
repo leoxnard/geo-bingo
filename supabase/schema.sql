@@ -163,6 +163,44 @@ $$;
 ALTER FUNCTION "public"."player_end_round"("p_game_id" "text", "p_player_id" "uuid") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."player_suggest_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    trimmed_cat text;
+    existing text[];
+BEGIN
+    trimmed_cat := trim(p_category);
+    IF trimmed_cat = '' THEN
+        RETURN jsonb_build_object('success', false, 'error', 'EMPTY');
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM players WHERE id = p_player_id AND game_id = p_game_id) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_A_PLAYER');
+    END IF;
+
+    SELECT COALESCE(suggested_categories, '{}'::text[])
+    INTO existing
+    FROM games WHERE id = p_game_id;
+
+    -- Case-insensitive dedup.
+    IF EXISTS (SELECT 1 FROM unnest(existing) AS s WHERE lower(s) = lower(trimmed_cat)) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'ALREADY_SUGGESTED');
+    END IF;
+
+    UPDATE games
+    SET suggested_categories = existing || ARRAY[trimmed_cat]
+    WHERE id = p_game_id;
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."player_suggest_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."player_vote_to_end_round"("p_game_id" "text", "p_player_id" "uuid") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -596,6 +634,12 @@ GRANT ALL ON FUNCTION "public"."delete_submission"("p_id" "uuid", "p_player_id" 
 GRANT ALL ON FUNCTION "public"."player_end_round"("p_game_id" "text", "p_player_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."player_end_round"("p_game_id" "text", "p_player_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."player_end_round"("p_game_id" "text", "p_player_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."player_suggest_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."player_suggest_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."player_suggest_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text") TO "service_role";
 
 
 
