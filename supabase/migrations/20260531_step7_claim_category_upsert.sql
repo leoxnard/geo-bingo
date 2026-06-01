@@ -34,6 +34,12 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'error', 'NOT_A_PLAYER');
     END IF;
 
+    -- Lock the caller's players row so concurrent claims for the same
+    -- (game_id, player_id, category) serialise. Without this, two racing calls
+    -- (double-click, strict-mode duplicate, retry) can both see no existing row
+    -- and INSERT duplicates that later LIMIT 1 updates can't keep in sync.
+    PERFORM 1 FROM players WHERE id = p_player_id FOR UPDATE;
+
     SELECT id INTO existing_id
     FROM submissions
     WHERE game_id = p_game_id AND player_id = p_player_id AND category = p_category
