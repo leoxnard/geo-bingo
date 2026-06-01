@@ -146,7 +146,7 @@ AS $$
 DECLARE
     allowed_keys text[] := ARRAY[
         'categories', 'time_limit', 'game_mode', 'grid_size', 'team_mode',
-        'starting_point', 'gameBoundary', 'end_condition', 'hide_mini_map',
+        'starting_point', 'gameBoundary', 'end_condition', 'hide_minimap',
         'hide_map_symbols', 'suggested_categories', 'exclusive_mode',
         'category_source', 'generation_radius', 'generation_number',
         'category_details', 'language', 'categories_generated', 'ai_end_game',
@@ -181,7 +181,7 @@ BEGIN
         starting_point        = COALESCE(safe_patch->>'starting_point', starting_point),
         "gameBoundary"        = COALESCE(safe_patch->>'gameBoundary', "gameBoundary"),
         end_condition         = COALESCE(safe_patch->>'end_condition', end_condition),
-        hide_mini_map         = COALESCE((safe_patch->>'hide_mini_map')::boolean, hide_mini_map),
+        hide_minimap         = COALESCE((safe_patch->>'hide_minimap')::boolean, hide_minimap),
         hide_map_symbols      = COALESCE((safe_patch->>'hide_map_symbols')::boolean, hide_map_symbols),
         suggested_categories  = CASE WHEN safe_patch ? 'suggested_categories'
                                     THEN ARRAY(SELECT jsonb_array_elements_text(safe_patch->'suggested_categories'))
