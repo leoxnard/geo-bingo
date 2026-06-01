@@ -484,7 +484,7 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
 
                                                                 if (status === 3) styleClass = 'bg-yellow-900/40 text-yellow-400 border-yellow-500/50 shadow-[0_0_10px_rgba(250,204,21,0.2)] font-bold';
                                                                 else if (status === 1) styleClass = 'bg-green-900/30 text-green-400 border-green-500/40';
-                                                                else if (status === 2) styleClass = 'bg-red-900/20 text-red-500 border-red-500/30 line-through opacity-60';
+                                                                else if (status === 2) styleClass = 'bg-red-900/20 text-red-500 border-red-500/30 opacity-60';
 
                                                                 return (
                                                                     <div key={idx} className={`text-[9px] sm:text-[11px] flex items-center justify-center text-center p-1.5 rounded-lg border overflow-hidden hyphens-auto break-all leading-tight h-full w-full ${styleClass}`}>

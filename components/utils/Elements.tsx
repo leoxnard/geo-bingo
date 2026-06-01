@@ -10,8 +10,11 @@ Provides consistent styling and interaction patterns across the app.
 ================================================================================
 */
 
+import { useEffect, useRef, useState } from 'react';
+
 import Image from 'next/image';
 import toast from 'react-hot-toast';
+import { FaRegQuestionCircle } from 'react-icons/fa';
 
 const toggleFullscreen = async (containerRef: React.RefObject<HTMLDivElement | null>, setIsFullscreen: React.Dispatch<React.SetStateAction<boolean>>) => {
     if (!containerRef.current) return;
@@ -73,9 +76,46 @@ export const GeoBingoLogo = ({ size = 60, className = '' }: { size?: number; cla
     return <Image src="/mappin.and.ellipse.png" alt="Geo BingBong Logo" loading="eager" width={size} height={size} className={`w-auto h-auto drop-shadow-[0_0_15px_rgba(96,165,250,0.5)] transform-gpu transition-transform ${className}`} />;
 };
 
-export const ToggleSwitch = ({ checked, onChange, disabled, label }: { checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean; label: string }) => (
+// Question-mark badge with a tooltip. Opens on hover (desktop) and toggles
+// on tap (mobile, where hover doesn't fire); taps outside close it. Stops
+// propagation so it can sit inside clickable rows without flipping them.
+export const InfoHint = ({ text }: { text: string }) => {
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLSpanElement>(null);
+
+    useEffect(() => {
+        if (!open) return;
+        const onDocPointer = (e: PointerEvent) => {
+            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+        };
+        document.addEventListener('pointerdown', onDocPointer);
+        return () => document.removeEventListener('pointerdown', onDocPointer);
+    }, [open]);
+
+    return (
+        <span
+            ref={ref}
+            className="relative inline-flex items-center cursor-help group"
+            onMouseEnter={() => setOpen(true)}
+            onMouseLeave={() => setOpen(false)}
+            onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setOpen((v) => !v);
+            }}
+        >
+            <FaRegQuestionCircle className="text-slate-400 hover:text-white transition-colors" size={14} />
+            <span className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-[240px] bg-slate-800 text-white text-xs p-2 rounded-lg shadow-xl border border-slate-600 z-[100] whitespace-normal text-center pointer-events-none ${open ? 'block' : 'hidden'}`}>{text}</span>
+        </span>
+    );
+};
+
+export const ToggleSwitch = ({ checked, onChange, disabled, label, tooltip }: { checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean; label: string; tooltip?: string }) => (
     <label className="flex items-center justify-between group">
-        <span className="text-slate-300 font-medium text-sm group-hover:text-white transition-colors">{label}</span>
+        <span className="flex items-center gap-1.5">
+            <span className="text-slate-300 font-medium text-sm group-hover:text-white transition-colors">{label}</span>
+            {tooltip && <InfoHint text={tooltip} />}
+        </span>
         <div className={`relative ${disabled ? 'opacity-50' : 'cursor-pointer'}`}>
             <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => !disabled && onChange(e.target.checked)} className="sr-only peer" />
             {/* Der Hintergrund des Schalters */}

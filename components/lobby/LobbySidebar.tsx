@@ -316,9 +316,9 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                 <h2 className="text-xl font-semibold mb-6 text-slate-100 border-b border-slate-700 pb-3">More Game Settings</h2>
 
                 <div className="flex flex-col gap-5">
-                    <ToggleSwitch label="Hide Map Symbols (POIs)" checked={props.hideMapSymbols} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ hide_map_symbols: checked })} />
-                    <ToggleSwitch label="Hide Mini Map" checked={props.hideMiniMap} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ hide_minimap: checked })} />
-                    <ToggleSwitch label="AI Verify to End Game (Beta)" checked={props.aiEndGame} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ ai_end_game: checked })} />
+                    <ToggleSwitch label="Hide Map Symbols (POIs)" tooltip="Hides points-of-interest icons (restaurants, landmarks, etc.) on the map so players can't get hints from them." checked={props.hideMapSymbols} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ hide_map_symbols: checked })} />
+                    <ToggleSwitch label="Hide Mini Map" tooltip="Disables the small minimap shown in the Street View corner — players navigate using only the panorama." checked={props.hideMiniMap} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ hide_minimap: checked })} />
+                    <ToggleSwitch label="AI Verify to End Game (Beta)" tooltip="Requires AI to verify your submissions before the round can end. In Bingo + First Bingo mode, only the bingo line cells are verified." checked={props.aiEndGame} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ ai_end_game: checked })} />
                     {!props.isHost && <p className="text-xs text-slate-500 pt-4 border-t border-slate-700/50 text-center">Only the game host can change these settings.</p>}
                 </div>
             </div>

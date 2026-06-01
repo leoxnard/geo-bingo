@@ -22,7 +22,7 @@ import { useAiVerify } from './streetview/useAiVerify';
 import { useStreetViewPath } from './streetview/useStreetViewPath';
 import { useSubmissionsRealtime } from './streetview/useSubmissionsRealtime';
 import { FullscreenButton, ExitButton } from './utils/Elements';
-import { calculateBingoCounter, getDistance } from './utils/Functions';
+import { calculateBingoCounter, getBingoLineSubmissions, getDistance } from './utils/Functions';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from './utils/mapUtils';
 import { Submission, StreetViewProps, BoundaryPolygon } from './utils/types';
 import { useViewport } from './utils/useViewport';
@@ -111,7 +111,9 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
         return 'unverified';
     };
 
-    const { isVerifying, aiVerificationSuccess, allCategoriesFilled, handleVerifyAndEnd: handleAiVerifyAndEnd } = useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSubmissions, notifyGameEvent });
+    const { isVerifying, aiVerificationSuccess, allCategoriesFilled, handleVerifyAndEnd: handleAiVerifyAndEnd, handleVerifyBingoAndEnd } = useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSubmissions, notifyGameEvent });
+
+    const isBingoFirstWithAi = gameMode === 'bingo' && endCondition === 'first_bingo' && aiEndGame;
 
     useEffect(() => {
         if (minimapInstance && panoInstance && !hideMiniMap) {
@@ -539,27 +541,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
         setAllSubmissions(updatedAllSubmissions);
         setSubmittingCategory(null);
 
-        if (gameMode === 'bingo' && endCondition === 'first_bingo') {
-            const bingos = calculateBingoCounter(gridSize, myBoard, updatedMySubmissions);
-
-            if (bingos.count > 0) {
-                const winnerNames = players.filter((p) => bingos.players.includes(p.id)).map((p) => p.name);
-                let winnerNamesString;
-                if (winnerNames.length > 2) {
-                    winnerNamesString = [winnerNames.slice(0, -1).join(', '), winnerNames.slice(-1)[0]].join(' and ');
-                } else if (winnerNames.length === 2) {
-                    winnerNamesString = winnerNames.join(' and ');
-                } else {
-                    winnerNamesString = winnerNames[0];
-                }
-                toast(`${winnerNamesString} got Bingo!`);
-                try {
-                    await supabase.rpc('player_end_round', { p_game_id: gameId, p_player_id: playerId });
-                } catch (error) {
-                    console.error('Failed to end game on Bingo:', error);
-                }
-            }
-        }
+        let savedSub: Submission | null = null;
 
         if (exclusiveMode && !existingSub) {
             // exclusive mode insert via RPC to ensure atomic claim
@@ -577,11 +559,14 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
             if (data && data.success === false && data.error === 'ALREADY_CLAIMED') {
                 toast.error('Sorry, someone else was faster claiming this category!');
                 setAllSubmissions((prev) => prev.filter((s) => s.id !== tempId));
+                return;
             } else if (error) {
                 console.error('RPC call failed:', error);
                 toast.error('Error saving submission. Please try again.');
                 setAllSubmissions((prev) => prev.filter((s) => s.id !== tempId));
+                return;
             } else if (data && data.success) {
+                savedSub = data.data as Submission;
                 setAllSubmissions((prev) => prev.map((s) => (s.id === tempId ? data.data : s)));
             }
         } else {
@@ -602,8 +587,47 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                 console.error('claim_category failed:', error || data.error);
                 toast.error('Error saving submission. Please try again.');
                 setAllSubmissions((prev) => (existingSub ? prev : prev.filter((s) => s.id !== tempId)));
+                return;
             } else if (data && data.success) {
+                savedSub = data.data as Submission;
                 setAllSubmissions((prev) => prev.map((s) => (s.id === tempId ? data.data : s)));
+            }
+        }
+
+        if (!savedSub) return;
+
+        if (gameMode === 'bingo' && endCondition === 'first_bingo') {
+            // Use the persisted submission (real id + DB-side ai_verdict reset on
+            // retake) so subsequent AI-verify calls reference the actual row.
+            const finalMySubs = updatedMySubmissions.map((s) => (s.id === tempId ? savedSub! : s));
+            const bingos = calculateBingoCounter(gridSize, myBoard, finalMySubs);
+            if (bingos.count === 0) return;
+
+            if (aiEndGame) {
+                // Auto-verify the cells of any clean bingo line(s). The helper
+                // already skips lines containing an AI-rejected cell, so a stale
+                // rejection in one line never blocks verification of a separate
+                // clean bingo. Cached `passed=true` cells hit the verify cache —
+                // only new/cleared cells actually hit Gemini.
+                const bingoLineSubs = getBingoLineSubmissions(gridSize, myBoard, finalMySubs);
+                if (bingoLineSubs.length === 0) return;
+                await handleVerifyBingoAndEnd(bingoLineSubs);
+            } else {
+                const winnerNames = players.filter((p) => bingos.players.includes(p.id)).map((p) => p.name);
+                let winnerNamesString;
+                if (winnerNames.length > 2) {
+                    winnerNamesString = [winnerNames.slice(0, -1).join(', '), winnerNames.slice(-1)[0]].join(' and ');
+                } else if (winnerNames.length === 2) {
+                    winnerNamesString = winnerNames.join(' and ');
+                } else {
+                    winnerNamesString = winnerNames[0];
+                }
+                toast(`${winnerNamesString} got Bingo!`);
+                try {
+                    await supabase.rpc('player_end_round', { p_game_id: gameId, p_player_id: playerId });
+                } catch (error) {
+                    console.error('Failed to end game on Bingo:', error);
+                }
             }
         }
     };
@@ -732,7 +756,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                         <div className="flex items-center justify-center text-xl sm:text-3xl font-black bg-slate-800 px-3 sm:px-6 rounded-lg sm:rounded-xl border border-slate-700 shadow-lg tracking-wider py-1.5 sm:py-2">{timeLeft <= 60 ? <span className="text-red-500 animate-pulse">{formatTime(timeLeft)}</span> : <span className="text-white">{formatTime(timeLeft)}</span>}</div>
 
                         <div className="ml-auto flex items-stretch justify-end gap-2 sm:gap-4">
-                            {aiEndGame && (
+                            {aiEndGame && !isBingoFirstWithAi && (
                                 <button
                                     type="button"
                                     onClick={handleAiVerifyAndEnd}
@@ -895,7 +919,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                     <div className="flex items-center justify-center text-base sm:text-2xl font-black bg-slate-700 px-3 sm:px-4 rounded-lg border border-slate-600 shadow-lg tracking-wider py-1.5 sm:py-2">{timeLeft <= 60 ? <span className="text-red-500 animate-pulse">{formatTime(timeLeft)}</span> : <span className="text-white">{formatTime(timeLeft)}</span>}</div>
 
                                     <div className="ml-auto flex items-stretch justify-end gap-2">
-                                        {aiEndGame && (
+                                        {aiEndGame && !isBingoFirstWithAi && (
                                             <button
                                                 type="button"
                                                 onClick={handleAiVerifyAndEnd}
@@ -963,7 +987,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
                                                         <div className="relative z-10 flex items-center justify-between w-full h-full gap-1.5 min-w-0">
                                                             <div className="flex items-center flex-1 min-w-0 gap-1 h-full">
-                                                                <span className={`text-xs leading-tight truncate font-medium px-1 ${foundSub ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400 line-through' : 'text-white'}`}>{cat}</span>
+                                                                <span className={`text-xs leading-tight truncate font-medium px-1 ${foundSub ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400' : 'text-white'}`}>{cat}</span>
                                                                 {hint && (
                                                                     <div className="relative group flex-shrink-0 cursor-help" onClick={(e) => e.stopPropagation()}>
                                                                         <FaInfoCircle className={`transition-colors ${foundSub ? 'text-white/70 hover:text-white' : 'text-slate-400 hover:text-white'}`} size={12} />
@@ -1054,7 +1078,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                         <div className="relative z-10 flex flex-col w-full">
                                                             <div className="flex justify-between items-start w-full gap-1">
                                                                 <div className="flex items-center flex-1 min-w-0">
-                                                                    <span className={`text-sm truncate font-medium pb-1 ${getAiVerdictState(foundSub) === 'rejected' ? 'text-red-400' : foundSub ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400 line-through' : 'text-white'}`}>{cat}</span>
+                                                                    <span className={`text-sm truncate font-medium pb-1 ${getAiVerdictState(foundSub) === 'rejected' ? 'text-red-400' : foundSub ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400' : 'text-white'}`}>{cat}</span>
                                                                     {hint && (
                                                                         <div className="ml-1.5 relative group flex-shrink-0 cursor-help" onClick={(e) => e.stopPropagation()}>
                                                                             <FaInfoCircle className={`transition-colors ${foundSub ? 'text-white/70 hover:text-white' : 'text-slate-400 hover:text-white'}`} size={12} />
@@ -1153,7 +1177,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                     </div>
                                                 )}
 
-                                                <span className={`relative z-10 ${getSidebarTextSizeClass()} font-bold leading-tight line-clamp-3 [hyphens:auto] [word-break:break-word] mt-0 sm:mt-1 ${foundSub?.ai_verdict === false ? 'text-red-400' : foundSub ? 'drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] text-white' : isBlocked ? 'text-red-400 line-through' : 'text-white'}`}>{cat}</span>
+                                                <span className={`relative z-10 ${getSidebarTextSizeClass()} font-bold leading-tight line-clamp-3 [hyphens:auto] [word-break:break-word] mt-0 sm:mt-1 ${foundSub?.ai_verdict === false ? 'text-red-400' : foundSub ? 'drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] text-white' : isBlocked ? 'text-red-400' : 'text-white'}`}>{cat}</span>
 
                                                 <div className="absolute bottom-2 w-[90%] left-[5%] h-[25%] max-h-12 hidden sm:flex flex-row justify-center gap-2 z-10">
                                                     {!foundSub ? (

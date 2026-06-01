@@ -78,7 +78,7 @@ export default function LobbySettings({ isHost, gameMode, teamMode, timeLimit, e
                         }
                         disabled={!isHost}
                         isHost={isHost}
-                        description={endCondition === 'first_bingo' ? 'Game ends instantly when someone gets a Bingo.' : 'Game continues until the timer runs out, extra points for each Bingo.'}
+                        description={endCondition === 'first_bingo' ? 'Game ends instantly when someone gets a Bingo. The Bingo gets verified by AI.' : 'Game continues until the timer runs out, extra points for each Bingo.'}
                     />
                 </>
             )}

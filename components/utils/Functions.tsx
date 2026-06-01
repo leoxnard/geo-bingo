@@ -107,6 +107,37 @@ export const calculateBingoCounter = (gridSize: number, board: string[], submiss
     return { count: bingoCount, players: playersArray };
 };
 
+// Returns the unique submissions that make up any completed bingo line(s)
+// on the given board, EXCLUDING lines that contain an AI-rejected cell. Used
+// by AI verify-to-end so a stale rejected cell in one line doesn't block
+// verification of a separate, clean bingo line.
+export const getBingoLineSubmissions = (gridSize: number, board: string[], submissions: Submission[]): Submission[] => {
+    if (!board || board.length === 0 || gridSize < 2) return [];
+
+    const grid: (Submission | null)[][] = [];
+    for (let i = 0; i < gridSize; i++) {
+        grid[i] = [];
+        for (let j = 0; j < gridSize; j++) {
+            const catIndex = i * gridSize + j;
+            grid[i][j] = submissions.find((sub) => sub.category === board[catIndex]) || null;
+        }
+    }
+
+    const result = new Map<string, Submission>();
+    const addIfCompleteAndClean = (cells: (Submission | null)[]) => {
+        if (!cells.every((c) => c !== null)) return;
+        if (cells.some((c) => c!.ai_verdict === false)) return;
+        cells.forEach((c) => result.set(c!.id, c!));
+    };
+
+    for (let i = 0; i < gridSize; i++) addIfCompleteAndClean(grid[i]);
+    for (let j = 0; j < gridSize; j++) addIfCompleteAndClean(grid.map((row) => row[j]));
+    addIfCompleteAndClean(grid.map((row, i) => row[i]));
+    addIfCompleteAndClean(grid.map((row, i) => row[gridSize - 1 - i]));
+
+    return Array.from(result.values());
+};
+
 // Berechnet ein perfektes 3x3 Gitter um den Startpunkt
 export const getGridLocations = (centerLat: number, centerLng: number, radiusMeters: number) => {
     const points = [];
