@@ -12,6 +12,7 @@ Integrates LobbyView, StreetView, VotingView, and PodiumView components.
 
 import { useState, use, useEffect, useRef, useCallback } from 'react';
 
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import toast, { Toaster } from 'react-hot-toast';
 import { CiCircleAlert, CiCircleCheck } from 'react-icons/ci';
@@ -77,6 +78,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
     const timeUpTriggeredRef = useRef(false);
     const pendingOptimisticUpdatesRef = useRef<Set<string>>(new Set());
+    const gameEventsChannelRef = useRef<RealtimeChannel | null>(null);
+    const playersRef = useRef<Player[]>([]);
     // Run initializeRoom once per game (guards against React strict-mode running
     // the effect twice and racing two initializers).
     const initedGameRef = useRef<string | null>(null);
@@ -485,6 +488,20 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             )
             .subscribe();
 
+        const gameEventsChannel = supabase
+            .channel(`game-events-${gameId}`)
+            .on('broadcast', { event: 'ai_end_game' }, ({ payload }: { payload: { player_id: string } }) => {
+                if (payload.player_id === currentPlayerId) return;
+                const playerName = playersRef.current.find((p) => p.id === payload.player_id)?.name || 'A player';
+                toast.success(`${playerName} found all categories — round ended!`);
+            })
+            .on('broadcast', { event: 'ai_generating_categories' }, ({ payload }: { payload: { player_id: string } }) => {
+                if (payload.player_id === currentPlayerId) return;
+                toast('Game starting — AI is generating categories...');
+            })
+            .subscribe();
+        gameEventsChannelRef.current = gameEventsChannel;
+
         // 5. Presence Tracking
         const presenceChannel = supabase.channel(`presence-${gameId}`);
 
@@ -511,9 +528,19 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             supabase.removeChannel(gameChannel);
             supabase.removeChannel(playerChannel);
             supabase.removeChannel(presenceChannel);
+            supabase.removeChannel(gameEventsChannel);
+            gameEventsChannelRef.current = null;
             pendingOptimisticUpdatesRef.current.clear();
         };
     }, [gameId, router]);
+
+    useEffect(() => {
+        playersRef.current = players;
+    }, [players]);
+
+    const notifyGameEvent = useCallback((event: 'ai_end_game' | 'ai_generating_categories', payload: { player_id: string }) => {
+        gameEventsChannelRef.current?.send({ type: 'broadcast', event, payload });
+    }, []);
 
     // Status update handler (host-only path; uses the SECURITY DEFINER rpc so
     // we don't depend on table-level UPDATE policies staying open).
@@ -697,6 +724,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     language={language}
                     difficulty={difficulty}
                     categoriesGenerated={categoriesGenerated}
+                    notifyGameEvent={notifyGameEvent}
                 />
             );
         }
@@ -705,7 +733,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (status === 'playing') {
             const currentPlayer = players.find((p) => p.id === playerId);
             const myBoard = gameMode === 'bingo' && currentPlayer?.bingo_board && currentPlayer.bingo_board.length > 0 ? currentPlayer.bingo_board : categories;
-            return <StreetView myBoard={myBoard} gameId={gameId} playerId={playerId} gameMode={gameMode} teamMode={teamMode} gridSize={gridSize} startingPoint={startingPoint} gameBoundary={gameBoundary} endCondition={endCondition} timeLeft={timeLeft} readyPlayers={readyPlayers} players={players} hideMapSymbols={hideMapSymbols} hideMiniMap={hideMiniMap} exclusiveMode={exclusiveMode} aiEndGame={aiEndGame} onVoteEnd={handleVoteEndOptimistic} />;
+            return <StreetView myBoard={myBoard} gameId={gameId} playerId={playerId} gameMode={gameMode} teamMode={teamMode} gridSize={gridSize} startingPoint={startingPoint} gameBoundary={gameBoundary} endCondition={endCondition} timeLeft={timeLeft} readyPlayers={readyPlayers} players={players} hideMapSymbols={hideMapSymbols} hideMiniMap={hideMiniMap} exclusiveMode={exclusiveMode} aiEndGame={aiEndGame} onVoteEnd={handleVoteEndOptimistic} notifyGameEvent={notifyGameEvent} />;
         }
 
         // --- VIEW 3: VOTING ---

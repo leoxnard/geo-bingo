@@ -359,13 +359,13 @@ export default function PodiumView({ gameId, gameHostId, isHost, teamMode }: Pod
                 <div className="flex items-end justify-center gap-4 md:gap-8 mt-4 w-full">
                     {/* 2nd Place */}
                     {rank2.length > 0 && (
-                        <div className={`flex flex-col items-center w-32 md:w-40 origin-bottom ${animPhase >= 1 ? 'animate-grow-up' : 'scale-y-0 opacity-0'}`}>
-                            <div className="flex flex-col items-center w-full min-h-[80px] justify-end">
+                        <div className={`relative flex flex-col items-center w-32 md:w-40 origin-bottom ${animPhase >= 1 ? 'animate-grow-up' : 'scale-y-0 opacity-0'}`}>
+                            <div className="relative w-full min-h-[5rem] md:min-h-[6.5rem]">
                                 {animPhase >= 3 && (
-                                    <div className="animate-bounce-in flex flex-col items-center w-full">
-                                        <div className="flex flex-col items-center mb-2 w-full">
+                                    <div className="animate-bounce-in absolute bottom-0 left-1/2 mb-2 flex w-max max-w-[min(18rem,90vw)] -translate-x-1/2 flex-col items-center gap-1 text-center">
+                                        <div className="flex w-full flex-col items-center gap-1 text-center">
                                             {rank2.map((p) => (
-                                                <span key={p.id} className="text-xl md:text-2xl font-bold w-full text-center" title={p.name}>
+                                                <span key={p.id} className="block max-w-full whitespace-nowrap text-center text-xl font-bold leading-tight md:text-2xl" title={p.name}>
                                                     {p.name}
                                                 </span>
                                             ))}
@@ -382,13 +382,13 @@ export default function PodiumView({ gameId, gameHostId, isHost, teamMode }: Pod
 
                     {/* 1st Place */}
                     {rank1.length > 0 && (
-                        <div className={`flex flex-col items-center w-40 md:w-48 origin-bottom ${animPhase >= 1 ? 'animate-grow-up' : 'scale-y-0 opacity-0'}`} style={{ animationDelay: '0.1s' }}>
-                            <div className="flex flex-col items-center w-full min-h-[100px] justify-end">
+                        <div className={`relative flex flex-col items-center w-40 md:w-48 origin-bottom ${animPhase >= 1 ? 'animate-grow-up' : 'scale-y-0 opacity-0'}`} style={{ animationDelay: '0.1s' }}>
+                            <div className="relative w-full min-h-[6rem] md:min-h-[7.5rem]">
                                 {animPhase >= 4 && (
-                                    <div className="animate-bounce-in flex flex-col items-center w-full">
-                                        <div className="flex flex-col items-center mb-2 w-full">
+                                    <div className="animate-bounce-in absolute bottom-0 left-1/2 mb-2 flex w-max max-w-[min(20rem,90vw)] -translate-x-1/2 flex-col items-center gap-1 text-center">
+                                        <div className="flex w-full flex-col items-center gap-1 text-center">
                                             {rank1.map((p) => (
-                                                <span key={p.id} className="text-2xl md:text-3xl font-black text-yellow-400 w-full text-center" title={p.name}>
+                                                <span key={p.id} className="block max-w-full whitespace-nowrap text-center text-2xl font-black leading-tight text-yellow-400 md:text-3xl" title={p.name}>
                                                     {p.name}
                                                 </span>
                                             ))}
@@ -406,13 +406,13 @@ export default function PodiumView({ gameId, gameHostId, isHost, teamMode }: Pod
 
                     {/* 3rd Place */}
                     {rank3.length > 0 && (
-                        <div className={`flex flex-col items-center w-32 md:w-40 origin-bottom ${animPhase >= 1 ? 'animate-grow-up' : 'scale-y-0 opacity-0'}`} style={{ animationDelay: '0.2s' }}>
-                            <div className="flex flex-col items-center w-full min-h-[80px] justify-end">
+                        <div className={`relative flex flex-col items-center w-32 md:w-40 origin-bottom ${animPhase >= 1 ? 'animate-grow-up' : 'scale-y-0 opacity-0'}`} style={{ animationDelay: '0.2s' }}>
+                            <div className="relative w-full min-h-[5rem] md:min-h-[6.5rem]">
                                 {animPhase >= 2 && (
-                                    <div className="animate-bounce-in flex flex-col items-center w-full">
-                                        <div className="flex flex-col items-center mb-2 w-full">
+                                    <div className="animate-bounce-in absolute bottom-0 left-1/2 mb-2 flex w-max max-w-[min(18rem,90vw)] -translate-x-1/2 flex-col items-center gap-1 text-center">
+                                        <div className="flex w-full flex-col items-center gap-1 text-center">
                                             {rank3.map((p) => (
-                                                <span key={p.id} className="text-xl md:text-2xl font-bold w-full text-center" title={p.name}>
+                                                <span key={p.id} className="block max-w-full whitespace-nowrap text-center text-xl font-bold leading-tight md:text-2xl" title={p.name}>
                                                     {p.name}
                                                 </span>
                                             ))}

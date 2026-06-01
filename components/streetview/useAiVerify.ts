@@ -25,9 +25,10 @@ interface UseAiVerifyArgs {
     myBoard: string[];
     mySubmissions: Submission[];
     setAllSubmissions: Dispatch<SetStateAction<Submission[]>>;
+    notifyGameEvent?: (event: 'ai_end_game' | 'ai_generating_categories', payload: { player_id: string }) => void;
 }
 
-export function useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSubmissions }: UseAiVerifyArgs) {
+export function useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSubmissions, notifyGameEvent }: UseAiVerifyArgs) {
     const [isVerifying, setIsVerifying] = useState(false);
     const [aiVerificationSuccess, setAiVerificationSuccess] = useState(false);
 
@@ -53,10 +54,10 @@ export function useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSu
             const results = await verifySubmissions(subsToCheck, mapsKey);
             console.log('[aiVerify] all results:', results);
 
-            const optimisticUpdates = new Map(results.map((r) => [r.submissionId, { ai_verdict: r.passed, ai_verified_hash: r.hash }]));
+            const optimisticUpdates = new Map(results.map((r) => [r.submissionId, r.error ? { ai_verdict: null, ai_verified_hash: null } : { ai_verdict: r.passed, ai_verified_hash: r.hash }]));
             setAllSubmissions((prev) => prev.map((s) => (optimisticUpdates.has(s.id) ? { ...s, ...optimisticUpdates.get(s.id)! } : s)));
 
-            const persistTasks = results.filter((r) => !r.fromCache).map((r) => supabase.rpc('set_submission_ai_verdict', { p_id: r.submissionId, p_player_id: playerId, p_verdict: r.passed, p_hash: r.hash }));
+            const persistTasks = results.filter((r) => !r.fromCache && !r.error).map((r) => supabase.rpc('set_submission_ai_verdict', { p_id: r.submissionId, p_player_id: playerId, p_verdict: r.passed, p_hash: r.hash }));
             await Promise.all(persistTasks);
 
             const failed = results.filter((r) => !r.passed);
@@ -64,23 +65,21 @@ export function useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSu
             const rejected = failed.filter((r) => !r.error);
             if (failed.length === 0) {
                 await supabase.rpc('player_end_round', { p_game_id: gameId, p_player_id: playerId });
+                notifyGameEvent?.('ai_end_game', { player_id: playerId });
                 setAiVerificationSuccess(true);
                 return { success: true as const, rejectedCount: 0, erroredCount: 0 };
             }
             setAiVerificationSuccess(false);
-            return { success: false as const, rejectedCount: rejected.length, erroredCount: errored.length };
+            const parts: string[] = [];
+            if (rejected.length > 0) parts.push(`${rejected.length} rejected by AI`);
+            if (errored.length > 0) parts.push(`${errored.length} API error${errored.length === 1 ? '' : 's'} (see console)`);
+            throw new Error(`${parts.join(', ')}. Retake or try again.`);
         })();
 
         try {
             await toast.promise(verifyPromise, {
                 loading: `Verifying ${subsToCheck.length} categories with AI...`,
-                success: (res) => {
-                    if (res.success) return 'All categories verified — ending round.';
-                    const parts: string[] = [];
-                    if (res.rejectedCount > 0) parts.push(`${res.rejectedCount} rejected by AI`);
-                    if (res.erroredCount > 0) parts.push(`${res.erroredCount} API error${res.erroredCount === 1 ? '' : 's'} (see console)`);
-                    return `${parts.join(', ')}. Retake or try again.`;
-                },
+                success: 'All categories verified — ending round.',
                 error: (err) => `AI verification failed: ${err instanceof Error ? err.message : 'unknown error'}`,
             });
         } catch (err) {

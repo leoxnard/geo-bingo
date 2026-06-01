@@ -72,6 +72,7 @@ interface LobbyViewProps {
     language: 'english' | 'german';
     difficulty: 'default' | 'easy';
     categoriesGenerated: boolean;
+    notifyGameEvent?: (event: 'ai_end_game' | 'ai_generating_categories', payload: { player_id: string }) => void;
 }
 
 export default function LobbyView(props: LobbyViewProps) {
@@ -131,6 +132,7 @@ export default function LobbyView(props: LobbyViewProps) {
                 localStorage.setItem('geoBingoPromptCount', (currentCount + 1).toString());
             }
 
+            props.notifyGameEvent?.('ai_generating_categories', { player_id: props.playerId });
             setIsGenerating(true);
 
             try {

@@ -57,7 +57,7 @@ const getHintForCategory = (cat: string) => {
     return null;
 };
 
-export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list', teamMode = 'ffa', gridSize = 3, startingPoint = 'open-world', gameBoundary = '[]', endCondition = 'timer', timeLeft, readyPlayers, players, hideMapSymbols = false, hideMiniMap = false, exclusiveMode = false, allowHints = true, aiEndGame = true, onVoteEnd }: StreetViewProps) {
+export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list', teamMode = 'ffa', gridSize = 3, startingPoint = 'open-world', gameBoundary = '[]', endCondition = 'timer', timeLeft, readyPlayers, players, hideMapSymbols = false, hideMiniMap = false, exclusiveMode = false, allowHints = true, aiEndGame = true, onVoteEnd, notifyGameEvent }: StreetViewProps) {
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
         googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
@@ -105,7 +105,13 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
         }
     };
 
-    const { isVerifying, aiVerificationSuccess, allCategoriesFilled, handleVerifyAndEnd: handleAiVerifyAndEnd } = useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSubmissions });
+    const getAiVerdictState = (submission?: Submission | null) => {
+        if (submission?.ai_verdict === true) return 'verified';
+        if (submission?.ai_verdict === false) return 'rejected';
+        return 'unverified';
+    };
+
+    const { isVerifying, aiVerificationSuccess, allCategoriesFilled, handleVerifyAndEnd: handleAiVerifyAndEnd } = useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSubmissions, notifyGameEvent });
 
     useEffect(() => {
         if (minimapInstance && panoInstance && !hideMiniMap) {
@@ -807,8 +813,8 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                             {!isMobileLandscape && <FullscreenButton isFullscreen={isFullscreen} containerRef={containerRef} setIsFullscreen={setIsFullscreen} />}
 
                             {isFullscreen && (
-                                <div ref={panelRef} className={`absolute top-0 left-0 bottom-0 h-full bg-slate-900/40 backdrop-blur-md border-r border-white/10 transition-transform duration-300 ease-out ${fsPanelOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                                    <ul className={`h-full inline-grid grid-cols-1 auto-rows-min p-1 gap-1.5 overflow-y-auto ${fsPanelOpen ? '' : 'pointer-events-none'}`}>
+                                <div ref={panelRef} className={`absolute z-10 top-0 left-0 bottom-0 h-full bg-slate-900/40 backdrop-blur-xs border-r border-white/10 transition-transform duration-300 ease-out ${fsPanelOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                                    <ul className={`h-full grid grid-cols-1 auto-rows-min p-1 gap-1.5 overflow-y-auto place-content-center justify-items-stretch ${fsPanelOpen ? '' : 'pointer-events-none'}`}>
                                         {myBoard.map((cat) => {
                                             const foundSub = mySubmissions.find((s) => s.category === cat);
                                             const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some((s) => s.category === cat);
@@ -839,13 +845,13 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                         if (!isDisabled) handleSubmit(cat);
                                                     }}
                                                     style={{ minHeight: ROOMY_MIN, maxHeight: ROOMY_MAX }}
-                                                    className={`relative p-1 whitespace-nowrap flex items-center justify-center w-full rounded-xl border transition-colors ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'} ${foundSub?.ai_verdict === false ? ' !border-red-500' : foundSub?.ai_verdict === true ? ' !border-green-500' : ''} ${!foundSub && !isBlocked && inStreetView ? 'cursor-pointer' : ''} ${isDisabled ? 'opacity-70' : ''}`}
+                                                    className={`relative p-1 whitespace-nowrap flex items-center justify-center w-full max-w-full rounded-xl border transition-colors ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'} ${foundSub?.ai_verdict === false ? ' !border-red-500' : foundSub?.ai_verdict === true ? ' !border-green-500' : ''} ${!foundSub && !isBlocked && inStreetView ? 'cursor-pointer' : ''} ${isDisabled ? 'opacity-70' : ''}`}
                                                 >
                                                     <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
                                                         {foundSub && <img src={streetViewImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />}
                                                         {foundSub && <div className="absolute inset-0 bg-black/50 z-0"></div>}
                                                     </div>
-                                                    <div className={`relative z-10 font-bold text-center ${foundSub ? 'text-white' : isBlocked ? 'text-red-400' : 'text-slate-300'} ${getSidebarTextSizeClass()}`}>
+                                                    <div className={`relative z-10 font-bold text-center ${getAiVerdictState(foundSub) === 'rejected' ? 'text-red-400' : foundSub ? 'text-white' : isBlocked ? 'text-red-400' : 'text-slate-300'} ${getSidebarTextSizeClass()}`}>
                                                         {cat}
                                                         {hint && (
                                                             <div className="mt-1 text-xs text-slate-400 font-normal">
@@ -857,7 +863,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                             );
                                         })}
                                     </ul>
-                                    <button type="button" onClick={() => setFsPanelOpen((open) => !open)} className="absolute top-1/2 left-full -translate-y-1/2 -ml-px w-5 h-14 rounded-r-lg bg-slate-900/40 backdrop-blur-md border border-l-0 border-white/10 text-white shadow-md flex items-center justify-center" title={fsPanelOpen ? 'Hide categories' : 'Show categories'}>
+                                    <button type="button" onClick={() => setFsPanelOpen((open) => !open)} className="absolute top-1/2 left-full -translate-y-1/2 -ml-px w-5 h-14 rounded-r-lg bg-slate-900/40 backdrop-blur-sm border border-l-0 border-white/10 text-white shadow-md flex items-center justify-center" title={fsPanelOpen ? 'Hide categories' : 'Show categories'}>
                                         <FaChevronLeft className={`transition-transform duration-300 ${fsPanelOpen ? '' : 'rotate-180'}`} size={11} />
                                     </button>
                                 </div>
@@ -1046,7 +1052,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                         <div className="relative z-10 flex flex-col w-full">
                                                             <div className="flex justify-between items-start w-full gap-1">
                                                                 <div className="flex items-center flex-1 min-w-0">
-                                                                    <span className={`text-sm truncate font-medium pb-1 ${foundSub ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400 line-through' : 'text-white'}`}>{cat}</span>
+                                                                    <span className={`text-sm truncate font-medium pb-1 ${getAiVerdictState(foundSub) === 'rejected' ? 'text-red-400' : foundSub ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400 line-through' : 'text-white'}`}>{cat}</span>
                                                                     {hint && (
                                                                         <div className="ml-1.5 relative group flex-shrink-0 cursor-help" onClick={(e) => e.stopPropagation()}>
                                                                             <FaInfoCircle className={`transition-colors ${foundSub ? 'text-white/70 hover:text-white' : 'text-slate-400 hover:text-white'}`} size={12} />
@@ -1056,8 +1062,8 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                                         </div>
                                                                     )}
                                                                 </div>
-                                                                <span className={`text-[10px] font-bold uppercase whitespace-nowrap flex-shrink-0 ${foundSub?.ai_verdict === false ? 'text-red-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : foundSub ? 'text-green-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-500' : 'text-slate-500'}`}>
-                                                                    {foundSub?.ai_verdict === false ? 'AI verification failed' : foundSub?.ai_verdict === true ? 'AI verified' : foundSub ? 'Found' : isBlocked ? 'Locked' : 'Pending'}
+                                                                <span className={`text-[10px] font-bold uppercase whitespace-nowrap flex-shrink-0 ${foundSub?.ai_verdict === false ? 'text-red-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : foundSub?.ai_verdict === true ? 'text-green-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-500' : 'text-slate-500'}`}>
+                                                                    {foundSub?.ai_verdict === false ? 'AI verification failed' : foundSub?.ai_verdict === true ? 'AI verified' : foundSub ? 'Unverified' : isBlocked ? 'Locked' : 'Pending'}
                                                                 </span>
                                                             </div>
                                                         </div>
@@ -1128,7 +1134,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                 key={cat}
                                                 title={isBlocked ? 'Claimed by another team' : foundSub?.ai_verdict === false ? 'AI could not verify this category' : foundSub?.ai_verdict === true ? 'AI verified ✓' : undefined}
                                                 onClick={() => handleBingoTileClick(cat)}
-                                                className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-center items-center text-center pb-2 sm:pb-12 ${foundSub ? 'text-white border-green-500 shadow-md' : isBlocked ? 'bg-slate-900/80 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700'} ${foundSub?.ai_verdict === false ? '!border-red-500' : foundSub?.ai_verdict === true ? '!border-green-500' : ''}`}
+                                                className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-center items-center text-center pb-2 sm:pb-12 ${foundSub ? 'text-white border-slate-600 shadow-md' : isBlocked ? 'bg-slate-900/80 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700'} ${foundSub?.ai_verdict === false ? '!border-red-500' : foundSub?.ai_verdict === true ? '!border-green-500' : ''}`}
                                             >
                                                 {/* Background Layer */}
                                                 <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
@@ -1145,7 +1151,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                     </div>
                                                 )}
 
-                                                <span className={`relative z-10 ${getSidebarTextSizeClass()} font-bold leading-tight line-clamp-3 [hyphens:auto] [word-break:break-word] mt-0 sm:mt-1 ${foundSub ? 'drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400 line-through' : 'text-white'}`}>{cat}</span>
+                                                <span className={`relative z-10 ${getSidebarTextSizeClass()} font-bold leading-tight line-clamp-3 [hyphens:auto] [word-break:break-word] mt-0 sm:mt-1 ${foundSub?.ai_verdict === false ? 'text-red-400' : foundSub ? 'drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] text-white' : isBlocked ? 'text-red-400 line-through' : 'text-white'}`}>{cat}</span>
 
                                                 <div className="absolute bottom-2 w-[90%] left-[5%] h-[25%] max-h-12 hidden sm:flex flex-row justify-center gap-2 z-10">
                                                     {!foundSub ? (

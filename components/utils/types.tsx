@@ -115,6 +115,7 @@ export interface StreetViewProps {
     allowHints?: boolean;
     aiEndGame?: boolean;
     onVoteEnd?: () => void;
+    notifyGameEvent?: (event: 'ai_end_game' | 'ai_generating_categories', payload: { player_id: string }) => void;
 }
 
 export interface VotingViewProps {
