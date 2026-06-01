@@ -245,7 +245,10 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
 
     const activeBoundaryId = useMemo(() => {
         if (draftBoundaries.length === 0) return null;
-        if (selectedBoundaryId && draftBoundaries.some((b) => b.id === selectedBoundaryId)) {
+        // selectedBoundaryId may be a single boundary id OR a group key (a preset
+        // sets it to the shared groupId, and the list selects by groupId || id),
+        // so resolve against the group key, not just the boundary's own id.
+        if (selectedBoundaryId && draftBoundaries.some((b) => (b.groupId || b.id) === selectedBoundaryId)) {
             return selectedBoundaryId;
         }
         return null;
@@ -571,7 +574,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                                     fillColor: boundary.type === 'allow' ? '#008000' : '#ff0000',
                                                     strokeColor: boundary.type === 'allow' ? '#008000' : '#ff0000',
                                                     strokeOpacity: boundary.isComplete ? 0.6 : 0,
-                                                    strokeWeight: activeBoundaryId === boundary.id ? 4 : 2,
+                                                    strokeWeight: activeBoundaryId === (boundary.groupId || boundary.id) ? 4 : 2,
                                                     clickable: false,
                                                     geodesic: true,
                                                 }}
