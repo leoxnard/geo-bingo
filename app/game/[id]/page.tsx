@@ -195,7 +195,13 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         // Background DB update: fire-and-forget without awaiting
         (async () => {
             try {
-                await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: gameHostId, p_patch: updates });
+                // The RPC reports logical failures (NOT_HOST / NO_VALID_KEYS) in
+                // its returned payload, not as a PostgREST error, so check both.
+                const { data, error } = await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: gameHostId, p_patch: updates });
+                if (error || (data && data.success === false)) {
+                    console.error('Failed to update game settings:', error || data?.error);
+                    toast.error('Failed to save settings');
+                }
             } catch (err) {
                 console.error('Failed to update game settings:', err);
                 toast.error('Failed to save settings');
@@ -546,8 +552,11 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     // we don't depend on table-level UPDATE policies staying open).
     const updateStatus = useCallback(
         async (nextStatus: GameStatus) => {
-            const { error } = await supabase.rpc('set_game_status', { p_game_id: gameId, p_host_id: gameHostId, p_status: nextStatus });
-            if (error) console.error('Error updating game status:', error);
+            // set_game_status returns NOT_HOST / BAD_STATUS in its payload rather
+            // than as a PostgREST error, so check data.success too — otherwise a
+            // rejected transition (e.g. the timer auto-advance) silently no-ops.
+            const { data, error } = await supabase.rpc('set_game_status', { p_game_id: gameId, p_host_id: gameHostId, p_status: nextStatus });
+            if (error || (data && data.success === false)) console.error('Error updating game status:', error || data?.error);
         },
         [gameId, gameHostId],
     );

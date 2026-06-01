@@ -59,7 +59,11 @@ GEMINI_API_KEY=your_gemini_api_key
 
 ### 4. Set up the database
 
-Apply the database schema to your Supabase project: run the SQL in [`supabase/schema.sql`](supabase/schema.sql) (or the ordered files in [`supabase/migrations/`](supabase/migrations/)) from the Supabase SQL editor. This creates the tables, RLS policies, and the `SECURITY DEFINER` functions the client calls via `supabase.rpc(...)`. Regenerating the dump after a schema change is done with `npm run generate:schema` (requires Docker).
+**Fresh project:** run the full schema in [`supabase/schema.sql`](supabase/schema.sql) from the Supabase SQL editor. It is the source of truth — it creates the tables, RLS policies, and the `SECURITY DEFINER` functions the client calls via `supabase.rpc(...)`.
+
+The files in [`supabase/migrations/`](supabase/migrations/) are the **incremental** function/policy changes that have already been folded into `schema.sql`; they do **not** contain the `CREATE TABLE` statements, so they can't bootstrap an empty database on their own. Use them only to apply a specific later change to a project that already has the tables.
+
+After any schema change, regenerate the dump with `npm run generate:schema` (requires Docker).
 
 ### 5. Run the Development Server
 
