@@ -14,11 +14,12 @@ import { useState, useEffect } from 'react';
 
 import Confetti from 'react-confetti';
 
+import { getHostToken } from '../lib/hostToken';
 import { supabase } from '../lib/supabase';
 import { GeoBingoLogo } from './utils/Elements';
 import { ScoreEntity, PlayerStats, PodiumViewProps } from './utils/types';
 
-export default function PodiumView({ gameId, gameHostId, isHost, teamMode }: PodiumViewProps) {
+export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps) {
     const [stats, setStats] = useState<PlayerStats[]>([]);
     const [loading, setLoading] = useState(true);
     const [gameMode, setGameMode] = useState<string>('list');
@@ -341,10 +342,11 @@ export default function PodiumView({ gameId, gameHostId, isHost, teamMode }: Pod
                         <button
                             type="button"
                             onClick={async () => {
-                                await supabase.rpc('clear_submissions_for_game', { p_game_id: gameId, p_host_id: gameHostId });
-                                await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: gameHostId, p_patch: { ready_players: [] } });
-                                const { error } = await supabase.rpc('set_game_status', { p_game_id: gameId, p_host_id: gameHostId, p_status: 'lobby' });
-                                if (error) console.error('Error returning to lobby:', error);
+                                const hostToken = getHostToken(gameId);
+                                await supabase.rpc('clear_submissions_for_game', { p_game_id: gameId, p_host_id: hostToken });
+                                await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: hostToken, p_patch: { ready_players: [] } });
+                                const { data, error } = await supabase.rpc('set_game_status', { p_game_id: gameId, p_host_id: hostToken, p_status: 'lobby' });
+                                if (error || (data && data.success === false)) console.error('Error returning to lobby:', error || data?.error);
                             }}
                             className="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 rounded-lg transition-all uppercase text-sm tracking-wide shadow-lg"
                         >

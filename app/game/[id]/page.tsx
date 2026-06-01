@@ -24,6 +24,7 @@ import { shuffle } from '@/components/utils/Functions';
 import { Player } from '@/components/utils/types';
 import { VotingView } from '@/components/VotingView';
 
+import { getHostToken, newHostToken, clearHostToken } from '../../../lib/hostToken';
 import { adjectives, animals } from '../../../lib/names';
 import { supabase } from '../../../lib/supabase';
 import { checkAiKeysAvailable } from '../actions';
@@ -197,7 +198,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             try {
                 // The RPC reports logical failures (NOT_HOST / NO_VALID_KEYS) in
                 // its returned payload, not as a PostgREST error, so check both.
-                const { data, error } = await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: gameHostId, p_patch: updates });
+                const { data, error } = await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_patch: updates });
                 if (error || (data && data.success === false)) {
                     console.error('Failed to update game settings:', error || data?.error);
                     toast.error('Failed to save settings');
@@ -282,6 +283,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     setGameHostId(currentPlayerId);
                     gameData = newGameData;
                     localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
+                    // Claim the host capability token (the secret the host RPCs check).
+                    await supabase.rpc('register_host_secret', { p_game_id: gameId, p_player_id: currentPlayerId, p_token: newHostToken(gameId) });
                 } else {
                     // A concurrent initializer already created this room — React
                     // strict mode runs this effect twice in dev, and two clients can
@@ -325,8 +328,17 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
                 const isActuallyHost = gameData.host_id === currentPlayerId;
                 setIsHost(isActuallyHost);
-                if (isActuallyHost) localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
-                else localStorage.removeItem(`geoBingoHost_${gameId}`);
+                if (isActuallyHost) {
+                    localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
+                    // Returning host with no local token (e.g. a game created before
+                    // tokens existed, or after a host transfer): claim one. ON CONFLICT
+                    // server-side means this is a no-op if a token already exists.
+                    if (!getHostToken(gameId)) {
+                        await supabase.rpc('register_host_secret', { p_game_id: gameId, p_player_id: currentPlayerId, p_token: newHostToken(gameId) });
+                    }
+                } else {
+                    localStorage.removeItem(`geoBingoHost_${gameId}`);
+                }
             }
 
             // register player
@@ -436,8 +448,14 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                         setIsHost(newHostId === currentPlayerId);
                         if (newHostId === currentPlayerId) {
                             localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
+                            // Promoted via host transfer — claim a fresh capability token
+                            // (the previous host's token was consumed on transfer).
+                            if (!getHostToken(gameId)) {
+                                supabase.rpc('register_host_secret', { p_game_id: gameId, p_player_id: currentPlayerId, p_token: newHostToken(gameId) });
+                            }
                         } else {
                             localStorage.removeItem(`geoBingoHost_${gameId}`);
+                            clearHostToken(gameId);
                         }
                     }
 
@@ -555,10 +573,10 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             // set_game_status returns NOT_HOST / BAD_STATUS in its payload rather
             // than as a PostgREST error, so check data.success too — otherwise a
             // rejected transition (e.g. the timer auto-advance) silently no-ops.
-            const { data, error } = await supabase.rpc('set_game_status', { p_game_id: gameId, p_host_id: gameHostId, p_status: nextStatus });
+            const { data, error } = await supabase.rpc('set_game_status', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_status: nextStatus });
             if (error || (data && data.success === false)) console.error('Error updating game status:', error || data?.error);
         },
-        [gameId, gameHostId],
+        [gameId],
     );
 
     // --- TIMER LOGIC ---
@@ -608,7 +626,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (isHost) {
             setPlayers((prev) => prev.filter((p) => p.id !== idToKick));
 
-            const { data, error } = await supabase.rpc('delete_player', { p_id: idToKick, p_host_id: gameHostId });
+            const { data, error } = await supabase.rpc('delete_player', { p_id: idToKick, p_host_id: getHostToken(gameId) });
 
             if (error || (data && data.success === false)) {
                 console.error('Error deleting player:', error || data?.error);
@@ -617,20 +635,21 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             // Also remove them from ready_players if they were ready
             if (readyPlayers.includes(idToKick)) {
                 const updatedReady = readyPlayers.filter((id) => id !== idToKick);
-                await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: gameHostId, p_patch: { ready_players: updatedReady } });
+                await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_patch: { ready_players: updatedReady } });
             }
         }
     };
 
     const makeHost = async (newHostId: string) => {
         if (isHost) {
-            const { error } = await supabase.rpc('transfer_host', { p_game_id: gameId, p_current_host_id: gameHostId, p_new_host_id: newHostId });
-            if (error) {
-                console.error('Failed to transfer host:', error);
+            const { data, error } = await supabase.rpc('transfer_host', { p_game_id: gameId, p_current_host_id: getHostToken(gameId), p_new_host_id: newHostId });
+            if (error || (data && data.success === false)) {
+                console.error('Failed to transfer host:', error || data?.error);
                 return;
             }
             setIsHost(false);
             localStorage.removeItem(`geoBingoHost_${gameId}`);
+            clearHostToken(gameId);
             toast('You are no longer the host.');
         }
     };
@@ -641,9 +660,9 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
             // Add to banned list in the DB
             const updatedBanned = [...bannedPlayers, idToKick];
-            await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: gameHostId, p_patch: { banned_players: updatedBanned } });
+            await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_patch: { banned_players: updatedBanned } });
 
-            const { data, error } = await supabase.rpc('delete_player', { p_id: idToKick, p_host_id: gameHostId });
+            const { data, error } = await supabase.rpc('delete_player', { p_id: idToKick, p_host_id: getHostToken(gameId) });
 
             if (error || (data && data.success === false)) {
                 console.error('Error deleting player:', error || data?.error);
@@ -652,13 +671,13 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             // Also remove them from ready_players if they were ready
             if (readyPlayers.includes(idToKick)) {
                 const updatedReady = readyPlayers.filter((id) => id !== idToKick);
-                await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: gameHostId, p_patch: { ready_players: updatedReady } });
+                await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_patch: { ready_players: updatedReady } });
             }
         }
     };
 
     const handleFinishGame = async () => {
-        await supabase.rpc('set_game_status', { p_game_id: gameId, p_host_id: gameHostId, p_status: 'finished' });
+        await supabase.rpc('set_game_status', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_status: 'finished' });
     };
 
     const handleVoteEndOptimistic = useCallback(() => {

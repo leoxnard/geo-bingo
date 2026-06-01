@@ -17,6 +17,7 @@ import toast from 'react-hot-toast';
 import { CiCirclePlus, CiCircleMinus, CiCircleRemove, CiCircleCheck, CiCircleQuestion } from 'react-icons/ci';
 
 import { generateAICategories } from './AICategories';
+import { getHostToken } from '../../lib/hostToken';
 import { RangeSlider, MultiToggleButton, Selection } from '../utils/Elements';
 import { shuffle } from '../utils/Functions';
 import { useViewport } from '../utils/useViewport';
@@ -169,7 +170,7 @@ interface LobbyCategoriesProps {
     categoriesGenerated: boolean;
 }
 
-export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, language, gridSize, categories, suggestedCategories, gameId, gameHostId, playerId, supabase, maxGridSize, startingPoint, categorySource, aiEnabled, isDeveloper, generationRadius, generationNumber, difficulty, categoriesGenerated }: LobbyCategoriesProps) {
+export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, language, gridSize, categories, suggestedCategories, gameId, playerId, supabase, maxGridSize, startingPoint, categorySource, aiEnabled, isDeveloper, generationRadius, generationNumber, difficulty, categoriesGenerated }: LobbyCategoriesProps) {
     const [newCategory, setNewCategory] = useState('');
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [localRadius, setLocalRadius] = useState(generationRadius);
@@ -484,7 +485,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
     const rejectSuggestion = async (cat: string) => {
         if (!isHost) return;
         const updatedSug = suggestedCategories.filter((c) => c !== cat);
-        await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: gameHostId, p_patch: { suggested_categories: updatedSug } });
+        await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_patch: { suggested_categories: updatedSug } });
     };
 
     const minusOneGridSize = () => {

@@ -24,6 +24,7 @@ import LobbySettings from './LobbySettings';
 import LobbySidebar from './LobbySidebar';
 import { generateNearbyPlaceCategories } from './NearbyPlaceCategories';
 import { generateNearbyStreetViewCategories } from './NearbyStreetViewCategories';
+import { getHostToken } from '../../lib/hostToken';
 import { isLocationAllowed } from '../utils/mapUtils';
 
 interface Player {
@@ -208,7 +209,7 @@ export default function LobbyView(props: LobbyViewProps) {
             }
         } else {
             try {
-                const { error } = await props.supabase.rpc('update_game_settings', { p_game_id: props.gameId, p_host_id: props.gameHostId, p_patch: { categories: finalCategories } });
+                const { error } = await props.supabase.rpc('update_game_settings', { p_game_id: props.gameId, p_host_id: getHostToken(props.gameId), p_patch: { categories: finalCategories } });
                 if (error) throw error;
             } catch (err) {
                 const errorMessage = err instanceof Error ? err.message : 'Unknown database error';
