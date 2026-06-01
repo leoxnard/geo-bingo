@@ -12,7 +12,7 @@ Integrates with nearby place and street view category generation.
 
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 
-import { GoogleMap, PolygonF, MarkerF, OverlayView, OverlayViewF, Circle, PolylineF } from '@react-google-maps/api';
+import { GoogleMap, PolygonF, MarkerF, OverlayView, OverlayViewF, CircleF, PolylineF } from '@react-google-maps/api';
 import { FaPlus, FaTimes, FaCaretDown, FaCaretRight, FaUndo } from 'react-icons/fa';
 
 import { insertPoint, insertPointPhase1, mapOptions } from '../utils/mapUtils';
@@ -533,8 +533,11 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                 )}
 
                                 {generationRadius && actualStart.startsWith('{') && (
-                                    // Radius circle around starting point
-                                    <Circle
+                                    // Radius circle around starting point. CircleF (not Circle)
+                                    // so the overlay is properly removed on unmount / prop change —
+                                    // the plain Circle leaves stale rings on the map when the
+                                    // category source (and thus generationRadius) changes.
+                                    <CircleF
                                         center={JSON.parse(actualStart)}
                                         radius={generationRadius * 100}
                                         options={{
