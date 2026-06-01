@@ -149,15 +149,14 @@ export default function LobbyView(props: LobbyViewProps) {
 
                         const simpleCategoryNames = complexResult.map((cat) => cat.categoryName);
 
-                        const { error: dbError } = await props.supabase
-                            .from('games')
-                            .update({
-                                categories: simpleCategoryNames,
-                                category_details: complexResult,
-                            })
-                            .eq('id', props.gameId);
+                        const { data: rpcData, error: dbError } = await props.supabase.rpc('update_game_settings', {
+                            p_game_id: props.gameId,
+                            p_host_id: getHostToken(props.gameId),
+                            p_patch: { categories: simpleCategoryNames, category_details: complexResult },
+                        });
 
                         if (dbError) throw new Error(dbError.message);
+                        if (rpcData && rpcData.success === false) throw new Error(rpcData.error || 'Failed to save generated categories');
 
                         return simpleCategoryNames;
                     })(),

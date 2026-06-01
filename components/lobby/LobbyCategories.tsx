@@ -465,15 +465,13 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
         isPendingSyncRef.current = true;
         setLocalCategories(updatedCategories);
 
-        const { error } = await supabase
-            .from('games')
-            .update({
-                categories: updatedCategories,
-                suggested_categories: updatedSug,
-            })
-            .eq('id', gameId);
+        const { data, error } = await supabase.rpc('update_game_settings', {
+            p_game_id: gameId,
+            p_host_id: getHostToken(gameId),
+            p_patch: { categories: updatedCategories, suggested_categories: updatedSug },
+        });
 
-        if (error) {
+        if (error || (data && data.success === false)) {
             toast.error('Error saving suggestion');
         } else {
             setTimeout(() => {

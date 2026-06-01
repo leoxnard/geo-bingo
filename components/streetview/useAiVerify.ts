@@ -58,7 +58,15 @@ export function useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSu
             setAllSubmissions((prev) => prev.map((s) => (optimisticUpdates.has(s.id) ? { ...s, ...optimisticUpdates.get(s.id)! } : s)));
 
             const persistTasks = results.filter((r) => !r.fromCache && !r.error).map((r) => supabase.rpc('set_submission_ai_verdict', { p_id: r.submissionId, p_player_id: playerId, p_verdict: r.passed, p_hash: r.hash }));
-            await Promise.all(persistTasks);
+            // supabase.rpc reports failures via { error } (and the function via
+            // data.success), not by throwing — so if any verdict failed to persist,
+            // bail before ending the round to avoid ending on verdicts that were
+            // never stored.
+            const persistResults = await Promise.all(persistTasks);
+            const persistFailure = persistResults.find((r) => r.error || (r.data && r.data.success === false));
+            if (persistFailure) {
+                throw new Error(`Failed to persist AI verdict: ${persistFailure.error?.message || persistFailure.data?.error || 'unknown error'}`);
+            }
 
             const failed = results.filter((r) => !r.passed);
             const errored = failed.filter((r) => !!r.error);
