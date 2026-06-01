@@ -36,7 +36,7 @@ export default function PrivacyPolicy() {
                             <strong>Game State:</strong> Interactions during a game (like bingo board state, voting, game settings) are synchronized and temporarily stored in our database to allow multiplayer functionality.
                         </li>
                         <li>
-                            <strong>IP Addresses & Server Logs:</strong> Standard server logs are automatically created by our hosting provider for security and technical stability. These include your IP address, browser type, and time of access.
+                            <strong>IP Addresses & Server Logs:</strong> Standard server logs are automatically created by our hosting provider (Vercel) for security and technical stability. These include your IP address, browser type, and time of access.
                         </li>
                     </ul>
                 </section>
@@ -48,10 +48,19 @@ export default function PrivacyPolicy() {
 
                 <section>
                     <h2 className="text-2xl font-semibold text-slate-100 mb-2">4. Third-Party Services</h2>
-                    <p className="mb-2">We use the following third-party service to run the multiplayer backend of this application:</p>
-                    <ul className="list-disc pl-6">
+                    <p className="mb-2">We use the following third-party services to run and operate this application. Where a provider processes data outside the EU, that transfer is governed by the provider&apos;s own data-protection safeguards:</p>
+                    <ul className="list-disc pl-6 space-y-2">
                         <li>
                             <strong>Supabase:</strong> We use Supabase (provided by Supabase Inc.) as our database and real-time backend. Game lobbies, player names, and session states are processed and stored on their servers to synchronize the game between players.
+                        </li>
+                        <li>
+                            <strong>Vercel:</strong> This website is hosted on Vercel (Vercel Inc.). Vercel processes server logs (including your IP address) to deliver and secure the site. We also use Vercel Analytics and Speed Insights, which collect aggregated, cookieless usage and performance metrics (such as page views and load times) without tracking you across other websites.
+                        </li>
+                        <li>
+                            <strong>Google Maps &amp; Street View:</strong> The game embeds the Google Maps JavaScript API and Street View (provided by Google). When you load a game, Google receives technical data such as your IP address in order to deliver map tiles and Street View imagery.
+                        </li>
+                        <li>
+                            <strong>Google Gemini:</strong> To generate game categories and to verify submissions, the relevant text and the Street View image you captured are sent to Google&apos;s Gemini API for processing.
                         </li>
                     </ul>
                 </section>
@@ -63,9 +72,14 @@ export default function PrivacyPolicy() {
 
                 <div className="w-full h-px bg-slate-700 my-6"></div>
 
-                <Link href="/" className="text-center text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-widest text-sm font-bold">
-                    Back to Home
-                </Link>
+                <div className="flex items-center justify-center gap-6">
+                    <Link href="/" className="text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-widest text-sm font-bold">
+                        Back to Home
+                    </Link>
+                    <Link href="/impressum" className="text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-widest text-sm font-bold">
+                        Legal Notice
+                    </Link>
+                </div>
             </div>
         </main>
     );

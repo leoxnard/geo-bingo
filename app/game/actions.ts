@@ -8,7 +8,7 @@ export async function checkAiKeysAvailable() {
     const isDeveloper = cookieAuth || (!!process.env.BASIC_AUTH_USER && !!process.env.BASIC_AUTH_PASSWORD);
 
     return {
-        aiEnabled: !!process.env.NEXT_PUBLIC_GEMINI_API_KEY,
+        aiEnabled: !!process.env.GEMINI_API_KEY,
         mapsEnabled: !!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
         isDeveloper: isDeveloper,
     };

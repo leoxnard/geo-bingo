@@ -8,6 +8,7 @@ Geo BingBong is a multiplayer geolocation game that brings the fun of Bingo into
 - **Interactive Street View:** Utilizes the Google Maps JavaScript API and Street View Static API so players can explore and capture the perfect angle of their findings.
 - **Game Modes:** Choose between classic List mode or Bingo Mode (dynamic grid sizes).
 - **Dynamic Categories:** Powered by the Gemini API, each game generates unique and fun categories to keep things fresh.
+- **AI Submission Verification:** Optionally have Gemini vision-check your captures against their category, automatically ending the round once every tile passes.
 - **Map Areas:** Hosts can create allow and disallow regions on the map to guide players to specific areas or landmarks.
 - **Custom Settings:** Hosts can customize game duration, if categories can only be found by the first player or multiple players, win conditions, and more.
 - **Snapshot Memory:** Bingo tiles update with the Street View snapshot of your exact camera position, zoom, and angle once you find a category!
@@ -18,8 +19,9 @@ Geo BingBong is a multiplayer geolocation game that brings the fun of Bingo into
 
 - **Framework:** [Next.js](https://nextjs.org/) (App Router, Turbopack)
 - **Backend & Database:** [Supabase](https://supabase.com/) (PostgreSQL & Realtime Channels)
-- **AI:** [Gemini API](https://ai.google.dev/gemini) for generating dynamic categories.
+- **AI:** [Gemini API](https://ai.google.dev/gemini) for generating dynamic categories and verifying submissions.
 - **Maps:** `@react-google-maps/api` & Google Maps APIs
+- **Security:** Postgres Row-Level Security — all writes go through `SECURITY DEFINER` RPCs that validate the caller (`host_id` / `player_id`) and whitelist the columns they may touch.
 
 ## Getting Started
 
@@ -50,10 +52,20 @@ Create a `.env.local` file in the root directory and add the following keys. You
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
-NEXT_PUBLIC_GEMINI_API_KEY=your_gemini_api_key
+# Server-side only (no NEXT_PUBLIC_ prefix) — proxied via /api/gemini so the key
+# never reaches the browser. Restrict the Maps key by HTTP referrer in Google Cloud.
+GEMINI_API_KEY=your_gemini_api_key
 ```
 
-### 4. Run the Development Server
+### 4. Set up the database
+
+**Fresh project:** run the full schema in [`supabase/schema.sql`](supabase/schema.sql) from the Supabase SQL editor. It is the source of truth — it creates the tables, RLS policies, and the `SECURITY DEFINER` functions the client calls via `supabase.rpc(...)`.
+
+The files in [`supabase/migrations/`](supabase/migrations/) are the **incremental** function/policy changes that have already been folded into `schema.sql`; they do **not** contain the `CREATE TABLE` statements, so they can't bootstrap an empty database on their own. Use them only to apply a specific later change to a project that already has the tables.
+
+After any schema change, regenerate the dump with `npm run generate:schema` (requires Docker).
+
+### 5. Run the Development Server
 
 ```bash
 npm run dev

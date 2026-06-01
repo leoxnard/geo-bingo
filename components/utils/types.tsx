@@ -10,6 +10,9 @@ Provides type safety across the entire application.
 
 // lib/types.ts
 
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
+
 export type GameStatus = 'lobby' | 'playing' | 'voting' | 'finished';
 
 export type PathPoint = { lat: number; lng: number; timestamp: number };
@@ -25,6 +28,8 @@ export interface Submission {
     zoom: number;
     is_valid: boolean | null;
     votes: Record<string, boolean>;
+    ai_verdict?: boolean | null;
+    ai_verified_hash?: string | null;
 }
 
 export interface BingoCategory {
@@ -85,10 +90,8 @@ export interface LobbyViewProps {
     makeHost: (id: string) => void;
     kickPlayer: (id: string) => void;
     banPlayer: (id: string) => void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    router: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    supabase: any;
+    router: AppRouterInstance;
+    supabase: SupabaseClient;
     updateStatus: (nextStatus: GameStatus) => Promise<void>;
     setPlayers: (players: Player[] | ((prev: Player[]) => Player[])) => void;
 }
@@ -110,7 +113,9 @@ export interface StreetViewProps {
     hideMiniMap?: boolean;
     exclusiveMode?: boolean;
     allowHints?: boolean;
+    aiEndGame?: boolean;
     onVoteEnd?: () => void;
+    notifyGameEvent?: (event: 'ai_end_game' | 'ai_generating_categories', payload: { player_id: string }) => void;
 }
 
 export interface VotingViewProps {
@@ -125,6 +130,7 @@ export interface VotingViewProps {
 
 export interface PodiumViewProps {
     gameId: string;
+    gameHostId: string;
     isHost: boolean;
     teamMode: 'ffa' | 'teams';
 }

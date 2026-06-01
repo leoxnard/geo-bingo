@@ -1,10 +1,8 @@
+import { callGemini } from '../utils/geminiClient';
 import { BingoCategory } from '../utils/types';
 
 export const generateAICategories = async (customPrompt: string, requiredCount: number, language: string): Promise<BingoCategory[]> => {
     try {
-        const geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-        if (!geminiApiKey) throw new Error('Gemini API Key is missing!');
-
         const prompt = customPrompt.trim()
             ? `
 Act as a hyper-specific Google Street View Bingo Generator. 
@@ -57,20 +55,16 @@ REQUIRED JSON TEMPLATE (EXACT):
 
         while (currentModelIndex < geminiModels.length) {
             try {
-                aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModels[currentModelIndex]}:generateContent?key=${geminiApiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [
-                            {
-                                parts: [
-                                    {
-                                        text: prompt,
-                                    },
-                                ],
-                            },
-                        ],
-                    }),
+                aiResponse = await callGemini(geminiModels[currentModelIndex], {
+                    contents: [
+                        {
+                            parts: [
+                                {
+                                    text: prompt,
+                                },
+                            ],
+                        },
+                    ],
                 });
 
                 if (!aiResponse.ok) {

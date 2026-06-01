@@ -14,6 +14,7 @@ import { useState, useEffect } from 'react';
 
 import Confetti from 'react-confetti';
 
+import { getHostToken } from '../lib/hostToken';
 import { supabase } from '../lib/supabase';
 import { GeoBingoLogo } from './utils/Elements';
 import { ScoreEntity, PlayerStats, PodiumViewProps } from './utils/types';
@@ -332,39 +333,24 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
             `}</style>
             <div className="w-full max-w-6xl mx-auto flex flex-col items-center text-white relative z-10">
                 {/* HEADER / TOP BAR */}
-                <div className="w-full flex justify-between items-center md:mb-4">
+                <div className="w-full flex md:mb-4">
                     <div className="flex items-center gap-4">
                         <GeoBingoLogo size={50} className="hidden sm:block" />
                         <h1 className="text-4xl font-black uppercase tracking-widest text-indigo-400">Results</h1>
                     </div>
-                    {isHost ? (
-                        <button
-                            type="button"
-                            onClick={async () => {
-                                await supabase.from('submissions').delete().eq('game_id', gameId);
-                                const { error } = await supabase.from('games').update({ status: 'lobby', ready_players: [] }).eq('id', gameId);
-                                if (error) console.error('Error returning to lobby:', error);
-                            }}
-                            className="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 rounded-lg transition-all uppercase text-sm tracking-wide shadow-lg"
-                        >
-                            Back to Lobby
-                        </button>
-                    ) : (
-                        <div className="text-slate-400 italic font-medium bg-slate-800 px-2 md:px-6 py-2 rounded-lg border border-slate-700">Waiting for Host...</div>
-                    )}
                 </div>
 
                 {/* THE PODIUM */}
                 <div className="flex items-end justify-center gap-4 md:gap-8 mt-4 w-full">
                     {/* 2nd Place */}
                     {rank2.length > 0 && (
-                        <div className={`flex flex-col items-center w-32 md:w-40 origin-bottom ${animPhase >= 1 ? 'animate-grow-up' : 'scale-y-0 opacity-0'}`}>
-                            <div className="flex flex-col items-center w-full min-h-[80px] justify-end">
+                        <div className={`relative flex flex-col items-center w-32 md:w-40 origin-bottom ${animPhase >= 1 ? 'animate-grow-up' : 'scale-y-0 opacity-0'}`}>
+                            <div className="relative w-full min-h-[5rem] md:min-h-[6.5rem]">
                                 {animPhase >= 3 && (
-                                    <div className="animate-bounce-in flex flex-col items-center w-full">
-                                        <div className="flex flex-col items-center mb-2 w-full">
+                                    <div className="animate-bounce-in absolute bottom-0 left-1/2 mb-2 flex w-max max-w-[min(18rem,90vw)] -translate-x-1/2 flex-col items-center gap-1 text-center">
+                                        <div className="flex w-full flex-col items-center gap-1 text-center">
                                             {rank2.map((p) => (
-                                                <span key={p.id} className="text-xl md:text-2xl font-bold w-full text-center" title={p.name}>
+                                                <span key={p.id} className="block max-w-full whitespace-nowrap text-center text-xl font-bold leading-tight md:text-2xl" title={p.name}>
                                                     {p.name}
                                                 </span>
                                             ))}
@@ -381,13 +367,13 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
 
                     {/* 1st Place */}
                     {rank1.length > 0 && (
-                        <div className={`flex flex-col items-center w-40 md:w-48 origin-bottom ${animPhase >= 1 ? 'animate-grow-up' : 'scale-y-0 opacity-0'}`} style={{ animationDelay: '0.1s' }}>
-                            <div className="flex flex-col items-center w-full min-h-[100px] justify-end">
+                        <div className={`relative flex flex-col items-center w-40 md:w-48 origin-bottom ${animPhase >= 1 ? 'animate-grow-up' : 'scale-y-0 opacity-0'}`} style={{ animationDelay: '0.1s' }}>
+                            <div className="relative w-full min-h-[6rem] md:min-h-[7.5rem]">
                                 {animPhase >= 4 && (
-                                    <div className="animate-bounce-in flex flex-col items-center w-full">
-                                        <div className="flex flex-col items-center mb-2 w-full">
+                                    <div className="animate-bounce-in absolute bottom-0 left-1/2 mb-2 flex w-max max-w-[min(20rem,90vw)] -translate-x-1/2 flex-col items-center gap-1 text-center">
+                                        <div className="flex w-full flex-col items-center gap-1 text-center">
                                             {rank1.map((p) => (
-                                                <span key={p.id} className="text-2xl md:text-3xl font-black text-yellow-400 w-full text-center" title={p.name}>
+                                                <span key={p.id} className="block max-w-full whitespace-nowrap text-center text-2xl font-black leading-tight text-yellow-400 md:text-3xl" title={p.name}>
                                                     {p.name}
                                                 </span>
                                             ))}
@@ -405,13 +391,13 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
 
                     {/* 3rd Place */}
                     {rank3.length > 0 && (
-                        <div className={`flex flex-col items-center w-32 md:w-40 origin-bottom ${animPhase >= 1 ? 'animate-grow-up' : 'scale-y-0 opacity-0'}`} style={{ animationDelay: '0.2s' }}>
-                            <div className="flex flex-col items-center w-full min-h-[80px] justify-end">
+                        <div className={`relative flex flex-col items-center w-32 md:w-40 origin-bottom ${animPhase >= 1 ? 'animate-grow-up' : 'scale-y-0 opacity-0'}`} style={{ animationDelay: '0.2s' }}>
+                            <div className="relative w-full min-h-[5rem] md:min-h-[6.5rem]">
                                 {animPhase >= 2 && (
-                                    <div className="animate-bounce-in flex flex-col items-center w-full">
-                                        <div className="flex flex-col items-center mb-2 w-full">
+                                    <div className="animate-bounce-in absolute bottom-0 left-1/2 mb-2 flex w-max max-w-[min(18rem,90vw)] -translate-x-1/2 flex-col items-center gap-1 text-center">
+                                        <div className="flex w-full flex-col items-center gap-1 text-center">
                                             {rank3.map((p) => (
-                                                <span key={p.id} className="text-xl md:text-2xl font-bold w-full text-center" title={p.name}>
+                                                <span key={p.id} className="block max-w-full whitespace-nowrap text-center text-xl font-bold leading-tight md:text-2xl" title={p.name}>
                                                     {p.name}
                                                 </span>
                                             ))}
@@ -498,7 +484,7 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
 
                                                                 if (status === 3) styleClass = 'bg-yellow-900/40 text-yellow-400 border-yellow-500/50 shadow-[0_0_10px_rgba(250,204,21,0.2)] font-bold';
                                                                 else if (status === 1) styleClass = 'bg-green-900/30 text-green-400 border-green-500/40';
-                                                                else if (status === 2) styleClass = 'bg-red-900/20 text-red-500 border-red-500/30 line-through opacity-60';
+                                                                else if (status === 2) styleClass = 'bg-red-900/20 text-red-500 border-red-500/30 opacity-60';
 
                                                                 return (
                                                                     <div key={idx} className={`text-[9px] sm:text-[11px] flex items-center justify-center text-center p-1.5 rounded-lg border overflow-hidden hyphens-auto break-all leading-tight h-full w-full ${styleClass}`}>
@@ -548,6 +534,27 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
                                 ))}
                             </div>
                         </div>
+                    </div>
+                )}
+
+                {/* BACK TO LOBBY — at the bottom, fades in with the stats */}
+                {animPhase >= 5 && (
+                    <div className="w-full flex justify-center mt-6 md:mt-8 animate-fade-in">
+                        {isHost && (
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    const hostToken = getHostToken(gameId);
+                                    await supabase.rpc('clear_submissions_for_game', { p_game_id: gameId, p_host_id: hostToken });
+                                    await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: hostToken, p_patch: { ready_players: [] } });
+                                    const { data, error } = await supabase.rpc('set_game_status', { p_game_id: gameId, p_host_id: hostToken, p_status: 'lobby' });
+                                    if (error || (data && data.success === false)) console.error('Error returning to lobby:', error || data?.error);
+                                }}
+                                className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-8 rounded-lg transition-all uppercase text-sm tracking-wide shadow-lg"
+                            >
+                                Back to Lobby
+                            </button>
+                        )}
                     </div>
                 )}
             </div>

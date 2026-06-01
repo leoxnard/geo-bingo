@@ -12,6 +12,7 @@ Integrates LobbyView, StreetView, VotingView, and PodiumView components.
 
 import { useState, use, useEffect, useRef, useCallback } from 'react';
 
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import toast, { Toaster } from 'react-hot-toast';
 import { CiCircleAlert, CiCircleCheck } from 'react-icons/ci';
@@ -23,6 +24,7 @@ import { shuffle } from '@/components/utils/Functions';
 import { Player } from '@/components/utils/types';
 import { VotingView } from '@/components/VotingView';
 
+import { getHostToken, newHostToken, clearHostToken } from '../../../lib/hostToken';
 import { adjectives, animals } from '../../../lib/names';
 import { supabase } from '../../../lib/supabase';
 import { checkAiKeysAvailable } from '../actions';
@@ -31,8 +33,14 @@ type GameStatus = 'lobby' | 'playing' | 'voting' | 'finished';
 
 export default function GameRoom({ params }: { params: Promise<{ id: string }> }) {
     const unwrappedParams = use(params);
-    const gameId = unwrappedParams.id;
+    const gameId = unwrappedParams.id.toLowerCase();
     const router = useRouter();
+
+    useEffect(() => {
+        if (unwrappedParams.id !== gameId) {
+            router.replace(`/game/${gameId}`);
+        }
+    }, [unwrappedParams.id, gameId, router]);
 
     // Game state
     const [lastUpdated, setLastUpdated] = useState<string>('');
@@ -71,11 +79,21 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
     const timeUpTriggeredRef = useRef(false);
     const pendingOptimisticUpdatesRef = useRef<Set<string>>(new Set());
+    const gameEventsChannelRef = useRef<RealtimeChannel | null>(null);
+    const playersRef = useRef<Player[]>([]);
+    // Run initializeRoom once per game (guards against React strict-mode running
+    // the effect twice and racing two initializers).
+    const initedGameRef = useRef<string | null>(null);
+    // Only treat "I'm not in the players list" as a kick AFTER we've seen
+    // ourselves present at least once — otherwise the transient empty reads
+    // during startup would bounce us home.
+    const confirmedMemberRef = useRef(false);
 
     // more game options
     const [language, setLanguage] = useState<'german' | 'english'>('german');
     const [hideMapSymbols, setHideMapSymbols] = useState(false);
     const [hideMiniMap, setHideMiniMap] = useState(false);
+    const [aiEndGame, setAiEndGame] = useState(true);
 
     const updateGameModeInfo = (updates: {
         game_mode?: string;
@@ -88,6 +106,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         end_condition?: 'first_bingo' | 'timer';
         hide_map_symbols?: boolean;
         hide_minimap?: boolean;
+        ai_end_game?: boolean;
         exclusive_mode?: boolean;
         category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
         generation_radius?: number;
@@ -138,6 +157,10 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             setHideMiniMap(updates.hide_minimap);
             fieldsToUpdate.push('hide_minimap');
         }
+        if (updates.ai_end_game !== undefined) {
+            setAiEndGame(updates.ai_end_game);
+            fieldsToUpdate.push('ai_end_game');
+        }
         if (updates.exclusive_mode !== undefined) {
             setExclusiveMode(updates.exclusive_mode);
             fieldsToUpdate.push('exclusive_mode');
@@ -173,7 +196,13 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         // Background DB update: fire-and-forget without awaiting
         (async () => {
             try {
-                await supabase.from('games').update(updates).eq('id', gameId);
+                // The RPC reports logical failures (NOT_HOST / NO_VALID_KEYS) in
+                // its returned payload, not as a PostgREST error, so check both.
+                const { data, error } = await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_patch: updates });
+                if (error || (data && data.success === false)) {
+                    console.error('Failed to update game settings:', error || data?.error);
+                    toast.error('Failed to save settings');
+                }
             } catch (err) {
                 console.error('Failed to update game settings:', err);
                 toast.error('Failed to save settings');
@@ -196,7 +225,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             localId = crypto.randomUUID();
             sessionStorage.setItem('geoBingoSessionUUID', localId);
         }
-         
+
         setPlayerId(localId);
 
         const currentPlayerId = localId;
@@ -223,11 +252,12 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             }
 
             // Setup or Load the Game Room
+            let justCreated = false;
             if (!gameData) {
                 const newGameData = {
                     id: gameId,
                     status: 'lobby',
-                    categories: [],
+                    categories: ['', '', '', '', ''],
                     ready_players: [],
                     time_limit: 600,
                     host_id: currentPlayerId,
@@ -238,6 +268,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     starting_point: 'open-world',
                     end_condition: 'timer',
                     hide_map_symbols: false,
+                    ai_end_game: false,
                     exclusive_mode: false,
                     category_source: 'manual',
                     generation_radius: 10,
@@ -247,14 +278,29 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 };
                 const { error } = await supabase.from('games').insert([newGameData]);
                 if (!error) {
+                    justCreated = true;
                     setIsHost(true);
                     setGameHostId(currentPlayerId);
                     gameData = newGameData;
                     localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
+                    // Claim the host capability token (the secret the host RPCs check).
+                    await supabase.rpc('register_host_secret', { p_game_id: gameId, p_player_id: currentPlayerId, p_token: newHostToken(gameId) });
                 } else {
-                    console.error('CRITICAL: Failed to create game.', error);
+                    // A concurrent initializer already created this room — React
+                    // strict mode runs this effect twice in dev, and two clients can
+                    // open the same fresh code at once. Re-fetch the now-existing row
+                    // and fall through to the load path instead of leaving gameData null.
+                    const { data: refetched } = await supabase.from('games').select('*').eq('id', gameId).single();
+                    gameData = refetched;
                 }
-            } else {
+            }
+
+            if (!gameData) {
+                console.error('CRITICAL: game unavailable after init', gameId);
+                return;
+            }
+
+            if (!justCreated) {
                 console.log('[GameRoom] Loading existing game, status:', gameData.status);
                 setLastUpdated(gameData.updated_at);
                 setStatus(gameData.status || 'lobby');
@@ -272,6 +318,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setEndCondition(gameData.end_condition || 'timer');
                 setHideMapSymbols(gameData.hide_map_symbols || false);
                 setHideMiniMap(gameData.hide_minimap || false);
+                setAiEndGame(gameData.ai_end_game ?? false);
                 setExclusiveMode(gameData.exclusive_mode || false);
                 setCategorySource(gameData.category_source || 'manual');
                 setGenerationRadius(gameData.generation_radius || 10);
@@ -281,8 +328,17 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
                 const isActuallyHost = gameData.host_id === currentPlayerId;
                 setIsHost(isActuallyHost);
-                if (isActuallyHost) localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
-                else localStorage.removeItem(`geoBingoHost_${gameId}`);
+                if (isActuallyHost) {
+                    localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
+                    // Returning host with no local token (e.g. a game created before
+                    // tokens existed, or after a host transfer): claim one. ON CONFLICT
+                    // server-side means this is a no-op if a token already exists.
+                    if (!getHostToken(gameId)) {
+                        await supabase.rpc('register_host_secret', { p_game_id: gameId, p_player_id: currentPlayerId, p_token: newHostToken(gameId) });
+                    }
+                } else {
+                    localStorage.removeItem(`geoBingoHost_${gameId}`);
+                }
             }
 
             // register player
@@ -311,16 +367,33 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     ...(bingoBoardToAssign && { bingo_board: bingoBoardToAssign }),
                 };
                 const { error: playerInsertErr } = await supabase.from('players').insert([insertData]);
-                if (playerInsertErr) console.error('CRITICAL: Failed to insert player.', playerInsertErr);
+                // 23505 = this player row was already inserted by a concurrent init
+                // (strict-mode double effect); that's benign, not a failure.
+                if (playerInsertErr && playerInsertErr.code !== '23505') console.error('CRITICAL: Failed to insert player.', playerInsertErr);
             } else {
                 const shouldAssignBoard = (!existingPlayer.bingo_board || existingPlayer.bingo_board.length === 0) && bingoBoardToAssign;
+                // A session's player UUID is reused across games (one row, keyed
+                // by the session UUID), so re-joining/switching games has to move
+                // that row to the current game by patching game_id — otherwise the
+                // player stays stuck in their previous game and fetchPlayers here
+                // never sees them.
                 const updateData = {
                     name: playerName,
                     game_id: gameId,
                     ...(shouldAssignBoard && { bingo_board: bingoBoardToAssign }),
                 };
-                const { error: playerUpdateErr } = await supabase.from('players').update(updateData).eq('id', currentPlayerId);
-                if (playerUpdateErr) console.error('CRITICAL: Failed to update player.', playerUpdateErr);
+                const { data: updateRes, error: playerUpdateErr } = await supabase.rpc('update_player', { p_id: currentPlayerId, p_patch: updateData });
+                if (playerUpdateErr) {
+                    console.error('CRITICAL: Failed to update player.', playerUpdateErr);
+                } else if (updateRes && updateRes.success === false) {
+                    // The join was refused server-side (banned, or trying to join a
+                    // game that's already in progress without having been in it).
+                    if (updateRes.error === 'BANNED') toast('You have been banned from this lobby.');
+                    else if (updateRes.error === 'GAME_IN_PROGRESS') toast('This game has already started.');
+                    else toast('Could not join this game.');
+                    setTimeout(() => router.push('/'), 1500);
+                    return;
+                }
             }
 
             fetchPlayers();
@@ -332,14 +405,25 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             const { data } = await supabase.from('players').select('id, name, bingo_board, team').eq('game_id', gameId);
             if (data) {
                 setPlayers(data);
-                // If the current player is no longer in the DB, they were kicked.
-                if (!data.some((p) => p.id === currentPlayerId)) {
+                if (data.some((p) => p.id === currentPlayerId)) {
+                    confirmedMemberRef.current = true;
+                } else if (confirmedMemberRef.current) {
+                    // We were in the game and now we're gone → actually kicked.
+                    // (A "not present yet" read during startup must not bounce us.)
                     router.push('/');
                 }
             }
         };
 
-        initializeRoom();
+        // Run init once per game. React strict mode mounts the effect twice in
+        // dev; without this guard both runs race (duplicate game/player inserts,
+        // 409s, and a premature kick-redirect). The realtime channels below still
+        // (re)subscribe every mount since the cleanup tears them down.
+        if (initedGameRef.current !== gameId) {
+            initedGameRef.current = gameId;
+            confirmedMemberRef.current = false;
+            initializeRoom();
+        }
 
         // Realtime Listeners
         const gameChannel = supabase
@@ -364,8 +448,14 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                         setIsHost(newHostId === currentPlayerId);
                         if (newHostId === currentPlayerId) {
                             localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
+                            // Promoted via host transfer — claim a fresh capability token
+                            // (the previous host's token was consumed on transfer).
+                            if (!getHostToken(gameId)) {
+                                supabase.rpc('register_host_secret', { p_game_id: gameId, p_player_id: currentPlayerId, p_token: newHostToken(gameId) });
+                            }
                         } else {
                             localStorage.removeItem(`geoBingoHost_${gameId}`);
+                            clearHostToken(gameId);
                         }
                     }
 
@@ -387,6 +477,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     if (payload.new.end_condition !== undefined && !pendingOptimisticUpdatesRef.current.has('end_condition')) setEndCondition(payload.new.end_condition);
                     if (payload.new.hide_map_symbols !== undefined && !pendingOptimisticUpdatesRef.current.has('hide_map_symbols')) setHideMapSymbols(payload.new.hide_map_symbols);
                     if (payload.new.hide_minimap !== undefined && !pendingOptimisticUpdatesRef.current.has('hide_minimap')) setHideMiniMap(payload.new.hide_minimap);
+                    if (payload.new.ai_end_game !== undefined && !pendingOptimisticUpdatesRef.current.has('ai_end_game')) setAiEndGame(payload.new.ai_end_game);
                     if (payload.new.exclusive_mode !== undefined && !pendingOptimisticUpdatesRef.current.has('exclusive_mode')) setExclusiveMode(payload.new.exclusive_mode);
                     if (payload.new.category_source !== undefined && !pendingOptimisticUpdatesRef.current.has('category_source')) {
                         setCategorySource(payload.new.category_source);
@@ -421,6 +512,20 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             )
             .subscribe();
 
+        const gameEventsChannel = supabase
+            .channel(`game-events-${gameId}`)
+            .on('broadcast', { event: 'ai_end_game' }, ({ payload }: { payload: { player_id: string } }) => {
+                if (payload.player_id === currentPlayerId) return;
+                const playerName = playersRef.current.find((p) => p.id === payload.player_id)?.name || 'A player';
+                toast.success(`${playerName} found all categories — round ended!`);
+            })
+            .on('broadcast', { event: 'ai_generating_categories' }, ({ payload }: { payload: { player_id: string } }) => {
+                if (payload.player_id === currentPlayerId) return;
+                toast('Game starting — AI is generating categories...');
+            })
+            .subscribe();
+        gameEventsChannelRef.current = gameEventsChannel;
+
         // 5. Presence Tracking
         const presenceChannel = supabase.channel(`presence-${gameId}`);
 
@@ -447,15 +552,29 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             supabase.removeChannel(gameChannel);
             supabase.removeChannel(playerChannel);
             supabase.removeChannel(presenceChannel);
+            supabase.removeChannel(gameEventsChannel);
+            gameEventsChannelRef.current = null;
             pendingOptimisticUpdatesRef.current.clear();
         };
     }, [gameId, router]);
 
-    // Status update handler
+    useEffect(() => {
+        playersRef.current = players;
+    }, [players]);
+
+    const notifyGameEvent = useCallback((event: 'ai_end_game' | 'ai_generating_categories', payload: { player_id: string }) => {
+        gameEventsChannelRef.current?.send({ type: 'broadcast', event, payload });
+    }, []);
+
+    // Status update handler (host-only path; uses the SECURITY DEFINER rpc so
+    // we don't depend on table-level UPDATE policies staying open).
     const updateStatus = useCallback(
         async (nextStatus: GameStatus) => {
-            const { error } = await supabase.from('games').update({ status: nextStatus }).eq('id', gameId);
-            if (error) console.error('Error updating game status:', error);
+            // set_game_status returns NOT_HOST / BAD_STATUS in its payload rather
+            // than as a PostgREST error, so check data.success too — otherwise a
+            // rejected transition (e.g. the timer auto-advance) silently no-ops.
+            const { data, error } = await supabase.rpc('set_game_status', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_status: nextStatus });
+            if (error || (data && data.success === false)) console.error('Error updating game status:', error || data?.error);
         },
         [gameId],
     );
@@ -507,25 +626,30 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (isHost) {
             setPlayers((prev) => prev.filter((p) => p.id !== idToKick));
 
-            const { data, error } = await supabase.from('players').delete().eq('id', idToKick).select();
+            const { data, error } = await supabase.rpc('delete_player', { p_id: idToKick, p_host_id: getHostToken(gameId) });
 
-            if (error || (data && data.length === 0)) {
-                console.error('Error deleting player (RLS Policy or Replica Identity):', error);
+            if (error || (data && data.success === false)) {
+                console.error('Error deleting player:', error || data?.error);
             }
 
             // Also remove them from ready_players if they were ready
             if (readyPlayers.includes(idToKick)) {
                 const updatedReady = readyPlayers.filter((id) => id !== idToKick);
-                await supabase.from('games').update({ ready_players: updatedReady }).eq('id', gameId);
+                await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_patch: { ready_players: updatedReady } });
             }
         }
     };
 
     const makeHost = async (newHostId: string) => {
         if (isHost) {
-            await supabase.from('games').update({ host_id: newHostId }).eq('id', gameId);
+            const { data, error } = await supabase.rpc('transfer_host', { p_game_id: gameId, p_current_host_id: getHostToken(gameId), p_new_host_id: newHostId });
+            if (error || (data && data.success === false)) {
+                console.error('Failed to transfer host:', error || data?.error);
+                return;
+            }
             setIsHost(false);
             localStorage.removeItem(`geoBingoHost_${gameId}`);
+            clearHostToken(gameId);
             toast('You are no longer the host.');
         }
     };
@@ -536,24 +660,24 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
             // Add to banned list in the DB
             const updatedBanned = [...bannedPlayers, idToKick];
-            await supabase.from('games').update({ banned_players: updatedBanned }).eq('id', gameId);
+            await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_patch: { banned_players: updatedBanned } });
 
-            const { data, error } = await supabase.from('players').delete().eq('id', idToKick).select();
+            const { data, error } = await supabase.rpc('delete_player', { p_id: idToKick, p_host_id: getHostToken(gameId) });
 
-            if (error || (data && data.length === 0)) {
-                console.error('Error deleting player (RLS Policy or Replica Identity):', error);
+            if (error || (data && data.success === false)) {
+                console.error('Error deleting player:', error || data?.error);
             }
 
             // Also remove them from ready_players if they were ready
             if (readyPlayers.includes(idToKick)) {
                 const updatedReady = readyPlayers.filter((id) => id !== idToKick);
-                await supabase.from('games').update({ ready_players: updatedReady }).eq('id', gameId);
+                await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_patch: { ready_players: updatedReady } });
             }
         }
     };
 
     const handleFinishGame = async () => {
-        await supabase.from('games').update({ status: 'finished' }).eq('id', gameId);
+        await supabase.rpc('set_game_status', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_status: 'finished' });
     };
 
     const handleVoteEndOptimistic = useCallback(() => {
@@ -571,19 +695,11 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             pendingOptimisticUpdatesRef.current.add('status');
         }
 
+        // player_vote_to_end_round handles the dedup-append to ready_players
+        // and the status='voting' transition atomically when the last player votes.
         (async () => {
             try {
-                if (updatedReadyPlayers.length >= votesNeeded) {
-                    await supabase
-                        .from('games')
-                        .update({
-                            ready_players: updatedReadyPlayers,
-                            status: 'voting',
-                        })
-                        .eq('id', gameId);
-                } else {
-                    await supabase.from('games').update({ ready_players: updatedReadyPlayers }).eq('id', gameId);
-                }
+                await supabase.rpc('player_vote_to_end_round', { p_game_id: gameId, p_player_id: playerId });
             } catch (err) {
                 console.error('Failed to vote:', err);
             } finally {
@@ -627,6 +743,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     setPlayers={setPlayers}
                     hideMapSymbols={hideMapSymbols}
                     hideMiniMap={hideMiniMap}
+                    aiEndGame={aiEndGame}
                     categorySource={categorySource}
                     aiEnabled={apiStatus.aiEnabled}
                     isDeveloper={apiStatus.isDeveloper}
@@ -635,6 +752,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     language={language}
                     difficulty={difficulty}
                     categoriesGenerated={categoriesGenerated}
+                    notifyGameEvent={notifyGameEvent}
                 />
             );
         }
@@ -643,7 +761,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (status === 'playing') {
             const currentPlayer = players.find((p) => p.id === playerId);
             const myBoard = gameMode === 'bingo' && currentPlayer?.bingo_board && currentPlayer.bingo_board.length > 0 ? currentPlayer.bingo_board : categories;
-            return <StreetView myBoard={myBoard} gameId={gameId} playerId={playerId} gameMode={gameMode} teamMode={teamMode} gridSize={gridSize} startingPoint={startingPoint} gameBoundary={gameBoundary} endCondition={endCondition} timeLeft={timeLeft} readyPlayers={readyPlayers} players={players} hideMapSymbols={hideMapSymbols} hideMiniMap={hideMiniMap} exclusiveMode={exclusiveMode} onVoteEnd={handleVoteEndOptimistic} />;
+            return <StreetView myBoard={myBoard} gameId={gameId} playerId={playerId} gameMode={gameMode} teamMode={teamMode} gridSize={gridSize} startingPoint={startingPoint} gameBoundary={gameBoundary} endCondition={endCondition} timeLeft={timeLeft} readyPlayers={readyPlayers} players={players} hideMapSymbols={hideMapSymbols} hideMiniMap={hideMiniMap} exclusiveMode={exclusiveMode} aiEndGame={aiEndGame} onVoteEnd={handleVoteEndOptimistic} notifyGameEvent={notifyGameEvent} />;
         }
 
         // --- VIEW 3: VOTING ---
@@ -653,7 +771,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
         // --- VIEW 4: PODIUM (FINISHED) ---
         if (status === 'finished') {
-            return <PodiumView gameId={gameId} isHost={isHost} teamMode={teamMode} />;
+            return <PodiumView gameId={gameId} gameHostId={gameHostId} isHost={isHost} teamMode={teamMode} />;
         }
     };
 

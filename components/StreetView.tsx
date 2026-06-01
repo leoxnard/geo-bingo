@@ -14,19 +14,29 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 
 import { GoogleMap, useJsApiLoader, StreetViewPanorama, Polygon } from '@react-google-maps/api';
 import toast from 'react-hot-toast';
-import { FaEye, FaCamera, FaInfoCircle } from 'react-icons/fa';
+import { FaEye, FaCamera, FaInfoCircle, FaChevronLeft } from 'react-icons/fa';
 import { GoMoveToStart } from 'react-icons/go';
 
 import { supabase } from '../lib/supabase';
-import { FullscreenButton } from './utils/Elements';
-import { calculateBingoCounter, getDistance } from './utils/Functions';
+import { useAiVerify } from './streetview/useAiVerify';
+import { useStreetViewPath } from './streetview/useStreetViewPath';
+import { useSubmissionsRealtime } from './streetview/useSubmissionsRealtime';
+import { FullscreenButton, ExitButton } from './utils/Elements';
+import { calculateBingoCounter, getBingoLineSubmissions, getDistance } from './utils/Functions';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from './utils/mapUtils';
-import { Submission, StreetViewProps, PathPoint, BoundaryPolygon } from './utils/types';
+import { Submission, StreetViewProps, BoundaryPolygon } from './utils/types';
 import { useViewport } from './utils/useViewport';
 import { GeoGuessrMetaDe, GeoGuessrMetaEn } from '../lib/categories';
 
 const safeStartCenter = { lat: 30, lng: 10 };
 const initialWorldZoom = 2.4;
+
+const ROOMY_MAX = 90;
+const ROOMY_MIN = 67;
+const COMPACT_MAX = 48;
+const COMPACT_MIN = 33;
+const ROOMY_GAP = 12;
+const COMPACT_GAP = 8;
 
 const panoOptions = {
     addressControl: false,
@@ -47,7 +57,7 @@ const getHintForCategory = (cat: string) => {
     return null;
 };
 
-export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list', teamMode = 'ffa', gridSize = 3, startingPoint = 'open-world', gameBoundary = '[]', endCondition = 'timer', timeLeft, readyPlayers, players, hideMapSymbols = false, hideMiniMap = false, exclusiveMode = false, allowHints = true, onVoteEnd }: StreetViewProps) {
+export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list', teamMode = 'ffa', gridSize = 3, startingPoint = 'open-world', gameBoundary = '[]', endCondition = 'timer', timeLeft, readyPlayers, players, hideMapSymbols = false, hideMiniMap = false, exclusiveMode = false, allowHints = true, aiEndGame = true, onVoteEnd, notifyGameEvent }: StreetViewProps) {
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
         googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
@@ -56,8 +66,8 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
     const [submittingCategory, setSubmittingCategory] = useState<string | null>(null);
     const [inStreetView, setInStreetView] = useState(false);
-    const [allSubmissions, setAllSubmissions] = useState<Submission[]>([]);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [fsPanelOpen, setFsPanelOpen] = useState(true);
     const { isNarrow, isPortrait, isMobileLandscape } = useViewport();
 
     const [panoInstance, setPanoInstance] = useState<google.maps.StreetViewPanorama | null>(null);
@@ -67,22 +77,19 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
     const streetViewRef = useRef<google.maps.StreetViewPanorama | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const panelRef = useRef<HTMLDivElement | null>(null);
     const [gridEl, setGridEl] = useState<HTMLDivElement | null>(null);
-    const [forceCompact, setForceCompact] = useState(false);
+    const [listLayout, setListLayout] = useState<'roomy' | 'compact'>('roomy');
+    const [measuredPanelWidth, setMeasuredPanelWidth] = useState<number>(0);
     const lastValidPositionRef = useRef<google.maps.LatLng | null>(null);
     const lastValidPanoRef = useRef<string | null>(null);
     const isRevertingRef = useRef(false);
-    const pathRef = useRef<PathPoint[]>([]);
-    const lastSavedLengthRef = useRef<number>(0);
+    const { pathRef, recordPoint, flushNow: flushPathNow } = useStreetViewPath(playerId);
 
     const hasVotedToEnd = readyPlayers.includes(playerId);
     const votesNeeded = players.length;
 
-    const myTeam = useMemo(() => players.find((p) => p.id === playerId)?.team ?? -1, [players, playerId]);
-    const teamIds = useMemo(() => (teamMode === 'teams' ? players.filter((p) => p.team === myTeam).map((p) => p.id) : [playerId]), [teamMode, players, myTeam, playerId]);
-
-    const mySubmissions = useMemo(() => allSubmissions.filter((s) => teamIds.includes(s.player_id)), [allSubmissions, teamIds]);
-    const otherSubmissions = useMemo(() => allSubmissions.filter((s) => !teamIds.includes(s.player_id)), [allSubmissions, teamIds]);
+    const { allSubmissions, setAllSubmissions, mySubmissions, otherSubmissions } = useSubmissionsRealtime({ gameId, playerId, players, teamMode });
 
     const formatTime = (seconds: number) => {
         const m = Math.floor(seconds / 60);
@@ -91,21 +98,22 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
     };
 
     const handleVoteEndRound = async () => {
-        if (pathRef.current.length > lastSavedLengthRef.current) {
-            void (async () => {
-                try {
-                    await supabase.from('players').update({ path: pathRef.current }).eq('id', playerId);
-                } catch (err) {
-                    console.error('Failed to save path:', err);
-                }
-            })();
-            lastSavedLengthRef.current = pathRef.current.length;
-        }
+        flushPathNow();
 
         if (onVoteEnd) {
             onVoteEnd();
         }
     };
+
+    const getAiVerdictState = (submission?: Submission | null) => {
+        if (submission?.ai_verdict === true) return 'verified';
+        if (submission?.ai_verdict === false) return 'rejected';
+        return 'unverified';
+    };
+
+    const { isVerifying, aiVerificationSuccess, allCategoriesFilled, handleVerifyAndEnd: handleAiVerifyAndEnd, handleVerifyBingoAndEnd } = useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSubmissions, notifyGameEvent });
+
+    const isBingoFirstWithAi = gameMode === 'bingo' && endCondition === 'first_bingo' && aiEndGame;
 
     useEffect(() => {
         if (minimapInstance && panoInstance && !hideMiniMap) {
@@ -303,82 +311,13 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
     useEffect(() => {
         const handleFullscreenChange = () => {
-            setIsFullscreen(!!document.fullscreenElement);
+            const fs = !!document.fullscreenElement;
+            setIsFullscreen(fs);
+            if (!fs) setFsPanelOpen(false);
         };
         document.addEventListener('fullscreenchange', handleFullscreenChange);
         return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
     }, []);
-
-    useEffect(() => {
-        const fetchAllSubmissions = async () => {
-            const { data } = await supabase.from('submissions').select('*').eq('game_id', gameId);
-            if (data) setAllSubmissions(data);
-        };
-        fetchAllSubmissions();
-
-        const channel = supabase
-            .channel(`game-submissions-${gameId}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'submissions',
-                    filter: `game_id=eq.${gameId}`,
-                },
-                (payload) => {
-                    console.log('New submission received via realtime:', payload);
-                    const newSub = payload.new as Submission;
-                    setAllSubmissions((prev) => {
-                        if (prev.find((s) => s.id === newSub.id)) return prev;
-                        return [...prev, newSub];
-                    });
-                },
-            )
-            .on(
-                'postgres_changes',
-                {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'submissions',
-                    filter: `game_id=eq.${gameId}`,
-                },
-                (payload) => {
-                    const updatedSub = payload.new as Submission;
-                    setAllSubmissions((prev) => prev.map((s) => (s.id === updatedSub.id ? { ...s, ...updatedSub } : s)));
-                },
-            )
-            .subscribe();
-
-        return () => {
-            const cleanup = async () => {
-                await supabase.removeChannel(channel);
-            };
-            cleanup();
-        };
-    }, [gameId]);
-
-    useEffect(() => {
-        const saveInterval = setInterval(async () => {
-            const currentPath = pathRef.current;
-            if (currentPath.length > lastSavedLengthRef.current) {
-                const { error } = await supabase.from('players').update({ path: currentPath }).eq('id', playerId);
-                if (error) {
-                    console.error('SUPABASE ERROR:', error.message, error.details);
-                } else {
-                    lastSavedLengthRef.current = currentPath.length;
-                }
-            }
-        }, 5000);
-
-        return () => {
-            clearInterval(saveInterval);
-            const pathAtCleanup = pathRef.current;
-            if (pathAtCleanup.length > lastSavedLengthRef.current) {
-                supabase.from('players').update({ path: pathAtCleanup }).eq('id', playerId).then();
-            }
-        };
-    }, [playerId]);
 
     // sound effects for timer
     useEffect(() => {
@@ -464,14 +403,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                     lastValidPositionRef.current = pos;
                     lastValidPanoRef.current = pano.getPano();
 
-                    const lastPoint = pathRef.current[pathRef.current.length - 1];
-                    if (!lastPoint || lastPoint.lat !== pos.lat() || lastPoint.lng !== pos.lng()) {
-                        pathRef.current.push({
-                            lat: pos.lat(),
-                            lng: pos.lng(),
-                            timestamp: Date.now(),
-                        });
-                    }
+                    recordPoint(pos.lat(), pos.lng());
                 } else {
                     isRevertingRef.current = true;
                     toast("You've reached the edge of the allowed area or entered a forbidden zone!");
@@ -512,7 +444,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
     useEffect(() => {
         if (isNarrow) {
-            setForceCompact(false);
+            setListLayout('compact');
             return;
         }
 
@@ -522,19 +454,17 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
             const availableHeight = gridEl.getBoundingClientRect().height;
             if (availableHeight <= 0) return;
 
-            const isDesktop = window.innerWidth >= 932;
-            const ITEM_MIN_HEIGHT = isDesktop ? 60 : 64;
-            const GAP_HEIGHT = 8;
-            const PADDING = isDesktop ? 0 : 16;
+            const isAtLeastSm = window.innerWidth >= 640;
+            const PADDING = isAtLeastSm ? 0 : 16;
 
-            const requiredHeight = myBoard.length * ITEM_MIN_HEIGHT + (myBoard.length - 1) * GAP_HEIGHT + PADDING + 5;
+            const n = myBoard.length;
+            const usable = availableHeight - PADDING - Math.max(0, n - 1) * ROOMY_GAP;
+            const perItemRoomy = n > 0 ? usable / n : 0;
 
-            const needsCompact = availableHeight < requiredHeight;
+            // Stay in roomy while each item can be at least ROOMY_MIN tall; otherwise switch to compact.
+            const nextLayout: 'roomy' | 'compact' = perItemRoomy >= ROOMY_MIN ? 'roomy' : 'compact';
 
-            setForceCompact((prev) => {
-                if (prev !== needsCompact) return needsCompact;
-                return prev;
-            });
+            setListLayout((prev) => (prev !== nextLayout ? nextLayout : prev));
         };
 
         check();
@@ -551,6 +481,24 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
             window.removeEventListener('resize', check);
         };
     }, [gridEl, myBoard.length, isNarrow, isPortrait]);
+
+    useEffect(() => {
+        if (!panelRef.current) return;
+        const measure = () => {
+            const w = panelRef.current ? panelRef.current.getBoundingClientRect().width : 0;
+            setMeasuredPanelWidth(w);
+        };
+
+        // measure now and when layout changes
+        measure();
+        const ro = new ResizeObserver(() => requestAnimationFrame(measure));
+        ro.observe(panelRef.current);
+        window.addEventListener('resize', measure);
+        return () => {
+            ro.disconnect();
+            window.removeEventListener('resize', measure);
+        };
+    }, [myBoard.length, isFullscreen, fsPanelOpen]);
 
     const handleSubmit = async (targetCategory: string) => {
         if (!streetViewRef.current || !inStreetView) return;
@@ -582,6 +530,8 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
             id: tempId,
             votes: existingSub?.votes || {},
             is_valid: null,
+            ai_verdict: null,
+            ai_verified_hash: null,
         } as Submission;
 
         const updatedAllSubmissions = existingSub ? allSubmissions.map((s) => (s.id === existingSub.id ? optimisticSub : s)) : [...allSubmissions, optimisticSub];
@@ -591,27 +541,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
         setAllSubmissions(updatedAllSubmissions);
         setSubmittingCategory(null);
 
-        if (gameMode === 'bingo' && endCondition === 'first_bingo') {
-            const bingos = calculateBingoCounter(gridSize, myBoard, updatedMySubmissions);
-
-            if (bingos.count > 0) {
-                const winnerNames = players.filter((p) => bingos.players.includes(p.id)).map((p) => p.name);
-                let winnerNamesString;
-                if (winnerNames.length > 2) {
-                    winnerNamesString = [winnerNames.slice(0, -1).join(', '), winnerNames.slice(-1)[0]].join(' and ');
-                } else if (winnerNames.length === 2) {
-                    winnerNamesString = winnerNames.join(' and ');
-                } else {
-                    winnerNamesString = winnerNames[0];
-                }
-                toast(`${winnerNamesString} got Bingo!`);
-                try {
-                    await supabase.from('games').update({ status: 'voting' }).eq('id', gameId);
-                } catch (error) {
-                    console.error('Failed to end game on Bingo:', error);
-                }
-            }
-        }
+        let savedSub: Submission | null = null;
 
         if (exclusiveMode && !existingSub) {
             // exclusive mode insert via RPC to ensure atomic claim
@@ -629,30 +559,74 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
             if (data && data.success === false && data.error === 'ALREADY_CLAIMED') {
                 toast.error('Sorry, someone else was faster claiming this category!');
                 setAllSubmissions((prev) => prev.filter((s) => s.id !== tempId));
+                return;
             } else if (error) {
                 console.error('RPC call failed:', error);
                 toast.error('Error saving submission. Please try again.');
                 setAllSubmissions((prev) => prev.filter((s) => s.id !== tempId));
+                return;
             } else if (data && data.success) {
+                savedSub = data.data as Submission;
                 setAllSubmissions((prev) => prev.map((s) => (s.id === tempId ? data.data : s)));
             }
         } else {
-            // ffa update or insert
-            if (existingSub) {
-                const { error } = await supabase.from('submissions').update(submissionData).eq('id', existingSub.id);
-                if (error) {
-                    console.error('Update error:', error);
-                    toast.error('Error updating submission. Please try again.');
-                    setAllSubmissions((prev) => prev.filter((s) => s.id !== tempId));
-                }
+            // ffa insert-or-update via claim_category upsert: a re-take at a new
+            // camera angle patches the existing row and clears the cached AI verdict.
+            const { data, error } = await supabase.rpc('claim_category', {
+                p_game_id: gameId,
+                p_player_id: playerId,
+                p_category: targetCategory,
+                p_lat: submissionData.lat,
+                p_lng: submissionData.lng,
+                p_heading: submissionData.heading,
+                p_pitch: submissionData.pitch,
+                p_zoom: submissionData.zoom,
+            });
+
+            if (error || (data && data.success === false)) {
+                console.error('claim_category failed:', error || data.error);
+                toast.error('Error saving submission. Please try again.');
+                setAllSubmissions((prev) => (existingSub ? prev : prev.filter((s) => s.id !== tempId)));
+                return;
+            } else if (data && data.success) {
+                savedSub = data.data as Submission;
+                setAllSubmissions((prev) => prev.map((s) => (s.id === tempId ? data.data : s)));
+            }
+        }
+
+        if (!savedSub) return;
+
+        if (gameMode === 'bingo' && endCondition === 'first_bingo') {
+            // Use the persisted submission (real id + DB-side ai_verdict reset on
+            // retake) so subsequent AI-verify calls reference the actual row.
+            const finalMySubs = updatedMySubmissions.map((s) => (s.id === tempId ? savedSub! : s));
+            const bingos = calculateBingoCounter(gridSize, myBoard, finalMySubs);
+            if (bingos.count === 0) return;
+
+            if (aiEndGame) {
+                // Auto-verify the cells of any clean bingo line(s). The helper
+                // already skips lines containing an AI-rejected cell, so a stale
+                // rejection in one line never blocks verification of a separate
+                // clean bingo. Cached `passed=true` cells hit the verify cache —
+                // only new/cleared cells actually hit Gemini.
+                const bingoLineSubs = getBingoLineSubmissions(gridSize, myBoard, finalMySubs);
+                if (bingoLineSubs.length === 0) return;
+                await handleVerifyBingoAndEnd(bingoLineSubs);
             } else {
-                const { data, error } = await supabase.from('submissions').insert([submissionData]).select().single();
-                if (error) {
-                    console.error('Insert error:', error);
-                    toast.error('Error saving submission. Please try again.');
-                    setAllSubmissions((prev) => prev.filter((s) => s.id !== tempId));
-                } else if (data) {
-                    setAllSubmissions((prev) => prev.map((s) => (s.id === tempId ? data : s)));
+                const winnerNames = players.filter((p) => bingos.players.includes(p.id)).map((p) => p.name);
+                let winnerNamesString;
+                if (winnerNames.length > 2) {
+                    winnerNamesString = [winnerNames.slice(0, -1).join(', '), winnerNames.slice(-1)[0]].join(' and ');
+                } else if (winnerNames.length === 2) {
+                    winnerNamesString = winnerNames.join(' and ');
+                } else {
+                    winnerNamesString = winnerNames[0];
+                }
+                toast(`${winnerNamesString} got Bingo!`);
+                try {
+                    await supabase.rpc('player_end_round', { p_game_id: gameId, p_player_id: playerId });
+                } catch (error) {
+                    console.error('Failed to end game on Bingo:', error);
                 }
             }
         }
@@ -782,20 +756,30 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                         <div className="flex items-center justify-center text-xl sm:text-3xl font-black bg-slate-800 px-3 sm:px-6 rounded-lg sm:rounded-xl border border-slate-700 shadow-lg tracking-wider py-1.5 sm:py-2">{timeLeft <= 60 ? <span className="text-red-500 animate-pulse">{formatTime(timeLeft)}</span> : <span className="text-white">{formatTime(timeLeft)}</span>}</div>
 
                         <div className="ml-auto flex items-stretch justify-end gap-2 sm:gap-4">
-                            <span className="flex items-center text-slate-400 font-medium">
-                                Votes to end:&nbsp;
-                                <strong className="text-white">
-                                    {readyPlayers.length} / {votesNeeded}
-                                </strong>
-                            </span>
+                            {aiEndGame && !isBingoFirstWithAi && (
+                                <button
+                                    type="button"
+                                    onClick={handleAiVerifyAndEnd}
+                                    disabled={!allCategoriesFilled || isVerifying}
+                                    title={!allCategoriesFilled ? 'Fill every category to enable AI verification' : 'Verify all categories with AI and end the round'}
+                                    className={`flex items-center justify-center whitespace-nowrap px-3 sm:px-6 rounded-lg font-bold transition-all uppercase text-[10px] sm:text-sm shadow-lg
+                                        ${!allCategoriesFilled || isVerifying ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
+                                >
+                                    {isVerifying ? 'Verifying...' : 'AI Verify & End'}
+                                </button>
+                            )}
                             <button
                                 type="button"
                                 onClick={handleVoteEndRound}
                                 disabled={hasVotedToEnd}
-                                className={`flex items-center justify-center whitespace-nowrap px-3 sm:px-6 rounded-lg font-bold transition-all uppercase text-[10px] sm:text-sm shadow-lg
+                                className={`flex flex-col items-center justify-center whitespace-nowrap px-3 sm:px-6 rounded-lg font-bold transition-all uppercase text-[10px] sm:text-sm shadow-lg leading-tight text-center min-w-[7rem] border-2
+                                            ${aiVerificationSuccess ? 'border-green-500' : 'border-transparent'}
                                     ${hasVotedToEnd ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-red-600 hover:bg-red-500 text-white'}`}
                             >
-                                {hasVotedToEnd ? 'Wait...' : 'End Vote'}
+                                <span>{hasVotedToEnd ? 'Wait...' : 'End Vote'}</span>
+                                <span className="text-[9px] sm:text-xs normal-case opacity-80">
+                                    {readyPlayers.length} / {votesNeeded} voted
+                                </span>
                             </button>
                         </div>
                     </div>
@@ -804,9 +788,9 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
             <div className="w-full mx-auto shrink-0">
                 {playerId && (
-                    <div className={`flex gap-4 sm:gap-6 ${isMobileLandscape ? 'flex-row h-[calc(100dvh-2rem)] min-h-0' : isPortrait ? 'flex-col h-[calc(100dvh-6rem)] min-h-0' : 'flex-col lg:flex-row h-[calc(100dvh-2rem)] min-h-0'}`}>
+                    <div className={`flex gap-4 ${isMobileLandscape ? 'flex-row h-[calc(100dvh-2rem)] min-h-0' : isPortrait ? 'flex-col h-[calc(100dvh-6rem)] min-h-0' : 'flex-col lg:flex-row h-[calc(100dvh-2rem)] min-h-0'}`}>
                         {/* Left: Map */}
-                        <div ref={containerRef} className={`${isMobileLandscape ? 'basis-[58%] min-h-0 h-full' : isPortrait ? 'flex-[1.2] min-h-[48svh] h-full' : 'flex-1 h-full'} border-4 border-slate-700 rounded-2xl overflow-hidden shadow-2xl relative bg-slate-800 absolute-safari-fix`}>
+                        <div ref={containerRef} className={`${isMobileLandscape ? 'basis-[58%] min-h-0 h-full' : isPortrait ? 'flex-[1.2] min-h-[48svh] h-full' : 'flex-1 h-full'} border-2 border-slate-700 rounded-2xl overflow-hidden shadow-2xl relative bg-slate-800 absolute-safari-fix`}>
                             <GoogleMap key={gameId} mapContainerClassName="google-map-container absolute inset-0" center={mapCenter} zoom={mapZoom} options={mapOptions(additionalMapOptions)} onLoad={(map) => setMainMapInstance(map)} onUnmount={() => setMainMapInstance(null)}>
                                 {parsedBoundaries.map(
                                     (boundary, index) =>
@@ -822,6 +806,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                     strokeOpacity: 0.6,
                                                     strokeWeight: 2,
                                                     clickable: false,
+                                                    geodesic: true,
                                                 }}
                                             />
                                         ),
@@ -842,7 +827,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
                             {/* Minimap */}
                             {inStreetView && !hideMiniMap && (
-                                <div className={`absolute ${isNarrow ? 'w-20 h-20 bottom-1 left-1 hover:w-28 hover:h-28' : 'w-28 h-28 bottom-6 left-6 hover:w-44 hover:h-44'} z-[500] rounded-xl overflow-hidden border-4 border-indigo-500 shadow-[0_0_20px_rgba(79,70,229,0.5)] transition-all duration-300 minimap-wrapper`}>
+                                <div style={{ transform: isFullscreen && fsPanelOpen ? `translateX(${measuredPanelWidth}px)` : undefined }} className={`absolute ${isNarrow ? 'w-20 h-20 bottom-1 left-1 hover:w-28 hover:h-28' : 'w-28 h-28 bottom-6 left-6 hover:w-44 hover:h-44'} z-[500] rounded-xl overflow-hidden border-2 border-indigo-500 shadow-[0_0_20px_rgba(79,70,229,0.5)] transition-all duration-300 minimap-wrapper duration-300 ease-out`}>
                                     <style>{`.minimap-wrapper .gmnoprint { display: none !important; }`}</style>
                                     <GoogleMap mapContainerClassName="w-full h-full" onLoad={(map) => setMinimapInstance(map)} onUnmount={() => setMinimapInstance(null)} center={lastValidPositionRef.current || mapCenter} zoom={isNarrow ? 14 : 16} options={mapOptions(additionalMiniMapOptions)} />
                                     {startingPoint !== 'open-world' && <div className="absolute inset-0 z-50 bg-transparent"></div>}
@@ -851,16 +836,75 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
                             {!isMobileLandscape && <FullscreenButton isFullscreen={isFullscreen} containerRef={containerRef} setIsFullscreen={setIsFullscreen} />}
 
-                            {inStreetView && startingPoint === 'open-world' && (
-                                <button type="button" onClick={() => streetViewRef.current?.setVisible(false)} className="absolute top-2 left-2 z-[1000] w-12 h-12 bg-red-500/30 hover:bg-red-500/80 text-white flex items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-red-400 font-bold text-2xl transition-transform hover:scale-105 active:scale-95" title="Exit Street View">
-                                    ✕
-                                </button>
+                            {isFullscreen && (
+                                <div ref={panelRef} className={`absolute z-10 top-0 left-0 bottom-0 h-full bg-slate-900/40 backdrop-blur-xs border-r border-white/10 transition-transform duration-300 ease-out ${fsPanelOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                                    <ul className={`h-full grid grid-cols-1 auto-rows-min p-1 gap-1.5 overflow-y-auto place-content-center justify-items-stretch ${fsPanelOpen ? '' : 'pointer-events-none'}`}>
+                                        {myBoard.map((cat) => {
+                                            const foundSub = mySubmissions.find((s) => s.category === cat);
+                                            const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some((s) => s.category === cat);
+                                            const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+                                            const fov = foundSub?.zoom ? 180 / Math.pow(2, foundSub.zoom) : 90;
+                                            const hint = allowHints ? getHintForCategory(cat) : null;
+                                            const isDisabled = submittingCategory === cat || !inStreetView || isBlocked;
+
+                                            let streetViewImageUrl = '';
+                                            if (foundSub) {
+                                                let safeHeading = foundSub.heading % 360;
+                                                if (safeHeading < 0) safeHeading += 360;
+                                                streetViewImageUrl = `https://maps.googleapis.com/maps/api/streetview?size=600x600&location=${foundSub.lat},${foundSub.lng}&heading=${safeHeading}&pitch=${foundSub.pitch}&fov=${fov}&key=${apiKey}`;
+                                            }
+
+                                            return (
+                                                <li
+                                                    key={cat}
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' || e.key === ' ') {
+                                                            e.preventDefault();
+                                                            if (!isDisabled) handleSubmit(cat);
+                                                        }
+                                                    }}
+                                                    onClick={() => {
+                                                        if (!isDisabled) handleSubmit(cat);
+                                                    }}
+                                                    style={{ minHeight: ROOMY_MIN, maxHeight: ROOMY_MAX }}
+                                                    className={`relative p-1 whitespace-nowrap flex items-center justify-center w-full max-w-full rounded-xl border transition-colors ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'} ${foundSub?.ai_verdict === false ? ' !border-red-500' : foundSub?.ai_verdict === true ? ' !border-green-500' : ''} ${!foundSub && !isBlocked && inStreetView ? 'cursor-pointer' : ''} ${isDisabled ? 'opacity-70' : ''}`}
+                                                >
+                                                    <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
+                                                        {foundSub && <img src={streetViewImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />}
+                                                        {foundSub && <div className="absolute inset-0 bg-black/50 z-0"></div>}
+                                                    </div>
+                                                    <div className={`relative z-10 font-bold text-center ${getAiVerdictState(foundSub) === 'rejected' ? 'text-red-400' : foundSub ? 'text-white' : isBlocked ? 'text-red-400' : 'text-slate-300'} ${getSidebarTextSizeClass()}`}>
+                                                        {cat}
+                                                        {hint && (
+                                                            <div className="mt-1 text-xs text-slate-400 font-normal">
+                                                                Hint: <em>{hint}</em>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </li>
+                                            );
+                                        })}
+                                    </ul>
+                                    <button type="button" onClick={() => setFsPanelOpen((open) => !open)} className="absolute top-1/2 left-full -translate-y-1/2 -ml-px w-5 h-14 rounded-r-lg bg-slate-900/40 backdrop-blur-sm border border-l-0 border-white/10 text-white shadow-md flex items-center justify-center" title={fsPanelOpen ? 'Hide categories' : 'Show categories'}>
+                                        <FaChevronLeft className={`transition-transform duration-300 ${fsPanelOpen ? '' : 'rotate-180'}`} size={11} />
+                                    </button>
+                                </div>
                             )}
+
+                            {inStreetView && startingPoint === 'open-world' && (
+                                <div style={isFullscreen && fsPanelOpen ? { transform: `translateX(${measuredPanelWidth}px)` } : undefined} className="absolute top-2 left-2 z-50 duration-300 ease-out">
+                                    <ExitButton onExit={() => streetViewRef.current?.setVisible(false)} />
+                                </div>
+                            )}
+
                             {startingPoint !== 'open-world' && (
                                 <button
                                     type="button"
                                     onClick={() => streetViewRef.current?.setPosition(new google.maps.LatLng(startingPoint ? JSON.parse(startingPoint) : safeStartCenter))}
-                                    className="absolute top-2 left-2 z-5 hidden sm:flex w-12 h-12 bg-slate-800/30 hover:bg-slate-700/80 text-white text-[30px] items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-slate-500 font-bold transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm"
+                                    style={{ transform: isFullscreen && fsPanelOpen ? `translateX(${measuredPanelWidth}px)` : undefined }}
+                                    className="absolute top-2 left-2 z-5 hidden sm:flex w-12 h-12 bg-slate-800/30 hover:bg-slate-700/80 text-white text-[30px] items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-slate-500 font-bold transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm duration-300 ease-out"
                                     title="Return to Starting Point"
                                 >
                                     <GoMoveToStart />
@@ -869,32 +913,42 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                         </div>
 
                         {/* Right: Checklist */}
-                        <div className={`${isMobileLandscape ? 'basis-[42%] max-w-[42%]' : `w-full ${getSidebarWidthClass()}`} flex flex-col gap-4 bg-slate-800 sm:p-6 rounded-2xl shadow-xl h-full min-h-0 border border-slate-700 overflow-hidden transition-all`}>
+                        <div className={`${isMobileLandscape ? 'basis-[42%] max-w-[42%]' : `w-full ${getSidebarWidthClass()}`} flex flex-col gap-4 bg-slate-800 sm:p-6 rounded-2xl shadow-xl h-full min-h-0 border border-2 border-slate-700 overflow-hidden transition-all`}>
                             {!isPortrait && (
                                 <div className="flex items-stretch gap-2 sm:gap-4 pb-3 border-b border-slate-700">
                                     <div className="flex items-center justify-center text-base sm:text-2xl font-black bg-slate-700 px-3 sm:px-4 rounded-lg border border-slate-600 shadow-lg tracking-wider py-1.5 sm:py-2">{timeLeft <= 60 ? <span className="text-red-500 animate-pulse">{formatTime(timeLeft)}</span> : <span className="text-white">{formatTime(timeLeft)}</span>}</div>
 
                                     <div className="ml-auto flex items-stretch justify-end gap-2">
-                                        <span className="hidden sm:flex items-center text-slate-400 font-medium text-sm">
-                                            Votes:&nbsp;
-                                            <strong className="text-white">
-                                                {readyPlayers.length} / {votesNeeded}
-                                            </strong>
-                                        </span>
+                                        {aiEndGame && !isBingoFirstWithAi && (
+                                            <button
+                                                type="button"
+                                                onClick={handleAiVerifyAndEnd}
+                                                disabled={!allCategoriesFilled || isVerifying}
+                                                title={!allCategoriesFilled ? 'Fill every category to enable AI verification' : 'Verify all categories with AI and end the round'}
+                                                className={`flex flex-col items-center justify-center whitespace-nowrap px-3 sm:px-4 rounded-lg font-bold transition-all uppercase text-[10px] sm:text-xs shadow-lg leading-tight text-center min-w-[6.5rem]
+                                                        ${!allCategoriesFilled || isVerifying ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
+                                            >
+                                                <span>{isVerifying ? 'Verifying...' : 'Verify & End'}</span>
+                                            </button>
+                                        )}
                                         <button
                                             type="button"
                                             onClick={handleVoteEndRound}
                                             disabled={hasVotedToEnd}
-                                            className={`flex items-center justify-center whitespace-nowrap px-3 sm:px-4 rounded-lg font-bold transition-all uppercase text-[10px] sm:text-xs shadow-lg
+                                            className={`flex flex-col items-center justify-center whitespace-nowrap px-3 sm:px-4 rounded-lg font-bold transition-all uppercase text-[10px] sm:text-xs shadow-lg leading-tight text-center min-w-[6.5rem] border-2
+                                                ${aiVerificationSuccess ? 'border-green-500' : 'border-transparent'}
                                                 ${hasVotedToEnd ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-red-600 hover:bg-red-500 text-white'}`}
                                         >
-                                            {hasVotedToEnd ? 'Wait...' : 'End Vote'}
+                                            <span>{hasVotedToEnd ? 'Wait...' : 'End Vote'}</span>
+                                            <span className="text-[9px] sm:text-[10px] normal-case opacity-80">
+                                                {readyPlayers.length} / {votesNeeded} voted
+                                            </span>
                                         </button>
                                     </div>
                                 </div>
                             )}
 
-                            <div className="flex justify-between items-center hidden sm:flex">
+                            <div className="flex justify-between items-center hidden sm:flex mb-2">
                                 <h2 className="text-indigo-400 font-bold text-xl tracking-wide uppercase">{gameMode === 'bingo' ? 'Bingo Board' : 'Checklist'}</h2>
                                 <span className="bg-slate-700 text-slate-300 font-bold px-3 py-1 rounded-full text-sm">
                                     {mySubmissions.length} / {myBoard.length}
@@ -902,10 +956,10 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                             </div>
 
                             {gameMode === 'list' ? (
-                                <div ref={setGridEl} className="flex-1 min-h-0 flex flex-col overflow-hidden">
-                                    {isNarrow || forceCompact ? (
+                                <div ref={setGridEl} className="flex flex-1 min-h-0 flex-col overflow-hidden">
+                                    {listLayout === 'compact' ? (
                                         // Compact List View
-                                        <ul className="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto p-2 sm:p-0">
+                                        <ul className="flex flex-col flex-1 min-h-0 overflow-y-auto p-2 sm:p-0" style={{ gap: COMPACT_GAP }}>
                                             {myBoard.map((cat) => {
                                                 const foundSub = mySubmissions.find((s) => s.category === cat);
                                                 const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some((s) => s.category === cat);
@@ -921,7 +975,11 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                 }
 
                                                 return (
-                                                    <li key={cat} className={`relative p-1.5 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 flex-1 min-h-[35px] max-h-[80px] w-full ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'}`}>
+                                                    <li
+                                                        key={cat}
+                                                        style={{ minHeight: COMPACT_MIN, maxHeight: COMPACT_MAX }}
+                                                        className={`relative p-1.5 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 flex-1 w-full ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'} ${foundSub?.ai_verdict === false ? '!border-red-500' : foundSub?.ai_verdict === true ? '!border-green-500' : ''}`}
+                                                    >
                                                         <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
                                                             {foundSub && <img src={streetViewImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />}
                                                             {foundSub && <div className="absolute inset-0 bg-black/50 z-0"></div>}
@@ -929,7 +987,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
                                                         <div className="relative z-10 flex items-center justify-between w-full h-full gap-1.5 min-w-0">
                                                             <div className="flex items-center flex-1 min-w-0 gap-1 h-full">
-                                                                <span className={`text-xs leading-tight truncate font-medium px-1 ${foundSub ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400 line-through' : 'text-white'}`}>{cat}</span>
+                                                                <span className={`text-xs leading-tight truncate font-medium px-1 ${foundSub ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400' : 'text-white'}`}>{cat}</span>
                                                                 {hint && (
                                                                     <div className="relative group flex-shrink-0 cursor-help" onClick={(e) => e.stopPropagation()}>
                                                                         <FaInfoCircle className={`transition-colors ${foundSub ? 'text-white/70 hover:text-white' : 'text-slate-400 hover:text-white'}`} size={12} />
@@ -989,8 +1047,8 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                             })}
                                         </ul>
                                     ) : (
-                                        // Regular Grid View
-                                        <ul className="categories-grid flex-1 min-h-0 overflow-y-auto p-2 sm:p-0" data-cat-rows={String(myBoard.length)}>
+                                        // Regular View
+                                        <ul className="flex flex-col flex-1 min-h-0 overflow-y-auto p-2 sm:p-0" style={{ gap: ROOMY_GAP }}>
                                             {myBoard.map((cat) => {
                                                 const foundSub = mySubmissions.find((s) => s.category === cat);
                                                 const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some((s) => s.category === cat);
@@ -1006,18 +1064,21 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                 }
 
                                                 return (
-                                                    // max-h-[140px] verhindert Hässlichkeit | flex-col justify-between = Text oben, Buttons unten
-                                                    <li key={cat} className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-between w-full h-full max-h-[140px] ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'}`}>
+                                                    <li
+                                                        key={cat}
+                                                        style={{ minHeight: ROOMY_MIN, maxHeight: ROOMY_MAX }}
+                                                        className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-between flex-1 w-full ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'} ${foundSub?.ai_verdict === false ? '!border-red-500' : foundSub?.ai_verdict === true ? '!border-green-500' : ''}`}
+                                                    >
                                                         <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
                                                             {foundSub && <img src={streetViewImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />}
                                                             {foundSub && <div className="absolute inset-0 bg-black/50 z-0"></div>}
                                                         </div>
 
-                                                        {/* OBERER TEIL: Text und Hint */}
+                                                        {/* TOP PART */}
                                                         <div className="relative z-10 flex flex-col w-full">
                                                             <div className="flex justify-between items-start w-full gap-1">
                                                                 <div className="flex items-center flex-1 min-w-0">
-                                                                    <span className={`text-sm truncate font-medium ${foundSub ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400 line-through' : 'text-white'}`}>{cat}</span>
+                                                                    <span className={`text-sm truncate font-medium pb-1 ${getAiVerdictState(foundSub) === 'rejected' ? 'text-red-400' : foundSub ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400' : 'text-white'}`}>{cat}</span>
                                                                     {hint && (
                                                                         <div className="ml-1.5 relative group flex-shrink-0 cursor-help" onClick={(e) => e.stopPropagation()}>
                                                                             <FaInfoCircle className={`transition-colors ${foundSub ? 'text-white/70 hover:text-white' : 'text-slate-400 hover:text-white'}`} size={12} />
@@ -1027,7 +1088,9 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                                         </div>
                                                                     )}
                                                                 </div>
-                                                                <span className={`text-[10px] font-bold uppercase whitespace-nowrap flex-shrink-0 ${foundSub ? 'text-green-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-500' : 'text-slate-500'}`}>{foundSub ? 'Found' : isBlocked ? 'Locked' : 'Pending'}</span>
+                                                                <span className={`text-[10px] font-bold uppercase whitespace-nowrap flex-shrink-0 ${foundSub?.ai_verdict === false ? 'text-red-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : foundSub?.ai_verdict === true ? 'text-green-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-500' : 'text-slate-500'}`}>
+                                                                    {foundSub?.ai_verdict === false ? 'AI verification failed' : foundSub?.ai_verdict === true ? 'AI verified' : foundSub ? 'Unverified' : isBlocked ? 'Locked' : 'Pending'}
+                                                                </span>
                                                             </div>
                                                         </div>
 
@@ -1082,6 +1145,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                 </div>
                             ) : (
                                 <div className={`grid gap-2 flex-1 min-h-0 overflow-y-auto pr-1 auto-rows-fr bingo-grid-${gridSize}`}>
+                                    {/* Bingo Mode Grid View */}
                                     {myBoard.map((cat) => {
                                         const foundSub = mySubmissions.find((s) => s.category === cat);
                                         const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some((s) => s.category === cat);
@@ -1089,11 +1153,16 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
                                         const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
                                         const fov = foundSub?.zoom ? 180 / Math.pow(2, foundSub.zoom) : 90;
-                                        const streetViewImageUrl = foundSub ? `https://maps.googleapis.com/maps/api/streetview?size=400x400&location=${foundSub.lat},${foundSub.lng}&heading=${foundSub.heading}&pitch=${foundSub.pitch}&fov=${fov}&key=${apiKey}` : '';
+                                        const streetViewImageUrl = foundSub ? `https://maps.googleapis.com/maps/api/streetview?size=400x400&location=${foundSub.lat},${foundSub.lng}&heading=${((foundSub.heading % 360) + 360) % 360}&pitch=${foundSub.pitch}&fov=${fov}&key=${apiKey}` : '';
 
                                         return (
-                                            <div key={cat} title={isBlocked ? 'Claimed by another team' : undefined} onClick={() => handleBingoTileClick(cat)} className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-center items-center text-center pb-2 sm:pb-12 ${foundSub ? 'text-white border-green-500 shadow-md' : isBlocked ? 'bg-slate-900/80 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700'}`}>
-                                                {/* Background Layer mit overflow hidden */}
+                                            <div
+                                                key={cat}
+                                                title={isBlocked ? 'Claimed by another team' : foundSub?.ai_verdict === false ? 'AI could not verify this category' : foundSub?.ai_verdict === true ? 'AI verified ✓' : undefined}
+                                                onClick={() => handleBingoTileClick(cat)}
+                                                className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-center items-center text-center pb-2 sm:pb-12 ${foundSub ? 'text-white border-slate-600 shadow-md' : isBlocked ? 'bg-slate-900/80 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700'} ${foundSub?.ai_verdict === false ? '!border-red-500' : foundSub?.ai_verdict === true ? '!border-green-500' : ''}`}
+                                            >
+                                                {/* Background Layer */}
                                                 <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
                                                     {foundSub && <img src={streetViewImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />}
                                                     {foundSub && <div className="absolute inset-0 bg-black/50 z-0"></div>}
@@ -1108,7 +1177,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                     </div>
                                                 )}
 
-                                                <span className={`relative z-10 ${getSidebarTextSizeClass()} font-bold leading-tight line-clamp-3 [hyphens:auto] [word-break:break-word] mt-0 sm:mt-1 ${foundSub ? 'drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400 line-through' : 'text-white'}`}>{cat}</span>
+                                                <span className={`relative z-10 ${getSidebarTextSizeClass()} font-bold leading-tight line-clamp-3 [hyphens:auto] [word-break:break-word] mt-0 sm:mt-1 ${foundSub?.ai_verdict === false ? 'text-red-400' : foundSub ? 'drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] text-white' : isBlocked ? 'text-red-400' : 'text-white'}`}>{cat}</span>
 
                                                 <div className="absolute bottom-2 w-[90%] left-[5%] h-[25%] max-h-12 hidden sm:flex flex-row justify-center gap-2 z-10">
                                                     {!foundSub ? (

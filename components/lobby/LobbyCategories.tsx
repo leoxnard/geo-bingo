@@ -12,10 +12,12 @@ Provides category editing, shuffling, and validation functionality.
 
 import React, { useState, useEffect, useRef } from 'react';
 
+import type { SupabaseClient } from '@supabase/supabase-js';
 import toast from 'react-hot-toast';
 import { CiCirclePlus, CiCircleMinus, CiCircleRemove, CiCircleCheck, CiCircleQuestion } from 'react-icons/ci';
 
 import { generateAICategories } from './AICategories';
+import { getHostToken } from '../../lib/hostToken';
 import { RangeSlider, MultiToggleButton, Selection } from '../utils/Elements';
 import { shuffle } from '../utils/Functions';
 import { useViewport } from '../utils/useViewport';
@@ -146,7 +148,7 @@ const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, o
 };
 
 interface LobbyCategoriesProps {
-    updateGameModeInfo: (updates: { game_mode?: string; team_mode?: string; grid_size?: number; starting_point?: string; gameBoundary?: string; categories?: string[]; category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView'; generation_radius?: number; generation_number?: number; difficulty?: 'default' | 'easy'; categories_generated?: boolean }) => void;
+    updateGameModeInfo: (updates: { game_mode?: string; team_mode?: string; grid_size?: number; starting_point?: string; gameBoundary?: string; categories?: string[]; category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView'; generation_radius?: number; generation_number?: number; difficulty?: 'default' | 'easy'; categories_generated?: boolean; language?: 'english' | 'german' }) => void;
     isHost: boolean;
     gameMode: 'list' | 'bingo';
     language: 'english' | 'german';
@@ -154,8 +156,9 @@ interface LobbyCategoriesProps {
     categories: string[];
     suggestedCategories: string[];
     gameId: string;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    supabase: any;
+    gameHostId: string;
+    playerId: string;
+    supabase: SupabaseClient;
     maxGridSize: number;
     startingPoint: string;
     categorySource: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
@@ -167,9 +170,8 @@ interface LobbyCategoriesProps {
     categoriesGenerated: boolean;
 }
 
-export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, language, gridSize, categories, suggestedCategories, gameId, supabase, maxGridSize, startingPoint, categorySource, aiEnabled, isDeveloper, generationRadius, generationNumber, difficulty, categoriesGenerated }: LobbyCategoriesProps) {
+export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, language, gridSize, categories, suggestedCategories, gameId, playerId, supabase, maxGridSize, startingPoint, categorySource, aiEnabled, isDeveloper, generationRadius, generationNumber, difficulty, categoriesGenerated }: LobbyCategoriesProps) {
     const [newCategory, setNewCategory] = useState('');
-    const [randomNumber, setRandomNumber] = useState<number | ''>(10);
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [localRadius, setLocalRadius] = useState(generationRadius);
     const [localGenerationNumber, setLocalGenerationNumber] = useState(generationNumber);
@@ -345,17 +347,13 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
         }
     };
 
-    const addEmptyCategories = () => {
-        const count = Number(randomNumber) || 1;
-        const updated = [...localCategories];
-        for (let i = 0; i < count; i++) {
-            if (gameMode === 'bingo' && updated.length >= gridSize * gridSize) {
-                toast.error(`Bingo limit reached (${gridSize * gridSize})!`);
-                break;
-            }
-            updated.push('');
-        }
-        queueDBSave(updated);
+    const minusOneListCategory = () => {
+        if (localCategories.length <= 0) return;
+        queueDBSave(localCategories.slice(0, -1));
+    };
+
+    const plusOneListCategory = () => {
+        queueDBSave([...localCategories, '']);
     };
 
     const fillUpRandom = async () => {
@@ -421,15 +419,15 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                 toast.error('This category already exists!');
                 return;
             }
-            const { data } = await supabase.from('games').select('suggested_categories').eq('id', gameId).single();
-            const currentSuggestions = data?.suggested_categories || [];
-
-            if (currentSuggestions.some((c: string) => c.toLowerCase() === trimmedCat.toLowerCase())) {
-                toast.error('This category was already suggested!');
+            // player_suggest_category does case-insensitive dedup against
+            // suggested_categories server-side, so we only need to filter
+            // the current categories list locally.
+            const { data, error } = await supabase.rpc('player_suggest_category', { p_game_id: gameId, p_player_id: playerId, p_category: trimmedCat });
+            if (error || (data && data.success === false)) {
+                if (data?.error === 'ALREADY_SUGGESTED') toast.error('This category was already suggested!');
+                else toast.error('Failed to send suggestion.');
                 return;
             }
-            const updatedSuggestions = [...currentSuggestions, trimmedCat];
-            await supabase.from('games').update({ suggested_categories: updatedSuggestions }).eq('id', gameId);
             setNewCategory('');
             toast.success('Suggestion sent to the host!');
         }
@@ -467,15 +465,13 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
         isPendingSyncRef.current = true;
         setLocalCategories(updatedCategories);
 
-        const { error } = await supabase
-            .from('games')
-            .update({
-                categories: updatedCategories,
-                suggested_categories: updatedSug,
-            })
-            .eq('id', gameId);
+        const { data, error } = await supabase.rpc('update_game_settings', {
+            p_game_id: gameId,
+            p_host_id: getHostToken(gameId),
+            p_patch: { categories: updatedCategories, suggested_categories: updatedSug },
+        });
 
-        if (error) {
+        if (error || (data && data.success === false)) {
             toast.error('Error saving suggestion');
         } else {
             setTimeout(() => {
@@ -487,7 +483,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
     const rejectSuggestion = async (cat: string) => {
         if (!isHost) return;
         const updatedSug = suggestedCategories.filter((c) => c !== cat);
-        await supabase.from('games').update({ suggested_categories: updatedSug }).eq('id', gameId);
+        await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_patch: { suggested_categories: updatedSug } });
     };
 
     const minusOneGridSize = () => {
@@ -504,84 +500,90 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
 
     return (
         <div className="bg-slate-800 p-6 rounded-xl flex-1 border border-slate-700 h-fit">
-            {categoriesGenerated === false && (
+            <div className="pb-3">
+                <label className="flex justify-between font-bold mb-2 text-xl text-slate-300">
+                    <span>Category Language</span>
+                </label>
+                <select title="Category Language" value={language} onChange={(e) => updateGameModeInfo({ language: e.target.value as 'english' | 'german' })} disabled={!isHost} className="h-[42px] px-3 w-full rounded-lg bg-slate-900 border border-slate-600 text-sm text-white cursor-pointer transition-colors focus:outline-none focus:border-indigo-500 hover:border-slate-500 disabled:opacity-50">
+                    <option value="german">German</option>
+                    <option value="english">English</option>
+                </select>
+            </div>
+
+            {aiEnabled && (
+                <MultiToggleButton
+                    title="Category Source"
+                    options={[
+                        { value: 'manual', label: 'Manual' },
+                        { value: 'ai', label: 'AI Generator (Beta)' },
+                        { value: 'nearbyPlaces', label: 'Nearby Places (Beta)' },
+                        { value: 'nearbyStreetView', label: isNarrow ? 'Street View' : 'Nearby Street View Features (Beta)' },
+                    ]}
+                    activeValue={categorySource}
+                    onChange={handleCategorySourceChange}
+                    disabled={!isHost}
+                    allowedValues={startingPoint === 'open-world' ? ['manual', 'ai'] : undefined}
+                    isHost={isHost}
+                    position="top"
+                    columns={2}
+                    sizeRatios={[1, 1.5, 1.5, 2.5]}
+                    description={
+                        categorySource === 'manual'
+                            ? 'Players submit categories manually.'
+                            : categorySource === 'ai'
+                                ? 'Generate categories using AI with custom prompts or random themes. Categories appear immediately for editing.'
+                                : categorySource === 'nearbyPlaces'
+                                    ? 'Categories will be auto-generated by AI based on nearby points of interest. They remain hidden until the game starts!'
+                                    : categorySource === 'nearbyStreetView'
+                                        ? 'Categories will be auto-generated by AI based on nearby Street View features. They remain hidden until the game starts!'
+                                        : 'Generate categories using AI with custom prompts or random themes. Categories appear immediately for editing.'
+                    }
+                />
+            )}
+
+            {categorySource === 'ai' && (
+                <div className="py-3 border-t border-slate-700">
+                    <label className="flex justify-between font-bold mb-2 text-xl text-slate-300">Custom Prompt (Optional)</label>
+                    <textarea
+                        value={customPrompt}
+                        onChange={(e) => setCustomPrompt(e.target.value)}
+                        placeholder={isHost ? "Enter a theme like 'car brands', 'construction elements', or 'vintage signs'. Leave empty for random categories." : 'Waiting for host to generate categories...'}
+                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                        rows={2}
+                        disabled={!isHost || isGenerating}
+                    />
+                </div>
+            )}
+
+            {categorySource !== 'manual' && (
                 <>
-                    {aiEnabled && (
-                        <MultiToggleButton
-                            title="Category Source"
-                            options={[
-                                { value: 'manual', label: 'Manual' },
-                                { value: 'ai', label: 'AI Generator' },
-                                { value: 'nearbyPlaces', label: 'Nearby Places' },
-                                { value: 'nearbyStreetView', label: isNarrow ? 'Street View' : 'Nearby Street View Features' },
-                            ]}
-                            activeValue={categorySource}
-                            onChange={handleCategorySourceChange}
-                            disabled={!isHost}
-                            allowedValues={startingPoint === 'open-world' ? ['manual', 'ai'] : undefined}
-                            isHost={isHost}
-                            position="top"
-                            columns={2}
-                            sizeRatios={[1, 1.5, 1.5, 2.5]}
-                            description={
-                                categorySource === 'manual'
-                                    ? 'Players submit categories manually.'
-                                    : categorySource === 'ai'
-                                        ? 'Generate categories using AI with custom prompts or random themes. Categories appear immediately for editing.'
-                                        : categorySource === 'nearbyPlaces'
-                                            ? 'Categories will be auto-generated by AI based on nearby points of interest. They remain hidden until the game starts!'
-                                            : categorySource === 'nearbyStreetView'
-                                                ? 'Categories will be auto-generated by AI based on nearby Street View features. They remain hidden until the game starts!'
-                                                : 'Generate categories using AI with custom prompts or random themes. Categories appear immediately for editing.'
-                            }
-                        />
-                    )}
-
-                    {categorySource === 'ai' && (
-                        <div className="py-3 border-t border-slate-700">
-                            <label className="flex justify-between font-bold mb-2 text-xl text-slate-300">Custom Prompt (Optional)</label>
-                            <textarea
-                                value={customPrompt}
-                                onChange={(e) => setCustomPrompt(e.target.value)}
-                                placeholder={isHost ? "Enter a theme like 'car brands', 'construction elements', or 'vintage signs'. Leave empty for random categories." : 'Waiting for host to generate categories...'}
-                                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
-                                rows={2}
-                                disabled={!isHost || isGenerating}
-                            />
-                        </div>
-                    )}
-
-                    {categorySource !== 'manual' && (
-                        <>
-                            <MultiToggleButton
-                                title="Difficulty"
-                                options={[
-                                    { value: 'default', label: 'Default' },
-                                    { value: 'easy', label: 'Easy' },
-                                ]}
-                                activeValue={difficulty}
-                                onChange={(val) => updateGameModeInfo({ difficulty: val })}
-                                disabled={!isHost}
-                                sizeRatios={[1, 1]}
-                                isHost={isHost}
-                                description={difficulty === 'default' ? 'AI will generate more specific categories. Good for smaller radii and urban areas.' : 'AI will generate more general categories. Better for larger radii.'}
-                            />
-                            {gameMode === 'list' ? <RangeSlider title="Number of Categories" min={1} max={25} value={localGenerationNumber} disabled={!isHost} onChange={(val) => setLocalGenerationNumber(val)} onCommit={handleCommit} /> : <RangeSlider title="Grid Size" min={1} max={6} value={localGridSize} disabled={!isHost} onChange={(val) => setLocalGridSize(val)} onCommit={handleCommit} />}
-                        </>
-                    )}
-
-                    {(categorySource === 'nearbyPlaces' || categorySource === 'nearbyStreetView') && (
-                        <RangeSlider title="POI Radius" min={1} max={50} minLabel="100m" maxLabel="10km" value={localRadius} disabled={!isHost} displayValue={localRadius >= 10 ? `${(localRadius / 10).toFixed(1)} km` : `${localRadius * 100} m`} onChange={(val) => setLocalRadius(val)} onCommit={handleCommit} position="bottom" description="Only POIs within this radius from the starting point will be considered for category generation." />
-                    )}
-
-                    {categorySource === 'ai' && isHost && (
-                        <div className="flex items-center justify-center pt-3">
-                            <button onClick={handleAIGeneration} disabled={!isHost || isGenerating} className={`px-4 py-2 rounded-lg font-medium transition-all ${isGenerating ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-green-700 text-white hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-green-500'}`}>
-                                {isGenerating ? 'Generating...' : 'Generate Categories'}
-                            </button>
-                        </div>
-                    )}
+                    <MultiToggleButton
+                        title="Difficulty"
+                        options={[
+                            { value: 'default', label: 'Default' },
+                            { value: 'easy', label: 'Easy' },
+                        ]}
+                        activeValue={difficulty}
+                        onChange={(val) => updateGameModeInfo({ difficulty: val })}
+                        disabled={!isHost}
+                        sizeRatios={[1, 1]}
+                        isHost={isHost}
+                        description={difficulty === 'default' ? 'AI will generate more specific categories. Good for smaller radii and urban areas.' : 'AI will generate more general categories. Better for larger radii.'}
+                    />
+                    {gameMode === 'list' ? <RangeSlider title="Number of Categories" min={1} max={25} value={localGenerationNumber} disabled={!isHost} onChange={(val) => setLocalGenerationNumber(val)} onCommit={handleCommit} /> : <RangeSlider title="Grid Size" min={1} max={6} value={localGridSize} disabled={!isHost} onChange={(val) => setLocalGridSize(val)} onCommit={handleCommit} />}
                 </>
+            )}
+
+            {(categorySource === 'nearbyPlaces' || categorySource === 'nearbyStreetView') && (
+                <RangeSlider title="POI Radius" min={1} max={50} minLabel="100m" maxLabel="10km" value={localRadius} disabled={!isHost} displayValue={localRadius >= 10 ? `${(localRadius / 10).toFixed(1)} km` : `${localRadius * 100} m`} onChange={(val) => setLocalRadius(val)} onCommit={handleCommit} position="bottom" description="Only POIs within this radius from the starting point will be considered for category generation." />
+            )}
+
+            {categorySource === 'ai' && isHost && (
+                <div className="flex items-center justify-center pt-3">
+                    <button onClick={handleAIGeneration} disabled={!isHost || isGenerating} className={`px-4 py-2 rounded-lg font-medium transition-all ${isGenerating ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-green-700 text-white hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-green-500'}`}>
+                        {isGenerating ? 'Generating...' : 'Generate Categories'}
+                    </button>
+                </div>
             )}
 
             {(categorySource === 'manual' || (categorySource === 'ai' && categoriesGenerated)) && (
@@ -598,12 +600,12 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                         </div>
                     </h3>
 
-                    {gameMode === 'bingo' && isHost && (
+                    {isHost && (
                         <div className="grid grid-cols-2 gap-3 mb-4">
-                            <button title="a" type="button" onClick={minusOneGridSize} disabled={gridSize <= 2} className="flex items-center justify-center p-2 rounded-lg border border-dashed text-indigo-400 border-indigo-700 disabled:border-slate-600 disabled:text-slate-500 disabled:bg-slate-800 hover:bg-slate-700/20 transition-colors">
+                            <button title="Remove" type="button" onClick={gameMode === 'bingo' ? minusOneGridSize : minusOneListCategory} disabled={gameMode === 'bingo' ? gridSize <= 2 : localCategories.length <= 0} className="flex items-center justify-center p-2 rounded-lg border border-dashed text-indigo-400 border-indigo-700 disabled:border-slate-600 disabled:text-slate-500 disabled:bg-slate-800 hover:bg-slate-700/20 transition-colors">
                                 <CiCircleMinus size={24} />
                             </button>
-                            <button title="b" type="button" onClick={plusOneGridSize} disabled={gridSize >= maxGridSize} className="flex items-center justify-center p-2 rounded-lg border border-dashed text-indigo-400 border-indigo-700 disabled:border-slate-600 disabled:text-slate-500 disabled:bg-slate-800 hover:bg-slate-700/20 transition-colors">
+                            <button title="Add" type="button" onClick={gameMode === 'bingo' ? plusOneGridSize : plusOneListCategory} disabled={gameMode === 'bingo' && gridSize >= maxGridSize} className="flex items-center justify-center p-2 rounded-lg border border-dashed text-indigo-400 border-indigo-700 disabled:border-slate-600 disabled:text-slate-500 disabled:bg-slate-800 hover:bg-slate-700/20 transition-colors">
                                 <CiCirclePlus size={24} />
                             </button>
                         </div>
@@ -630,14 +632,6 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                             )}
 
                             <div className="flex flex-wrap gap-2 items-end mt-2">
-                                {gameMode === 'list' && (
-                                    <div className="flex gap-2 items-stretch shrink-0">
-                                        <input type="number" min="1" value={randomNumber} onChange={(e) => setRandomNumber(e.target.value === '' ? '' : Number(e.target.value))} className="w-20 p-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-center font-bold outline-none focus:border-indigo-500 h-[42px]" title="Amount" />
-                                        <button type="button" onClick={addEmptyCategories} className="bg-slate-700 hover:bg-slate-600 text-white px-4 rounded-lg font-bold transition-colors whitespace-nowrap shadow-sm h-[42px]">
-                                            + Add Empty
-                                        </button>
-                                    </div>
-                                )}
                                 <div className="flex flex-1 gap-2 items-end justify-end min-w-[300px]">
                                     <Selection
                                         title="Database"

@@ -49,3 +49,5 @@ build
 .vscode
 *ignore.*
 data/
+.claude/
+.hintrc

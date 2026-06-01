@@ -8,14 +8,14 @@ Finds interesting visual elements and landmarks within game area.
 ================================================================================
 */
 
+import { callGemini } from '../utils/geminiClient';
 import { BingoCategory } from '../utils/types';
 import { getPromptForStreetViewCategories } from './prompts/StreetViewPrompts';
 
 export const generateNearbyStreetViewCategories = async (startPos: { lat: number; lng: number }, radius: number, requiredCount: number, difficulty: 'default' | 'easy', language: string): Promise<BingoCategory[]> => {
     try {
         const googleApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-        const geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-        if (!googleApiKey || !geminiApiKey) throw new Error('API Keys missing!');
+        if (!googleApiKey) throw new Error('API Keys missing!');
 
         const radiusMeters = radius * 100;
 
@@ -117,15 +117,11 @@ export const generateNearbyStreetViewCategories = async (startPos: { lat: number
 
         while (currentModelIndex < geminiModels.length) {
             try {
-                aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModels[currentModelIndex]}:generateContent?key=${geminiApiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts }],
-                        generationConfig: {
-                            responseMimeType: 'application/json',
-                        },
-                    }),
+                aiResponse = await callGemini(geminiModels[currentModelIndex], {
+                    contents: [{ parts }],
+                    generationConfig: {
+                        responseMimeType: 'application/json',
+                    },
                 });
 
                 if (!aiResponse.ok) throw new Error('API Error');

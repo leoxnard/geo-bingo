@@ -21,11 +21,32 @@ export default function Impressum() {
                     </div>
                 </div>
 
+                <div>
+                    <h2 className="font-semibold text-lg text-slate-200 mt-2">Hosting</h2>
+                    <p className="text-slate-300 text-sm">This website is hosted by Vercel Inc., 340 S Lemon Ave #4133, Walnut, CA 91789, USA.</p>
+                </div>
+
+                <div>
+                    <h2 className="font-semibold text-lg text-slate-200 mt-2">Data Protection</h2>
+                    <p className="text-slate-300 text-sm">
+                        See our{' '}
+                        <Link href="/privacy" className="text-indigo-400 hover:text-indigo-300 transition-colors underline">
+                            Privacy Policy
+                        </Link>{' '}
+                        for how personal data is processed.
+                    </p>
+                </div>
+
                 <div className="w-full h-px bg-slate-700 my-2"></div>
 
-                <Link href="/" className="text-center text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-widest text-sm font-bold">
-                    Back to Home
-                </Link>
+                <div className="flex items-center justify-center gap-6">
+                    <Link href="/" className="text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-widest text-sm font-bold">
+                        Back to Home
+                    </Link>
+                    <Link href="/privacy" className="text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-widest text-sm font-bold">
+                        Privacy
+                    </Link>
+                </div>
             </div>
         </main>
     );

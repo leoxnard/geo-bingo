@@ -18,17 +18,11 @@ import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { GeoBingoLogo } from './utils/Elements';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES } from './utils/mapUtils';
-import { VotingViewProps, Submission } from './utils/types';
+import { VotingViewProps, Submission, PathPoint } from './utils/types';
 import { useViewport } from './utils/useViewport';
+import { VotingPanel } from './voting/VotingPanel';
 
-const ENABLE_PRELOADING = false;
 const MAX_ANIMATION_DURATION = 8000;
-
-type PathPoint = {
-    lat: number;
-    lng: number;
-    timestamp: number;
-};
 
 interface PlayerWithPaths {
     id: string;
@@ -71,7 +65,6 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
     const [isPaused, setIsPaused] = useState(false);
     const [isLineComplete, setIsLineComplete] = useState(false);
-    const [isPreloading, setIsPreloading] = useState(ENABLE_PRELOADING);
 
     const [activeSubmission, setActiveSubmission] = useState<Submission | null>(null);
     const [lastActiveSub, setLastActiveSub] = useState<Submission | null>(null);
@@ -260,7 +253,6 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                 },
             )
             .on('broadcast', { event: 'next_player' }, (payload) => {
-                setIsPreloading(ENABLE_PRELOADING);
                 setActiveSubmission(null);
                 setIsPaused(false);
                 setIsLineComplete(false);
@@ -272,15 +264,18 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
                 setCurrentPlayerIndex(payload.payload.index);
             })
-            .on('broadcast', { event: 'finish_game' }, () => {
-                onFinishGame();
-            })
             .subscribe();
+        // NOTE: a previous 'finish_game' broadcast handler also called
+        // onFinishGame() here. That duplicated the host's DB write across
+        // every receiver, which now fails under the host-only set_game_status
+        // RPC. The page-level games subscription already picks up the host's
+        // status='finished' update and re-renders to PodiumView, so the
+        // broadcast handler is redundant and was removed.
 
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [gameId, onFinishGame]);
+    }, [gameId]);
 
     // Path Calculations
     const pathData = useMemo(() => {
@@ -327,16 +322,10 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
             }
         };
 
-        if (isPreloading && ENABLE_PRELOADING) {
-            initMap();
-            const timer = setTimeout(() => {
-                setIsPreloading(false);
-            }, 1000);
-            return () => clearTimeout(timer);
-        } else if (!ENABLE_PRELOADING && animationProgressRef.current === 0) {
+        if (animationProgressRef.current === 0) {
             initMap();
         }
-    }, [mapInstance, pathData, isPreloading]);
+    }, [mapInstance, pathData]);
 
     const calculatedDuration = useMemo(() => {
         if (!pathData) return MAX_ANIMATION_DURATION;
@@ -348,7 +337,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
     // Animation Loop
     useEffect(() => {
-        if (!mapInstance || isPaused || isLineComplete || !pathData || pathData.rawPath.length === 0 || isPreloading) return;
+        if (!mapInstance || isPaused || isLineComplete || !pathData || pathData.rawPath.length === 0) return;
 
         lastTimeRef.current = performance.now();
 
@@ -447,7 +436,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
         rAFRef.current = requestAnimationFrame(animate);
         return () => cancelAnimationFrame(rAFRef.current);
-    }, [isPaused, isLineComplete, mapInstance, pathData, isPreloading, calculatedDuration, isNarrow]);
+    }, [isPaused, isLineComplete, mapInstance, pathData, calculatedDuration, isNarrow]);
 
     //
     useEffect(() => {
@@ -490,7 +479,6 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         if (currentPlayerIndex < playersWithPaths.length - 1) {
             const nextIndex = currentPlayerIndex + 1;
 
-            setIsPreloading(ENABLE_PRELOADING);
             setActiveSubmission(null);
             setIsPaused(false);
             setIsLineComplete(false);
@@ -788,8 +776,6 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         );
     }
 
-    const preloadMarkerPos = pathData?.rawPath.length > 0 ? pathData.rawPath[0] : dummyPos;
-
     const yesVotes = activeSubLatest ? Object.values(activeSubLatest.votes || {}).filter((v) => v === true).length : 0;
     const noVotes = activeSubLatest ? Object.values(activeSubLatest.votes || {}).filter((v) => v === false).length : 0;
 
@@ -824,7 +810,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
                     {!isLineComplete && (
                         <MarkerF
-                            position={isPreloading ? preloadMarkerPos : dummyPos}
+                            position={dummyPos}
                             onLoad={(m) => (markerRef.current = m)}
                             icon={{
                                 path: window.google.maps.SymbolPath.CIRCLE,
@@ -898,20 +884,20 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                         </div>
                     </div>
 
-                    {isHost && (
-                        <button type="button" onClick={handleSkipToPodium} className="pointer-events-auto font-bold px-6 py-3 rounded-xl shadow-[0_0_20px_rgba(34,197,94,0.3)] transition-all bg-green-600 hover:bg-green-500 text-white border border-green-400">
+                    {isHost && currentPlayerIndex < playersWithPaths.length - 1 && (
+                        <button type="button" onClick={handleSkipToPodium} className="pointer-events-auto font-bold px-6 py-3 rounded-xl shadow-[0_0_20px_rgba(34,197,94,0.3)] transition-all bg-red-600 hover:bg-red-500 text-white border border-red-400">
                             Skip
                         </button>
                     )}
                 </div>
 
-                {isLineComplete && !activeSubLatest && !isPreloading && (
+                {isLineComplete && !activeSubLatest && (
                     <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-800/95 backdrop-blur p-6 rounded-2xl border-2 border-indigo-500 shadow-[0_0_50px_rgba(79,70,229,0.4)] w-[350px] text-center animate-in zoom-in-90 duration-300">
                         <h2 className="text-2xl font-black uppercase text-indigo-400 mb-2">{currentPlayer?.name}'s Journey</h2>
                         <p className="text-slate-300 font-medium mb-6">Complete.</p>
 
                         {isHost ? (
-                            <button type="button" onClick={handleNextPlayer} className="w-full py-3 rounded-xl font-black uppercase text-sm border bg-green-600 hover:bg-green-500 text-white border-green-400 transition-all shadow-[0_0_15px_rgba(34,197,94,0.5)]">
+                            <button type="button" onClick={handleNextPlayer} className="w-full py-3 rounded-xl font-black uppercase text-sm border bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-400 transition-all shadow-[0_0_15px_rgba(79,70,229,0.4)]">
                                 {currentPlayerIndex < playersWithPaths.length - 1 ? 'Next Player' : 'Show Podium'}
                             </button>
                         ) : (
@@ -990,58 +976,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
                     <div className="w-full bg-slate-900/95 backdrop-blur-xl border-t border-indigo-500/50 p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-20">
                         {displaySub && !selectedSubmission && !selectedFinalMarker ? (
-                            <div className="max-w-xl mx-auto">
-                                <h3 className="text-2xl font-black text-white mb-1 text-center truncate">{displaySub?.category}</h3>
-                                <p className="text-sm text-indigo-300 mb-4 text-center uppercase tracking-widest font-semibold">{votingStats.eligibleCount === 0 && activeSubLatest ? 'Single Player Vote - No votes needed' : votingStats.isComplete ? 'Voting Complete - Continuing...' : `Awaiting Votes... (${votingStats.cast}/${votingStats.eligibleCount})`}</p>
-
-                                <div className="flex gap-4">
-                                    {(() => {
-                                        if (votingStats.isComplete) {
-                                            return (
-                                                <div className="flex-1 py-4 text-center text-green-400 font-bold uppercase border border-green-700 rounded-xl bg-green-900/30">
-                                                    Voting Complete <br />
-                                                    <span className="text-sm text-green-300/80 normal-case mt-1 inline-block">
-                                                        ({yesVotes} Y / {noVotes} N)
-                                                    </span>
-                                                </div>
-                                            );
-                                        }
-
-                                        const subPlayerTeam = players.find((p) => p.id === activeSubLatest?.player_id)?.team;
-                                        const myTeam = players.find((p) => p.id === playerId)?.team;
-                                        const isMySubmission = playerId === activeSubLatest?.player_id;
-                                        const isMyTeamSubmission = teamMode === 'teams' && subPlayerTeam !== undefined && subPlayerTeam === myTeam;
-
-                                        if (isMySubmission || isMyTeamSubmission) {
-                                            return (
-                                                <div className="flex-1 py-4 text-center text-slate-400 font-bold uppercase border border-slate-700 rounded-xl bg-slate-900/50">
-                                                    {isMySubmission ? 'Your Submission' : 'Team Submission'} <br />
-                                                    <span className="text-sm text-slate-500 normal-case mt-1 inline-block">
-                                                        Y: {yesVotes} | N: {noVotes}
-                                                    </span>
-                                                </div>
-                                            );
-                                        }
-
-                                        return (
-                                            <>
-                                                <div className="flex-1 flex flex-col gap-2">
-                                                    <button type="button" onClick={() => activeSubLatest && handleVote(activeSubLatest, true)} className={`w-full py-4 rounded-xl font-black uppercase text-lg border transition-all ${activeSubLatest?.votes?.[playerId] === true ? 'bg-green-600 border-green-400 text-white shadow-[0_0_15px_rgba(34,197,94,0.5)]' : 'bg-slate-800 border-slate-600 text-slate-300 hover:border-green-500 hover:text-green-500 hover:bg-green-900/30'}`}>
-                                                        Yes
-                                                    </button>
-                                                    <div className="text-center text-green-400 font-bold text-sm tracking-wide">{yesVotes} Votes</div>
-                                                </div>
-                                                <div className="flex-1 flex flex-col gap-2">
-                                                    <button type="button" onClick={() => activeSubLatest && handleVote(activeSubLatest, false)} className={`w-full py-4 rounded-xl font-black uppercase text-lg border transition-all ${activeSubLatest?.votes?.[playerId] === false ? 'bg-red-600 border-red-400 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'bg-slate-800 border-slate-600 text-slate-300 hover:border-red-500 hover:text-red-500 hover:bg-red-900/30'}`}>
-                                                        No
-                                                    </button>
-                                                    <div className="text-center text-red-400 font-bold text-sm tracking-wide">{noVotes} Votes</div>
-                                                </div>
-                                            </>
-                                        );
-                                    })()}
-                                </div>
-                            </div>
+                            <VotingPanel displaySub={displaySub} activeSubLatest={activeSubLatest} votingStats={votingStats} yesVotes={yesVotes} noVotes={noVotes} players={players} playerId={playerId} teamMode={teamMode} onVote={handleVote} />
                         ) : selectedSubmission ? (
                             <div className="max-w-xl mx-auto">
                                 <h3 className="text-xl sm:text-2xl font-black text-white mb-1 text-center truncate">{selectedSubmission.category}</h3>

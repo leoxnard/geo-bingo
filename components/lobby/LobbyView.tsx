@@ -13,6 +13,8 @@ Handles game state synchronization and start game functionality.
 import { useState, useEffect } from 'react';
 
 import { useJsApiLoader } from '@react-google-maps/api';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import Image from 'next/image';
 import toast from 'react-hot-toast';
 
@@ -22,6 +24,7 @@ import LobbySettings from './LobbySettings';
 import LobbySidebar from './LobbySidebar';
 import { generateNearbyPlaceCategories } from './NearbyPlaceCategories';
 import { generateNearbyStreetViewCategories } from './NearbyStreetViewCategories';
+import { getHostToken } from '../../lib/hostToken';
 import { isLocationAllowed } from '../utils/mapUtils';
 
 interface Player {
@@ -40,8 +43,7 @@ interface LobbyViewProps {
     startingPoint: string;
     endCondition: 'first_bingo' | 'timer';
     gameBoundary: string;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    updateGameModeInfo: (updates: any) => void;
+    updateGameModeInfo: (updates: Record<string, unknown>) => void;
     isHost: boolean;
     gridSize: number;
     timeLimit: number;
@@ -56,14 +58,13 @@ interface LobbyViewProps {
     makeHost: (id: string) => void;
     kickPlayer: (id: string) => void;
     banPlayer: (id: string) => void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    router: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    supabase: any;
+    router: AppRouterInstance;
+    supabase: SupabaseClient;
     updateStatus: (nextStatus: GameStatus) => Promise<void>;
     setPlayers: (players: Player[] | ((prev: Player[]) => Player[])) => void;
     hideMapSymbols: boolean;
     hideMiniMap: boolean;
+    aiEndGame: boolean;
     categorySource: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
     aiEnabled: boolean;
     isDeveloper: boolean;
@@ -72,6 +73,7 @@ interface LobbyViewProps {
     language: 'english' | 'german';
     difficulty: 'default' | 'easy';
     categoriesGenerated: boolean;
+    notifyGameEvent?: (event: 'ai_end_game' | 'ai_generating_categories', payload: { player_id: string }) => void;
 }
 
 export default function LobbyView(props: LobbyViewProps) {
@@ -113,9 +115,11 @@ export default function LobbyView(props: LobbyViewProps) {
         }
 
         try {
-            const { error } = await props.supabase.from('players').update({ path: [] }).eq('game_id', props.gameId);
-
-            if (error) console.error('Error clearing player paths on game start:', error);
+            // Bulk reset paths via per-player update_player. Players in this
+            // game are already in props.players from the parent's realtime sub.
+            const results = await Promise.all(props.players.map((p) => props.supabase.rpc('update_player', { p_id: p.id, p_patch: { path: [] } })));
+            const failure = results.find((r) => r.error);
+            if (failure?.error) console.error('Error clearing player paths on game start:', failure.error);
         } catch (err) {
             console.error('Unexpected error while clearing paths:', err);
         }
@@ -129,6 +133,7 @@ export default function LobbyView(props: LobbyViewProps) {
                 localStorage.setItem('geoBingoPromptCount', (currentCount + 1).toString());
             }
 
+            props.notifyGameEvent?.('ai_generating_categories', { player_id: props.playerId });
             setIsGenerating(true);
 
             try {
@@ -144,15 +149,14 @@ export default function LobbyView(props: LobbyViewProps) {
 
                         const simpleCategoryNames = complexResult.map((cat) => cat.categoryName);
 
-                        const { error: dbError } = await props.supabase
-                            .from('games')
-                            .update({
-                                categories: simpleCategoryNames,
-                                category_details: complexResult,
-                            })
-                            .eq('id', props.gameId);
+                        const { data: rpcData, error: dbError } = await props.supabase.rpc('update_game_settings', {
+                            p_game_id: props.gameId,
+                            p_host_id: getHostToken(props.gameId),
+                            p_patch: { categories: simpleCategoryNames, category_details: complexResult },
+                        });
 
                         if (dbError) throw new Error(dbError.message);
+                        if (rpcData && rpcData.success === false) throw new Error(rpcData.error || 'Failed to save generated categories');
 
                         return simpleCategoryNames;
                     })(),
@@ -191,8 +195,12 @@ export default function LobbyView(props: LobbyViewProps) {
         if (props.gameMode === 'bingo') {
             try {
                 const board = finalCategories.slice(0, neededCount);
-                const { error } = await props.supabase.from('players').update({ bingo_board: board }).eq('game_id', props.gameId);
-                if (error) throw error;
+                // Shared-board mode: every player gets the same board, written
+                // one rpc per row since direct bulk UPDATE on players is the
+                // policy we want to lock down.
+                const results = await Promise.all(props.players.map((p) => props.supabase.rpc('update_player', { p_id: p.id, p_patch: { bingo_board: board } })));
+                const failure = results.find((r) => r.error);
+                if (failure?.error) throw failure.error;
             } catch (err) {
                 const errorMessage = err instanceof Error ? err.message : 'Unknown database error';
                 toast.error(`Board Generation Failed: ${errorMessage}`);
@@ -200,7 +208,7 @@ export default function LobbyView(props: LobbyViewProps) {
             }
         } else {
             try {
-                const { error } = await props.supabase.from('games').update({ categories: finalCategories }).eq('id', props.gameId);
+                const { error } = await props.supabase.rpc('update_game_settings', { p_game_id: props.gameId, p_host_id: getHostToken(props.gameId), p_patch: { categories: finalCategories } });
                 if (error) throw error;
             } catch (err) {
                 const errorMessage = err instanceof Error ? err.message : 'Unknown database error';
@@ -245,6 +253,8 @@ export default function LobbyView(props: LobbyViewProps) {
                         categories={props.categories}
                         suggestedCategories={props.suggestedCategories}
                         gameId={props.gameId}
+                        gameHostId={props.gameHostId}
+                        playerId={props.playerId}
                         supabase={props.supabase}
                         maxGridSize={MAXGRIDSIZE}
                         startingPoint={props.startingPoint}
@@ -260,7 +270,6 @@ export default function LobbyView(props: LobbyViewProps) {
 
                 <LobbySidebar
                     gameId={props.gameId}
-                    language={props.language}
                     players={props.players}
                     onlinePlayers={props.onlinePlayers}
                     playerId={props.playerId}
@@ -277,6 +286,7 @@ export default function LobbyView(props: LobbyViewProps) {
                     setPlayers={props.setPlayers}
                     hideMapSymbols={props.hideMapSymbols}
                     hideMiniMap={props.hideMiniMap}
+                    aiEndGame={props.aiEndGame}
                     updateGameModeInfo={props.updateGameModeInfo}
                     categorySource={props.categorySource}
                     isGenerating={isGenerating}
