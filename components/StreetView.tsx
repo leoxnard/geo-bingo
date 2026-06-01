@@ -807,7 +807,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                             {!isMobileLandscape && <FullscreenButton isFullscreen={isFullscreen} containerRef={containerRef} setIsFullscreen={setIsFullscreen} />}
 
                             {isFullscreen && (
-                                <div ref={panelRef} className={`absolute top-0 left-0 bottom-0 z-4 h-full bg-slate-900/40 backdrop-blur-md border-r border-white/10 transition-transform duration-300 ease-out ${fsPanelOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                                <div ref={panelRef} className={`absolute top-0 left-0 bottom-0 h-full bg-slate-900/40 backdrop-blur-md border-r border-white/10 transition-transform duration-300 ease-out ${fsPanelOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                                     <ul className={`h-full inline-grid grid-cols-1 auto-rows-min p-1 gap-1.5 overflow-y-auto ${fsPanelOpen ? '' : 'pointer-events-none'}`}>
                                         {myBoard.map((cat) => {
                                             const foundSub = mySubmissions.find((s) => s.category === cat);
@@ -821,7 +821,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                             if (foundSub) {
                                                 let safeHeading = foundSub.heading % 360;
                                                 if (safeHeading < 0) safeHeading += 360;
-                                                streetViewImageUrl = `https://maps.googleapis.com/maps/api/streetview?size=600x600&location=${foundSub.lat},${foundSub.lng}&heading=${foundSub.heading}&pitch=${foundSub.pitch}&fov=${fov}&key=${apiKey}`;
+                                                streetViewImageUrl = `https://maps.googleapis.com/maps/api/streetview?size=600x600&location=${foundSub.lat},${foundSub.lng}&heading=${safeHeading}&pitch=${foundSub.pitch}&fov=${fov}&key=${apiKey}`;
                                             }
 
                                             return (
@@ -1121,7 +1121,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
                                         const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
                                         const fov = foundSub?.zoom ? 180 / Math.pow(2, foundSub.zoom) : 90;
-                                        const streetViewImageUrl = foundSub ? `https://maps.googleapis.com/maps/api/streetview?size=400x400&location=${foundSub.lat},${foundSub.lng}&heading=${foundSub.heading}&pitch=${foundSub.pitch}&fov=${fov}&key=${apiKey}` : '';
+                                        const streetViewImageUrl = foundSub ? `https://maps.googleapis.com/maps/api/streetview?size=400x400&location=${foundSub.lat},${foundSub.lng}&heading=${((foundSub.heading % 360) + 360) % 360}&pitch=${foundSub.pitch}&fov=${fov}&key=${apiKey}` : '';
 
                                         return (
                                             <div

@@ -25,14 +25,22 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: { message: 'AI is not configured.' } }, { status: 503 });
     }
 
-    const contentLength = Number(req.headers.get('content-length') ?? 0);
-    if (contentLength > MAX_BODY_BYTES) {
+    // Cap on the ACTUAL body, not the content-length header (which can be
+    // missing or lie). Vercel also enforces a platform body limit, so this is
+    // belt-and-suspenders.
+    let raw: string;
+    try {
+        raw = await req.text();
+    } catch {
+        return NextResponse.json({ error: { message: 'Invalid request body.' } }, { status: 400 });
+    }
+    if (Buffer.byteLength(raw, 'utf8') > MAX_BODY_BYTES) {
         return NextResponse.json({ error: { message: 'Payload too large.' } }, { status: 413 });
     }
 
     let parsed: { model?: unknown; payload?: unknown };
     try {
-        parsed = await req.json();
+        parsed = JSON.parse(raw);
     } catch {
         return NextResponse.json({ error: { message: 'Invalid JSON body.' } }, { status: 400 });
     }

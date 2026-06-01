@@ -63,15 +63,19 @@ export function useStreetViewPath(playerId: string) {
      * latest points are durable even if the periodic interval hasn't fired yet.
      */
     const flushNow = () => {
-        if (pathRef.current.length > lastSavedLengthRef.current) {
+        const lengthAtFlush = pathRef.current.length;
+        if (lengthAtFlush > lastSavedLengthRef.current) {
             void (async () => {
-                try {
-                    await supabase.rpc('update_player', { p_id: playerId, p_patch: { path: pathRef.current } });
-                } catch (err) {
-                    console.error('Failed to save path:', err);
+                // supabase.rpc reports failures via { error } rather than throwing,
+                // so only advance the saved cursor on success — otherwise the
+                // autosave interval can retry the not-yet-saved points.
+                const { error } = await supabase.rpc('update_player', { p_id: playerId, p_patch: { path: pathRef.current } });
+                if (error) {
+                    console.error('Failed to save path:', error.message);
+                } else {
+                    lastSavedLengthRef.current = Math.max(lastSavedLengthRef.current, lengthAtFlush);
                 }
             })();
-            lastSavedLengthRef.current = pathRef.current.length;
         }
     };
 
