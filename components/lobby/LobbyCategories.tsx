@@ -515,9 +515,9 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                     title="Category Source"
                     options={[
                         { value: 'manual', label: 'Manual' },
-                        { value: 'ai', label: 'AI Generator' },
-                        { value: 'nearbyPlaces', label: 'Nearby Places' },
-                        { value: 'nearbyStreetView', label: isNarrow ? 'Street View' : 'Nearby Street View Features' },
+                        { value: 'ai', label: 'AI Generator (Beta)' },
+                        { value: 'nearbyPlaces', label: 'Nearby Places (Beta)' },
+                        { value: 'nearbyStreetView', label: isNarrow ? 'Street View' : 'Nearby Street View Features (Beta)' },
                     ]}
                     activeValue={categorySource}
                     onChange={handleCategorySourceChange}

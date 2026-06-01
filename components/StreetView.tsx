@@ -803,7 +803,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
                             {/* Minimap */}
                             {inStreetView && !hideMiniMap && (
-                                <div style={{ transform: isFullscreen && fsPanelOpen ? `translateX(${measuredPanelWidth}px)` : undefined }} className={`absolute ${isNarrow ? 'w-20 h-20 bottom-1 left-1 hover:w-28 hover:h-28' : 'w-28 h-28 bottom-6 left-6 hover:w-44 hover:h-44'} z-[500] rounded-xl overflow-hidden border-2 border-indigo-500 shadow-[0_0_20px_rgba(79,70,229,0.5)] transition-all duration-300 minimap-wrapper`}>
+                                <div style={{ transform: isFullscreen && fsPanelOpen ? `translateX(${measuredPanelWidth}px)` : undefined }} className={`absolute ${isNarrow ? 'w-20 h-20 bottom-1 left-1 hover:w-28 hover:h-28' : 'w-28 h-28 bottom-6 left-6 hover:w-44 hover:h-44'} z-[500] rounded-xl overflow-hidden border-2 border-indigo-500 shadow-[0_0_20px_rgba(79,70,229,0.5)] transition-all duration-300 minimap-wrapper duration-300 ease-out`}>
                                     <style>{`.minimap-wrapper .gmnoprint { display: none !important; }`}</style>
                                     <GoogleMap mapContainerClassName="w-full h-full" onLoad={(map) => setMinimapInstance(map)} onUnmount={() => setMinimapInstance(null)} center={lastValidPositionRef.current || mapCenter} zoom={isNarrow ? 14 : 16} options={mapOptions(additionalMiniMapOptions)} />
                                     {startingPoint !== 'open-world' && <div className="absolute inset-0 z-50 bg-transparent"></div>}
@@ -870,15 +870,17 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                             )}
 
                             {inStreetView && startingPoint === 'open-world' && (
-                                <div style={isFullscreen && fsPanelOpen ? { transform: `translateX(${measuredPanelWidth}px)` } : undefined} className="absolute top-2 left-2 z-50">
+                                <div style={isFullscreen && fsPanelOpen ? { transform: `translateX(${measuredPanelWidth}px)` } : undefined} className="absolute top-2 left-2 z-50 duration-300 ease-out">
                                     <ExitButton onExit={() => streetViewRef.current?.setVisible(false)} />
                                 </div>
                             )}
+
                             {startingPoint !== 'open-world' && (
                                 <button
                                     type="button"
                                     onClick={() => streetViewRef.current?.setPosition(new google.maps.LatLng(startingPoint ? JSON.parse(startingPoint) : safeStartCenter))}
-                                    className="absolute top-2 left-2 z-5 hidden sm:flex w-12 h-12 bg-slate-800/30 hover:bg-slate-700/80 text-white text-[30px] items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-slate-500 font-bold transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm"
+                                    style={{ transform: isFullscreen && fsPanelOpen ? `translateX(${measuredPanelWidth}px)` : undefined }}
+                                    className="absolute top-2 left-2 z-5 hidden sm:flex w-12 h-12 bg-slate-800/30 hover:bg-slate-700/80 text-white text-[30px] items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-slate-500 font-bold transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm duration-300 ease-out"
                                     title="Return to Starting Point"
                                 >
                                     <GoMoveToStart />

@@ -884,8 +884,8 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                         </div>
                     </div>
 
-                    {isHost && (
-                        <button type="button" onClick={handleSkipToPodium} className="pointer-events-auto font-bold px-6 py-3 rounded-xl shadow-[0_0_20px_rgba(34,197,94,0.3)] transition-all bg-green-600 hover:bg-green-500 text-white border border-green-400">
+                    {isHost && currentPlayerIndex < playersWithPaths.length - 1 && (
+                        <button type="button" onClick={handleSkipToPodium} className="pointer-events-auto font-bold px-6 py-3 rounded-xl shadow-[0_0_20px_rgba(34,197,94,0.3)] transition-all bg-red-600 hover:bg-red-500 text-white border border-red-400">
                             Skip
                         </button>
                     )}
@@ -897,7 +897,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                         <p className="text-slate-300 font-medium mb-6">Complete.</p>
 
                         {isHost ? (
-                            <button type="button" onClick={handleNextPlayer} className="w-full py-3 rounded-xl font-black uppercase text-sm border bg-green-600 hover:bg-green-500 text-white border-green-400 transition-all shadow-[0_0_15px_rgba(34,197,94,0.5)]">
+                            <button type="button" onClick={handleNextPlayer} className="w-full py-3 rounded-xl font-black uppercase text-sm border bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-400 transition-all shadow-[0_0_15px_rgba(79,70,229,0.4)]">
                                 {currentPlayerIndex < playersWithPaths.length - 1 ? 'Next Player' : 'Show Podium'}
                             </button>
                         ) : (

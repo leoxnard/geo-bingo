@@ -333,28 +333,11 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
             `}</style>
             <div className="w-full max-w-6xl mx-auto flex flex-col items-center text-white relative z-10">
                 {/* HEADER / TOP BAR */}
-                <div className="w-full flex justify-between items-center md:mb-4">
+                <div className="w-full flex md:mb-4">
                     <div className="flex items-center gap-4">
                         <GeoBingoLogo size={50} className="hidden sm:block" />
                         <h1 className="text-4xl font-black uppercase tracking-widest text-indigo-400">Results</h1>
                     </div>
-                    {isHost ? (
-                        <button
-                            type="button"
-                            onClick={async () => {
-                                const hostToken = getHostToken(gameId);
-                                await supabase.rpc('clear_submissions_for_game', { p_game_id: gameId, p_host_id: hostToken });
-                                await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: hostToken, p_patch: { ready_players: [] } });
-                                const { data, error } = await supabase.rpc('set_game_status', { p_game_id: gameId, p_host_id: hostToken, p_status: 'lobby' });
-                                if (error || (data && data.success === false)) console.error('Error returning to lobby:', error || data?.error);
-                            }}
-                            className="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 rounded-lg transition-all uppercase text-sm tracking-wide shadow-lg"
-                        >
-                            Back to Lobby
-                        </button>
-                    ) : (
-                        <div className="text-slate-400 italic font-medium bg-slate-800 px-2 md:px-6 py-2 rounded-lg border border-slate-700">Waiting for Host...</div>
-                    )}
                 </div>
 
                 {/* THE PODIUM */}
@@ -551,6 +534,27 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
                                 ))}
                             </div>
                         </div>
+                    </div>
+                )}
+
+                {/* BACK TO LOBBY — at the bottom, fades in with the stats */}
+                {animPhase >= 5 && (
+                    <div className="w-full flex justify-center mt-6 md:mt-8 animate-fade-in">
+                        {isHost && (
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    const hostToken = getHostToken(gameId);
+                                    await supabase.rpc('clear_submissions_for_game', { p_game_id: gameId, p_host_id: hostToken });
+                                    await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: hostToken, p_patch: { ready_players: [] } });
+                                    const { data, error } = await supabase.rpc('set_game_status', { p_game_id: gameId, p_host_id: hostToken, p_status: 'lobby' });
+                                    if (error || (data && data.success === false)) console.error('Error returning to lobby:', error || data?.error);
+                                }}
+                                className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-8 rounded-lg transition-all uppercase text-sm tracking-wide shadow-lg"
+                            >
+                                Back to Lobby
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
