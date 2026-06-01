@@ -9,6 +9,7 @@ submissions are not re-verified on subsequent runs.
 ================================================================================
 */
 
+import { callGemini } from './geminiClient';
 import { Submission } from './types';
 
 const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview'];
@@ -45,7 +46,7 @@ async function fetchImageAsBase64(url: string): Promise<{ mime: string; data: st
     });
 }
 
-async function verifyOneAgainstGemini(sub: Submission, mapsKey: string, geminiKey: string): Promise<boolean> {
+async function verifyOneAgainstGemini(sub: Submission, mapsKey: string): Promise<boolean> {
     const fov = sub.zoom ? 180 / Math.pow(2, sub.zoom) : 90;
     let safeHeading = sub.heading % 360;
     if (safeHeading < 0) safeHeading += 360;
@@ -70,7 +71,7 @@ Be skeptical. Most submissions should only be approved if a human reviewer would
 
 Reply with ONLY one word: YES or NO. No punctuation, no explanation.`;
 
-    const body = JSON.stringify({
+    const payload = {
         contents: [
             {
                 parts: [{ text: prompt }, { inline_data: { mime_type: mime, data } }],
@@ -83,17 +84,13 @@ Reply with ONLY one word: YES or NO. No punctuation, no explanation.`;
             // nothing for the YES/NO reply (the failure mode we recover from below).
             thinkingConfig: { thinkingBudget: 1024 },
         },
-    });
+    };
 
     let lastErr: unknown = null;
     for (let i = 0; i < GEMINI_MODELS.length; i++) {
         const model = GEMINI_MODELS[i];
         try {
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body,
-            });
+            const res = await callGemini(model, payload);
             if (!res.ok) {
                 const errBody = await res.json().catch(() => ({}));
                 const msg = errBody?.error?.message || res.statusText;
@@ -129,7 +126,7 @@ Reply with ONLY one word: YES or NO. No punctuation, no explanation.`;
 
 const VERIFY_CONCURRENCY = 3;
 
-export async function verifySubmissions(submissions: Submission[], mapsKey: string, geminiKey: string): Promise<VerifyResult[]> {
+export async function verifySubmissions(submissions: Submission[], mapsKey: string): Promise<VerifyResult[]> {
     const hashes = submissions.map(computeSubmissionHash);
     const results: VerifyResult[] = new Array(submissions.length);
     const pending: number[] = [];
@@ -151,7 +148,7 @@ export async function verifySubmissions(submissions: Submission[], mapsKey: stri
             const sub = submissions[i];
             const hash = hashes[i];
             try {
-                const passed = await verifyOneAgainstGemini(sub, mapsKey, geminiKey);
+                const passed = await verifyOneAgainstGemini(sub, mapsKey);
                 results[i] = { submissionId: sub.id, category: sub.category, passed, hash, fromCache: false };
             } catch (err) {
                 results[i] = { submissionId: sub.id, category: sub.category, passed: false, hash, fromCache: false, error: err instanceof Error ? err.message : 'Unknown error' };

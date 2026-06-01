@@ -52,7 +52,9 @@ Create a `.env.local` file in the root directory and add the following keys. You
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
-NEXT_PUBLIC_GEMINI_API_KEY=your_gemini_api_key
+# Server-side only (no NEXT_PUBLIC_ prefix) — proxied via /api/gemini so the key
+# never reaches the browser. Restrict the Maps key by HTTP referrer in Google Cloud.
+GEMINI_API_KEY=your_gemini_api_key
 ```
 
 ### 4. Set up the database

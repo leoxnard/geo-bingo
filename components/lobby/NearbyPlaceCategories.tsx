@@ -9,6 +9,7 @@ Supports difficulty levels and category filtering for game variety.
 */
 
 import { getGridLocations, getDistance, shuffle } from '../utils/Functions';
+import { callGemini } from '../utils/geminiClient';
 import { BingoCategory } from '../utils/types';
 import { getPromptForNearbyPlaceCategories } from './prompts/NearbyPlacePrompts';
 
@@ -130,9 +131,6 @@ export const generateNearbyPlaceCategories = async (startPos: { lat: number; lng
             throw new Error(`Not enough places found within the specified radius (${shuffledPlaces.length}/${requiredCount}).`);
         }
 
-        const geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-        if (!geminiApiKey) throw new Error('Gemini API Key is missing!');
-
         const uniquePlacesForLLM = uniquePlaces.map((p) => ({
             id: p.id,
             name: p.name,
@@ -148,15 +146,11 @@ export const generateNearbyPlaceCategories = async (startPos: { lat: number; lng
 
         while (currentModelIndex < geminiModels.length) {
             try {
-                aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModels[currentModelIndex]}:generateContent?key=${geminiApiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                        generationConfig: {
-                            responseMimeType: 'application/json',
-                        },
-                    }),
+                aiResponse = await callGemini(geminiModels[currentModelIndex], {
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: {
+                        responseMimeType: 'application/json',
+                    },
                 });
 
                 if (!aiResponse.ok) {

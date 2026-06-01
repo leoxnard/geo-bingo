@@ -39,9 +39,8 @@ export function useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSu
             toast.error('Fill every category before AI verification.');
             return;
         }
-        const geminiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
         const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-        if (!geminiKey || !mapsKey) {
+        if (!mapsKey) {
             toast.error('AI verification is unavailable: missing API keys.');
             return;
         }
@@ -51,7 +50,7 @@ export function useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSu
         setIsVerifying(true);
         setAiVerificationSuccess(false);
         const verifyPromise = (async () => {
-            const results = await verifySubmissions(subsToCheck, mapsKey, geminiKey);
+            const results = await verifySubmissions(subsToCheck, mapsKey);
             console.log('[aiVerify] all results:', results);
 
             const optimisticUpdates = new Map(results.map((r) => [r.submissionId, { ai_verdict: r.passed, ai_verified_hash: r.hash }]));
