@@ -258,7 +258,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     starting_point: 'open-world',
                     end_condition: 'timer',
                     hide_map_symbols: false,
-                    ai_end_game: true,
+                    ai_end_game: false,
                     exclusive_mode: false,
                     category_source: 'manual',
                     generation_radius: 10,
@@ -306,7 +306,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setEndCondition(gameData.end_condition || 'timer');
                 setHideMapSymbols(gameData.hide_map_symbols || false);
                 setHideMiniMap(gameData.hide_minimap || false);
-                setAiEndGame(gameData.ai_end_game ?? true);
+                setAiEndGame(gameData.ai_end_game ?? false);
                 setExclusiveMode(gameData.exclusive_mode || false);
                 setCategorySource(gameData.category_source || 'manual');
                 setGenerationRadius(gameData.generation_radius || 10);
