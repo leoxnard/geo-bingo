@@ -227,7 +227,12 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'error', 'NOT_A_PLAYER');
     END IF;
 
-    -- Dedupe-append: union the existing ready_players array with the caller.
+    -- Lock the game row so concurrent voters serialise; without this, two votes
+    -- arriving together each read the old ready_players and one overwrites the
+    -- other.
+    PERFORM 1 FROM games WHERE id = p_game_id FOR UPDATE;
+
+    -- Dedupe-append: union the (now locked) ready_players array with the caller.
     SELECT ARRAY(SELECT DISTINCT unnest(
         COALESCE((SELECT ready_players FROM games WHERE id = p_game_id), '{}'::text[])
         || ARRAY[p_player_id::text]
@@ -254,7 +259,19 @@ CREATE OR REPLACE FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
     AS $$
+DECLARE
+    sub_game text;
 BEGIN
+    SELECT game_id INTO sub_game FROM submissions WHERE id = p_submission_id;
+    IF sub_game IS NULL THEN
+        RETURN; -- no such submission; nothing to vote on
+    END IF;
+
+    -- The voter must be a player in the same game as the submission.
+    IF NOT EXISTS (SELECT 1 FROM players WHERE id::text = p_player_id AND game_id = sub_game) THEN
+        RETURN; -- reject votes from non-members / arbitrary voter keys
+    END IF;
+
     UPDATE submissions
     SET votes = jsonb_set(COALESCE(votes, '{}'::jsonb), array[p_player_id], to_jsonb(p_vote))
     WHERE id = p_submission_id;
