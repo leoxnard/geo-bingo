@@ -396,7 +396,7 @@ DECLARE
         'hide_map_symbols', 'suggested_categories', 'exclusive_mode',
         'category_source', 'generation_radius', 'generation_number',
         'category_details', 'language', 'categories_generated', 'ai_end_game',
-        'ready_players', 'banned_players'
+        'ready_players', 'banned_players', 'difficulty'
     ];
     safe_patch jsonb;
 BEGIN
@@ -437,6 +437,7 @@ BEGIN
         language              = COALESCE(safe_patch->>'language', language),
         categories_generated  = COALESCE((safe_patch->>'categories_generated')::boolean, categories_generated),
         ai_end_game           = COALESCE((safe_patch->>'ai_end_game')::boolean, ai_end_game),
+        difficulty            = COALESCE(safe_patch->>'difficulty', difficulty),
         ready_players         = CASE WHEN safe_patch ? 'ready_players'
                                     THEN ARRAY(SELECT jsonb_array_elements_text(safe_patch->'ready_players'))
                                     ELSE ready_players END,
@@ -571,7 +572,8 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "category_details" "jsonb"[] DEFAULT '{}'::"jsonb"[] NOT NULL,
     "language" "text" DEFAULT '''german''::text'::"text" NOT NULL,
     "categories_generated" boolean DEFAULT false NOT NULL,
-    "ai_end_game" boolean DEFAULT false NOT NULL
+    "ai_end_game" boolean DEFAULT false NOT NULL,
+    "difficulty" "text" DEFAULT 'default'::"text" NOT NULL
 );
 
 
