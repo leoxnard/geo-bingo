@@ -12,7 +12,7 @@ submissions are not re-verified on subsequent runs.
 import { callGemini } from './geminiClient';
 import { Submission } from './types';
 
-const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview'];
+const GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
 
 export const computeSubmissionHash = (sub: Pick<Submission, 'lat' | 'lng' | 'heading' | 'pitch' | 'zoom'>): string => {
     return `${sub.lat.toFixed(6)}|${sub.lng.toFixed(6)}|${sub.heading.toFixed(2)}|${sub.pitch.toFixed(2)}|${sub.zoom.toFixed(2)}`;

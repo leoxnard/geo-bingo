@@ -1,4 +1,4 @@
-export const getPromptForNearbyPlaceCategories = (cityCountry: string, uniquePlacesForLLM: { id: string; name: string }[], requiredCount: number, difficulty: 'default' | 'easy', language: string): string => {
+export const getPromptForNearbyPlaceCategories = (cityCountry: string, uniquePlacesForLLM: { id: string; name: string }[], requiredCount: number, difficulty: 'default' | 'easy' | 'claude', language: string): string => {
     if (difficulty === 'easy') {
         return easyNearbyPlacePrompt(cityCountry, uniquePlacesForLLM, requiredCount, language);
     }

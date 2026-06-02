@@ -13,7 +13,7 @@ import { callGemini } from '../utils/geminiClient';
 import { BingoCategory } from '../utils/types';
 import { getPromptForNearbyPlaceCategories } from './prompts/NearbyPlacePrompts';
 
-export const generateNearbyPlaceCategories = async (startPos: { lat: number; lng: number }, radius: number, requiredCount: number, difficulty: 'default' | 'easy', language: string): Promise<BingoCategory[]> => {
+export const generateNearbyPlaceCategories = async (startPos: { lat: number; lng: number }, radius: number, requiredCount: number, difficulty: 'default' | 'easy' | 'claude', language: string): Promise<BingoCategory[]> => {
     try {
         const googleApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
         if (!googleApiKey) throw new Error('Google Maps API Key is missing!');

@@ -54,7 +54,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [categorySource, setCategorySource] = useState<'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView'>('manual');
     const [generationRadius, setGenerationRadius] = useState<number>(10); // in 100m
     const [generationNumber, setGenerationNumber] = useState<number>(10);
-    const [difficulty, setDifficulty] = useState<'default' | 'easy'>('default');
+    const [difficulty, setDifficulty] = useState<'default' | 'easy' | 'claude'>('default');
     const [categoriesGenerated, setCategoriesGenerated] = useState<boolean>(false);
     const [apiStatus, setApiStatus] = useState({ aiEnabled: false, mapsEnabled: false, isDeveloper: false });
     const apiStatusRef = useRef({ aiEnabled: false, mapsEnabled: false, isDeveloper: false });
@@ -112,7 +112,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         generation_radius?: number;
         generation_number?: number;
         language?: 'english' | 'german';
-        difficulty?: 'default' | 'easy';
+        difficulty?: 'default' | 'easy' | 'claude';
         categories_generated?: boolean;
     }) => {
         if (!isHost) return;

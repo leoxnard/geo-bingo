@@ -20,7 +20,7 @@ existing one-key deployment keeps working unchanged.
 ================================================================================
 */
 
-const ALLOWED_MODELS = new Set(['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview']);
+const ALLOWED_MODELS = new Set(['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite']);
 
 const MAX_BODY_BYTES = 8 * 1024 * 1024; // generous: one Street View image as base64
 

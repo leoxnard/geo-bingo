@@ -71,7 +71,7 @@ interface LobbyViewProps {
     generationRadius: number;
     generationNumber: number;
     language: 'english' | 'german';
-    difficulty: 'default' | 'easy';
+    difficulty: 'default' | 'easy' | 'claude';
     categoriesGenerated: boolean;
     notifyGameEvent?: (event: 'ai_end_game' | 'ai_generating_categories', payload: { player_id: string }) => void;
 }

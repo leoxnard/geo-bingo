@@ -148,7 +148,7 @@ const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, o
 };
 
 interface LobbyCategoriesProps {
-    updateGameModeInfo: (updates: { game_mode?: string; team_mode?: string; grid_size?: number; starting_point?: string; gameBoundary?: string; categories?: string[]; category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView'; generation_radius?: number; generation_number?: number; difficulty?: 'default' | 'easy'; categories_generated?: boolean; language?: 'english' | 'german' }) => void;
+    updateGameModeInfo: (updates: { game_mode?: string; team_mode?: string; grid_size?: number; starting_point?: string; gameBoundary?: string; categories?: string[]; category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView'; generation_radius?: number; generation_number?: number; difficulty?: 'default' | 'easy' | 'claude'; categories_generated?: boolean; language?: 'english' | 'german' }) => void;
     isHost: boolean;
     gameMode: 'list' | 'bingo';
     language: 'english' | 'german';
@@ -166,7 +166,7 @@ interface LobbyCategoriesProps {
     isDeveloper?: boolean;
     generationRadius: number;
     generationNumber: number;
-    difficulty: 'default' | 'easy';
+    difficulty: 'default' | 'easy' | 'claude';
     categoriesGenerated: boolean;
 }
 
@@ -560,15 +560,16 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                     <MultiToggleButton
                         title="Difficulty"
                         options={[
-                            { value: 'default', label: 'Default' },
                             { value: 'easy', label: 'Easy' },
+                            { value: 'default', label: 'Default' },
+                            { value: 'claude', label: 'Claude' },
                         ]}
                         activeValue={difficulty}
                         onChange={(val) => updateGameModeInfo({ difficulty: val })}
                         disabled={!isHost}
-                        sizeRatios={[1, 1]}
+                        sizeRatios={[1, 1, 1]}
                         isHost={isHost}
-                        description={difficulty === 'default' ? 'AI will generate more specific categories. Good for smaller radii and urban areas.' : 'AI will generate more general categories. Better for larger radii.'}
+                        description={difficulty === 'easy' ? 'AI will generate more general categories. Better for larger radii.' : difficulty === 'default' ? 'AI will generate more specific categories. Good for smaller radii and urban areas.' : 'Hand-tuned Claude prompt for the most fun, varied and reliably visible categories. Best for the panorama (Street View) source.'}
                     />
                     {gameMode === 'list' ? <RangeSlider title="Number of Categories" min={1} max={25} value={localGenerationNumber} disabled={!isHost} onChange={(val) => setLocalGenerationNumber(val)} onCommit={handleCommit} /> : <RangeSlider title="Grid Size" min={1} max={6} value={localGridSize} disabled={!isHost} onChange={(val) => setLocalGridSize(val)} onCommit={handleCommit} />}
                 </>

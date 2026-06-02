@@ -12,7 +12,7 @@ import { callGemini } from '../utils/geminiClient';
 import { BingoCategory } from '../utils/types';
 import { getPromptForStreetViewCategories } from './prompts/StreetViewPrompts';
 
-export const generateNearbyStreetViewCategories = async (startPos: { lat: number; lng: number }, radius: number, requiredCount: number, difficulty: 'default' | 'easy', language: string): Promise<BingoCategory[]> => {
+export const generateNearbyStreetViewCategories = async (startPos: { lat: number; lng: number }, radius: number, requiredCount: number, difficulty: 'default' | 'easy' | 'claude', language: string): Promise<BingoCategory[]> => {
     try {
         const googleApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
         if (!googleApiKey) throw new Error('API Keys missing!');
@@ -59,7 +59,8 @@ export const generateNearbyStreetViewCategories = async (startPos: { lat: number
                     const geoData = await geoRes.json();
 
                     if (geoData.status === 'OK' && geoData.results.length > 0) {
-                        const svUrl = `https://maps.googleapis.com/maps/api/streetview?size=640x640&location=${exactLat},${exactLng}&fov=120&source=outdoor&key=${googleApiKey}`;
+                        const fov = Math.round(60 + Math.random() * 60); // random between 60–120
+                        const svUrl = `https://maps.googleapis.com/maps/api/streetview?size=640x640&location=${exactLat},${exactLng}&fov=${fov}&source=outdoor&key=${googleApiKey}`;
 
                         const res = await fetch(svUrl);
                         if (res.ok) {
