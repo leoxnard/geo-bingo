@@ -16,8 +16,20 @@ import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } fr
 import toast from 'react-hot-toast';
 
 import { supabase } from '../../lib/supabase';
-import { verifySubmissions } from '../utils/aiVerify';
+import { isSubmissionVerified, verifySubmissions } from '../utils/aiVerify';
 import type { Submission } from '../utils/types';
+
+// Builds the loading toast from the count that will actually be sent to Gemini —
+// submissions already verified at their current view are skipped (no call, no
+// charge), so showing the total would overstate the work. `noun` distinguishes
+// the all-categories flow from the Bingo-line flow.
+const buildVerifyLabel = (subsToCheck: Submission[], noun: string): string => {
+    const pendingCount = subsToCheck.filter((s) => !isSubmissionVerified(s)).length;
+    if (pendingCount === 0) return 'All categories already verified — ending round...';
+    const alreadyDone = subsToCheck.length - pendingCount;
+    const tail = alreadyDone > 0 ? ` (${alreadyDone} already verified)` : '';
+    return `Verifying ${pendingCount} ${noun}${pendingCount === 1 ? '' : 's'} with AI${tail}...`;
+};
 
 // Sentinel for the "AI rejected one of your cells" path. It's a user-actionable
 // outcome (retake the cell), not a bug, so we surface it via toast only and
@@ -36,6 +48,55 @@ interface UseAiVerifyArgs {
 export function useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSubmissions, notifyGameEvent }: UseAiVerifyArgs) {
     const [isVerifying, setIsVerifying] = useState(false);
     const [aiVerificationSuccess, setAiVerificationSuccess] = useState(false);
+    // Submission ids with a single-cell verify in flight, so the per-cell button
+    // can show a spinner / disable without touching the round-ending isVerifying.
+    const [verifyingIds, setVerifyingIds] = useState<Set<string>>(new Set());
+
+    // Per-cell verify for fixed starting-position mode, where you can't teleport
+    // back to a saved cell: check this one submission against the AI at its stored
+    // view and persist the verdict, but don't end the round. The green/red cell
+    // border (driven by ai_verdict) reflects the result.
+    const handleVerifyOne = useCallback(
+        async (sub: Submission) => {
+            const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+            if (!mapsKey) {
+                toast.error('AI verification is unavailable: missing API keys.');
+                return;
+            }
+            if (verifyingIds.has(sub.id)) return;
+            setVerifyingIds((prev) => new Set(prev).add(sub.id));
+            try {
+                const [result] = await verifySubmissions([sub], mapsKey);
+                if (result.error) {
+                    setAllSubmissions((prev) => prev.map((s) => (s.id === sub.id ? { ...s, ai_verdict: null, ai_verified_hash: null, ai_reason: null } : s)));
+                    toast.error(`AI error verifying "${sub.category}" (see console).`);
+                    return;
+                }
+
+                setAllSubmissions((prev) => prev.map((s) => (s.id === sub.id ? { ...s, ai_verdict: result.passed, ai_verified_hash: result.hash, ai_reason: result.reason ?? null } : s)));
+
+                if (!result.fromCache) {
+                    const { data, error } = await supabase.rpc('set_submission_ai_verdict', { p_id: result.submissionId, p_player_id: playerId, p_verdict: result.passed, p_hash: result.hash });
+                    if (error || (data && data.success === false)) {
+                        throw new Error(error?.message || data?.error || 'unknown error');
+                    }
+                }
+
+                if (result.passed) toast.success(`"${sub.category}" verified.`);
+                else toast.error(`"${sub.category}" got rejected by AI. Adjust the view and save again.`);
+            } catch (err) {
+                console.error('Single AI verification error:', err);
+                toast.error(`Failed to verify "${sub.category}". Try again.`);
+            } finally {
+                setVerifyingIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(sub.id);
+                    return next;
+                });
+            }
+        },
+        [verifyingIds, playerId, setAllSubmissions],
+    );
 
     const allCategoriesFilled = useMemo(() => myBoard.every((cat) => mySubmissions.some((s) => s.category === cat)), [myBoard, mySubmissions]);
 
@@ -60,9 +121,8 @@ export function useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSu
             setAiVerificationSuccess(false);
             const verifyPromise = (async () => {
                 const results = await verifySubmissions(subsToCheck, mapsKey);
-                console.log('[aiVerify] all results:', results);
 
-                const optimisticUpdates = new Map(results.map((r) => [r.submissionId, r.error ? { ai_verdict: null, ai_verified_hash: null } : { ai_verdict: r.passed, ai_verified_hash: r.hash }]));
+                const optimisticUpdates = new Map(results.map((r) => [r.submissionId, r.error ? { ai_verdict: null, ai_verified_hash: null, ai_reason: null } : { ai_verdict: r.passed, ai_verified_hash: r.hash, ai_reason: r.reason ?? null }]));
                 setAllSubmissions((prev) => prev.map((s) => (optimisticUpdates.has(s.id) ? { ...s, ...optimisticUpdates.get(s.id)! } : s)));
 
                 const persistTasks = results.filter((r) => !r.fromCache && !r.error).map((r) => supabase.rpc('set_submission_ai_verdict', { p_id: r.submissionId, p_player_id: playerId, p_verdict: r.passed, p_hash: r.hash }));
@@ -115,7 +175,7 @@ export function useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSu
             return;
         }
         const subsToCheck = myBoard.map((cat) => mySubmissions.find((s) => s.category === cat)).filter((s): s is Submission => !!s);
-        await runVerifyAndEnd(subsToCheck, `Verifying ${subsToCheck.length} categories with AI...`);
+        await runVerifyAndEnd(subsToCheck, buildVerifyLabel(subsToCheck, 'category'));
     };
 
     const handleVerifyBingoAndEnd = async (bingoLineSubs: Submission[]) => {
@@ -124,8 +184,8 @@ export function useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSu
             toast.error('Get a Bingo first to verify.');
             return;
         }
-        await runVerifyAndEnd(bingoLineSubs, `Verifying ${bingoLineSubs.length} Bingo categories with AI...`);
+        await runVerifyAndEnd(bingoLineSubs, buildVerifyLabel(bingoLineSubs, 'Bingo category'));
     };
 
-    return { isVerifying, aiVerificationSuccess, allCategoriesFilled, handleVerifyAndEnd, handleVerifyBingoAndEnd };
+    return { isVerifying, aiVerificationSuccess, allCategoriesFilled, handleVerifyAndEnd, handleVerifyBingoAndEnd, handleVerifyOne, verifyingIds };
 }

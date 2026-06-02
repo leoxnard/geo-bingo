@@ -14,10 +14,11 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 
 import { GoogleMap, useJsApiLoader, StreetViewPanorama, Polygon } from '@react-google-maps/api';
 import toast from 'react-hot-toast';
-import { FaEye, FaCamera, FaInfoCircle, FaChevronLeft } from 'react-icons/fa';
+import { FaEye, FaCamera, FaInfoCircle, FaChevronLeft, FaCheck } from 'react-icons/fa';
 import { GoMoveToStart } from 'react-icons/go';
 
 import { supabase } from '../lib/supabase';
+import { AiReasonLabel } from './streetview/AiReasonLabel';
 import { useAiVerify } from './streetview/useAiVerify';
 import { useStreetViewPath } from './streetview/useStreetViewPath';
 import { useSubmissionsRealtime } from './streetview/useSubmissionsRealtime';
@@ -111,7 +112,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
         return 'unverified';
     };
 
-    const { isVerifying, aiVerificationSuccess, allCategoriesFilled, handleVerifyAndEnd: handleAiVerifyAndEnd, handleVerifyBingoAndEnd } = useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSubmissions, notifyGameEvent });
+    const { isVerifying, aiVerificationSuccess, allCategoriesFilled, handleVerifyAndEnd: handleAiVerifyAndEnd, handleVerifyBingoAndEnd, handleVerifyOne, verifyingIds } = useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSubmissions, notifyGameEvent });
 
     const isBingoFirstWithAi = gameMode === 'bingo' && endCondition === 'first_bingo' && aiEndGame;
 
@@ -1026,7 +1027,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                                                 {submittingCategory === cat ? '...' : !inStreetView ? 'Enter Streetview' : 'Overwrite'}
                                                                             </button>
                                                                         )}
-                                                                        {startingPoint === 'open-world' && (
+                                                                        {startingPoint === 'open-world' ? (
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={(e) => {
@@ -1036,6 +1037,18 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                                                 className={`${exclusiveMode ? 'flex-1' : 'flex-[0.5]'} bg-slate-700/40 hover:bg-slate-500/30 px-2 py-1 text-[7px] text-white font-bold rounded-lg shadow uppercase transition-all whitespace-nowrap`}
                                                                             >
                                                                                 View
+                                                                            </button>
+                                                                        ) : (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    handleVerifyOne(foundSub);
+                                                                                }}
+                                                                                disabled={verifyingIds.has(foundSub.id)}
+                                                                                className={`${exclusiveMode ? 'flex-1' : 'flex-[0.5]'} bg-indigo-600/40 hover:bg-indigo-500/40 px-2 py-1 text-[7px] text-white font-bold rounded-lg shadow uppercase transition-all whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed`}
+                                                                            >
+                                                                                {verifyingIds.has(foundSub.id) ? '...' : 'Verify'}
                                                                             </button>
                                                                         )}
                                                                     </>
@@ -1088,9 +1101,13 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                                         </div>
                                                                     )}
                                                                 </div>
-                                                                <span className={`text-[10px] font-bold uppercase whitespace-nowrap flex-shrink-0 ${foundSub?.ai_verdict === false ? 'text-red-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : foundSub?.ai_verdict === true ? 'text-green-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-500' : 'text-slate-500'}`}>
-                                                                    {foundSub?.ai_verdict === false ? 'AI verification failed' : foundSub?.ai_verdict === true ? 'AI verified' : foundSub ? 'Unverified' : isBlocked ? 'Locked' : 'Pending'}
-                                                                </span>
+                                                                {foundSub?.ai_verdict === false && foundSub?.ai_reason ? (
+                                                                    <AiReasonLabel reason={foundSub.ai_reason} />
+                                                                ) : (
+                                                                    <span className={`text-[10px] font-bold uppercase whitespace-nowrap flex-shrink-0 ${foundSub?.ai_verdict === false ? 'text-red-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : foundSub?.ai_verdict === true ? 'text-green-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-500' : 'text-slate-500'}`}>
+                                                                        {foundSub?.ai_verdict === false ? 'AI verification failed' : foundSub?.ai_verdict === true ? 'AI verified' : foundSub ? 'Unverified' : isBlocked ? 'Locked' : 'Pending'}
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                         </div>
 
@@ -1122,7 +1139,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                                             {submittingCategory === cat ? '...' : !inStreetView ? 'Enter Streetview' : 'Overwrite'}
                                                                         </button>
                                                                     )}
-                                                                    {startingPoint === 'open-world' && (
+                                                                    {startingPoint === 'open-world' ? (
                                                                         <button
                                                                             type="button"
                                                                             onClick={(e) => {
@@ -1132,6 +1149,18 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                                             className={`${exclusiveMode ? 'flex-1' : 'flex-[0.5]'} bg-slate-700/40 hover:bg-slate-500/30 text-[9px] px-2 py-1.5 text-white font-bold rounded-lg shadow uppercase transition-all`}
                                                                         >
                                                                             View
+                                                                        </button>
+                                                                    ) : (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                handleVerifyOne(foundSub);
+                                                                            }}
+                                                                            disabled={verifyingIds.has(foundSub.id)}
+                                                                            className={`${exclusiveMode ? 'flex-1' : 'flex-[0.5]'} bg-indigo-600/40 hover:bg-indigo-500/40 text-[9px] px-2 py-1.5 text-white font-bold rounded-lg shadow uppercase transition-all disabled:opacity-60 disabled:cursor-not-allowed`}
+                                                                        >
+                                                                            {verifyingIds.has(foundSub.id) ? '...' : 'Verify'}
                                                                         </button>
                                                                     )}
                                                                 </>
@@ -1207,7 +1236,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                             >
                                                                 {submittingCategory === cat ? '...' : <FaCamera className="h-[60%] w-auto" />}
                                                             </button>
-                                                            {startingPoint === 'open-world' && (
+                                                            {startingPoint === 'open-world' ? (
                                                                 <button
                                                                     type="button"
                                                                     title="View submission"
@@ -1218,6 +1247,19 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                                                                     className="hidden sm:flex flex-1 h-full bg-slate-600/30 hover:bg-slate-500/30 text-white font-bold rounded-lg uppercase justify-center items-center"
                                                                 >
                                                                     <FaEye className="h-[60%] w-auto" />
+                                                                </button>
+                                                            ) : (
+                                                                <button
+                                                                    type="button"
+                                                                    title="Verify submission with AI"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleVerifyOne(foundSub);
+                                                                    }}
+                                                                    disabled={verifyingIds.has(foundSub.id)}
+                                                                    className="flex flex-1 h-full bg-indigo-600/40 hover:bg-indigo-500/40 text-white font-bold rounded-lg uppercase justify-center items-center disabled:opacity-60 disabled:cursor-not-allowed"
+                                                                >
+                                                                    {verifyingIds.has(foundSub.id) ? '...' : <FaCheck className="h-[60%] w-auto" />}
                                                                 </button>
                                                             )}
                                                         </>

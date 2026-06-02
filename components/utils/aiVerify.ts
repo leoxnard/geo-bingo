@@ -18,6 +18,14 @@ export const computeSubmissionHash = (sub: Pick<Submission, 'lat' | 'lng' | 'hea
     return `${sub.lat.toFixed(6)}|${sub.lng.toFixed(6)}|${sub.heading.toFixed(2)}|${sub.pitch.toFixed(2)}|${sub.zoom.toFixed(2)}`;
 };
 
+// A submission is already verified (and so skipped on the next run, no Gemini
+// call, no charge) when its stored verdict still matches its current view hash.
+// Shared by verifySubmissions and the UI so the toast count reflects only the
+// submissions that will actually be sent to the AI.
+export const isSubmissionVerified = (sub: Submission): boolean => {
+    return sub.ai_verified_hash === computeSubmissionHash(sub) && (sub.ai_verdict === true || sub.ai_verdict === false);
+};
+
 export interface VerifyResult {
     submissionId: string;
     category: string;
@@ -25,6 +33,9 @@ export interface VerifyResult {
     hash: string;
     fromCache: boolean;
     error?: string;
+    // The AI's one-line reason for this verdict. Absent for cached results (no
+    // fresh call was made) and on error.
+    reason?: string;
 }
 
 async function fetchImageAsBase64(url: string): Promise<{ mime: string; data: string }> {
@@ -46,7 +57,7 @@ async function fetchImageAsBase64(url: string): Promise<{ mime: string; data: st
     });
 }
 
-async function verifyOneAgainstGemini(sub: Submission, mapsKey: string): Promise<boolean> {
+async function verifyOneAgainstGemini(sub: Submission, mapsKey: string): Promise<{ passed: boolean; reason: string }> {
     const fov = sub.zoom ? 180 / Math.pow(2, sub.zoom) : 90;
     let safeHeading = sub.heading % 360;
     if (safeHeading < 0) safeHeading += 360;
@@ -57,11 +68,9 @@ async function verifyOneAgainstGemini(sub: Submission, mapsKey: string): Promise
     const prompt = `You are a STRICT verifier for a Google Street View Bingo game.
 The player claims this image shows: "${sub.category}".
 
-Your job is to approve ONLY when the category is clearly and unambiguously visible as the obvious subject of the image.
+Your job is to approve ONLY when the category is clearly and unambiguously visible as the obvious subject of the image. It is okay if its in distance or a little small.
 
 REJECT (answer NO) if ANY of these apply:
-- The item is not centered or is a minor detail in the image, rather than the main focus
-- The item is small, distant, or blurry and you cannot identify it with high confidence
 - The item is only partially visible or heavily occluded by other objects
 - The image shows something visually similar but not the exact category
 - The match relies on guessing, context, or inference rather than direct visual evidence
@@ -69,7 +78,7 @@ REJECT (answer NO) if ANY of these apply:
 
 Be skeptical. Most submissions should only be approved if a human reviewer would obviously agree.
 
-Reply with ONLY one word: YES or NO. No punctuation, no explanation.`;
+Reply with your verdict as the FIRST word — exactly YES or NO — then " - " and a brief one-sentence reason for your decision. Example: "NO - The bicycle is too far in the background to identify with confidence."`;
 
     const payload = {
         contents: [
@@ -90,7 +99,7 @@ Reply with ONLY one word: YES or NO. No punctuation, no explanation.`;
     for (let i = 0; i < GEMINI_MODELS.length; i++) {
         const model = GEMINI_MODELS[i];
         try {
-            const res = await callGemini(model, payload);
+            const res = await callGemini(model, payload, 'paid');
             if (!res.ok) {
                 const errBody = await res.json().catch(() => ({}));
                 const msg = errBody?.error?.message || res.statusText;
@@ -102,19 +111,27 @@ Reply with ONLY one word: YES or NO. No punctuation, no explanation.`;
             const text: string = json?.candidates?.[0]?.content?.parts?.[0]?.text || '';
             const finishReason: string = json?.candidates?.[0]?.finishReason || '';
             const upper = text.trim().toUpperCase();
-            console.log(`[aiVerify] ${model} "${sub.category}" → "${text}" (finish: ${finishReason})`);
 
             // Empty response usually means token budget exhausted (thinking) or safety block.
             // Don't silently say NO — fall through to next model so we can recover.
             if (!upper) {
+                console.warn(`[aiVerify] ${model} returned empty text for "${sub.category}" (finish: ${finishReason})`);
                 lastErr = new Error(`Gemini ${model} returned empty text (finishReason=${finishReason}) for "${sub.category}"`);
                 continue;
             }
             // Strict parse: match a leading YES or NO token, ignoring trailing punctuation.
             const firstToken = upper.match(/^[A-Z]+/)?.[0];
-            if (firstToken === 'YES') return true;
-            if (firstToken === 'NO') return false;
+            if (firstToken === 'YES' || firstToken === 'NO') {
+                // Strip the leading verdict word + separators to leave the AI's reason,
+                // surfaced on hover over the verdict label in the UI.
+                const reason = text
+                    .trim()
+                    .replace(/^[A-Za-z]+[\s\-–—:.]*/, '')
+                    .trim();
+                return { passed: firstToken === 'YES', reason };
+            }
             // Unrecognized reply — try next model.
+            console.warn(`[aiVerify] ${model} unrecognized reply for "${sub.category}": "${text}"`);
             lastErr = new Error(`Gemini ${model} unrecognized reply for "${sub.category}": ${text}`);
         } catch (err) {
             console.warn(`[aiVerify] ${model} threw for "${sub.category}":`, err);
@@ -133,8 +150,8 @@ export async function verifySubmissions(submissions: Submission[], mapsKey: stri
 
     submissions.forEach((sub, i) => {
         const hash = hashes[i];
-        if (sub.ai_verified_hash === hash && (sub.ai_verdict === true || sub.ai_verdict === false)) {
-            results[i] = { submissionId: sub.id, category: sub.category, passed: sub.ai_verdict, hash, fromCache: true };
+        if (isSubmissionVerified(sub)) {
+            results[i] = { submissionId: sub.id, category: sub.category, passed: sub.ai_verdict === true, hash, fromCache: true };
         } else {
             pending.push(i);
         }
@@ -148,8 +165,8 @@ export async function verifySubmissions(submissions: Submission[], mapsKey: stri
             const sub = submissions[i];
             const hash = hashes[i];
             try {
-                const passed = await verifyOneAgainstGemini(sub, mapsKey);
-                results[i] = { submissionId: sub.id, category: sub.category, passed, hash, fromCache: false };
+                const { passed, reason } = await verifyOneAgainstGemini(sub, mapsKey);
+                results[i] = { submissionId: sub.id, category: sub.category, passed, hash, fromCache: false, reason };
             } catch (err) {
                 results[i] = { submissionId: sub.id, category: sub.category, passed: false, hash, fromCache: false, error: err instanceof Error ? err.message : 'Unknown error' };
             }

@@ -54,7 +54,14 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
 # Server-side only (no NEXT_PUBLIC_ prefix) — proxied via /api/gemini so the key
 # never reaches the browser. Restrict the Maps key by HTTP referrer in Google Cloud.
+#
+# Gemini keys: a single GEMINI_API_KEY works for everything. To shield verification
+# from the free tier's per-minute limit, optionally set two keys — a free-tier key
+# for category generation and a paid-tier key for the verification bursts. Each tier
+# falls back to GEMINI_API_KEY if its specific key is unset.
 GEMINI_API_KEY=your_gemini_api_key
+# GEMINI_API_KEY_FREE=your_free_tier_key   # used for AI category generation
+# GEMINI_API_KEY_PAID=your_paid_tier_key   # used for submission verification
 ```
 
 ### 4. Set up the database
