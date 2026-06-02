@@ -19,7 +19,7 @@ import { CiCircleAlert, CiCircleCheck } from 'react-icons/ci';
 
 import LobbyView from '@/components/lobby/LobbyView';
 import PodiumView from '@/components/PodiumView';
-import StreetView from '@/components/StreetView';
+import StreetView from '@/components/streetview/StreetView';
 import { shuffle } from '@/components/utils/Functions';
 import { Player } from '@/components/utils/types';
 import { VotingView } from '@/components/VotingView';
