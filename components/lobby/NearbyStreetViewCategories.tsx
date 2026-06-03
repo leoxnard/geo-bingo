@@ -8,11 +8,11 @@ Finds interesting visual elements and landmarks within game area.
 ================================================================================
 */
 
-import { callGemini } from '../utils/geminiClient';
+import { callGemini, withModelFallback } from '../utils/geminiClient';
 import { BingoCategory } from '../utils/types';
 import { getPromptForStreetViewCategories } from './prompts/StreetViewPrompts';
 
-export const generateNearbyStreetViewCategories = async (startPos: { lat: number; lng: number }, radius: number, requiredCount: number, difficulty: 'default' | 'easy' | 'claude', language: string): Promise<BingoCategory[]> => {
+export const generateNearbyStreetViewCategories = async (startPos: { lat: number; lng: number }, radius: number, requiredCount: number, difficulty: 'default' | 'easy' | 'hard', language: string): Promise<BingoCategory[]> => {
     try {
         const googleApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
         if (!googleApiKey) throw new Error('API Keys missing!');
@@ -36,11 +36,15 @@ export const generateNearbyStreetViewCategories = async (startPos: { lat: number
             base64: string;
         }[] = [];
         const seenImages = new Set<string>();
-        const maxAttempts = requiredCount * 10;
+        // Fetch a healthy pool of panoramas independent of the active count, so the
+        // AI always has enough material to extract a pool (active list + suggestions)
+        // from — even when the host only wants a handful of active categories.
+        const poolImageTarget = Math.min(Math.max(requiredCount + 6, 12), 24);
+        const maxAttempts = poolImageTarget * 8;
         let fetchCount = 0;
 
         for (let i = 0; i < maxAttempts; i++) {
-            if (validImages.length >= requiredCount * 1.5) break;
+            if (validImages.length >= poolImageTarget) break;
 
             const loc = getRandomLocation(startPos, radiusMeters);
 
@@ -93,8 +97,8 @@ export const generateNearbyStreetViewCategories = async (startPos: { lat: number
             }
         }
 
-        if (validImages.length < requiredCount) {
-            throw new Error(`Nicht genug echte Straßen-Bilder in diesem Bereich gefunden (${validImages.length}/${requiredCount}). Bitte wähle einen größeren Radius.`);
+        if (validImages.length === 0) {
+            throw new Error('Keine Street-View-Bilder in diesem Bereich gefunden. Bitte wähle einen größeren Radius.');
         }
 
         type GeminiPart = { text: string } | { inlineData: { mimeType: string; data: string } };
@@ -112,29 +116,16 @@ export const generateNearbyStreetViewCategories = async (startPos: { lat: number
             });
         });
 
-        const geminiModels = ['gemini-2.5-flash', 'gemini-3-flash-preview', 'gemini-2.5-flash-lite'];
-        let aiResponse;
-        let currentModelIndex = 0;
-
-        while (currentModelIndex < geminiModels.length) {
-            try {
-                aiResponse = await callGemini(geminiModels[currentModelIndex], {
-                    contents: [{ parts }],
-                    generationConfig: {
-                        responseMimeType: 'application/json',
-                    },
-                });
-
-                if (!aiResponse.ok) throw new Error('API Error');
-                break;
-            } catch {
-                currentModelIndex++;
-            }
-        }
-
-        if (!aiResponse || !aiResponse.ok) {
-            throw new Error('Failed to get a response from Gemini Vision API.');
-        }
+        const aiResponse = await withModelFallback(async (model) => {
+            const res = await callGemini(model, {
+                contents: [{ parts }],
+                generationConfig: {
+                    responseMimeType: 'application/json',
+                },
+            });
+            if (!res.ok) throw new Error(`Gemini ${model} HTTP ${res.status}`);
+            return res;
+        });
 
         const aiData = await aiResponse.json();
         let aiTextResponse = aiData.candidates[0].content.parts[0].text;
@@ -144,8 +135,8 @@ export const generateNearbyStreetViewCategories = async (startPos: { lat: number
             .trim();
         const parsedItems = JSON.parse(aiTextResponse);
 
-        if (!Array.isArray(parsedItems) || parsedItems.length < requiredCount) {
-            throw new Error(`AI returned invalid format or fewer targets than required!`);
+        if (!Array.isArray(parsedItems) || parsedItems.length === 0) {
+            throw new Error('Die KI hat kein gültiges Ergebnis geliefert. Bitte erneut versuchen.');
         }
 
         const finalCategories: BingoCategory[] = parsedItems
@@ -167,21 +158,25 @@ export const generateNearbyStreetViewCategories = async (startPos: { lat: number
             })
             .filter((item): item is BingoCategory & { score: number } => item !== null)
             .filter((cat, index, self) => index === self.findIndex((c) => c.categoryName.toLowerCase().trim() === cat.categoryName.toLowerCase().trim()))
+            // Return the FULL ranked pool (highest score first), not just the top
+            // requiredCount. The lobby splits this into the active list (top-K) and
+            // the suggestions list (the rest), so we hand back everything we found.
             .sort((a, b) => b.score - a.score)
-            .slice(0, requiredCount)
             .map((cat) => ({
                 categoryName: cat.categoryName,
+                score: cat.score,
                 matchedPlaces: cat.matchedPlaces,
             }))
             .filter((cat, index, self) => index === self.findIndex((c) => c.categoryName === cat.categoryName));
 
-        if (finalCategories.length < requiredCount) {
-            throw new Error('Could not map all generated targets to images. Please try again.');
+        if (finalCategories.length === 0) {
+            throw new Error('Es konnten keine Kategorien aus den Bildern erstellt werden. Bitte erneut versuchen.');
         }
 
         return finalCategories;
     } catch (error) {
         console.error('Error during Street View generation:', error);
-        throw new Error('Error analyzing Street View images.');
+        // Preserve the specific reason so the lobby toast is actually helpful.
+        throw error instanceof Error ? error : new Error('Error analyzing Street View images.');
     }
 };

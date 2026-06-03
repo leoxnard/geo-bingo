@@ -12,9 +12,12 @@ Features error display and form validation functionality.
 
 import { useState } from 'react';
 
+import { useT } from '@/lib/i18n/I18nProvider';
+
 import { authenticate } from './actions';
 
 export default function LoginPage() {
+    const { t } = useT();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState(false);
@@ -38,25 +41,25 @@ export default function LoginPage() {
     return (
         <main className="flex min-h-screen flex-col items-center justify-start sm:justify-center px-4 py-10 sm:px-8 sm:py-16 lg:p-24 bg-slate-900 text-white">
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 mb-8 sm:mb-12">
-                <h1 className="text-3xl sm:text-6xl font-bold text-indigo-400 tracking-tighter uppercase text-center sm:text-left">Preview Login</h1>
+                <h1 className="text-3xl sm:text-6xl font-bold text-indigo-400 tracking-tighter uppercase text-center sm:text-left">{t('login.title')}</h1>
             </div>
 
             <div className="bg-slate-800 p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-700 w-full max-w-md flex flex-col gap-4">
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                     <div>
-                        <label className="text-xs text-slate-400 font-bold uppercase mb-1 block">Username</label>
-                        <input type="text" placeholder="Username" className="w-full p-3 rounded-xl bg-slate-900 border border-slate-600 focus:border-indigo-500 text-white outline-none" value={username} onChange={(e) => setUsername(e.target.value)} />
+                        <label className="text-xs text-slate-400 font-bold uppercase mb-1 block">{t('login.username')}</label>
+                        <input type="text" placeholder={t('login.username')} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-600 focus:border-indigo-500 text-white outline-none" value={username} onChange={(e) => setUsername(e.target.value)} />
                     </div>
 
                     <div>
-                        <label className="text-xs text-slate-400 font-bold uppercase mb-1 block">Password</label>
-                        <input type="password" placeholder="Password" className={`w-full p-3 rounded-xl bg-slate-900 border ${error ? 'border-red-500' : 'border-slate-600'} focus:border-indigo-500 text-white outline-none`} value={password} onChange={(e) => setPassword(e.target.value)} />
+                        <label className="text-xs text-slate-400 font-bold uppercase mb-1 block">{t('login.password')}</label>
+                        <input type="password" placeholder={t('login.password')} className={`w-full p-3 rounded-xl bg-slate-900 border ${error ? 'border-red-500' : 'border-slate-600'} focus:border-indigo-500 text-white outline-none`} value={password} onChange={(e) => setPassword(e.target.value)} />
                     </div>
 
-                    {error && <p className="text-red-500 text-xs font-medium text-center">Login failed!</p>}
+                    {error && <p className="text-red-500 text-xs font-medium text-center">{t('login.failed')}</p>}
 
                     <button type="submit" disabled={isLoading} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-xl transition-all uppercase mt-2 disabled:opacity-50">
-                        {isLoading ? 'Checking...' : 'Unlock App'}
+                        {isLoading ? t('login.checking') : t('login.unlock')}
                     </button>
                 </form>
             </div>

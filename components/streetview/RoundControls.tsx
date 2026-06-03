@@ -11,6 +11,8 @@ landscape/desktop).
 ================================================================================
 */
 
+import { useT } from '@/lib/i18n/I18nProvider';
+
 interface RoundControlsProps {
     variant: 'portrait' | 'sidebar';
     isNarrow?: boolean;
@@ -34,6 +36,7 @@ const formatTime = (seconds: number) => {
 };
 
 export default function RoundControls({ variant, isNarrow = false, timeLeft, aiEndGame, isBingoFirstWithAi, handleAiVerifyAndEnd, allCategoriesFilled, isVerifying, handleVoteEndRound, hasVotedToEnd, aiVerificationSuccess, readyPlayers, votesNeeded }: RoundControlsProps) {
+    const { t } = useT();
     const timer = timeLeft <= 60 ? <span className="text-red-500 animate-pulse">{formatTime(timeLeft)}</span> : <span className="text-white">{formatTime(timeLeft)}</span>;
 
     if (variant === 'portrait') {
@@ -48,11 +51,11 @@ export default function RoundControls({ variant, isNarrow = false, timeLeft, aiE
                                 type="button"
                                 onClick={handleAiVerifyAndEnd}
                                 disabled={!allCategoriesFilled || isVerifying}
-                                title={!allCategoriesFilled ? 'Fill every category to enable AI verification' : 'Verify all categories with AI and end the round'}
+                                title={!allCategoriesFilled ? t('sv.fillToEnable') : t('sv.verifyAllEnd')}
                                 className={`flex items-center justify-center whitespace-nowrap px-3 sm:px-6 rounded-lg font-bold transition-all uppercase text-[10px] sm:text-sm shadow-lg
                                     ${!allCategoriesFilled || isVerifying ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
                             >
-                                {isVerifying ? 'Verifying...' : 'AI Verify & End'}
+                                {isVerifying ? t('sv.verifying') : t('sv.aiVerifyEnd')}
                             </button>
                         )}
                         <button
@@ -63,10 +66,8 @@ export default function RoundControls({ variant, isNarrow = false, timeLeft, aiE
                                         ${aiVerificationSuccess ? 'border-green-500' : 'border-transparent'}
                                 ${hasVotedToEnd ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-red-600 hover:bg-red-500 text-white'}`}
                         >
-                            <span>{hasVotedToEnd ? 'Wait...' : 'End Vote'}</span>
-                            <span className="text-[9px] sm:text-xs normal-case opacity-80">
-                                {readyPlayers.length} / {votesNeeded} voted
-                            </span>
+                            <span>{hasVotedToEnd ? t('sv.wait') : t('sv.endVote')}</span>
+                            <span className="text-[9px] sm:text-xs normal-case opacity-80">{t('sv.voted', { count: readyPlayers.length, total: votesNeeded })}</span>
                         </button>
                     </div>
                 </div>
@@ -84,11 +85,11 @@ export default function RoundControls({ variant, isNarrow = false, timeLeft, aiE
                         type="button"
                         onClick={handleAiVerifyAndEnd}
                         disabled={!allCategoriesFilled || isVerifying}
-                        title={!allCategoriesFilled ? 'Fill every category to enable AI verification' : 'Verify all categories with AI and end the round'}
+                        title={!allCategoriesFilled ? t('sv.fillToEnable') : t('sv.verifyAllEnd')}
                         className={`flex flex-col items-center justify-center whitespace-nowrap px-3 sm:px-4 rounded-lg font-bold transition-all uppercase text-[10px] sm:text-xs shadow-lg leading-tight text-center min-w-[6.5rem]
                                 ${!allCategoriesFilled || isVerifying ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
                     >
-                        <span>{isVerifying ? 'Verifying...' : 'Verify & End'}</span>
+                        <span>{isVerifying ? t('sv.verifying') : t('sv.verifyEnd')}</span>
                     </button>
                 )}
                 <button
@@ -99,10 +100,8 @@ export default function RoundControls({ variant, isNarrow = false, timeLeft, aiE
                         ${aiVerificationSuccess ? 'border-green-500' : 'border-transparent'}
                         ${hasVotedToEnd ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-red-600 hover:bg-red-500 text-white'}`}
                 >
-                    <span>{hasVotedToEnd ? 'Wait...' : 'End Vote'}</span>
-                    <span className="text-[9px] sm:text-[10px] normal-case opacity-80">
-                        {readyPlayers.length} / {votesNeeded} voted
-                    </span>
+                    <span>{hasVotedToEnd ? t('sv.wait') : t('sv.endVote')}</span>
+                    <span className="text-[9px] sm:text-[10px] normal-case opacity-80">{t('sv.voted', { count: readyPlayers.length, total: votesNeeded })}</span>
                 </button>
             </div>
         </div>

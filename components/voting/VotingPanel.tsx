@@ -12,6 +12,8 @@ Three visual states:
 ================================================================================
 */
 
+import { useT } from '@/lib/i18n/I18nProvider';
+
 import type { Player, Submission } from '../utils/types';
 
 interface VotingStats {
@@ -33,7 +35,8 @@ interface VotingPanelProps {
 }
 
 export function VotingPanel({ displaySub, activeSubLatest, votingStats, yesVotes, noVotes, players, playerId, teamMode, onVote }: VotingPanelProps) {
-    const statusLine = votingStats.eligibleCount === 0 && activeSubLatest ? 'Single Player Vote - No votes needed' : votingStats.isComplete ? 'Voting Complete - Continuing...' : `Awaiting Votes... (${votingStats.cast}/${votingStats.eligibleCount})`;
+    const { t } = useT();
+    const statusLine = votingStats.eligibleCount === 0 && activeSubLatest ? t('votingPanel.singlePlayer') : votingStats.isComplete ? t('votingPanel.continuing') : t('votingPanel.awaiting', { cast: votingStats.cast, eligible: votingStats.eligibleCount });
 
     const subPlayerTeam = players.find((p) => p.id === activeSubLatest?.player_id)?.team;
     const myTeam = players.find((p) => p.id === playerId)?.team;
@@ -48,14 +51,14 @@ export function VotingPanel({ displaySub, activeSubLatest, votingStats, yesVotes
             <div className="flex gap-4">
                 {votingStats.isComplete ? (
                     <div className="flex-1 py-4 text-center text-green-400 font-bold uppercase border border-green-700 rounded-xl bg-green-900/30">
-                        Voting Complete <br />
+                        {t('votingPanel.complete')} <br />
                         <span className="text-sm text-green-300/80 normal-case mt-1 inline-block">
                             ({yesVotes} Y / {noVotes} N)
                         </span>
                     </div>
                 ) : isMySubmission || isMyTeamSubmission ? (
                     <div className="flex-1 py-4 text-center text-slate-400 font-bold uppercase border border-slate-700 rounded-xl bg-slate-900/50">
-                        {isMySubmission ? 'Your Submission' : 'Team Submission'} <br />
+                        {isMySubmission ? t('votingPanel.yourSubmission') : t('votingPanel.teamSubmission')} <br />
                         <span className="text-sm text-slate-500 normal-case mt-1 inline-block">
                             Y: {yesVotes} | N: {noVotes}
                         </span>
@@ -64,15 +67,15 @@ export function VotingPanel({ displaySub, activeSubLatest, votingStats, yesVotes
                     <>
                         <div className="flex-1 flex flex-col gap-2">
                             <button type="button" onClick={() => activeSubLatest && onVote(activeSubLatest, true)} className={`w-full py-4 rounded-xl font-black uppercase text-lg border transition-all ${activeSubLatest?.votes?.[playerId] === true ? 'bg-green-600 border-green-400 text-white shadow-[0_0_15px_rgba(34,197,94,0.5)]' : 'bg-slate-800 border-slate-600 text-slate-300 hover:border-green-500 hover:text-green-500 hover:bg-green-900/30'}`}>
-                                Yes
+                                {t('common.yes')}
                             </button>
-                            <div className="text-center text-green-400 font-bold text-sm tracking-wide">{yesVotes} Votes</div>
+                            <div className="text-center text-green-400 font-bold text-sm tracking-wide">{t('votingPanel.votes', { count: yesVotes })}</div>
                         </div>
                         <div className="flex-1 flex flex-col gap-2">
                             <button type="button" onClick={() => activeSubLatest && onVote(activeSubLatest, false)} className={`w-full py-4 rounded-xl font-black uppercase text-lg border transition-all ${activeSubLatest?.votes?.[playerId] === false ? 'bg-red-600 border-red-400 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'bg-slate-800 border-slate-600 text-slate-300 hover:border-red-500 hover:text-red-500 hover:bg-red-900/30'}`}>
-                                No
+                                {t('common.no')}
                             </button>
-                            <div className="text-center text-red-400 font-bold text-sm tracking-wide">{noVotes} Votes</div>
+                            <div className="text-center text-red-400 font-bold text-sm tracking-wide">{t('votingPanel.votes', { count: noVotes })}</div>
                         </div>
                     </>
                 )}

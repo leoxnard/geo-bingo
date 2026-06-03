@@ -19,6 +19,8 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useJsApiLoader } from '@react-google-maps/api';
 import toast from 'react-hot-toast';
 
+import { useT } from '@/lib/i18n/I18nProvider';
+
 import RoundControls from './RoundControls';
 import { initialWorldZoom, ROOMY_GAP, ROOMY_MIN, safeStartCenter } from './streetViewHelpers';
 import StreetViewMapPanel from './StreetViewMapPanel';
@@ -33,6 +35,7 @@ import { Submission, StreetViewProps, BoundaryPolygon } from '../utils/types';
 import { useViewport } from '../utils/useViewport';
 
 export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list', teamMode = 'ffa', gridSize = 3, startingPoint = 'open-world', gameBoundary = '[]', endCondition = 'timer', timeLeft, readyPlayers, players, hideMapSymbols = false, hideMiniMap = false, exclusiveMode = false, allowHints = true, aiEndGame = true, onVoteEnd, notifyGameEvent }: StreetViewProps) {
+    const { t } = useT();
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
         googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
@@ -369,7 +372,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                     recordPoint(pos.lat(), pos.lng());
                 } else {
                     isRevertingRef.current = true;
-                    toast("You've reached the edge of the allowed area or entered a forbidden zone!");
+                    toast(t('sv.toastEdgeOfArea'));
 
                     if (lastValidPanoRef.current) {
                         pano.setPano(lastValidPanoRef.current);
@@ -520,12 +523,12 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
             });
 
             if (data && data.success === false && data.error === 'ALREADY_CLAIMED') {
-                toast.error('Sorry, someone else was faster claiming this category!');
+                toast.error(t('sv.toastClaimedFaster'));
                 setAllSubmissions((prev) => prev.filter((s) => s.id !== tempId));
                 return;
             } else if (error) {
                 console.error('RPC call failed:', error);
-                toast.error('Error saving submission. Please try again.');
+                toast.error(t('sv.toastErrorSaving'));
                 setAllSubmissions((prev) => prev.filter((s) => s.id !== tempId));
                 return;
             } else if (data && data.success) {
@@ -548,7 +551,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
             if (error || (data && data.success === false)) {
                 console.error('claim_category failed:', error || data.error);
-                toast.error('Error saving submission. Please try again.');
+                toast.error(t('sv.toastErrorSaving'));
                 setAllSubmissions((prev) => (existingSub ? prev : prev.filter((s) => s.id !== tempId)));
                 return;
             } else if (data && data.success) {
@@ -581,11 +584,11 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                 if (winnerNames.length > 2) {
                     winnerNamesString = [winnerNames.slice(0, -1).join(', '), winnerNames.slice(-1)[0]].join(' and ');
                 } else if (winnerNames.length === 2) {
-                    winnerNamesString = winnerNames.join(' and ');
+                    winnerNamesString = winnerNames.join(` ${t('sv.and')} `);
                 } else {
                     winnerNamesString = winnerNames[0];
                 }
-                toast(`${winnerNamesString} got Bingo!`);
+                toast(t('sv.gotBingo', { names: winnerNamesString }));
                 try {
                     await supabase.rpc('player_end_round', { p_game_id: gameId, p_player_id: playerId });
                 } catch (error) {

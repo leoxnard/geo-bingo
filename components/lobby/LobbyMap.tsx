@@ -228,19 +228,20 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     };
 
     const handleUndoBoundary = () => {
-        setBoundaryHistory((prev) => {
-            if (prev.length === 0) return prev;
-            const next = prev.slice(0, -1);
-            const restored = prev[prev.length - 1];
-            const restoredBoundaries = parseBoundaryString(restored.boundaries);
-            const restoredId = restored.selectedId && restoredBoundaries.some((b) => b.id === restored.selectedId) ? restored.selectedId : null;
-            optimisticGameBoundaryRef.current = restored.boundaries;
-            setOptimisticGameBoundary(restored.boundaries);
-            updateGameModeInfo({ gameBoundary: restored.boundaries });
-            setSelectedBoundaryId(restoredId);
-            setSelectedPreset('');
-            return next;
-        });
+        if (boundaryHistory.length === 0) return;
+
+        const restored = boundaryHistory[boundaryHistory.length - 1];
+        const restoredBoundaries = parseBoundaryString(restored.boundaries);
+        const restoredId = restored.selectedId && restoredBoundaries.some((b) => b.id === restored.selectedId) ? restored.selectedId : null;
+
+        // Side effects run in the handler scope (NOT inside the setBoundaryHistory
+        // updater), so they don't fire a parent setState during render.
+        setBoundaryHistory((prev) => prev.slice(0, -1));
+        optimisticGameBoundaryRef.current = restored.boundaries;
+        setOptimisticGameBoundary(restored.boundaries);
+        updateGameModeInfo({ gameBoundary: restored.boundaries });
+        setSelectedBoundaryId(restoredId);
+        setSelectedPreset('');
     };
 
     const activeBoundaryId = useMemo(() => {
@@ -359,6 +360,22 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         commitBoundaryChange(newBoundaries);
         // Deselect; the next map click will spawn a fresh boundary at that point.
         setSelectedBoundaryId(null);
+    };
+
+    const handleRemoveBoundaryPoint = (boundaryId: string, pointIdx: number) => {
+        if (!isHost) return;
+        const currentBoundaries = parseBoundaryString(optimisticGameBoundaryRef.current || gameBoundary);
+        const newBoundaries = currentBoundaries
+            .map((b) => {
+                if (b.id !== boundaryId) return b;
+                const points = b.points.filter((_, i) => i !== pointIdx);
+                // A completed polygon needs at least 3 points; if it drops below,
+                // send it back to drawing mode so it renders as an editable line.
+                const isComplete = b.isComplete && points.length >= 3;
+                return { ...b, points, isComplete };
+            })
+            .filter((b) => b.points.length > 0); // drop the area entirely once empty
+        commitBoundaryChange(newBoundaries);
     };
 
     const handleDrop = (dropIndex: number) => {
@@ -586,21 +603,47 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
 
                                         {boundary.points.map((point, idx) => (
                                             // Phase 1 & 2: show points with different styling based on completion and type
-                                            <MarkerF
-                                                key={`poly-${boundary.id}-${idx}`}
-                                                position={point}
-                                                options={{
-                                                    clickable: false,
-                                                    icon: {
-                                                        path: google.maps.SymbolPath.CIRCLE,
-                                                        scale: 4,
-                                                        fillColor: '#ffffff',
-                                                        fillOpacity: 1,
-                                                        strokeColor: boundary.isComplete ? (boundary.type === 'allow' ? '#008000' : '#ff0000') : '#7a7a7a',
-                                                        strokeWeight: 2,
-                                                    },
-                                                }}
-                                            />
+                                            <Fragment key={`poly-${boundary.id}-${idx}`}>
+                                                <MarkerF
+                                                    position={point}
+                                                    options={{
+                                                        clickable: false,
+                                                        icon: {
+                                                            path: google.maps.SymbolPath.CIRCLE,
+                                                            scale: 4,
+                                                            fillColor: '#ffffff',
+                                                            fillOpacity: 1,
+                                                            strokeColor: boundary.isComplete ? (boundary.type === 'allow' ? '#008000' : '#ff0000') : '#7a7a7a',
+                                                            strokeWeight: 2,
+                                                        },
+                                                    }}
+                                                />
+                                                {isHost && (
+                                                    // Invisible, larger click target over each point: click it to
+                                                    // delete that boundary point. zIndex stays below the phase-1
+                                                    // start-handle (999) so clicking the first point still closes
+                                                    // an open polygon instead of deleting it.
+                                                    <MarkerF
+                                                        position={point}
+                                                        onClick={() => handleRemoveBoundaryPoint(boundary.id, idx)}
+                                                        options={{
+                                                            clickable: true,
+                                                            cursor: 'pointer',
+                                                            title: 'Click to remove this point',
+                                                            zIndex: 990,
+                                                            icon: {
+                                                                path: google.maps.SymbolPath.CIRCLE,
+                                                                scale: 9,
+                                                                fillColor: '#ffffff',
+                                                                fillOpacity: 0,
+                                                                strokeColor: '#ffffff',
+                                                                strokeOpacity: 0,
+                                                                strokeWeight: 0,
+                                                            },
+                                                        }}
+                                                    />
+                                                )}
+                                            </Fragment>
                                         ))}
 
                                         {!boundary.isComplete && boundary.points.length > 0 && (

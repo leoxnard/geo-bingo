@@ -12,6 +12,8 @@ Provides toggle switches and range sliders for game customization.
 
 import { useState } from 'react';
 
+import { useT } from '@/lib/i18n/I18nProvider';
+
 import { ToggleButton, RangeSlider } from '../utils/Elements';
 
 interface LobbySettingsProps {
@@ -26,6 +28,7 @@ interface LobbySettingsProps {
 }
 
 export default function LobbySettings({ isHost, gameMode, teamMode, timeLimit, endCondition, exclusiveMode, updateGameModeInfo }: LobbySettingsProps) {
+    const { t } = useT();
     const [localTimeLimit, setLocalTimeLimit] = useState(timeLimit / 60);
 
     const handleCommit = () => {
@@ -40,37 +43,22 @@ export default function LobbySettings({ isHost, gameMode, teamMode, timeLimit, e
             {/* <h2 className="text-xl font-semibold mb-4 text-slate-300">Settings</h2> */}
 
             {/* Team Mode Selection */}
-            <ToggleButton title="Team Mode" active={teamMode === 'ffa' ? 'left' : 'right'} onClick={(val: 'left' | 'right') => updateGameModeInfo({ team_mode: val === 'left' ? 'ffa' : 'teams' })} disabled={!isHost} isHost={isHost} labelLeft="No Teams" labelRight="Teams" position="top" />
+            <ToggleButton title={t('settings.teamMode')} active={teamMode === 'ffa' ? 'left' : 'right'} onClick={(val: 'left' | 'right') => updateGameModeInfo({ team_mode: val === 'left' ? 'ffa' : 'teams' })} disabled={!isHost} isHost={isHost} labelLeft={t('settings.noTeams')} labelRight={t('settings.teams')} position="top" />
 
             {/* Game Mode Selection */}
-            <ToggleButton title="Game Mode" active={gameMode === 'list' ? 'left' : 'right'} onClick={(val: 'left' | 'right') => updateGameModeInfo({ game_mode: val === 'left' ? 'list' : 'bingo' })} disabled={!isHost} isHost={isHost} labelLeft="Classic List" labelRight="Bingo Grid" description={`${gameMode === 'list' ? 'In Classic List mode, players will see a simple list of categories.' : 'In Bingo Grid mode, players receive a grid of categories.'}`} />
+            <ToggleButton title={t('settings.gameMode')} active={gameMode === 'list' ? 'left' : 'right'} onClick={(val: 'left' | 'right') => updateGameModeInfo({ game_mode: val === 'left' ? 'list' : 'bingo' })} disabled={!isHost} isHost={isHost} labelLeft={t('settings.classicList')} labelRight={t('settings.bingoGrid')} description={gameMode === 'list' ? t('settings.gameModeDescList') : t('settings.gameModeDescBingo')} />
 
             {/* Select if Categories are exclusive or not */}
-            <ToggleButton
-                title="Category Mode"
-                active={exclusiveMode === false ? 'left' : 'right'}
-                labelLeft="Not Exclusive"
-                labelRight="Exclusive"
-                onClick={(val: 'left' | 'right') => updateGameModeInfo({ exclusive_mode: val === 'left' ? false : true })}
-                disabled={!isHost}
-                isHost={isHost}
-                position="middle"
-                description={
-                    exclusiveMode === false
-                        ? 'Categories can be submitted by every player.'
-                        : 'Each category can only be submitted by the first player submitting it. \
-                        A player will not be able to overwrite his own submission!'
-                }
-            />
+            <ToggleButton title={t('settings.categoryMode')} active={exclusiveMode === false ? 'left' : 'right'} labelLeft={t('settings.notExclusive')} labelRight={t('settings.exclusive')} onClick={(val: 'left' | 'right') => updateGameModeInfo({ exclusive_mode: val === 'left' ? false : true })} disabled={!isHost} isHost={isHost} position="middle" description={exclusiveMode === false ? t('settings.categoryModeDescNotExclusive') : t('settings.categoryModeDescExclusive')} />
 
             {/* End Condition Selection */}
             {gameMode === 'bingo' && (
                 <>
                     <ToggleButton
-                        title="Win Condition"
+                        title={t('settings.winCondition')}
                         active={endCondition === 'first_bingo' ? 'left' : 'right'}
-                        labelLeft="First Bingo"
-                        labelRight="Full Time"
+                        labelLeft={t('settings.firstBingo')}
+                        labelRight={t('settings.fullTime')}
                         onClick={(val: 'left' | 'right') =>
                             updateGameModeInfo({
                                 end_condition: val === 'left' ? 'first_bingo' : 'timer',
@@ -78,13 +66,13 @@ export default function LobbySettings({ isHost, gameMode, teamMode, timeLimit, e
                         }
                         disabled={!isHost}
                         isHost={isHost}
-                        description={endCondition === 'first_bingo' ? 'Game ends instantly when someone gets a Bingo. The Bingo gets verified by AI.' : 'Game continues until the timer runs out, extra points for each Bingo.'}
+                        description={endCondition === 'first_bingo' ? t('settings.winConditionDescFirst') : t('settings.winConditionDescTimer')}
                     />
                 </>
             )}
 
             {/* Time Slider */}
-            <RangeSlider title="Time Limit" min={1} max={30} step={1} value={localTimeLimit} displayValue={`${localTimeLimit} Minutes`} onChange={setLocalTimeLimit} disabled={!isHost} onCommit={handleCommit} position="bottom" />
+            <RangeSlider title={t('settings.timeLimit')} min={1} max={30} step={1} value={localTimeLimit} displayValue={t('settings.minutes', { count: localTimeLimit })} onChange={setLocalTimeLimit} disabled={!isHost} onCommit={handleCommit} position="bottom" />
         </div>
     );
 }

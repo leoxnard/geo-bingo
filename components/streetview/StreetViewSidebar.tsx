@@ -10,6 +10,8 @@ the submission count, and the category checklist — rendered as a list
 ================================================================================
 */
 
+import { useT } from '@/lib/i18n/I18nProvider';
+
 import BingoBoard from './BingoBoard';
 import ChecklistList from './ChecklistList';
 import RoundControls from './RoundControls';
@@ -55,6 +57,7 @@ interface StreetViewSidebarProps {
 }
 
 export default function StreetViewSidebar(props: StreetViewSidebarProps) {
+    const { t } = useT();
     const { isMobileLandscape, isPortrait, sidebarWidthClass, gameMode } = props;
 
     return (
@@ -62,7 +65,7 @@ export default function StreetViewSidebar(props: StreetViewSidebarProps) {
             {!isPortrait && <RoundControls variant="sidebar" timeLeft={props.timeLeft} aiEndGame={props.aiEndGame} isBingoFirstWithAi={props.isBingoFirstWithAi} handleAiVerifyAndEnd={props.handleAiVerifyAndEnd} allCategoriesFilled={props.allCategoriesFilled} isVerifying={props.isVerifying} handleVoteEndRound={props.handleVoteEndRound} hasVotedToEnd={props.hasVotedToEnd} aiVerificationSuccess={props.aiVerificationSuccess} readyPlayers={props.readyPlayers} votesNeeded={props.votesNeeded} />}
 
             <div className="flex justify-between items-center hidden sm:flex mb-2">
-                <h2 className="text-indigo-400 font-bold text-xl tracking-wide uppercase">{gameMode === 'bingo' ? 'Bingo Board' : 'Checklist'}</h2>
+                <h2 className="text-indigo-400 font-bold text-xl tracking-wide uppercase">{gameMode === 'bingo' ? t('sv.bingoBoard') : t('sv.checklist')}</h2>
                 <span className="bg-slate-700 text-slate-300 font-bold px-3 py-1 rounded-full text-sm">
                     {props.mySubmissions.length} / {props.myBoard.length}
                 </span>

@@ -15,6 +15,8 @@ import { GoogleMap, Polygon, StreetViewPanorama } from '@react-google-maps/api';
 import { FaChevronLeft } from 'react-icons/fa';
 import { GoMoveToStart } from 'react-icons/go';
 
+import { useT } from '@/lib/i18n/I18nProvider';
+
 import { ROOMY_MAX, ROOMY_MIN, getAiVerdictState, getHintForCategory, getStreetViewImageUrl, panoOptions, safeStartCenter } from './streetViewHelpers';
 import { ExitButton, FullscreenButton } from '../utils/Elements';
 import { mapOptions } from '../utils/mapUtils';
@@ -58,31 +60,33 @@ interface StreetViewMapPanelProps {
 }
 
 export default function StreetViewMapPanel(props: StreetViewMapPanelProps) {
+    const { t } = useT();
     const { containerRef, panelRef, streetViewRef, minimapCenter, isMobileLandscape, isPortrait, isNarrow, gameId, mapCenter, mapZoom, additionalMapOptions, additionalMiniMapOptions, parsedBoundaries, setMainMapInstance, setMinimapInstance, setPanoInstance, onLoad, onUnmount } = props;
     const { inStreetView, hideMiniMap, isFullscreen, fsPanelOpen, setFsPanelOpen, setIsFullscreen, measuredPanelWidth, startingPoint, myBoard, mySubmissions, otherSubmissions, exclusiveMode, allowHints, submittingCategory, textSizeClass, handleSubmit } = props;
+
+    const renderBoundaries = (keyPrefix: string) =>
+        parsedBoundaries.map((boundary, index) =>
+            boundary.points && boundary.points.length >= 3 ? (
+                <Polygon
+                    key={`${keyPrefix}-${boundary.id || index}`}
+                    paths={boundary.points}
+                    options={{
+                        fillColor: boundary.type === 'allow' ? '#008000' : '#ff0000',
+                        fillOpacity: 0.2,
+                        strokeColor: boundary.type === 'allow' ? '#008000' : '#ff0000',
+                        strokeOpacity: 1,
+                        strokeWeight: 4,
+                        clickable: false,
+                        geodesic: true,
+                    }}
+                />
+            ) : null,
+        );
 
     return (
         <div ref={containerRef} className={`${isMobileLandscape ? 'basis-[58%] min-h-0 h-full' : isPortrait ? 'flex-[1.2] min-h-[48svh] h-full' : 'flex-1 h-full'} border-2 border-slate-700 rounded-2xl overflow-hidden shadow-2xl relative bg-slate-800 absolute-safari-fix`}>
             <GoogleMap key={gameId} mapContainerClassName="google-map-container absolute inset-0" center={mapCenter} zoom={mapZoom} options={mapOptions(additionalMapOptions)} onLoad={(map) => setMainMapInstance(map)} onUnmount={() => setMainMapInstance(null)}>
-                {parsedBoundaries.map(
-                    (boundary, index) =>
-                        boundary.points &&
-                        boundary.points.length >= 3 && (
-                            <Polygon
-                                key={boundary.id || `poly-${index}`}
-                                paths={boundary.points}
-                                options={{
-                                    fillColor: boundary.type === 'allow' ? '#008000' : '#ff0000',
-                                    fillOpacity: 0.1,
-                                    strokeColor: boundary.type === 'allow' ? '#008000' : '#ff0000',
-                                    strokeOpacity: 0.6,
-                                    strokeWeight: 2,
-                                    clickable: false,
-                                    geodesic: true,
-                                }}
-                            />
-                        ),
-                )}
+                {renderBoundaries('main')}
 
                 <StreetViewPanorama
                     options={panoOptions}
@@ -101,7 +105,9 @@ export default function StreetViewMapPanel(props: StreetViewMapPanelProps) {
             {inStreetView && !hideMiniMap && (
                 <div style={{ transform: isFullscreen && fsPanelOpen ? `translateX(${measuredPanelWidth}px)` : undefined }} className={`absolute ${isNarrow ? 'w-20 h-20 bottom-1 left-1 hover:w-28 hover:h-28' : 'w-28 h-28 bottom-6 left-6 hover:w-44 hover:h-44'} z-[500] rounded-xl overflow-hidden border-2 border-indigo-500 shadow-[0_0_20px_rgba(79,70,229,0.5)] transition-all duration-300 minimap-wrapper duration-300 ease-out`}>
                     <style>{`.minimap-wrapper .gmnoprint { display: none !important; }`}</style>
-                    <GoogleMap mapContainerClassName="w-full h-full" onLoad={(map) => setMinimapInstance(map)} onUnmount={() => setMinimapInstance(null)} center={minimapCenter} zoom={isNarrow ? 14 : 16} options={mapOptions(additionalMiniMapOptions)} />
+                    <GoogleMap mapContainerClassName="w-full h-full" onLoad={(map) => setMinimapInstance(map)} onUnmount={() => setMinimapInstance(null)} center={minimapCenter} zoom={isNarrow ? 14 : 16} options={mapOptions(additionalMiniMapOptions)}>
+                        {renderBoundaries('mini')}
+                    </GoogleMap>
                     {startingPoint !== 'open-world' && <div className="absolute inset-0 z-50 bg-transparent"></div>}
                 </div>
             )}
@@ -143,7 +149,7 @@ export default function StreetViewMapPanel(props: StreetViewMapPanelProps) {
                                         {cat}
                                         {hint && (
                                             <div className="mt-1 text-xs text-slate-400 font-normal">
-                                                Hint: <em>{hint}</em>
+                                                {t('sv.hint')} <em>{hint}</em>
                                             </div>
                                         )}
                                     </div>
@@ -151,7 +157,7 @@ export default function StreetViewMapPanel(props: StreetViewMapPanelProps) {
                             );
                         })}
                     </ul>
-                    <button type="button" onClick={() => setFsPanelOpen((open) => !open)} className="absolute top-1/2 left-full -translate-y-1/2 -ml-px w-5 h-14 rounded-r-lg bg-slate-900/40 backdrop-blur-sm border border-l-0 border-white/10 text-white shadow-md flex items-center justify-center" title={fsPanelOpen ? 'Hide categories' : 'Show categories'}>
+                    <button type="button" onClick={() => setFsPanelOpen((open) => !open)} className="absolute top-1/2 left-full -translate-y-1/2 -ml-px w-5 h-14 rounded-r-lg bg-slate-900/40 backdrop-blur-sm border border-l-0 border-white/10 text-white shadow-md flex items-center justify-center" title={fsPanelOpen ? t('sv.hideCategories') : t('sv.showCategories')}>
                         <FaChevronLeft className={`transition-transform duration-300 ${fsPanelOpen ? '' : 'rotate-180'}`} size={11} />
                     </button>
                 </div>
@@ -164,15 +170,14 @@ export default function StreetViewMapPanel(props: StreetViewMapPanelProps) {
             )}
 
             {startingPoint !== 'open-world' && (
-                <button
-                    type="button"
-                    onClick={() => streetViewRef.current?.setPosition(new google.maps.LatLng(startingPoint ? JSON.parse(startingPoint) : safeStartCenter))}
-                    style={{ transform: isFullscreen && fsPanelOpen ? `translateX(${measuredPanelWidth}px)` : undefined }}
-                    className="absolute top-2 left-2 z-5 hidden sm:flex w-12 h-12 bg-slate-800/30 hover:bg-slate-700/80 text-white text-[30px] items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-slate-500 font-bold transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm duration-300 ease-out"
-                    title="Return to Starting Point"
-                >
-                    <GoMoveToStart />
-                </button>
+                // The panel-open offset (translateX) lives on the wrapper, so the
+                // button's own hover:scale transform doesn't fight it — otherwise
+                // hovering in fullscreen made the button jump on the x-axis.
+                <div style={{ transform: isFullscreen && fsPanelOpen ? `translateX(${measuredPanelWidth}px)` : undefined }} className="absolute top-2 left-2 z-5 transition-transform duration-300 ease-out hidden sm:block">
+                    <button type="button" onClick={() => streetViewRef.current?.setPosition(new google.maps.LatLng(startingPoint ? JSON.parse(startingPoint) : safeStartCenter))} className="flex w-12 h-12 bg-slate-800/30 hover:bg-slate-700/80 text-white text-[30px] items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-slate-500 font-bold transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm" title={t('sv.returnToStart')}>
+                        <GoMoveToStart />
+                    </button>
+                </div>
             )}
         </div>
     );

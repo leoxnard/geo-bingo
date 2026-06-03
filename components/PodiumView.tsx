@@ -14,12 +14,15 @@ import { useState, useEffect } from 'react';
 
 import Confetti from 'react-confetti';
 
+import { useT } from '@/lib/i18n/I18nProvider';
+
 import { getHostToken } from '../lib/hostToken';
 import { supabase } from '../lib/supabase';
 import { GeoBingoLogo } from './utils/Elements';
 import { ScoreEntity, PlayerStats, PodiumViewProps } from './utils/types';
 
 export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps) {
+    const { t } = useT();
     const [stats, setStats] = useState<PlayerStats[]>([]);
     const [loading, setLoading] = useState(true);
     const [gameMode, setGameMode] = useState<string>('list');
@@ -270,7 +273,18 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
         fetchResults();
     }, [gameId, teamMode]);
 
-    if (loading) return <div className="text-white text-center py-20 text-xl animate-pulse">Calculating Final Scores...</div>;
+    if (loading)
+        return (
+            <>
+                <div className="w-full flex md:mb-4">
+                    <div className="flex items-center gap-4">
+                        <GeoBingoLogo size={50} className="hidden sm:block" />
+                        <h1 className="text-4xl font-black uppercase tracking-widest text-indigo-400">{t('podium.results')}</h1>
+                    </div>
+                </div>
+                <div className="text-white text-center py-20 text-xl animate-pulse">{t('podium.calculating')}</div>
+            </>
+        );
 
     const rank1 = stats.filter((s) => s.rank === 1);
     const rank2 = stats.filter((s) => s.rank === 2);
@@ -278,22 +292,22 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
 
     const renderScoreBadge = (p: PlayerStats) => {
         if (endCondition === 'first_bingo' && p.bingos > 0) {
-            return 'BINGO!';
+            return t('podium.bingo');
         }
-        return `${p.score} Pts`;
+        return t('podium.points', { score: p.score });
     };
 
     const getWinningMessage = () => {
         if (rank1.length === 0) return null;
-        if (rank1.length > 1) return '🏆 Epic first place tie!';
+        if (rank1.length > 1) return t('podium.tie');
 
         const winner = rank1[0];
 
         if (endCondition === 'first_bingo' && winner.bingos > 0) {
-            return '🥇 Winner by achieving the first bingo!';
+            return t('podium.winnerFirstBingo');
         }
 
-        return '🌟 Winner by getting the most points';
+        return t('podium.winnerMostPoints');
     };
 
     return (
@@ -336,7 +350,7 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
                 <div className="w-full flex md:mb-4">
                     <div className="flex items-center gap-4">
                         <GeoBingoLogo size={50} className="hidden sm:block" />
-                        <h1 className="text-4xl font-black uppercase tracking-widest text-indigo-400">Results</h1>
+                        <h1 className="text-4xl font-black uppercase tracking-widest text-indigo-400">{t('podium.results')}</h1>
                     </div>
                 </div>
 
@@ -422,7 +436,7 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
 
                         {/* DETAILED STATISTICS */}
                         <div className="w-full bg-slate-800 rounded-3xl border border-slate-700 p-3 md:p-6 shadow-2xl">
-                            <h3 className="text-2xl font-black text-white mb-4 md:mb-8 uppercase tracking-widest border-b border-slate-700 pb-2 md:pb-4 text-center">Match Statistics</h3>
+                            <h3 className="text-2xl font-black text-white mb-4 md:mb-8 uppercase tracking-widest border-b border-slate-700 pb-2 md:pb-4 text-center">{t('podium.matchStatistics')}</h3>
 
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-6">
                                 {stats.map((player) => (
@@ -433,7 +447,7 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
                                                 <span className="text-2xl font-black text-slate-600">#{player.rank}</span>
                                                 <span className="font-bold text-xl text-indigo-400">{player.name}</span>
                                             </div>
-                                            <span className="bg-indigo-600 px-4 py-1 rounded-lg text-lg font-bold text-white shadow-lg">{player.score} Pts</span>
+                                            <span className="bg-indigo-600 px-4 py-1 rounded-lg text-lg font-bold text-white shadow-lg">{t('podium.points', { score: player.score })}</span>
                                         </div>
 
                                         {/* Stats Grid */}
@@ -441,7 +455,7 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
                                             {/* Bingos */}
                                             {gameMode === 'bingo' && (
                                                 <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
-                                                    <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">Bingos</span>
+                                                    <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">{t('podium.bingos')}</span>
                                                     <div className="flex-1 flex items-center justify-center w-full">
                                                         <span className="text-xl font-medium text-yellow-400 leading-none">{player.bingos || 0}</span>
                                                     </div>
@@ -449,7 +463,7 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
                                             )}
                                             {/* Approved Words */}
                                             <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
-                                                <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">Approved words</span>
+                                                <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">{t('podium.approvedWords')}</span>
                                                 <div className="flex-1 flex items-center justify-center w-full">
                                                     <span className="text-xl font-medium leading-none">{player.totalFound || 0}</span>
                                                 </div>
@@ -457,7 +471,7 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
                                             {/* Mini Bingo Board */}
                                             {gameMode === 'bingo' ? (
                                                 <div className="relative group bg-slate-800 p-3 rounded-xl flex flex-col items-center justify-center">
-                                                    <span className="text-[10px] text-slate-400 uppercase font-bold mb-2 text-center">Bingo-Board</span>
+                                                    <span className="text-[10px] text-slate-400 uppercase font-bold mb-2 text-center">{t('podium.bingoBoard')}</span>
                                                     <div
                                                         className="grid gap-1"
                                                         style={{
@@ -500,13 +514,13 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
                                                 </div>
                                             ) : (
                                                 <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
-                                                    <span className="text-[10px] text-slate-400 uppercase font-bold mb-1 text-center">Approve-Rate</span>
+                                                    <span className="text-[10px] text-slate-400 uppercase font-bold mb-1 text-center">{t('podium.approveRate')}</span>
                                                     <span className={`text-xl font-medium ${player.communityApproval >= 75 ? 'text-green-400' : player.communityApproval >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>{player.communityApproval}%</span>
                                                 </div>
                                             )}
 
                                             <div className={`bg-slate-800 p-3 rounded-xl flex flex-col ${gameMode === 'bingo' ? 'col-span-3' : 'col-span-2'}`}>
-                                                <span className="text-xs text-slate-400 uppercase font-bold mb-2">Total Votes Received</span>
+                                                <span className="text-xs text-slate-400 uppercase font-bold mb-2">{t('podium.totalVotesReceived')}</span>
                                                 <div className="flex items-center gap-4">
                                                     <div className="flex-1 h-3 bg-slate-700 rounded-full overflow-hidden flex">
                                                         <div
@@ -523,9 +537,9 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
                                                         ></div>
                                                     </div>
                                                     <div className="flex gap-3 text-sm font-bold">
-                                                        <span className="text-green-500">{player.totalYes} Yes</span>
+                                                        <span className="text-green-500">{t('podium.yesCount', { count: player.totalYes })}</span>
                                                         <span className="text-slate-500">|</span>
-                                                        <span className="text-red-500">{player.totalNo} No</span>
+                                                        <span className="text-red-500">{t('podium.noCount', { count: player.totalNo })}</span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -552,7 +566,7 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
                                 }}
                                 className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-8 rounded-lg transition-all uppercase text-sm tracking-wide shadow-lg"
                             >
-                                Back to Lobby
+                                {t('podium.backToLobby')}
                             </button>
                         )}
                     </div>

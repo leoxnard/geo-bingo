@@ -16,10 +16,12 @@ import { useRouter } from 'next/navigation';
 
 import { GeoBingoLogo } from '@/components/utils/Elements';
 import { useViewport } from '@/components/utils/useViewport';
+import { useT } from '@/lib/i18n/I18nProvider';
 
 import { adjectives, badAdjectives, animals } from '../lib/names';
 
 export default function Home() {
+    const { t } = useT();
     const [lobbyId, setLobbyId] = useState<string>(() => {
         if (typeof window !== 'undefined') {
             return localStorage.getItem('geoBingoLastLobbyId') || '';
@@ -67,33 +69,33 @@ export default function Home() {
                 {/* PLAYER NAME INPUT */}
                 <div>
                     <button type="button" className="text-sm text-slate-400 font-bold uppercase mb-2 block" onClick={() => setShowBadNames(!showBadNames)}>
-                        {showBadNames ? 'Your badass name' : 'Your name'}
+                        {showBadNames ? t('home.yourBadassName') : t('home.yourName')}
                     </button>
-                    <input type="text" placeholder="Enter your name..." className="w-full p-4 rounded-xl bg-slate-900 border border-slate-600 focus:outline-none focus:border-indigo-500 text-white font-medium text-lg" value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
+                    <input type="text" placeholder={t('home.namePlaceholder')} className="w-full p-4 rounded-xl bg-slate-900 border border-slate-600 focus:outline-none focus:border-indigo-500 text-white font-medium text-lg" value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
                 </div>
 
                 <div className="w-full h-px bg-slate-700 md:my-2"></div>
 
                 <button type="button" onClick={createGame} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-xl transition-all tracking-wide uppercase">
-                    Create New Game
+                    {t('home.createGame')}
                 </button>
 
-                <div className="text-center text-slate-500 text-sm font-medium uppercase tracking-widest">or</div>
+                <div className="text-center text-slate-500 text-sm font-medium uppercase tracking-widest">{t('home.or')}</div>
 
                 <form onSubmit={joinGame} className="flex flex-col gap-3">
-                    <input type="text" placeholder="Enter Lobby ID..." className="p-4 rounded-xl bg-slate-700 border border-slate-600 focus:outline-none focus:border-indigo-500 text-white font-medium" value={lobbyId} onChange={(e) => setLobbyId(e.target.value)} />
+                    <input type="text" placeholder={t('home.lobbyIdPlaceholder')} className="p-4 rounded-xl bg-slate-700 border border-slate-600 focus:outline-none focus:border-indigo-500 text-white font-medium" value={lobbyId} onChange={(e) => setLobbyId(e.target.value)} />
                     <button type="submit" className="w-full bg-slate-600 hover:bg-slate-500 text-white font-bold py-3 rounded-xl transition-all uppercase tracking-wide">
-                        Join Game
+                        {t('home.joinGame')}
                     </button>
                 </form>
             </div>
 
             <div className="mt-auto mb-2 pt-8 text-slate-500 text-sm font-medium flex gap-4">
                 <a href="/impressum" className="hover:text-slate-300 transition-colors">
-                    Legal Notice
+                    {t('home.legalNotice')}
                 </a>
                 <a href="/privacy" className="hover:text-slate-300 transition-colors">
-                    Privacy Policy
+                    {t('home.privacyPolicy')}
                 </a>
             </div>
         </main>

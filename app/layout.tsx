@@ -12,7 +12,12 @@ import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
+import { cookies } from 'next/headers';
 import './globals.css';
+
+import { I18nProvider } from '@/lib/i18n/I18nProvider';
+import LanguageSwitcher from '@/lib/i18n/LanguageSwitcher';
+import { LOCALE_COOKIE, normalizeLocale } from '@/lib/i18n/locales';
 
 const geistSans = Geist({
     variable: '--font-geist-sans',
@@ -77,15 +82,21 @@ export const viewport: Viewport = {
     themeColor: '#0f172a',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
     children,
 }: Readonly<{
     children: React.ReactNode;
 }>) {
+    const cookieStore = await cookies();
+    const locale = normalizeLocale(cookieStore.get(LOCALE_COOKIE)?.value);
+
     return (
-        <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+        <html lang={locale} className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
             <body className="min-h-full flex flex-col">
-                {children}
+                <I18nProvider initialLocale={locale}>
+                    <LanguageSwitcher />
+                    {children}
+                </I18nProvider>
                 <Analytics />
                 <SpeedInsights />
             </body>

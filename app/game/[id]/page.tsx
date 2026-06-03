@@ -23,6 +23,8 @@ import StreetView from '@/components/streetview/StreetView';
 import { shuffle } from '@/components/utils/Functions';
 import { Player } from '@/components/utils/types';
 import { VotingView } from '@/components/VotingView';
+import { useT } from '@/lib/i18n/I18nProvider';
+import { categoryLanguageForLocale } from '@/lib/i18n/locales';
 
 import { getHostToken, newHostToken, clearHostToken } from '../../../lib/hostToken';
 import { adjectives, animals } from '../../../lib/names';
@@ -35,6 +37,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const unwrappedParams = use(params);
     const gameId = unwrappedParams.id.toLowerCase();
     const router = useRouter();
+    const { t, locale } = useT();
 
     useEffect(() => {
         if (unwrappedParams.id !== gameId) {
@@ -46,7 +49,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [lastUpdated, setLastUpdated] = useState<string>('');
     const [status, setStatus] = useState<GameStatus>('lobby');
     const [exclusiveMode, setExclusiveMode] = useState(false);
-    const [categories, setCategories] = useState<string[]>([]);
+    const [categories, setCategories] = useState<string[]>(['', '', '', '', '', '', '', '', '', '']);
     const [suggestedCategories, setSuggestedCategories] = useState<string[]>([]);
     const [isHost, setIsHost] = useState(false);
     const [gameHostId, setGameHostId] = useState<string>('');
@@ -54,7 +57,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [categorySource, setCategorySource] = useState<'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView'>('manual');
     const [generationRadius, setGenerationRadius] = useState<number>(10); // in 100m
     const [generationNumber, setGenerationNumber] = useState<number>(10);
-    const [difficulty, setDifficulty] = useState<'default' | 'easy' | 'claude'>('default');
+    const [difficulty, setDifficulty] = useState<'default' | 'easy' | 'hard'>('default');
     const [categoriesGenerated, setCategoriesGenerated] = useState<boolean>(false);
     const [apiStatus, setApiStatus] = useState({ aiEnabled: false, mapsEnabled: false, isDeveloper: false });
     const apiStatusRef = useRef({ aiEnabled: false, mapsEnabled: false, isDeveloper: false });
@@ -112,7 +115,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         generation_radius?: number;
         generation_number?: number;
         language?: 'english' | 'german';
-        difficulty?: 'default' | 'easy' | 'claude';
+        difficulty?: 'default' | 'easy' | 'hard';
         categories_generated?: boolean;
     }) => {
         if (!isHost) return;
@@ -201,11 +204,11 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 const { data, error } = await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_patch: updates });
                 if (error || (data && data.success === false)) {
                     console.error('Failed to update game settings:', error || data?.error);
-                    toast.error('Failed to save settings');
+                    toast.error(t('game.failedSaveSettings'));
                 }
             } catch (err) {
                 console.error('Failed to update game settings:', err);
-                toast.error('Failed to save settings');
+                toast.error(t('game.failedSaveSettings'));
             } finally {
                 // Clear pending updates after a delay to allow subscription to process
                 setTimeout(() => {
@@ -246,7 +249,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
             // Kick Check
             if (gameData?.banned_players?.includes(currentPlayerId)) {
-                toast('You have been kicked from this lobby.');
+                toast(t('game.kicked'));
                 setTimeout(() => router.push('/'), 2000);
                 return;
             }
@@ -257,7 +260,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 const newGameData = {
                     id: gameId,
                     status: 'lobby',
-                    categories: ['', '', '', '', ''],
+                    categories: ['', '', '', '', '', '', '', '', '', ''],
                     ready_players: [],
                     time_limit: 600,
                     host_id: currentPlayerId,
@@ -273,7 +276,9 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     category_source: 'manual',
                     generation_radius: 10,
                     generation_number: 10,
-                    language: 'german',
+                    // New games default their (shared) category language to the host's
+                    // current UI language; the host can still override it in More Game Settings.
+                    language: categoryLanguageForLocale(locale),
                     categories_generated: false,
                 };
                 const { error } = await supabase.from('games').insert([newGameData]);
@@ -304,7 +309,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 console.log('[GameRoom] Loading existing game, status:', gameData.status);
                 setLastUpdated(gameData.updated_at);
                 setStatus(gameData.status || 'lobby');
-                setCategories(gameData.categories || []);
+                setCategories(gameData.categories || ['', '', '', '', '', '', '', '', '', '']);
                 setSuggestedCategories(gameData.suggested_categories || []);
                 setReadyPlayers(gameData.ready_players || []);
                 setBannedPlayers(gameData.banned_players || []);
@@ -388,9 +393,9 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 } else if (updateRes && updateRes.success === false) {
                     // The join was refused server-side (banned, or trying to join a
                     // game that's already in progress without having been in it).
-                    if (updateRes.error === 'BANNED') toast('You have been banned from this lobby.');
-                    else if (updateRes.error === 'GAME_IN_PROGRESS') toast('This game has already started.');
-                    else toast('Could not join this game.');
+                    if (updateRes.error === 'BANNED') toast(t('game.banned'));
+                    else if (updateRes.error === 'GAME_IN_PROGRESS') toast(t('game.alreadyStarted'));
+                    else toast(t('game.couldNotJoin'));
                     setTimeout(() => router.push('/'), 1500);
                     return;
                 }
@@ -516,12 +521,12 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             .channel(`game-events-${gameId}`)
             .on('broadcast', { event: 'ai_end_game' }, ({ payload }: { payload: { player_id: string } }) => {
                 if (payload.player_id === currentPlayerId) return;
-                const playerName = playersRef.current.find((p) => p.id === payload.player_id)?.name || 'A player';
-                toast.success(`${playerName} found all categories — round ended!`);
+                const playerName = playersRef.current.find((p) => p.id === payload.player_id)?.name || t('game.unknownPlayer');
+                toast.success(t('game.roundEndedFoundAll', { player: playerName }));
             })
             .on('broadcast', { event: 'ai_generating_categories' }, ({ payload }: { payload: { player_id: string } }) => {
                 if (payload.player_id === currentPlayerId) return;
-                toast('Game starting — AI is generating categories...');
+                toast(t('game.aiGeneratingCategories'));
             })
             .subscribe();
         gameEventsChannelRef.current = gameEventsChannel;
@@ -650,7 +655,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             setIsHost(false);
             localStorage.removeItem(`geoBingoHost_${gameId}`);
             clearHostToken(gameId);
-            toast('You are no longer the host.');
+            toast(t('game.noLongerHost'));
         }
     };
 
@@ -766,7 +771,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
         // --- VIEW 3: VOTING ---
         if (status === 'voting') {
-            return <VotingView gameId={gameId} isHost={isHost} categories={categories} playerId={playerId} players={players} teamMode={teamMode} onFinishGame={handleFinishGame} />;
+            return <VotingView gameId={gameId} isHost={isHost} categories={categories} playerId={playerId} players={players} teamMode={teamMode} onFinishGame={handleFinishGame} isDeveloper={apiStatus.isDeveloper} />;
         }
 
         // --- VIEW 4: PODIUM (FINISHED) ---

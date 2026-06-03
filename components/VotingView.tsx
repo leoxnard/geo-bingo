@@ -15,6 +15,8 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { GoogleMap, useJsApiLoader, Polyline, MarkerF, StreetViewPanorama, Circle, OverlayViewF, OverlayView } from '@react-google-maps/api';
 import toast from 'react-hot-toast';
 
+import { useT } from '@/lib/i18n/I18nProvider';
+
 import { supabase } from '../lib/supabase';
 import { GeoBingoLogo } from './utils/Elements';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES } from './utils/mapUtils';
@@ -34,6 +36,7 @@ interface PlayerWithPaths {
 
 interface BingoCategory {
     categoryName: string;
+    score?: number;
     matchedPlaces: {
         name: string;
         lat: number;
@@ -47,7 +50,8 @@ const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => 
     return Math.sqrt(Math.pow(lat1 - lat2, 2) + Math.pow(dLng, 2));
 };
 
-export function VotingView({ gameId, isHost, playerId, players, teamMode, onFinishGame }: VotingViewProps) {
+export function VotingView({ gameId, isHost, playerId, players, teamMode, onFinishGame, isDeveloper = false }: VotingViewProps) {
+    const { t } = useT();
     const { isNarrow } = useViewport();
     const [gameCategories, setGameCategories] = useState<string[]>([]);
     const [gridSize, setGridSize] = useState<number>(3);
@@ -471,7 +475,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
         if (error) {
             console.error(error);
-            toast.error('Error submitting vote.');
+            toast.error(t('voting.errorVote'));
         }
     };
 
@@ -546,12 +550,27 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         });
     }, [displaySub, isLineComplete, categoryDetails]);
 
+    const categoryScoreMap = useMemo(() => {
+        const m = new Map<string, number>();
+        categoryDetails.forEach((cat) => {
+            if (typeof cat.score === 'number') m.set((cat.categoryName || '').toLowerCase(), cat.score);
+        });
+        return m;
+    }, [categoryDetails]);
+
+    const labelForCategory = (name: string) => {
+        const score = categoryScoreMap.get((name || '').toLowerCase());
+        return isDeveloper && typeof score === 'number' ? `${name} (${score})` : name;
+    };
+
     const groupedFinalPlaces = useMemo(() => {
         if (!categoryDetails) return [];
 
+        const activeNames = new Set(gameCategories.map((c) => (c || '').toLowerCase()));
         const map = new Map<string, { lat: number; lng: number; categoryNames: string[] }>();
 
         categoryDetails.forEach((cat) => {
+            if (!activeNames.has((cat.categoryName || '').toLowerCase())) return;
             cat.matchedPlaces.forEach((place) => {
                 const key = `${place.lat.toFixed(6)},${place.lng.toFixed(6)}`;
 
@@ -567,7 +586,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         });
 
         return Array.from(map.values());
-    }, [categoryDetails]);
+    }, [categoryDetails, gameCategories]);
 
     let finalCategoryMarkers = null;
     let finalSubmissionMarkers = null;
@@ -619,7 +638,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         // Add category markers (existing logic)
         finalCategoryMarkers = groupedFinalPlaces.map((group, idx) => {
             const mId = `final-group-${idx}`;
-            const combinedCategories = group.categoryNames.join(' • ');
+            const combinedCategories = group.categoryNames.map(labelForCategory).join(' • ');
 
             const labelConfig = {
                 text: combinedCategories,
@@ -759,17 +778,17 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     const panoramaKey = selectedSubmission?.id ? `submission-${selectedSubmission.id}` : selectedFinalMarker ? `final-${selectedFinalMarker.lat}-${selectedFinalMarker.lng}-${selectedFinalMarker.categoryNames.join('|')}` : displaySub?.id ? `display-${displaySub.id}` : 'default';
 
     if (!isLoaded || !isDataLoaded) {
-        return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-indigo-400 font-bold text-2xl tracking-widest uppercase">Loading...</div>;
+        return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-indigo-400 font-bold text-2xl tracking-widest uppercase">{t('common.loading')}</div>;
     }
 
     if (isDataLoaded && playersWithPaths.length === 0) {
         return (
             <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white">
-                <h2 className="text-2xl font-bold mb-4 text-indigo-400 tracking-widest uppercase">No Paths Found</h2>
-                <p className="text-slate-400 mb-8">No one has left the house or recorded GPS data.</p>
+                <h2 className="text-2xl font-bold mb-4 text-indigo-400 tracking-widest uppercase">{t('voting.noPathsFound')}</h2>
+                <p className="text-slate-400 mb-8">{t('voting.noPathsDesc')}</p>
                 {isHost && (
                     <button type="button" onClick={onFinishGame} className="px-6 py-3 bg-green-600 hover:bg-green-500 rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(34,197,94,0.3)]">
-                        End Game
+                        {t('voting.endGame')}
                     </button>
                 )}
             </div>
@@ -847,7 +866,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                             <div className="flex flex-col bg-slate-900 border-2 border-indigo-500 rounded-lg overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.5)] pointer-events-none w-[240px] animate-in fade-in slide-in-from-bottom-2 duration-200">
                                 <div className="bg-indigo-600 text-white px-3 py-2 text-center font-bold text-[11px] uppercase tracking-wider flex flex-col gap-0.5">
                                     {hoveredFinalMarker.categoryNames.map((name, i) => (
-                                        <span key={i}>{name}</span>
+                                        <span key={i}>{labelForCategory(name)}</span>
                                     ))}
                                 </div>
                                 <img src={`https://maps.googleapis.com/maps/api/streetview?size=640x640&location=${hoveredFinalMarker.lat},${hoveredFinalMarker.lng}&fov=120&source=outdoor&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`} alt={hoveredFinalMarker.categoryNames[0]} className="w-full h-[240px] object-cover block" />
@@ -875,10 +894,10 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                     <div className="flex items-center gap-4">
                         <GeoBingoLogo size={50} className="drop-shadow-xl" />
                         <div>
-                            <h1 className="text-3xl font-black uppercase text-indigo-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">Journey Replay</h1>
+                            <h1 className="text-3xl font-black uppercase text-indigo-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">{t('voting.journeyReplay')}</h1>
                             <p className="text-white font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] mt-1">
                                 <span className="bg-slate-900/70 px-4 py-1.5 rounded-full border border-slate-700 backdrop-blur-md">
-                                    Following: <span className="text-indigo-400">{currentPlayer?.name}</span>
+                                    {t('voting.following')} <span className="text-indigo-400">{currentPlayer?.name}</span>
                                 </span>
                             </p>
                         </div>
@@ -886,22 +905,22 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
                     {isHost && currentPlayerIndex < playersWithPaths.length - 1 && (
                         <button type="button" onClick={handleSkipToPodium} className="pointer-events-auto font-bold px-6 py-3 rounded-xl shadow-[0_0_20px_rgba(34,197,94,0.3)] transition-all bg-red-600 hover:bg-red-500 text-white border border-red-400">
-                            Skip
+                            {t('voting.skip')}
                         </button>
                     )}
                 </div>
 
                 {isLineComplete && !activeSubLatest && (
                     <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-800/95 backdrop-blur p-6 rounded-2xl border-2 border-indigo-500 shadow-[0_0_50px_rgba(79,70,229,0.4)] w-[350px] text-center animate-in zoom-in-90 duration-300">
-                        <h2 className="text-2xl font-black uppercase text-indigo-400 mb-2">{currentPlayer?.name}'s Journey</h2>
-                        <p className="text-slate-300 font-medium mb-6">Complete.</p>
+                        <h2 className="text-2xl font-black uppercase text-indigo-400 mb-2">{t('voting.journeyOf', { player: currentPlayer?.name ?? '' })}</h2>
+                        <p className="text-slate-300 font-medium mb-6">{t('voting.complete')}</p>
 
                         {isHost ? (
                             <button type="button" onClick={handleNextPlayer} className="w-full py-3 rounded-xl font-black uppercase text-sm border bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-400 transition-all shadow-[0_0_15px_rgba(79,70,229,0.4)]">
-                                {currentPlayerIndex < playersWithPaths.length - 1 ? 'Next Player' : 'Show Podium'}
+                                {currentPlayerIndex < playersWithPaths.length - 1 ? t('voting.nextPlayer') : t('voting.showPodium')}
                             </button>
                         ) : (
-                            <p className="text-sm text-slate-400 uppercase tracking-widest font-bold">Waiting for host...</p>
+                            <p className="text-sm text-slate-400 uppercase tracking-widest font-bold">{t('common.waitingForHost')}</p>
                         )}
                     </div>
                 )}
@@ -980,12 +999,12 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                         ) : selectedSubmission ? (
                             <div className="max-w-xl mx-auto">
                                 <h3 className="text-xl sm:text-2xl font-black text-white mb-1 text-center truncate">{selectedSubmission.category}</h3>
-                                <p className="text-sm text-indigo-300 mb-4 text-center uppercase tracking-widest font-semibold">Submission by {players.find((p) => p.id === selectedSubmission.player_id)?.name}</p>
+                                <p className="text-sm text-indigo-300 mb-4 text-center uppercase tracking-widest font-semibold">{t('voting.submissionBy', { player: players.find((p) => p.id === selectedSubmission.player_id)?.name ?? '' })}</p>
                                 <div className="mb-4 text-center">
-                                    <div className="text-sm text-slate-400 mb-2">Voting Results</div>
+                                    <div className="text-sm text-slate-400 mb-2">{t('voting.votingResults')}</div>
                                     <div className="flex gap-4 justify-center">
-                                        <div className="text-green-400 font-bold">Yes: {Object.values(selectedSubmission.votes || {}).filter((v) => v === true).length}</div>
-                                        <div className="text-red-400 font-bold">No: {Object.values(selectedSubmission.votes || {}).filter((v) => v === false).length}</div>
+                                        <div className="text-green-400 font-bold">{t('voting.yesLabel', { count: Object.values(selectedSubmission.votes || {}).filter((v) => v === true).length })}</div>
+                                        <div className="text-red-400 font-bold">{t('voting.noLabel', { count: Object.values(selectedSubmission.votes || {}).filter((v) => v === false).length })}</div>
                                     </div>
                                 </div>
                                 <button
@@ -995,13 +1014,13 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                                     }}
                                     className="w-full py-4 rounded-xl font-black uppercase text-lg border bg-slate-800 border-slate-600 text-slate-300 hover:border-indigo-500 hover:text-indigo-500 transition-all shadow-lg"
                                 >
-                                    Back to Board
+                                    {t('voting.backToBoard')}
                                 </button>
                             </div>
                         ) : selectedFinalMarker ? (
                             <div className="max-w-xl mx-auto">
                                 <h3 className="text-xl sm:text-2xl font-black text-white mb-1 text-center truncate">{selectedFinalMarker.categoryNames.join(' • ')}</h3>
-                                <p className="text-sm text-indigo-300 mb-4 text-center uppercase tracking-widest font-semibold">Target Location</p>
+                                <p className="text-sm text-indigo-300 mb-4 text-center uppercase tracking-widest font-semibold">{t('voting.targetLocation')}</p>
                                 <button
                                     onClick={() => {
                                         setSelectedFinalMarker(null);
@@ -1009,7 +1028,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                                     }}
                                     className="w-full py-4 rounded-xl font-black uppercase text-lg border bg-slate-800 border-slate-600 text-slate-300 hover:border-indigo-500 hover:text-indigo-500 transition-all shadow-lg"
                                 >
-                                    Back to Board
+                                    {t('voting.backToBoard')}
                                 </button>
                             </div>
                         ) : null}
@@ -1019,10 +1038,10 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                 {/* BINGO BOARD CONTAINER */}
                 <div className={`absolute inset-0 flex flex-col items-center justify-center p-8 z-20 transition-all duration-500 ease-in-out ${isStreetViewVisible ? 'opacity-0 -translate-x-12 pointer-events-none' : 'opacity-100 translate-x-0 pointer-events-auto'}`}>
                     <div className="text-center mb-8">
-                        <h2 className="text-3xl font-black text-indigo-400 tracking-widest">{currentPlayer?.name}'s Board</h2>
+                        <h2 className="text-3xl font-black text-indigo-400 tracking-widest">{t('voting.boardOf', { player: currentPlayer?.name ?? '' })}</h2>
                     </div>
 
-                    {submissions.filter((s) => s.player_id === currentPlayer?.id).length === 0 && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-slate-900/90 p-6 rounded-2xl text-red-400 font-bold border border-red-500/50 backdrop-blur-md text-center shadow-[0_0_30px_rgba(239,68,68,0.3)]">No submissions found for this player</div>}
+                    {submissions.filter((s) => s.player_id === currentPlayer?.id).length === 0 && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-slate-900/90 p-6 rounded-2xl text-red-400 font-bold border border-red-500/50 backdrop-blur-md text-center shadow-[0_0_30px_rgba(239,68,68,0.3)]">{t('voting.noSubmissionsForPlayer')}</div>}
 
                     <div
                         ref={categoryRef}

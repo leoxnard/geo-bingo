@@ -12,6 +12,8 @@ verify a submission. Tapping a tile on mobile submits the category directly.
 
 import { FaCamera, FaCheck, FaEye, FaInfoCircle } from 'react-icons/fa';
 
+import { useT } from '@/lib/i18n/I18nProvider';
+
 import { getHintForCategory, getStreetViewImageUrl } from './streetViewHelpers';
 import { Submission } from '../utils/types';
 
@@ -34,6 +36,7 @@ interface BingoBoardProps {
 }
 
 export default function BingoBoard({ gridSize, myBoard, mySubmissions, otherSubmissions, exclusiveMode, allowHints, startingPoint, submittingCategory, inStreetView, verifyingIds, textSizeClass, handleSubmit, handleBingoTileClick, jumpToLocation, handleVerifyOne }: BingoBoardProps) {
+    const { t } = useT();
     return (
         <div className={`grid gap-2 flex-1 min-h-0 overflow-y-auto pr-1 auto-rows-fr bingo-grid-${gridSize}`}>
             {/* Bingo Mode Grid View */}
@@ -46,7 +49,7 @@ export default function BingoBoard({ gridSize, myBoard, mySubmissions, otherSubm
                 return (
                     <div
                         key={cat}
-                        title={isBlocked ? 'Claimed by another team' : foundSub?.ai_verdict === false ? 'AI could not verify this category' : foundSub?.ai_verdict === true ? 'AI verified ✓' : undefined}
+                        title={isBlocked ? t('sv.claimedByTeam') : foundSub?.ai_verdict === false ? t('sv.aiCouldNotVerify') : foundSub?.ai_verdict === true ? `${t('sv.aiVerified')} ✓` : undefined}
                         onClick={() => handleBingoTileClick(cat)}
                         className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-center items-center text-center pb-2 sm:pb-12 ${foundSub ? 'text-white border-slate-600 shadow-md' : isBlocked ? 'bg-slate-900/80 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700'} ${foundSub?.ai_verdict === false ? '!border-red-500' : foundSub?.ai_verdict === true ? '!border-green-500' : ''}`}
                     >
@@ -60,7 +63,7 @@ export default function BingoBoard({ gridSize, myBoard, mySubmissions, otherSubm
                             <div className="absolute top-1 right-1 sm:top-2 sm:right-2 z-[60] group cursor-help" onClick={(e) => e.stopPropagation()}>
                                 <FaInfoCircle className={`transition-colors text-[11px] sm:text-sm drop-shadow-md ${foundSub ? 'text-white/70 hover:text-white' : 'text-slate-400/70 hover:text-white'}`} />
                                 <div className="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-1 sm:mb-2 hidden group-hover:block w-max max-w-[150px] sm:max-w-[200px] bg-slate-800 text-white text-[10px] sm:text-xs p-2 rounded-lg shadow-xl border border-slate-600 z-[100] whitespace-normal text-left sm:text-center cursor-default">
-                                    <span className="font-bold text-indigo-300">Tipp:</span> {hint}
+                                    <span className="font-bold text-indigo-300">{t('sv.tip')}</span> {hint}
                                 </div>
                             </div>
                         )}
@@ -71,7 +74,7 @@ export default function BingoBoard({ gridSize, myBoard, mySubmissions, otherSubm
                             {!foundSub ? (
                                 <button
                                     type="button"
-                                    title={isBlocked ? 'Claimed by another team' : 'Add submission'}
+                                    title={isBlocked ? t('sv.claimedByTeam') : t('sv.addSubmission')}
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         handleSubmit(cat);
@@ -85,7 +88,7 @@ export default function BingoBoard({ gridSize, myBoard, mySubmissions, otherSubm
                                 <>
                                     <button
                                         type="button"
-                                        title="Overwrite submission"
+                                        title={t('sv.overwriteSubmission')}
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             handleSubmit(cat);
@@ -98,7 +101,7 @@ export default function BingoBoard({ gridSize, myBoard, mySubmissions, otherSubm
                                     {startingPoint === 'open-world' ? (
                                         <button
                                             type="button"
-                                            title="View submission"
+                                            title={t('sv.viewSubmission')}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 jumpToLocation(foundSub);
@@ -110,7 +113,7 @@ export default function BingoBoard({ gridSize, myBoard, mySubmissions, otherSubm
                                     ) : (
                                         <button
                                             type="button"
-                                            title="Verify submission with AI"
+                                            title={t('sv.verifyWithAi')}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 handleVerifyOne(foundSub);

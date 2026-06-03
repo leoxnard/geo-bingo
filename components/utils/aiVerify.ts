@@ -9,19 +9,13 @@ submissions are not re-verified on subsequent runs.
 ================================================================================
 */
 
-import { callGemini } from './geminiClient';
+import { callGemini, withModelFallback } from './geminiClient';
 import { Submission } from './types';
-
-const GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
 
 export const computeSubmissionHash = (sub: Pick<Submission, 'lat' | 'lng' | 'heading' | 'pitch' | 'zoom'>): string => {
     return `${sub.lat.toFixed(6)}|${sub.lng.toFixed(6)}|${sub.heading.toFixed(2)}|${sub.pitch.toFixed(2)}|${sub.zoom.toFixed(2)}`;
 };
 
-// A submission is already verified (and so skipped on the next run, no Gemini
-// call, no charge) when its stored verdict still matches its current view hash.
-// Shared by verifySubmissions and the UI so the toast count reflects only the
-// submissions that will actually be sent to the AI.
 export const isSubmissionVerified = (sub: Submission): boolean => {
     return sub.ai_verified_hash === computeSubmissionHash(sub) && (sub.ai_verdict === true || sub.ai_verdict === false);
 };
@@ -33,8 +27,6 @@ export interface VerifyResult {
     hash: string;
     fromCache: boolean;
     error?: string;
-    // The AI's one-line reason for this verdict. Absent for cached results (no
-    // fresh call was made) and on error.
     reason?: string;
 }
 
@@ -89,56 +81,38 @@ Reply with your verdict as the FIRST word — exactly YES or NO — then " - " a
         generationConfig: {
             temperature: 0,
             maxOutputTokens: 2000,
-            // Cap thinking so it cannot consume the entire output budget and leave
-            // nothing for the YES/NO reply (the failure mode we recover from below).
             thinkingConfig: { thinkingBudget: 1024 },
         },
     };
 
-    let lastErr: unknown = null;
-    for (let i = 0; i < GEMINI_MODELS.length; i++) {
-        const model = GEMINI_MODELS[i];
-        try {
-            const res = await callGemini(model, payload, 'paid');
-            if (!res.ok) {
-                const errBody = await res.json().catch(() => ({}));
-                const msg = errBody?.error?.message || res.statusText;
-                console.warn(`[aiVerify] ${model} HTTP ${res.status} for "${sub.category}":`, msg);
-                lastErr = new Error(`Gemini ${model}: ${msg}`);
-                continue;
-            }
-            const json = await res.json();
-            const text: string = json?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            const finishReason: string = json?.candidates?.[0]?.finishReason || '';
-            const upper = text.trim().toUpperCase();
-
-            // Empty response usually means token budget exhausted (thinking) or safety block.
-            // Don't silently say NO — fall through to next model so we can recover.
-            if (!upper) {
-                console.warn(`[aiVerify] ${model} returned empty text for "${sub.category}" (finish: ${finishReason})`);
-                lastErr = new Error(`Gemini ${model} returned empty text (finishReason=${finishReason}) for "${sub.category}"`);
-                continue;
-            }
-            // Strict parse: match a leading YES or NO token, ignoring trailing punctuation.
-            const firstToken = upper.match(/^[A-Z]+/)?.[0];
-            if (firstToken === 'YES' || firstToken === 'NO') {
-                // Strip the leading verdict word + separators to leave the AI's reason,
-                // surfaced on hover over the verdict label in the UI.
-                const reason = text
-                    .trim()
-                    .replace(/^[A-Za-z]+[\s\-–—:.]*/, '')
-                    .trim();
-                return { passed: firstToken === 'YES', reason };
-            }
-            // Unrecognized reply — try next model.
-            console.warn(`[aiVerify] ${model} unrecognized reply for "${sub.category}": "${text}"`);
-            lastErr = new Error(`Gemini ${model} unrecognized reply for "${sub.category}": ${text}`);
-        } catch (err) {
-            console.warn(`[aiVerify] ${model} threw for "${sub.category}":`, err);
-            lastErr = err;
+    return await withModelFallback(async (model) => {
+        const res = await callGemini(model, payload, 'paid');
+        if (!res.ok) {
+            const errBody = await res.json().catch(() => ({}));
+            const msg = errBody?.error?.message || res.statusText;
+            console.warn(`[aiVerify] ${model} HTTP ${res.status} for "${sub.category}":`, msg);
+            throw new Error(`Gemini ${model}: ${msg}`);
         }
-    }
-    throw lastErr instanceof Error ? lastErr : new Error('All Gemini models failed');
+        const json = await res.json();
+        const text: string = json?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const finishReason: string = json?.candidates?.[0]?.finishReason || '';
+        const upper = text.trim().toUpperCase();
+
+        if (!upper) {
+            console.warn(`[aiVerify] ${model} returned empty text for "${sub.category}" (finish: ${finishReason})`);
+            throw new Error(`Gemini ${model} returned empty text (finishReason=${finishReason}) for "${sub.category}"`);
+        }
+        const firstToken = upper.match(/^[A-Z]+/)?.[0];
+        if (firstToken === 'YES' || firstToken === 'NO') {
+            const reason = text
+                .trim()
+                .replace(/^[A-Za-z]+[\s\-–—:.]*/, '')
+                .trim();
+            return { passed: firstToken === 'YES', reason };
+        }
+        console.warn(`[aiVerify] ${model} unrecognized reply for "${sub.category}": "${text}"`);
+        throw new Error(`Gemini ${model} unrecognized reply for "${sub.category}": ${text}`);
+    }, 'paid');
 }
 
 const VERIFY_CONCURRENCY = 3;

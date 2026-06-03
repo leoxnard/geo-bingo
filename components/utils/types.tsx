@@ -30,14 +30,12 @@ export interface Submission {
     votes: Record<string, boolean>;
     ai_verdict?: boolean | null;
     ai_verified_hash?: string | null;
-    // Client-only: the AI's one-line reason for the latest verdict, shown on hover
-    // over the "AI verification failed" label. Not persisted, so it's absent after
-    // a reload or for cached verdicts.
     ai_reason?: string | null;
 }
 
 export interface BingoCategory {
     categoryName: string;
+    score?: number;
     matchedPlaces: {
         name: string;
         lat: number;
@@ -130,6 +128,7 @@ export interface VotingViewProps {
     players: Player[];
     teamMode: 'ffa' | 'teams';
     onFinishGame: () => Promise<void> | void;
+    isDeveloper?: boolean;
 }
 
 export interface PodiumViewProps {

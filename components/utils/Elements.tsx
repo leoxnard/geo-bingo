@@ -16,6 +16,8 @@ import Image from 'next/image';
 import toast from 'react-hot-toast';
 import { FaRegQuestionCircle } from 'react-icons/fa';
 
+import { useT } from '@/lib/i18n/I18nProvider';
+
 const toggleFullscreen = async (containerRef: React.RefObject<HTMLDivElement | null>, setIsFullscreen: React.Dispatch<React.SetStateAction<boolean>>) => {
     if (!containerRef.current) return;
 
@@ -41,8 +43,9 @@ interface FullscreenButtonProps {
 }
 
 export const FullscreenButton = ({ isFullscreen, containerRef, setIsFullscreen }: FullscreenButtonProps) => {
+    const { t } = useT();
     return (
-        <button type="button" onClick={() => toggleFullscreen(containerRef, setIsFullscreen)} className="absolute top-2 right-2 z-5 hidden sm:flex w-12 h-12 bg-slate-800/30 hover:bg-slate-700/80 text-white items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-slate-500 font-bold transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm" title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}>
+        <button type="button" onClick={() => toggleFullscreen(containerRef, setIsFullscreen)} className="absolute top-2 right-2 z-5 hidden sm:flex w-12 h-12 bg-slate-800/30 hover:bg-slate-700/80 text-white items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-slate-500 font-bold transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm" title={isFullscreen ? t('elements.exitFullscreen') : t('elements.enterFullscreen')}>
             {isFullscreen ? (
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
@@ -62,8 +65,9 @@ interface ExitButtonProps {
 }
 
 export const ExitButton = ({ onExit, style }: ExitButtonProps) => {
+    const { t } = useT();
     return (
-        <button type="button" onClick={onExit} style={style} className="hidden sm:flex w-12 h-12 bg-red-500/30 hover:bg-red-500/80 text-white items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-red-400 font-bold transition-transform duration-300 hover:scale-105 active:scale-95 backdrop-blur-sm" title="Exit Street View">
+        <button type="button" onClick={onExit} style={style} className="hidden sm:flex w-12 h-12 bg-red-500/30 hover:bg-red-500/80 text-white items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-red-400 font-bold transition-transform duration-300 hover:scale-105 active:scale-95 backdrop-blur-sm" title={t('elements.exitStreetView')}>
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
                 <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -178,6 +182,7 @@ interface MultiToggleButtonProps<T extends string | number> {
 }
 
 export const MultiToggleButton = <T extends string | number>({ classname = '', options, activeValue, onChange, disabled, title, isHost, position = 'middle', sizeRatios, description, allowedValues, columns }: MultiToggleButtonProps<T>) => {
+    const { t } = useT();
     const activeIndex = options.findIndex((opt) => opt.value === activeValue);
     const safeActiveIndex = activeIndex >= 0 ? activeIndex : 0;
 
@@ -240,7 +245,7 @@ export const MultiToggleButton = <T extends string | number>({ classname = '', o
                                     if (!isOptionDisabled) {
                                         onChange(option.value);
                                     } else {
-                                        toast.error('Set a starting point to enable this option');
+                                        toast.error(t('elements.setStartingPointFirst'));
                                     }
                                 }}
                                 className={`

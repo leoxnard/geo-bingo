@@ -12,6 +12,8 @@ chosen by the parent based on available vertical space.
 
 import { FaInfoCircle } from 'react-icons/fa';
 
+import { useT } from '@/lib/i18n/I18nProvider';
+
 import { AiReasonLabel } from './AiReasonLabel';
 import { COMPACT_GAP, COMPACT_MAX, COMPACT_MIN, ROOMY_GAP, ROOMY_MAX, ROOMY_MIN, getAiVerdictState, getHintForCategory, getStreetViewImageUrl } from './streetViewHelpers';
 import { Submission } from '../utils/types';
@@ -34,6 +36,7 @@ interface ChecklistListProps {
 }
 
 export default function ChecklistList({ listLayout, setGridEl, myBoard, mySubmissions, otherSubmissions, exclusiveMode, allowHints, startingPoint, submittingCategory, inStreetView, verifyingIds, handleSubmit, jumpToLocation, handleVerifyOne }: ChecklistListProps) {
+    const { t } = useT();
     return (
         <div ref={setGridEl} className="flex flex-1 min-h-0 flex-col overflow-hidden">
             {listLayout === 'compact' ? (
@@ -59,7 +62,7 @@ export default function ChecklistList({ listLayout, setGridEl, myBoard, mySubmis
                                             <div className="relative group flex-shrink-0 cursor-help" onClick={(e) => e.stopPropagation()}>
                                                 <FaInfoCircle className={`transition-colors ${foundSub ? 'text-white/70 hover:text-white' : 'text-slate-400 hover:text-white'}`} size={12} />
                                                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max max-w-[200px] bg-slate-800 text-white text-xs p-2 rounded-lg shadow-xl border border-slate-600 z-[100] whitespace-normal text-center cursor-default">
-                                                    <span className="font-bold text-indigo-300">Tipp:</span> {hint}
+                                                    <span className="font-bold text-indigo-300">{t('sv.tip')}</span> {hint}
                                                 </div>
                                             </div>
                                         )}
@@ -76,7 +79,7 @@ export default function ChecklistList({ listLayout, setGridEl, myBoard, mySubmis
                                                 disabled={submittingCategory === cat || !inStreetView || isBlocked}
                                                 className={`h-full px-4 py-1 text-[8px] font-bold rounded-lg shadow uppercase transition-all whitespace-nowrap ${isBlocked ? 'bg-red-900/50 text-red-300 cursor-not-allowed' : !inStreetView ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-green-600/30 hover:bg-green-500/30 text-white'}`}
                                             >
-                                                {submittingCategory === cat ? 'Saving...' : isBlocked ? 'Claimed' : !inStreetView ? 'Enter Streetview' : 'Save'}
+                                                {submittingCategory === cat ? t('sv.saving') : isBlocked ? t('sv.claimed') : !inStreetView ? t('sv.enterStreetview') : t('sv.save')}
                                             </button>
                                         ) : (
                                             <>
@@ -90,7 +93,7 @@ export default function ChecklistList({ listLayout, setGridEl, myBoard, mySubmis
                                                         disabled={submittingCategory === cat || !inStreetView}
                                                         className={`px-2 py-1 text-[7px] font-bold rounded-lg shadow uppercase transition-all whitespace-nowrap ${!inStreetView ? 'bg-slate-600/30 text-slate-300 cursor-not-allowed' : 'bg-amber-700/40 hover:bg-amber-600/40 text-white'}`}
                                                     >
-                                                        {submittingCategory === cat ? '...' : !inStreetView ? 'Enter Streetview' : 'Overwrite'}
+                                                        {submittingCategory === cat ? '...' : !inStreetView ? t('sv.enterStreetview') : t('sv.overwrite')}
                                                     </button>
                                                 )}
                                                 {startingPoint === 'open-world' ? (
@@ -102,7 +105,7 @@ export default function ChecklistList({ listLayout, setGridEl, myBoard, mySubmis
                                                         }}
                                                         className={`${exclusiveMode ? 'flex-1' : 'flex-[0.5]'} bg-slate-700/40 hover:bg-slate-500/30 px-2 py-1 text-[7px] text-white font-bold rounded-lg shadow uppercase transition-all whitespace-nowrap`}
                                                     >
-                                                        View
+                                                        {t('sv.view')}
                                                     </button>
                                                 ) : (
                                                     <button
@@ -114,7 +117,7 @@ export default function ChecklistList({ listLayout, setGridEl, myBoard, mySubmis
                                                         disabled={verifyingIds.has(foundSub.id)}
                                                         className={`${exclusiveMode ? 'flex-1' : 'flex-[0.5]'} bg-indigo-600/40 hover:bg-indigo-500/40 px-2 py-1 text-[7px] text-white font-bold rounded-lg shadow uppercase transition-all whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed`}
                                                     >
-                                                        {verifyingIds.has(foundSub.id) ? '...' : 'Verify'}
+                                                        {verifyingIds.has(foundSub.id) ? '...' : t('sv.verify')}
                                                     </button>
                                                 )}
                                             </>
@@ -150,7 +153,7 @@ export default function ChecklistList({ listLayout, setGridEl, myBoard, mySubmis
                                                 <div className="ml-1.5 relative group flex-shrink-0 cursor-help" onClick={(e) => e.stopPropagation()}>
                                                     <FaInfoCircle className={`transition-colors ${foundSub ? 'text-white/70 hover:text-white' : 'text-slate-400 hover:text-white'}`} size={12} />
                                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max max-w-[200px] bg-slate-800 text-white text-xs p-2 rounded-lg shadow-xl border border-slate-600 z-[100] whitespace-normal text-center cursor-default">
-                                                        <span className="font-bold text-indigo-300">Tipp:</span> {hint}
+                                                        <span className="font-bold text-indigo-300">{t('sv.tip')}</span> {hint}
                                                     </div>
                                                 </div>
                                             )}
@@ -159,7 +162,7 @@ export default function ChecklistList({ listLayout, setGridEl, myBoard, mySubmis
                                             <AiReasonLabel reason={foundSub.ai_reason} />
                                         ) : (
                                             <span className={`text-[10px] font-bold uppercase whitespace-nowrap flex-shrink-0 ${foundSub?.ai_verdict === false ? 'text-red-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : foundSub?.ai_verdict === true ? 'text-green-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-500' : 'text-slate-500'}`}>
-                                                {foundSub?.ai_verdict === false ? 'AI verification failed' : foundSub?.ai_verdict === true ? 'AI verified' : foundSub ? 'Unverified' : isBlocked ? 'Locked' : 'Pending'}
+                                                {foundSub?.ai_verdict === false ? t('sv.aiVerifyFailed') : foundSub?.ai_verdict === true ? t('sv.aiVerified') : foundSub ? t('sv.unverified') : isBlocked ? t('sv.locked') : t('sv.pending')}
                                             </span>
                                         )}
                                     </div>
@@ -202,7 +205,7 @@ export default function ChecklistList({ listLayout, setGridEl, myBoard, mySubmis
                                                     }}
                                                     className={`${exclusiveMode ? 'flex-1' : 'flex-[0.5]'} bg-slate-700/40 hover:bg-slate-500/30 text-[9px] px-2 py-1.5 text-white font-bold rounded-lg shadow uppercase transition-all`}
                                                 >
-                                                    View
+                                                    {t('sv.view')}
                                                 </button>
                                             ) : (
                                                 <button

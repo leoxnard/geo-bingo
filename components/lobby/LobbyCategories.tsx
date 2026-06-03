@@ -16,10 +16,15 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import toast from 'react-hot-toast';
 import { CiCirclePlus, CiCircleMinus, CiCircleRemove, CiCircleCheck, CiCircleQuestion } from 'react-icons/ci';
 
+import { useT } from '@/lib/i18n/I18nProvider';
+
 import { generateAICategories } from './AICategories';
+import { generateNearbyPlaceCategories } from './NearbyPlaceCategories';
+import { generateNearbyStreetViewCategories } from './NearbyStreetViewCategories';
 import { getHostToken } from '../../lib/hostToken';
 import { RangeSlider, MultiToggleButton, Selection } from '../utils/Elements';
 import { shuffle } from '../utils/Functions';
+import { BingoCategory } from '../utils/types';
 import { useViewport } from '../utils/useViewport';
 
 interface CategoryItemProps {
@@ -36,6 +41,7 @@ interface CategoryItemProps {
 }
 
 const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, onSave, onRemove, onRandomize, onDragStart, onDrop }: CategoryItemProps) => {
+    const { t } = useT();
     const [val, setVal] = useState(initialValue || '');
     const [isDirty, setIsDirty] = useState(false);
     const currentValue = isDirty ? val : initialValue || '';
@@ -88,10 +94,10 @@ const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, o
             >
                 {/* Top part */}
                 <div className="flex w-full bg-slate-900/60 border-b border-slate-600/50 shrink-0">
-                    <button type="button" onClick={() => onRemove(index)} disabled={!val} className={`flex-1 flex justify-center items-center py-1.5 text-red-400 hover:text-red-300 transition-colors ${!val ? 'opacity-0 hover:bg-transparent' : ''}`} title="Remove">
+                    <button type="button" onClick={() => onRemove(index)} disabled={!val} className={`flex-1 flex justify-center items-center py-1.5 text-red-400 hover:text-red-300 transition-colors ${!val ? 'opacity-0 hover:bg-transparent' : ''}`} title={t('cat.remove')}>
                         <CiCircleRemove size={18} />
                     </button>
-                    <button type="button" onClick={() => onRandomize(index)} className="flex-1 flex justify-center items-center py-1.5 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 border-l border-slate-600/50 transition-colors" title="Randomize word">
+                    <button type="button" onClick={() => onRandomize(index)} className="flex-1 flex justify-center items-center py-1.5 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 border-l border-slate-600/50 transition-colors" title={t('cat.randomizeWord')}>
                         <CiCircleQuestion size={18} />
                     </button>
                 </div>
@@ -109,7 +115,7 @@ const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, o
                         onKeyDown={(e) => {
                             if (e.key === 'Enter') e.currentTarget.blur();
                         }}
-                        placeholder="Empty..."
+                        placeholder={t('cat.emptyInput')}
                         className={`w-full bg-transparent text-white text-center outline-none placeholder:text-slate-500/50 italic font-medium ${getTextSize(gameMode, gridSize)}`}
                     />
                 </div>
@@ -131,15 +137,15 @@ const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, o
                 onKeyDown={(e) => {
                     if (e.key === 'Enter') e.currentTarget.blur();
                 }}
-                placeholder="Empty category..."
+                placeholder={t('cat.emptyCategoryInput')}
                 className="flex-1 bg-transparent text-white outline-none placeholder:text-slate-600 font-medium px-3 py-2 h-full"
             />
 
             <div className="flex shrink-0 border-l border-slate-700 h-full">
-                <button type="button" onClick={() => onRandomize(index)} className="text-indigo-400 hover:text-indigo-300 hover:bg-slate-800 px-4 transition-colors border-r border-slate-700 flex items-center justify-center h-full" title="Randomize word">
+                <button type="button" onClick={() => onRandomize(index)} className="text-indigo-400 hover:text-indigo-300 hover:bg-slate-800 px-4 transition-colors border-r border-slate-700 flex items-center justify-center h-full" title={t('cat.randomizeWord')}>
                     <CiCircleQuestion size={gameMode === 'list' ? 22 : undefined} />
                 </button>
-                <button type="button" onClick={() => onRemove(index)} className="text-red-400 hover:text-red-300 hover:bg-slate-800 px-4 transition-colors flex items-center justify-center h-full" title="Remove">
+                <button type="button" onClick={() => onRemove(index)} className="text-red-400 hover:text-red-300 hover:bg-slate-800 px-4 transition-colors flex items-center justify-center h-full" title={t('cat.remove')}>
                     <CiCircleRemove size={gameMode === 'list' ? 22 : undefined} />
                 </button>
             </div>
@@ -148,7 +154,7 @@ const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, o
 };
 
 interface LobbyCategoriesProps {
-    updateGameModeInfo: (updates: { game_mode?: string; team_mode?: string; grid_size?: number; starting_point?: string; gameBoundary?: string; categories?: string[]; category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView'; generation_radius?: number; generation_number?: number; difficulty?: 'default' | 'easy' | 'claude'; categories_generated?: boolean; language?: 'english' | 'german' }) => void;
+    updateGameModeInfo: (updates: { game_mode?: string; team_mode?: string; grid_size?: number; starting_point?: string; gameBoundary?: string; categories?: string[]; category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView'; generation_radius?: number; generation_number?: number; difficulty?: 'default' | 'easy' | 'hard'; categories_generated?: boolean; language?: 'english' | 'german' }) => void;
     isHost: boolean;
     gameMode: 'list' | 'bingo';
     language: 'english' | 'german';
@@ -166,11 +172,12 @@ interface LobbyCategoriesProps {
     isDeveloper?: boolean;
     generationRadius: number;
     generationNumber: number;
-    difficulty: 'default' | 'easy' | 'claude';
+    difficulty: 'default' | 'easy' | 'hard';
     categoriesGenerated: boolean;
 }
 
 export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, language, gridSize, categories, suggestedCategories, gameId, playerId, supabase, maxGridSize, startingPoint, categorySource, aiEnabled, isDeveloper, generationRadius, generationNumber, difficulty, categoriesGenerated }: LobbyCategoriesProps) {
+    const { t } = useT();
     const [newCategory, setNewCategory] = useState('');
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [localRadius, setLocalRadius] = useState(generationRadius);
@@ -181,6 +188,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
     // DB Source Selection State
     const [wordSource, setWordSource] = useState<string>('balanced');
     const [localCategories, setLocalCategories] = useState<string[]>(categories);
+    const [localSuggested, setLocalSuggested] = useState<string[]>(suggestedCategories);
 
     // AI Generation state
     const [customPrompt, setCustomPrompt] = useState('');
@@ -199,7 +207,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
         const canUseAI = isDeveloper || currentCount < 3;
 
         if (isAiOption && !canUseAI) {
-            toast.error('Daily limit (3/3) reached. Login to unlock unlimited prompts.');
+            toast.error(t('cat.toastDailyLimit'));
             return;
         }
 
@@ -212,34 +220,96 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
         }
     }, [categories]);
 
-    const handleAIGeneration = async () => {
-        if (!isHost) return;
+    useEffect(() => {
+        if (!isPendingSyncRef.current) {
+            setLocalSuggested(suggestedCategories);
+        }
+    }, [suggestedCategories]);
+
+    const SUGGESTION_BUFFER = 12;
+
+    const isGeneratedSource = categorySource === 'ai' || categorySource === 'nearbyPlaces' || categorySource === 'nearbyStreetView';
+
+    const handleGenerate = async () => {
+        if (!isHost || !isGeneratedSource) return;
 
         if (!isDeveloper) {
             const currentCount = parseInt(localStorage.getItem('geoBingoPromptCount') || '0', 10);
 
             if (currentCount >= DAILY_AI_LIMIT) {
-                toast.error(`Daily limit (${DAILY_AI_LIMIT}/${DAILY_AI_LIMIT}) reached.`);
+                toast.error(t('cat.toastDailyLimitShort', { limit: DAILY_AI_LIMIT }));
                 return;
             }
 
             localStorage.setItem('geoBingoPromptCount', (currentCount + 1).toString());
         }
 
+        // Nearby sources need a concrete starting point to scan around.
+        let startPos: { lat: number; lng: number } | null = null;
+        if (categorySource === 'nearbyPlaces' || categorySource === 'nearbyStreetView') {
+            if (startingPoint === 'open-world') {
+                toast.error(t('cat.toastSetStartingPoint'));
+                return;
+            }
+            try {
+                startPos = JSON.parse(startingPoint);
+            } catch {
+                toast.error(t('cat.toastInvalidStartingPoint'));
+                return;
+            }
+        }
+
+        // The host-chosen number is the size of the active (top-K) list.
+        const activeCount = gameMode === 'bingo' ? gridSize * gridSize : localGenerationNumber;
+
         setIsGenerating(true);
 
         try {
-            const requiredCount = gameMode === 'bingo' ? gridSize * gridSize : localGenerationNumber;
-            const aiCategories = await generateAICategories(customPrompt, requiredCount, language);
+            const pool = await toast.promise(
+                (async (): Promise<BingoCategory[]> => {
+                    let result: BingoCategory[];
+                    if (categorySource === 'nearbyStreetView') {
+                        result = await generateNearbyStreetViewCategories(startPos!, generationRadius, activeCount, difficulty, language);
+                    } else if (categorySource === 'nearbyPlaces') {
+                        result = await generateNearbyPlaceCategories(startPos!, generationRadius, activeCount + SUGGESTION_BUFFER, difficulty, language);
+                    } else {
+                        result = await generateAICategories(customPrompt, activeCount + SUGGESTION_BUFFER, language);
+                    }
+                    if (result.length < activeCount) {
+                        throw new Error(t('cat.toastOnlyFound', { found: result.length, need: activeCount }));
+                    }
+                    return result;
+                })(),
+                {
+                    loading: categorySource === 'nearbyStreetView' ? t('cat.loadingStreetView') : t('cat.loadingGenerating'),
+                    success: <b>{t('cat.generatedSuccess')}</b>,
+                    error: (err) => (err instanceof Error ? err.message : t('cat.toastGenerationFailed')),
+                },
+            );
 
-            const newCategories = aiCategories.map((cat: { categoryName: string }) => cat.categoryName);
+            const active = pool.slice(0, activeCount).map((c) => c.categoryName);
+            const rest = pool.slice(activeCount).map((c) => c.categoryName);
 
-            queueDBSave(newCategories);
-            await updateGameModeInfo({ categories_generated: true });
-            toast.success(`Generated ${newCategories.length} AI categories successfully!`);
+            isPendingSyncRef.current = true;
+            setLocalCategories(active);
+            setLocalSuggested(rest);
+
+            const { data, error } = await supabase.rpc('update_game_settings', {
+                p_game_id: gameId,
+                p_host_id: getHostToken(gameId),
+                p_patch: { categories: active, suggested_categories: rest, category_details: pool, categories_generated: true },
+            });
+
+            if (error || (data && data.success === false)) {
+                throw new Error(error?.message || 'Failed to save generated categories');
+            }
+
+            setTimeout(() => {
+                isPendingSyncRef.current = false;
+            }, 1200);
         } catch (error) {
-            console.error('Error generating AI categories:', error);
-            toast.error('Failed to generate AI categories. Please try again.');
+            console.error('Error generating categories:', error);
+            isPendingSyncRef.current = false;
         } finally {
             setIsGenerating(false);
         }
@@ -284,7 +354,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
         const isDuplicate = localCategories.some((cat, i) => i !== index && (cat ?? '').toLowerCase() === trimmedVal.toLowerCase());
 
         if (isDuplicate) {
-            toast.error(`"${trimmedVal}" already exists!`);
+            toast.error(t('cat.toastDuplicate', { value: trimmedVal }));
             return false;
         }
 
@@ -297,6 +367,13 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
     };
 
     const removeCategoryIndex = (index: number) => {
+        const name = (localCategories[index] || '').trim();
+
+        if (isGeneratedSource && name) {
+            moveCategoryToSuggestions(index, name);
+            return;
+        }
+
         if (gameMode === 'bingo') {
             const updated = [...localCategories];
             updated[index] = '';
@@ -305,6 +382,35 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
         }
         const updated = localCategories.filter((_, i) => i !== index);
         queueDBSave(updated);
+    };
+
+    const moveCategoryToSuggestions = async (index: number, name: string) => {
+        if (!isHost) return;
+
+        // Bingo keeps a fixed grid, so removing leaves an empty slot; List shrinks.
+        const updatedCategories = gameMode === 'bingo' ? localCategories.map((c, i) => (i === index ? '' : c)) : localCategories.filter((_, i) => i !== index);
+
+        const alreadySuggested = localSuggested.some((c) => (c || '').toLowerCase() === name.toLowerCase());
+        const updatedSug = alreadySuggested ? localSuggested : [...localSuggested, name];
+
+        isPendingSyncRef.current = true;
+        setLocalCategories(updatedCategories);
+        setLocalSuggested(updatedSug);
+
+        const { data, error } = await supabase.rpc('update_game_settings', {
+            p_game_id: gameId,
+            p_host_id: getHostToken(gameId),
+            p_patch: { categories: updatedCategories, suggested_categories: updatedSug },
+        });
+
+        if (error || (data && data.success === false)) {
+            toast.error(t('cat.toastFailedMoveSuggestion'));
+            isPendingSyncRef.current = false;
+        } else {
+            setTimeout(() => {
+                isPendingSyncRef.current = false;
+            }, 1200);
+        }
     };
 
     const getAvailableWords = async () => {
@@ -340,7 +446,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                 updated[index] = randomWord;
                 queueDBSave(updated);
             } else {
-                toast.error('Not enough new words available in this category!');
+                toast.error(t('cat.toastNotEnoughWords'));
             }
         } catch (err) {
             console.error(err);
@@ -380,7 +486,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
             }
 
             if (usedCount === 0 && updated.length === localCategories.length) {
-                toast('Already full or no words left in this category!');
+                toast(t('cat.toastAlreadyFull'));
                 return;
             }
 
@@ -394,6 +500,26 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
         if (!isHost) return;
         const length = gameMode === 'bingo' ? gridSize * gridSize : localCategories.length;
         queueDBSave(new Array(length).fill(''));
+    };
+
+    const clearSuggestions = async () => {
+        if (!isHost) return;
+        isPendingSyncRef.current = true;
+        setLocalSuggested([]);
+        try {
+            const { data, error } = await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_patch: { suggested_categories: [] } });
+            if (error || (data && data.success === false)) {
+                toast.error(t('cat.toastFailedClearSuggestions'));
+                isPendingSyncRef.current = false;
+            } else {
+                setTimeout(() => {
+                    isPendingSyncRef.current = false;
+                }, 1200);
+            }
+        } catch {
+            toast.error('Failed to clear suggestions.');
+            isPendingSyncRef.current = false;
+        }
     };
 
     const handleDragStart = (e: React.DragEvent, index: number) => {
@@ -416,20 +542,17 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
         const trimmedCat = newCategory.trim();
         if (trimmedCat !== '' && !isHost) {
             if (localCategories.some((c) => (c ?? '').toLowerCase() === trimmedCat.toLowerCase())) {
-                toast.error('This category already exists!');
+                toast.error(t('cat.toastAlreadyExists'));
                 return;
             }
-            // player_suggest_category does case-insensitive dedup against
-            // suggested_categories server-side, so we only need to filter
-            // the current categories list locally.
             const { data, error } = await supabase.rpc('player_suggest_category', { p_game_id: gameId, p_player_id: playerId, p_category: trimmedCat });
             if (error || (data && data.success === false)) {
-                if (data?.error === 'ALREADY_SUGGESTED') toast.error('This category was already suggested!');
-                else toast.error('Failed to send suggestion.');
+                if (data?.error === 'ALREADY_SUGGESTED') toast.error(t('cat.toastAlreadySuggested'));
+                else toast.error(t('cat.toastFailedSuggestion'));
                 return;
             }
             setNewCategory('');
-            toast.success('Suggestion sent to the host!');
+            toast.success(t('cat.toastSuggestionSent'));
         }
     };
 
@@ -452,7 +575,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                 if (updatedCategories.length < gridSize * gridSize) {
                     updatedCategories.push(cat);
                 } else {
-                    toast.error(`Maximal ${gridSize * gridSize} words allowed!`);
+                    toast.error(t('cat.toastMaxWords', { max: gridSize * gridSize }));
                     return;
                 }
             } else {
@@ -460,10 +583,11 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
             }
         }
 
-        const updatedSug = suggestedCategories.filter((c) => c !== cat);
+        const updatedSug = localSuggested.filter((c) => c !== cat);
 
         isPendingSyncRef.current = true;
         setLocalCategories(updatedCategories);
+        setLocalSuggested(updatedSug);
 
         const { data, error } = await supabase.rpc('update_game_settings', {
             p_game_id: gameId,
@@ -472,7 +596,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
         });
 
         if (error || (data && data.success === false)) {
-            toast.error('Error saving suggestion');
+            toast.error(t('cat.toastErrorSaving'));
         } else {
             setTimeout(() => {
                 isPendingSyncRef.current = false;
@@ -482,8 +606,20 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
 
     const rejectSuggestion = async (cat: string) => {
         if (!isHost) return;
-        const updatedSug = suggestedCategories.filter((c) => c !== cat);
-        await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_patch: { suggested_categories: updatedSug } });
+        const updatedSug = localSuggested.filter((c) => c !== cat);
+
+        isPendingSyncRef.current = true;
+        setLocalSuggested(updatedSug);
+
+        const { data, error } = await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_patch: { suggested_categories: updatedSug } });
+
+        if (error || (data && data.success === false)) {
+            toast.error(t('cat.toastErrorRejecting'));
+        } else {
+            setTimeout(() => {
+                isPendingSyncRef.current = false;
+            }, 1200);
+        }
     };
 
     const minusOneGridSize = () => {
@@ -500,24 +636,14 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
 
     return (
         <div className="bg-slate-800 p-6 rounded-xl flex-1 border border-slate-700 h-fit">
-            <div className="pb-3">
-                <label className="flex justify-between font-bold mb-2 text-xl text-slate-300">
-                    <span>Category Language</span>
-                </label>
-                <select title="Category Language" value={language} onChange={(e) => updateGameModeInfo({ language: e.target.value as 'english' | 'german' })} disabled={!isHost} className="h-[42px] px-3 w-full rounded-lg bg-slate-900 border border-slate-600 text-sm text-white cursor-pointer transition-colors focus:outline-none focus:border-indigo-500 hover:border-slate-500 disabled:opacity-50">
-                    <option value="german">German</option>
-                    <option value="english">English</option>
-                </select>
-            </div>
-
             {aiEnabled && (
                 <MultiToggleButton
-                    title="Category Source"
+                    title={t('cat.sourceTitle')}
                     options={[
-                        { value: 'manual', label: 'Manual' },
-                        { value: 'ai', label: 'AI Generator (Beta)' },
-                        { value: 'nearbyPlaces', label: 'Nearby Places (Beta)' },
-                        { value: 'nearbyStreetView', label: isNarrow ? 'Street View' : 'Nearby Street View Features (Beta)' },
+                        { value: 'manual', label: t('cat.sourceManual') },
+                        { value: 'ai', label: t('cat.sourceAi') },
+                        { value: 'nearbyPlaces', label: t('cat.sourceNearbyPlaces') },
+                        { value: 'nearbyStreetView', label: isNarrow ? t('cat.sourceNearbyStreetViewShort') : t('cat.sourceNearbyStreetView') },
                     ]}
                     activeValue={categorySource}
                     onChange={handleCategorySourceChange}
@@ -527,75 +653,56 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                     position="top"
                     columns={2}
                     sizeRatios={[1, 1.5, 1.5, 2.5]}
-                    description={
-                        categorySource === 'manual'
-                            ? 'Players submit categories manually.'
-                            : categorySource === 'ai'
-                                ? 'Generate categories using AI with custom prompts or random themes. Categories appear immediately for editing.'
-                                : categorySource === 'nearbyPlaces'
-                                    ? 'Categories will be auto-generated by AI based on nearby points of interest. They remain hidden until the game starts!'
-                                    : categorySource === 'nearbyStreetView'
-                                        ? 'Categories will be auto-generated by AI based on nearby Street View features. They remain hidden until the game starts!'
-                                        : 'Generate categories using AI with custom prompts or random themes. Categories appear immediately for editing.'
-                    }
+                    description={categorySource === 'manual' ? t('cat.sourceDescManual') : categorySource === 'ai' ? t('cat.sourceDescAi') : categorySource === 'nearbyPlaces' ? t('cat.sourceDescNearbyPlaces') : categorySource === 'nearbyStreetView' ? t('cat.sourceDescNearbyStreetView') : t('cat.sourceDescAi')}
                 />
             )}
 
             {categorySource === 'ai' && (
                 <div className="py-3 border-t border-slate-700">
-                    <label className="flex justify-between font-bold mb-2 text-xl text-slate-300">Custom Prompt (Optional)</label>
-                    <textarea
-                        value={customPrompt}
-                        onChange={(e) => setCustomPrompt(e.target.value)}
-                        placeholder={isHost ? "Enter a theme like 'car brands', 'construction elements', or 'vintage signs'. Leave empty for random categories." : 'Waiting for host to generate categories...'}
-                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
-                        rows={2}
-                        disabled={!isHost || isGenerating}
-                    />
+                    <label className="flex justify-between font-bold mb-2 text-xl text-slate-300">{t('cat.customPrompt')}</label>
+                    <textarea value={customPrompt} onChange={(e) => setCustomPrompt(e.target.value)} placeholder={isHost ? t('cat.customPromptPlaceholderHost') : t('cat.customPromptPlaceholderWaiting')} className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none" rows={2} disabled={!isHost || isGenerating} />
                 </div>
             )}
 
             {categorySource !== 'manual' && (
                 <>
                     <MultiToggleButton
-                        title="Difficulty"
+                        title={t('cat.difficulty')}
                         options={[
-                            { value: 'easy', label: 'Easy' },
-                            { value: 'default', label: 'Default' },
-                            { value: 'claude', label: 'Claude' },
+                            { value: 'easy', label: t('cat.easy') },
+                            { value: 'default', label: t('cat.default') },
+                            { value: 'hard', label: t('cat.hard') },
                         ]}
                         activeValue={difficulty}
                         onChange={(val) => updateGameModeInfo({ difficulty: val })}
                         disabled={!isHost}
-                        sizeRatios={[1, 1, 1]}
+                        sizeRatios={[1, 1, 1, 1]}
                         isHost={isHost}
-                        description={difficulty === 'easy' ? 'AI will generate more general categories. Better for larger radii.' : difficulty === 'default' ? 'AI will generate more specific categories. Good for smaller radii and urban areas.' : 'Hand-tuned Claude prompt for the most fun, varied and reliably visible categories. Best for the panorama (Street View) source.'}
+                        description={difficulty === 'easy' ? t('cat.difficultyDescEasy') : difficulty === 'default' ? t('cat.difficultyDescDefault') : difficulty === 'hard' ? t('cat.difficultyDescHard') : ''}
                     />
-                    {gameMode === 'list' ? <RangeSlider title="Number of Categories" min={1} max={25} value={localGenerationNumber} disabled={!isHost} onChange={(val) => setLocalGenerationNumber(val)} onCommit={handleCommit} /> : <RangeSlider title="Grid Size" min={1} max={6} value={localGridSize} disabled={!isHost} onChange={(val) => setLocalGridSize(val)} onCommit={handleCommit} />}
+                    {gameMode === 'list' ? <RangeSlider title={t('cat.numberOfCategories')} min={1} max={25} value={localGenerationNumber} disabled={!isHost} onChange={(val) => setLocalGenerationNumber(val)} onCommit={handleCommit} /> : <RangeSlider title={t('cat.gridSize')} min={1} max={6} value={localGridSize} disabled={!isHost} onChange={(val) => setLocalGridSize(val)} onCommit={handleCommit} />}
                 </>
             )}
 
-            {(categorySource === 'nearbyPlaces' || categorySource === 'nearbyStreetView') && (
-                <RangeSlider title="POI Radius" min={1} max={50} minLabel="100m" maxLabel="10km" value={localRadius} disabled={!isHost} displayValue={localRadius >= 10 ? `${(localRadius / 10).toFixed(1)} km` : `${localRadius * 100} m`} onChange={(val) => setLocalRadius(val)} onCommit={handleCommit} position="bottom" description="Only POIs within this radius from the starting point will be considered for category generation." />
-            )}
+            {(categorySource === 'nearbyPlaces' || categorySource === 'nearbyStreetView') && <RangeSlider title={t('cat.poiRadius')} min={1} max={50} minLabel="100m" maxLabel="10km" value={localRadius} disabled={!isHost} displayValue={localRadius >= 10 ? `${(localRadius / 10).toFixed(1)} km` : `${localRadius * 100} m`} onChange={(val) => setLocalRadius(val)} onCommit={handleCommit} position="bottom" description={t('cat.poiRadiusDesc')} />}
 
-            {categorySource === 'ai' && isHost && (
+            {isGeneratedSource && isHost && (
                 <div className="flex items-center justify-center pt-3">
-                    <button onClick={handleAIGeneration} disabled={!isHost || isGenerating} className={`px-4 py-2 rounded-lg font-medium transition-all ${isGenerating ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-green-700 text-white hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-green-500'}`}>
-                        {isGenerating ? 'Generating...' : 'Generate Categories'}
+                    <button onClick={handleGenerate} disabled={!isHost || isGenerating} className={`px-4 py-2 rounded-lg font-medium transition-all ${isGenerating ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-indigo-700 text-white hover:bg-indigo-800 focus:outline-none focus:ring-2 focus:ring-indigo-500'}`}>
+                        {isGenerating ? t('common.generating') : categoriesGenerated ? t('cat.regenerate') : t('cat.generate')}
                     </button>
                 </div>
             )}
 
-            {(categorySource === 'manual' || (categorySource === 'ai' && categoriesGenerated)) && (
+            {(categorySource === 'manual' || (isGeneratedSource && categoriesGenerated)) && (
                 <>
                     <h3 className={`text-xl font-bold mb-4 text-slate-300 flex justify-between items-center transition-all ${categorySource === 'manual' && aiEnabled ? 'pt-4 border-t border-slate-700' : ''}`}>
-                        <span>Categories</span>
+                        <span>{t('cat.title')}</span>
                         <div className="flex items-center">
-                            <span className={`text-sm font-normal ${localCategories.length === 0 || (gameMode === 'bingo' && localCategories.length < gridSize * gridSize) ? 'text-red-400' : 'text-slate-400'} bg-slate-900 px-3 py-1 rounded-full`}>{gameMode === 'bingo' ? `${Math.min(localCategories.length, gridSize * gridSize)} / ${gridSize * gridSize}` : `${localCategories.length} Words`}</span>
+                            <span className={`text-sm font-normal ${localCategories.length === 0 || (gameMode === 'bingo' && localCategories.length < gridSize * gridSize) ? 'text-red-400' : 'text-slate-400'} bg-slate-900 px-3 py-1 rounded-full`}>{gameMode === 'bingo' ? `${Math.min(localCategories.length, gridSize * gridSize)} / ${gridSize * gridSize}` : t('cat.wordsCount', { count: localCategories.length })}</span>
                             {isHost && (
                                 <button type="button" onClick={clearCategories} className="text-xs font-bold text-slate-400 bg-slate-800 hover:bg-slate-700 hover:text-white px-3 py-1 rounded-full ml-2 transition-colors">
-                                    Clear
+                                    {t('cat.clear')}
                                 </button>
                             )}
                         </div>
@@ -603,10 +710,10 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
 
                     {isHost && (
                         <div className="grid grid-cols-2 gap-3 mb-4">
-                            <button title="Remove" type="button" onClick={gameMode === 'bingo' ? minusOneGridSize : minusOneListCategory} disabled={gameMode === 'bingo' ? gridSize <= 2 : localCategories.length <= 0} className="flex items-center justify-center p-2 rounded-lg border border-dashed text-indigo-400 border-indigo-700 disabled:border-slate-600 disabled:text-slate-500 disabled:bg-slate-800 hover:bg-slate-700/20 transition-colors">
+                            <button title={t('cat.remove')} type="button" onClick={gameMode === 'bingo' ? minusOneGridSize : minusOneListCategory} disabled={gameMode === 'bingo' ? gridSize <= 2 : localCategories.length <= 0} className="flex items-center justify-center p-2 rounded-lg border border-dashed text-indigo-400 border-indigo-700 disabled:border-slate-600 disabled:text-slate-500 disabled:bg-slate-800 hover:bg-slate-700/20 transition-colors">
                                 <CiCircleMinus size={24} />
                             </button>
-                            <button title="Add" type="button" onClick={gameMode === 'bingo' ? plusOneGridSize : plusOneListCategory} disabled={gameMode === 'bingo' && gridSize >= maxGridSize} className="flex items-center justify-center p-2 rounded-lg border border-dashed text-indigo-400 border-indigo-700 disabled:border-slate-600 disabled:text-slate-500 disabled:bg-slate-800 hover:bg-slate-700/20 transition-colors">
+                            <button title={t('cat.add')} type="button" onClick={gameMode === 'bingo' ? plusOneGridSize : plusOneListCategory} disabled={gameMode === 'bingo' && gridSize >= maxGridSize} className="flex items-center justify-center p-2 rounded-lg border border-dashed text-indigo-400 border-indigo-700 disabled:border-slate-600 disabled:text-slate-500 disabled:bg-slate-800 hover:bg-slate-700/20 transition-colors">
                                 <CiCirclePlus size={24} />
                             </button>
                         </div>
@@ -628,41 +735,32 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                                     {localCategories.map((cat, i) => (
                                         <CategoryItem key={`cat-list-${i}`} initialValue={cat} index={i} gameMode={gameMode} draggedIndex={draggedIndex} gridSize={gridSize} onSave={handleCategorySave} onRemove={removeCategoryIndex} onRandomize={randomizeSingle} onDragStart={handleDragStart} onDrop={handleDrop} />
                                     ))}
-                                    {localCategories.length === 0 && <div className="text-center text-slate-500 italic py-6 border-2 border-dashed border-slate-700 rounded-lg">No categories yet. Add new ones or generate nearby places!</div>}
+                                    {localCategories.length === 0 && <div className="text-center text-slate-500 italic py-6 border-2 border-dashed border-slate-700 rounded-lg">{t('cat.noCategoriesHostList')}</div>}
                                 </div>
                             )}
 
                             <div className="flex flex-wrap gap-2 items-end mt-2">
                                 <div className="flex flex-1 gap-2 items-end justify-end min-w-[300px]">
                                     <Selection
-                                        title="Database"
+                                        title={t('cat.database')}
                                         options={[
-                                            { label: 'Balanced', value: 'balanced' },
-                                            { label: 'Easy', value: 'easy' },
-                                            { label: 'Hard', value: 'hard' },
-                                            { label: 'GeoGuessr Meta (All)', value: 'geo_all' },
-                                            {
-                                                label: 'GeoGuessr Meta: Vehicles',
-                                                value: 'geo_Vehicle',
-                                            },
-                                            { label: 'GeoGuessr Meta: Camera', value: 'geo_Camera' },
-                                            {
-                                                label: 'GeoGuessr Meta: Infrastructure',
-                                                value: 'geo_Infrastructure',
-                                            },
-                                            { label: 'GeoGuessr Meta: Nature', value: 'geo_Nature' },
-                                            { label: 'GeoGuessr Meta: Plates', value: 'geo_Plate' },
-                                            {
-                                                label: 'GeoGuessr Meta: Markings',
-                                                value: 'geo_Marking',
-                                            },
+                                            { label: t('cat.dbBalanced'), value: 'balanced' },
+                                            { label: t('cat.dbEasy'), value: 'easy' },
+                                            { label: t('cat.dbHard'), value: 'hard' },
+                                            { label: t('cat.dbGeoAll'), value: 'geo_all' },
+                                            { label: t('cat.dbGeoVehicles'), value: 'geo_Vehicle' },
+                                            { label: t('cat.dbGeoCamera'), value: 'geo_Camera' },
+                                            { label: t('cat.dbGeoInfrastructure'), value: 'geo_Infrastructure' },
+                                            { label: t('cat.dbGeoNature'), value: 'geo_Nature' },
+                                            { label: t('cat.dbGeoPlates'), value: 'geo_Plate' },
+                                            { label: t('cat.dbGeoMarkings'), value: 'geo_Marking' },
                                         ]}
                                         value={wordSource}
                                         onChange={setWordSource}
                                         position="clean"
                                     />
                                     <button type="button" onClick={fillUpRandom} className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 rounded-lg font-bold transition-colors whitespace-nowrap shadow-sm h-[42px]">
-                                        Fill Up
+                                        {t('cat.fillUp')}
                                     </button>
                                 </div>
                             </div>
@@ -682,7 +780,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                                             ${cat ? 'bg-slate-700 border-slate-600' : 'bg-slate-800/50 border-dashed border-slate-600/50 text-slate-500'}
                                             `}
                                         >
-                                            <span className={`italic w-full ${cat ? 'text-white font-medium' : 'text-slate-500'}`}>{cat || 'Empty'}</span>
+                                            <span className={`italic w-full ${cat ? 'text-white font-medium' : 'text-slate-500'}`}>{cat || t('cat.empty')}</span>
                                         </div>
                                     );
                                 })}
@@ -691,12 +789,12 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                             <ul className="mb-6 space-y-2">
                                 {categories.map((cat, i) => (
                                     <li key={`view-list-${i}`} className="bg-slate-700 rounded-lg flex items-center border border-slate-600 italic shadow-sm overflow-hidden h-[42px]">
-                                        <span className="break-words py-2 px-3 flex items-center text-white w-full h-full">{cat || <span className="text-slate-400">Empty Slot...</span>}</span>
+                                        <span className="break-words py-2 px-3 flex items-center text-white w-full h-full">{cat || <span className="text-slate-400">{t('cat.emptySlot')}</span>}</span>
                                     </li>
                                 ))}
                             </ul>
                         ) : (
-                            <div className="text-center text-slate-500 italic py-6 border-2 border-dashed border-slate-700 rounded-lg">No categories yet. Suggest some categories or wait for the Host to generate them.</div>
+                            <div className="text-center text-slate-500 italic py-6 border-2 border-dashed border-slate-700 rounded-lg">{t('cat.noCategoriesPlayer')}</div>
                         )}
 
                     {!isHost && (
@@ -708,30 +806,37 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter') handleSuggestCategory();
                                 }}
-                                placeholder="Suggest a category..."
+                                placeholder={t('cat.suggestPlaceholder')}
                                 className="flex-1 p-3 rounded-lg bg-slate-900 border border-slate-600 text-white outline-none focus:border-indigo-500"
                             />
                             <button type="button" onClick={handleSuggestCategory} className="bg-indigo-600 hover:bg-indigo-500 px-6 rounded-lg font-bold transition-colors">
-                                Suggest
+                                {t('cat.suggest')}
                             </button>
                         </div>
                     )}
 
                     <div className="p-4 bg-slate-800/80 rounded-xl border border-dashed border-indigo-500/50 mt-6">
-                        <h4 className="text-xs font-bold text-indigo-400 mb-3 uppercase tracking-wider">Player Suggestions</h4>
+                        <div className="flex items-center">
+                            <h4 className="text-xs font-bold text-indigo-400 mb-3 uppercase tracking-wider">{t('cat.suggestions')}</h4>
+                            {isHost && (
+                                <button type="button" onClick={clearSuggestions} className="text-xs font-bold ml-auto text-slate-400 bg-slate-800 hover:bg-slate-700 hover:text-white px-3 py-1 rounded-full ml-2 transition-colors">
+                                    {t('cat.clear')}
+                                </button>
+                            )}
+                        </div>
                         <ul className="space-y-2">
-                            {suggestedCategories.length === 0 ? (
-                                <li className="text-slate-500 italic py-2">No suggestions yet</li>
+                            {localSuggested.length === 0 ? (
+                                <li className="text-slate-500 italic py-2">{t('cat.noSuggestions')}</li>
                             ) : (
-                                suggestedCategories.map((cat, i) => (
+                                localSuggested.map((cat, i) => (
                                     <li key={i} className="bg-slate-700 rounded-lg flex justify-between items-center border border-slate-600 italic shadow-sm overflow-hidden p-1 h-[42px]">
                                         <span className="break-words py-2 px-3 flex items-center text-white">{cat}</span>
                                         {isHost && (
                                             <div className="flex shrink-0 border-l border-slate-600">
-                                                <button type="button" onClick={() => acceptSuggestion(cat)} className="text-green-400 hover:text-green-300 px-4 transition-colors border-r border-slate-600 flex items-center justify-center h-[42px]" title="Accept">
+                                                <button type="button" onClick={() => acceptSuggestion(cat)} className="text-green-400 hover:text-green-300 px-4 transition-colors border-r border-slate-600 flex items-center justify-center h-[42px]" title={t('cat.accept')}>
                                                     <CiCircleCheck size={30} />
                                                 </button>
-                                                <button type="button" onClick={() => rejectSuggestion(cat)} className="text-red-400 hover:text-red-300 pl-4 pr-2 transition-colors flex items-center justify-center h-[42px]" title="Reject">
+                                                <button type="button" onClick={() => rejectSuggestion(cat)} className="text-red-400 hover:text-red-300 pl-4 pr-2 transition-colors flex items-center justify-center h-[42px]" title={t('cat.reject')}>
                                                     <CiCircleRemove size={30} />
                                                 </button>
                                             </div>
