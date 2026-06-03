@@ -1,4 +1,4 @@
-import { callGemini } from '../utils/geminiClient';
+import { callGemini, withModelFallback } from '../utils/geminiClient';
 import { BingoCategory } from '../utils/types';
 
 export const generateAICategories = async (customPrompt: string, requiredCount: number, language: string): Promise<BingoCategory[]> => {
@@ -49,41 +49,24 @@ Output Format: Return ONLY a raw JSON array of strings. No markdown, no preamble
 REQUIRED JSON TEMPLATE (EXACT):
 ["category 1", "category 2", "category 3"]`;
 
-        const geminiModels = ['gemini-2.5-flash', 'gemini-3-flash-preview', 'gemini-2.5-flash-lite', 'gemini-3.1-flash-lite-preview'];
-        let aiResponse;
-        let currentModelIndex = 0;
-
-        while (currentModelIndex < geminiModels.length) {
-            try {
-                aiResponse = await callGemini(geminiModels[currentModelIndex], {
-                    contents: [
-                        {
-                            parts: [
-                                {
-                                    text: prompt,
-                                },
-                            ],
-                        },
-                    ],
-                });
-
-                if (!aiResponse.ok) {
-                    const errorBody = await aiResponse.json();
-                    throw new Error(`Gemini API error with model ${geminiModels[currentModelIndex]}: ${errorBody.error?.message || 'Unknown AI error'}`);
-                }
-
-                break;
-            } catch {
-                currentModelIndex++;
-                if (currentModelIndex >= geminiModels.length) {
-                    throw new Error('All Gemini models failed to generate categories.');
-                }
+        const aiResponse = await withModelFallback(async (model) => {
+            const res = await callGemini(model, {
+                contents: [
+                    {
+                        parts: [
+                            {
+                                text: prompt,
+                            },
+                        ],
+                    },
+                ],
+            });
+            if (!res.ok) {
+                const errorBody = await res.json().catch(() => ({}));
+                throw new Error(`Gemini API error with model ${model}: ${errorBody.error?.message || 'Unknown AI error'}`);
             }
-        }
-
-        if (!aiResponse) {
-            throw new Error('Failed to get a response from Gemini API.');
-        }
+            return res;
+        });
 
         const data = await aiResponse.json();
         console.log('AI API Response:', JSON.stringify(data, null, 2));
@@ -148,10 +131,13 @@ REQUIRED JSON TEMPLATE (EXACT):
             })
             .filter((cat, index, arr) => arr.indexOf(cat) === index);
 
-        if (categories.length < requiredCount) {
-            throw new Error(`AI generated only ${categories.length} valid categories, need ${requiredCount}`);
+        if (categories.length === 0) {
+            throw new Error('AI generated no valid categories');
         }
 
+        // requiredCount is the target pool size; the lobby splits the returned pool
+        // into the active top-K list and the suggestions list. Cap at requiredCount
+        // so an over-eager model doesn't flood the suggestions list.
         const bingoCategories: BingoCategory[] = categories.slice(0, requiredCount).map((category) => ({
             categoryName: category,
             matchedPlaces: [],

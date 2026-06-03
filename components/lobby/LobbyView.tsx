@@ -22,8 +22,6 @@ import LobbyCategories from './LobbyCategories';
 import LobbyMap from './LobbyMap';
 import LobbySettings from './LobbySettings';
 import LobbySidebar from './LobbySidebar';
-import { generateNearbyPlaceCategories } from './NearbyPlaceCategories';
-import { generateNearbyStreetViewCategories } from './NearbyStreetViewCategories';
 import { getHostToken } from '../../lib/hostToken';
 import { isLocationAllowed } from '../utils/mapUtils';
 
@@ -71,13 +69,12 @@ interface LobbyViewProps {
     generationRadius: number;
     generationNumber: number;
     language: 'english' | 'german';
-    difficulty: 'default' | 'easy' | 'claude';
+    difficulty: 'default' | 'easy' | 'hard';
     categoriesGenerated: boolean;
     notifyGameEvent?: (event: 'ai_end_game' | 'ai_generating_categories', payload: { player_id: string }) => void;
 }
 
 export default function LobbyView(props: LobbyViewProps) {
-    const [isGenerating, setIsGenerating] = useState(false);
     const [libraries] = useState<('places' | 'geometry')[]>(['places', 'geometry']);
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
@@ -124,63 +121,18 @@ export default function LobbyView(props: LobbyViewProps) {
             console.error('Unexpected error while clearing paths:', err);
         }
 
-        let finalCategories = [...props.categories];
         const neededCount = props.gameMode === 'bingo' ? props.gridSize * props.gridSize : props.generationNumber;
 
-        if ((props.categorySource === 'nearbyPlaces' || props.categorySource === 'nearbyStreetView') && props.startingPoint !== 'open-world' && startPos) {
-            if (!props.isDeveloper) {
-                const currentCount = parseInt(localStorage.getItem('geoBingoPromptCount') || '0', 10);
-                localStorage.setItem('geoBingoPromptCount', (currentCount + 1).toString());
-            }
-
-            props.notifyGameEvent?.('ai_generating_categories', { player_id: props.playerId });
-            setIsGenerating(true);
-
-            try {
-                const generatedCategoryNames = await toast.promise(
-                    (async () => {
-                        let complexResult;
-
-                        if (props.categorySource === 'nearbyStreetView') {
-                            complexResult = await generateNearbyStreetViewCategories(startPos, props.generationRadius, neededCount, props.difficulty, props.language);
-                        } else {
-                            complexResult = await generateNearbyPlaceCategories(startPos, props.generationRadius, neededCount, props.difficulty, props.language);
-                        }
-
-                        const simpleCategoryNames = complexResult.map((cat) => cat.categoryName);
-
-                        const { data: rpcData, error: dbError } = await props.supabase.rpc('update_game_settings', {
-                            p_game_id: props.gameId,
-                            p_host_id: getHostToken(props.gameId),
-                            p_patch: { categories: simpleCategoryNames, category_details: complexResult },
-                        });
-
-                        if (dbError) throw new Error(dbError.message);
-                        if (rpcData && rpcData.success === false) throw new Error(rpcData.error || 'Failed to save generated categories');
-
-                        return simpleCategoryNames;
-                    })(),
-                    {
-                        loading: props.categorySource === 'nearbyStreetView' ? 'Analysze Street-View-Panoramas...' : 'Generating...',
-                        success: <b>Categories generated successfully!</b>,
-                        error: (err) => {
-                            const errorMessage = err instanceof Error ? err.message : 'Unknown error during generation';
-                            console.error('AI Generation Error Details:', err);
-                            return `${errorMessage}`;
-                        },
-                    },
-                );
-
-                finalCategories = generatedCategoryNames;
-            } catch {
-                setIsGenerating(false);
-                return;
-            }
-
-            setIsGenerating(false);
-        }
-
-        finalCategories = finalCategories.filter((cat) => cat.trim() !== '');
+        const seenCategories = new Set<string>();
+        const finalCategories = props.categories
+            .map((cat) => cat.trim())
+            .filter((cat) => {
+                if (cat === '') return false;
+                const key = cat.toLowerCase();
+                if (seenCategories.has(key)) return false;
+                seenCategories.add(key);
+                return true;
+            });
         if (finalCategories.length === 0) {
             toast.error('Please add at least one valid category before starting the game.');
             return;
@@ -287,9 +239,10 @@ export default function LobbyView(props: LobbyViewProps) {
                     hideMapSymbols={props.hideMapSymbols}
                     hideMiniMap={props.hideMiniMap}
                     aiEndGame={props.aiEndGame}
+                    language={props.language}
                     updateGameModeInfo={props.updateGameModeInfo}
                     categorySource={props.categorySource}
-                    isGenerating={isGenerating}
+                    isGenerating={false}
                 />
             </div>
         </div>

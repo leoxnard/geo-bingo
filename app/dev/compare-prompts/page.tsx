@@ -8,11 +8,12 @@ Developer-only page for tuning the panorama (Street View) category prompts.
 
 Walk around freely in an interactive Street View panorama, frame a shot, hit
 "Capture & Compare", and the exact view you see is sent to Gemini with EVERY
-available panorama prompt (easy / default / claude) at once. The results render
+available panorama prompt (easy / default / hard) at once. The results render
 side by side so you can eyeball which prompt produces the best categories.
 
 This whole folder (app/dev/compare-prompts) is self-contained — delete it to
 remove the tool. Nothing else imports from here.
+Open this using the URL path /dev/compare-prompts when running the app locally.
 ================================================================================
 */
 
@@ -25,8 +26,8 @@ import { getPromptForStreetViewCategories } from '@/components/lobby/prompts/Str
 import { callGemini } from '@/components/utils/geminiClient';
 import { GOOGLE_MAPS_LIBRARIES } from '@/components/utils/mapUtils';
 
-type Difficulty = 'easy' | 'default' | 'claude';
-const DIFFICULTIES: Difficulty[] = ['easy', 'default', 'claude'];
+type Difficulty = 'easy' | 'default' | 'hard';
+const DIFFICULTIES: Difficulty[] = ['easy', 'default', 'hard'];
 
 type ResultItem = { categoryName: string; imageId: string; score: number };
 type PromptResult = { status: 'loading' | 'done' | 'error'; items: ResultItem[]; ms: number; error?: string };
@@ -109,7 +110,7 @@ export default function ComparePromptsPage() {
         setResults({
             easy: { status: 'loading', items: [], ms: 0 },
             default: { status: 'loading', items: [], ms: 0 },
-            claude: { status: 'loading', items: [], ms: 0 },
+            hard: { status: 'loading', items: [], ms: 0 },
         });
 
         try {

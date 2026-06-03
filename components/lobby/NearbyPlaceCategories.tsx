@@ -9,11 +9,11 @@ Supports difficulty levels and category filtering for game variety.
 */
 
 import { getGridLocations, getDistance, shuffle } from '../utils/Functions';
-import { callGemini } from '../utils/geminiClient';
+import { callGemini, withModelFallback } from '../utils/geminiClient';
 import { BingoCategory } from '../utils/types';
 import { getPromptForNearbyPlaceCategories } from './prompts/NearbyPlacePrompts';
 
-export const generateNearbyPlaceCategories = async (startPos: { lat: number; lng: number }, radius: number, requiredCount: number, difficulty: 'default' | 'easy' | 'claude', language: string): Promise<BingoCategory[]> => {
+export const generateNearbyPlaceCategories = async (startPos: { lat: number; lng: number }, radius: number, requiredCount: number, difficulty: 'default' | 'easy' | 'hard', language: string): Promise<BingoCategory[]> => {
     try {
         const googleApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
         if (!googleApiKey) throw new Error('Google Maps API Key is missing!');
@@ -127,8 +127,8 @@ export const generateNearbyPlaceCategories = async (startPos: { lat: number; lng
         const uniquePlaces = Array.from(uniquePlacesMap.values());
         const shuffledPlaces = shuffle(uniquePlaces);
 
-        if (shuffledPlaces.length < requiredCount) {
-            throw new Error(`Not enough places found within the specified radius (${shuffledPlaces.length}/${requiredCount}).`);
+        if (shuffledPlaces.length === 0) {
+            throw new Error('No places found within the specified radius. Try a larger radius.');
         }
 
         const uniquePlacesForLLM = uniquePlaces.map((p) => ({
@@ -140,36 +140,19 @@ export const generateNearbyPlaceCategories = async (startPos: { lat: number; lng
 
         const prompt = getPromptForNearbyPlaceCategories(cityCountry, uniquePlacesForLLM, requiredCount, difficulty, language);
 
-        const geminiModels = ['gemini-2.5-flash', 'gemini-3-flash-preview', 'gemini-2.5-flash-lite', 'gemini-3.1-flash-lite-preview'];
-        let aiResponse;
-        let currentModelIndex = 0;
-
-        while (currentModelIndex < geminiModels.length) {
-            try {
-                aiResponse = await callGemini(geminiModels[currentModelIndex], {
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: {
-                        responseMimeType: 'application/json',
-                    },
-                });
-
-                if (!aiResponse.ok) {
-                    const errorBody = await aiResponse.json();
-                    throw new Error(`Gemini API error with model ${geminiModels[currentModelIndex]}: ${errorBody.error?.message || 'Unknown AI error'}`);
-                }
-
-                break;
-            } catch {
-                currentModelIndex++;
-                if (currentModelIndex >= geminiModels.length) {
-                    throw new Error('All Gemini models failed to generate categories.');
-                }
+        const aiResponse = await withModelFallback(async (model) => {
+            const res = await callGemini(model, {
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                    responseMimeType: 'application/json',
+                },
+            });
+            if (!res.ok) {
+                const errorBody = await res.json().catch(() => ({}));
+                throw new Error(`Gemini API error with model ${model}: ${errorBody.error?.message || 'Unknown AI error'}`);
             }
-        }
-
-        if (!aiResponse) {
-            throw new Error('Failed to get a response from Gemini API.');
-        }
+            return res;
+        });
 
         const aiData = await aiResponse.json();
         let aiTextResponse = aiData.candidates[0].content.parts[0].text;
@@ -180,11 +163,11 @@ export const generateNearbyPlaceCategories = async (startPos: { lat: number; lng
             .trim();
         const parsedCategories = JSON.parse(aiTextResponse);
 
-        if (!Array.isArray(parsedCategories) || parsedCategories.length < requiredCount) {
-            throw new Error(`AI returned invalid format or fewer categories than required!`);
+        if (!Array.isArray(parsedCategories) || parsedCategories.length === 0) {
+            throw new Error(`AI returned an invalid or empty category list!`);
         }
 
-        const finalCategories: BingoCategory[] = parsedCategories.slice(0, requiredCount).map((category) => {
+        const finalCategories: BingoCategory[] = parsedCategories.map((category) => {
             const enrichedPlaces = category.matchedPlaces
                 .map((matchedPlace: { id: string }) => {
                     const originalData = uniquePlacesMap.get(matchedPlace.id);
