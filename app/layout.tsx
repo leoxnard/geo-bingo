@@ -15,9 +15,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import { cookies, headers } from 'next/headers';
 import './globals.css';
 
-import { GamePhaseProvider } from '@/lib/gamePhase';
 import { I18nProvider } from '@/lib/i18n/I18nProvider';
-import LanguageSwitcher from '@/lib/i18n/LanguageSwitcher';
 import { DEFAULT_LOCALE, isLocale, LOCALE_COOKIE, localeFromAcceptLanguage } from '@/lib/i18n/locales';
 
 const geistSans = Geist({
@@ -98,12 +96,7 @@ export default async function RootLayout({
     return (
         <html lang={locale} className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
             <body className="min-h-full flex flex-col">
-                <I18nProvider initialLocale={locale}>
-                    <GamePhaseProvider>
-                        <LanguageSwitcher />
-                        {children}
-                    </GamePhaseProvider>
-                </I18nProvider>
+                <I18nProvider initialLocale={locale}>{children}</I18nProvider>
                 <Analytics />
                 <SpeedInsights />
             </body>

@@ -62,7 +62,7 @@ export default function RoundControls({ variant, isNarrow = false, timeLeft, aiE
                             type="button"
                             onClick={handleVoteEndRound}
                             disabled={hasVotedToEnd}
-                            className={`flex flex-col items-center justify-center whitespace-nowrap px-3 sm:px-6 rounded-lg font-bold transition-all uppercase text-[10px] sm:text-sm shadow-lg leading-tight text-center min-w-[7rem] border-2
+                            className={`flex flex-col items-center justify-center whitespace-nowrap px-3 sm:px-6 rounded-lg font-bold transition-all uppercase text-[10px] sm:text-sm shadow-lg leading-tight text-center border-2
                                         ${aiVerificationSuccess ? 'border-green-500' : 'border-transparent'}
                                 ${hasVotedToEnd ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-red-600 hover:bg-red-500 text-white'}`}
                         >
@@ -86,17 +86,17 @@ export default function RoundControls({ variant, isNarrow = false, timeLeft, aiE
                         onClick={handleAiVerifyAndEnd}
                         disabled={!allCategoriesFilled || isVerifying}
                         title={!allCategoriesFilled ? t('sv.fillToEnable') : t('sv.verifyAllEnd')}
-                        className={`flex flex-col items-center justify-center whitespace-nowrap px-3 sm:px-4 rounded-lg font-bold transition-all uppercase text-[10px] sm:text-xs shadow-lg leading-tight text-center min-w-[6.5rem]
+                        className={`flex flex-col items-center justify-center whitespace-nowrap px-2 sm:px-3 rounded-lg font-bold transition-all uppercase text-[10px] sm:text-xs shadow-lg leading-tight text-center
                                 ${!allCategoriesFilled || isVerifying ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
                     >
-                        <span>{isVerifying ? t('sv.verifying') : t('sv.verifyEnd')}</span>
+                        <span>{isVerifying ? t('sv.verifying') : t('sv.aiVerifyEnd')}</span>
                     </button>
                 )}
                 <button
                     type="button"
                     onClick={handleVoteEndRound}
                     disabled={hasVotedToEnd}
-                    className={`flex flex-col items-center justify-center whitespace-nowrap px-3 sm:px-4 rounded-lg font-bold transition-all uppercase text-[10px] sm:text-xs shadow-lg leading-tight text-center min-w-[6.5rem] border-2
+                    className={`flex flex-col items-center justify-center whitespace-nowrap px-2 sm:px-3 rounded-lg font-bold transition-all uppercase text-[10px] sm:text-xs shadow-lg leading-tight text-center border-2
                         ${aiVerificationSuccess ? 'border-green-500' : 'border-transparent'}
                         ${hasVotedToEnd ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-red-600 hover:bg-red-500 text-white'}`}
                 >

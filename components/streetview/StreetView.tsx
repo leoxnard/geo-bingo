@@ -77,7 +77,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
         }
     };
 
-    const { isVerifying, aiVerificationSuccess, allCategoriesFilled, handleVerifyAndEnd: handleAiVerifyAndEnd, handleVerifyBingoAndEnd, handleVerifyOne, verifyingIds } = useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSubmissions, notifyGameEvent });
+    const { isVerifying, aiVerificationSuccess, allCategoriesFilled, handleVerifyAndEnd: handleAiVerifyAndEnd, handleVerifyBingoAndEnd } = useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSubmissions, notifyGameEvent });
 
     const isBingoFirstWithAi = gameMode === 'bingo' && endCondition === 'first_bingo' && aiEndGame;
 
@@ -788,13 +788,10 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                             otherSubmissions={otherSubmissions}
                             exclusiveMode={exclusiveMode}
                             allowHints={allowHints}
-                            startingPoint={startingPoint}
                             submittingCategory={submittingCategory}
                             inStreetView={inStreetView}
-                            verifyingIds={verifyingIds}
                             handleSubmit={handleSubmit}
                             jumpToLocation={jumpToLocation}
-                            handleVerifyOne={handleVerifyOne}
                             handleBingoTileClick={handleBingoTileClick}
                         />
                     </div>

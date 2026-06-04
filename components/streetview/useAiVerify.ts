@@ -48,55 +48,6 @@ interface UseAiVerifyArgs {
 export function useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSubmissions, notifyGameEvent }: UseAiVerifyArgs) {
     const [isVerifying, setIsVerifying] = useState(false);
     const [aiVerificationSuccess, setAiVerificationSuccess] = useState(false);
-    // Submission ids with a single-cell verify in flight, so the per-cell button
-    // can show a spinner / disable without touching the round-ending isVerifying.
-    const [verifyingIds, setVerifyingIds] = useState<Set<string>>(new Set());
-
-    // Per-cell verify for fixed starting-position mode, where you can't teleport
-    // back to a saved cell: check this one submission against the AI at its stored
-    // view and persist the verdict, but don't end the round. The green/red cell
-    // border (driven by ai_verdict) reflects the result.
-    const handleVerifyOne = useCallback(
-        async (sub: Submission) => {
-            const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-            if (!mapsKey) {
-                toast.error('AI verification is unavailable: missing API keys.');
-                return;
-            }
-            if (verifyingIds.has(sub.id)) return;
-            setVerifyingIds((prev) => new Set(prev).add(sub.id));
-            try {
-                const [result] = await verifySubmissions([sub], mapsKey);
-                if (result.error) {
-                    setAllSubmissions((prev) => prev.map((s) => (s.id === sub.id ? { ...s, ai_verdict: null, ai_verified_hash: null, ai_reason: null } : s)));
-                    toast.error(`AI error verifying "${sub.category}" (see console).`);
-                    return;
-                }
-
-                setAllSubmissions((prev) => prev.map((s) => (s.id === sub.id ? { ...s, ai_verdict: result.passed, ai_verified_hash: result.hash, ai_reason: result.reason ?? null } : s)));
-
-                if (!result.fromCache) {
-                    const { data, error } = await supabase.rpc('set_submission_ai_verdict', { p_id: result.submissionId, p_player_id: playerId, p_verdict: result.passed, p_hash: result.hash });
-                    if (error || (data && data.success === false)) {
-                        throw new Error(error?.message || data?.error || 'unknown error');
-                    }
-                }
-
-                if (result.passed) toast.success(`"${sub.category}" verified.`);
-                else toast.error(`"${sub.category}" got rejected by AI. Adjust the view and save again.`);
-            } catch (err) {
-                console.error('Single AI verification error:', err);
-                toast.error(`Failed to verify "${sub.category}". Try again.`);
-            } finally {
-                setVerifyingIds((prev) => {
-                    const next = new Set(prev);
-                    next.delete(sub.id);
-                    return next;
-                });
-            }
-        },
-        [verifyingIds, playerId, setAllSubmissions],
-    );
 
     const allCategoriesFilled = useMemo(() => myBoard.every((cat) => mySubmissions.some((s) => s.category === cat)), [myBoard, mySubmissions]);
 
@@ -187,5 +138,5 @@ export function useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSu
         await runVerifyAndEnd(bingoLineSubs, buildVerifyLabel(bingoLineSubs, 'Bingo category'));
     };
 
-    return { isVerifying, aiVerificationSuccess, allCategoriesFilled, handleVerifyAndEnd, handleVerifyBingoAndEnd, handleVerifyOne, verifyingIds };
+    return { isVerifying, aiVerificationSuccess, allCategoriesFilled, handleVerifyAndEnd, handleVerifyBingoAndEnd };
 }

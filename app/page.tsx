@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation';
 import { GeoBingoLogo } from '@/components/utils/Elements';
 import { useViewport } from '@/components/utils/useViewport';
 import { useT } from '@/lib/i18n/I18nProvider';
+import LanguageSwitcher from '@/lib/i18n/LanguageSwitcher';
 
 import { adjectives, badAdjectives, animals } from '../lib/names';
 
@@ -59,7 +60,8 @@ export default function Home() {
     };
 
     return (
-        <main className="flex min-h-dvh flex-col items-center justify-start sm:justify-center px-4 py-0 sm:px-8 sm:pb-0 sm:py-16 lg:p-24 lg:pb-0 bg-slate-900 text-white">
+        <main className="relative flex min-h-dvh flex-col items-center justify-start sm:justify-center px-4 py-0 sm:px-8 sm:pb-0 sm:py-16 lg:p-24 lg:pb-0 bg-slate-900 text-white">
+            <LanguageSwitcher />
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 mb-6 sm:mb-12 hover">
                 <GeoBingoLogo size={isNarrow ? 50 : 80} className="animate-pulse" />
                 <h1 className="text-3xl sm:text-6xl font-bold text-indigo-400 tracking-tighter text-center sm:text-left">Geo BingBong</h1>

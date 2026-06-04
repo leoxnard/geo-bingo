@@ -5,12 +5,12 @@
 BINGO BOARD
 ================================================================================
 The bingo-mode grid of category tiles. Each tile shows its category, an optional
-hint and (on larger screens) action buttons to capture / overwrite / view /
-verify a submission. Tapping a tile on mobile submits the category directly.
+hint and (on larger screens) action buttons to capture / overwrite / view a
+submission. Tapping a tile on mobile submits the category directly.
 ================================================================================
 */
 
-import { FaCamera, FaCheck, FaEye, FaInfoCircle } from 'react-icons/fa';
+import { FaCamera, FaEye, FaInfoCircle } from 'react-icons/fa';
 
 import { useT } from '@/lib/i18n/I18nProvider';
 
@@ -24,18 +24,15 @@ interface BingoBoardProps {
     otherSubmissions: Submission[];
     exclusiveMode: boolean;
     allowHints: boolean;
-    startingPoint: string;
     submittingCategory: string | null;
     inStreetView: boolean;
-    verifyingIds: Set<string>;
     textSizeClass: string;
     handleSubmit: (category: string) => void;
     handleBingoTileClick: (category: string) => void;
     jumpToLocation: (sub: Submission) => void;
-    handleVerifyOne: (sub: Submission) => void;
 }
 
-export default function BingoBoard({ gridSize, myBoard, mySubmissions, otherSubmissions, exclusiveMode, allowHints, startingPoint, submittingCategory, inStreetView, verifyingIds, textSizeClass, handleSubmit, handleBingoTileClick, jumpToLocation, handleVerifyOne }: BingoBoardProps) {
+export default function BingoBoard({ gridSize, myBoard, mySubmissions, otherSubmissions, exclusiveMode, allowHints, submittingCategory, inStreetView, textSizeClass, handleSubmit, handleBingoTileClick, jumpToLocation }: BingoBoardProps) {
     const { t } = useT();
     return (
         <div className={`grid gap-2 flex-1 min-h-0 overflow-y-auto pr-1 auto-rows-fr bingo-grid-${gridSize}`}>
@@ -98,32 +95,17 @@ export default function BingoBoard({ gridSize, myBoard, mySubmissions, otherSubm
                                     >
                                         {submittingCategory === cat ? '...' : <FaCamera className="h-[60%] w-auto" />}
                                     </button>
-                                    {startingPoint === 'open-world' ? (
-                                        <button
-                                            type="button"
-                                            title={t('sv.viewSubmission')}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                jumpToLocation(foundSub);
-                                            }}
-                                            className="hidden sm:flex flex-1 h-full bg-slate-600/30 hover:bg-slate-500/30 text-white font-bold rounded-lg uppercase justify-center items-center"
-                                        >
-                                            <FaEye className="h-[60%] w-auto" />
-                                        </button>
-                                    ) : (
-                                        <button
-                                            type="button"
-                                            title={t('sv.verifyWithAi')}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleVerifyOne(foundSub);
-                                            }}
-                                            disabled={verifyingIds.has(foundSub.id)}
-                                            className="flex flex-1 h-full bg-indigo-600/40 hover:bg-indigo-500/40 text-white font-bold rounded-lg uppercase justify-center items-center disabled:opacity-60 disabled:cursor-not-allowed"
-                                        >
-                                            {verifyingIds.has(foundSub.id) ? '...' : <FaCheck className="h-[60%] w-auto" />}
-                                        </button>
-                                    )}
+                                    <button
+                                        type="button"
+                                        title={t('sv.viewSubmission')}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            jumpToLocation(foundSub);
+                                        }}
+                                        className="hidden sm:flex flex-1 h-full bg-slate-600/30 hover:bg-slate-500/30 text-white font-bold rounded-lg uppercase justify-center items-center"
+                                    >
+                                        <FaEye className="h-[60%] w-auto" />
+                                    </button>
                                 </>
                             )}
                         </div>

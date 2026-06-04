@@ -27,16 +27,13 @@ interface ChecklistListProps {
     otherSubmissions: Submission[];
     exclusiveMode: boolean;
     allowHints: boolean;
-    startingPoint: string;
     submittingCategory: string | null;
     inStreetView: boolean;
-    verifyingIds: Set<string>;
     handleSubmit: (category: string) => void;
     jumpToLocation: (sub: Submission) => void;
-    handleVerifyOne: (sub: Submission) => void;
 }
 
-export default function ChecklistList({ listLayout, isPortrait, setGridEl, myBoard, mySubmissions, otherSubmissions, exclusiveMode, allowHints, startingPoint, submittingCategory, inStreetView, verifyingIds, handleSubmit, jumpToLocation, handleVerifyOne }: ChecklistListProps) {
+export default function ChecklistList({ listLayout, isPortrait, setGridEl, myBoard, mySubmissions, otherSubmissions, exclusiveMode, allowHints, submittingCategory, inStreetView, handleSubmit, jumpToLocation }: ChecklistListProps) {
     const { t } = useT();
     return (
         <div ref={setGridEl} className="flex flex-1 min-h-0 flex-col overflow-hidden">
@@ -97,30 +94,16 @@ export default function ChecklistList({ listLayout, isPortrait, setGridEl, myBoa
                                                         {submittingCategory === cat ? '...' : !inStreetView ? t('sv.enterStreetview') : t('sv.overwrite')}
                                                     </button>
                                                 )}
-                                                {startingPoint === 'open-world' ? (
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            jumpToLocation(foundSub);
-                                                        }}
-                                                        className={`${exclusiveMode ? 'flex-1' : 'flex-[0.5]'} bg-slate-700/40 hover:bg-slate-500/30 px-2 py-1 text-[7px] text-white font-bold rounded-lg shadow uppercase transition-all whitespace-nowrap`}
-                                                    >
-                                                        {t('sv.view')}
-                                                    </button>
-                                                ) : (
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleVerifyOne(foundSub);
-                                                        }}
-                                                        disabled={verifyingIds.has(foundSub.id)}
-                                                        className={`${exclusiveMode ? 'flex-1' : 'flex-[0.5]'} bg-indigo-600/40 hover:bg-indigo-500/40 px-2 py-1 text-[7px] text-white font-bold rounded-lg shadow uppercase transition-all whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed`}
-                                                    >
-                                                        {verifyingIds.has(foundSub.id) ? '...' : t('sv.verify')}
-                                                    </button>
-                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        jumpToLocation(foundSub);
+                                                    }}
+                                                    className={`${exclusiveMode ? 'flex-1' : 'flex-[0.5]'} bg-slate-700/40 hover:bg-slate-500/30 px-2 py-1 text-[7px] text-white font-bold rounded-lg shadow uppercase transition-all whitespace-nowrap`}
+                                                >
+                                                    {t('sv.view')}
+                                                </button>
                                             </>
                                         )}
                                     </div>
@@ -197,30 +180,16 @@ export default function ChecklistList({ listLayout, isPortrait, setGridEl, myBoa
                                                     {submittingCategory === cat ? '...' : !inStreetView ? 'Enter Streetview' : 'Overwrite'}
                                                 </button>
                                             )}
-                                            {startingPoint === 'open-world' ? (
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        jumpToLocation(foundSub);
-                                                    }}
-                                                    className={`${exclusiveMode ? 'flex-1' : 'flex-[0.5]'} bg-slate-700/40 hover:bg-slate-500/30 text-[9px] px-2 py-1.5 text-white font-bold rounded-lg shadow uppercase transition-all`}
-                                                >
-                                                    {t('sv.view')}
-                                                </button>
-                                            ) : (
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleVerifyOne(foundSub);
-                                                    }}
-                                                    disabled={verifyingIds.has(foundSub.id)}
-                                                    className={`${exclusiveMode ? 'flex-1' : 'flex-[0.5]'} bg-indigo-600/40 hover:bg-indigo-500/40 text-[9px] px-2 py-1.5 text-white font-bold rounded-lg shadow uppercase transition-all disabled:opacity-60 disabled:cursor-not-allowed`}
-                                                >
-                                                    {verifyingIds.has(foundSub.id) ? '...' : 'Verify'}
-                                                </button>
-                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    jumpToLocation(foundSub);
+                                                }}
+                                                className={`${exclusiveMode ? 'flex-1' : 'flex-[0.5]'} bg-slate-700/40 hover:bg-slate-500/30 text-[9px] px-2 py-1.5 text-white font-bold rounded-lg shadow uppercase transition-all`}
+                                            >
+                                                {t('sv.view')}
+                                            </button>
                                         </>
                                     )}
                                 </div>

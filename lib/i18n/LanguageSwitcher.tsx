@@ -4,23 +4,22 @@
 ================================================================================
 LANGUAGE SWITCHER
 ================================================================================
-Global UI-language selector. Mounted absolutely at the top-right of every page
-via the root layout (scrolls with the page rather than staying pinned), so it is
-available even before a game exists. Changing it only affects THIS user's
-interface (and the default category language when they host a new game) — it
-never overrides other players.
+UI-language selector, positioned absolutely at the top-right of its (relatively
+positioned) parent. It is embedded only on the pre-game surfaces where switching
+makes sense — the landing page and the lobby — so it disappears on its own once a
+round is underway, with no need to track game phase. Changing it only affects
+THIS user's interface (and the default category language when they host a new
+game) — it never overrides other players.
 ================================================================================
 */
 
 import { useEffect, useRef, useState } from 'react';
 
-import { useGamePhase } from '../gamePhase';
 import { useT } from './I18nProvider';
 import { LOCALE_CODES, LOCALES } from './locales';
 
 export default function LanguageSwitcher() {
     const { locale, setLocale } = useT();
-    const { phase } = useGamePhase();
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
@@ -33,15 +32,13 @@ export default function LanguageSwitcher() {
         return () => document.removeEventListener('mousedown', onClick);
     }, [open]);
 
-    if (phase && phase !== 'lobby') return null;
-
     const active = LOCALES[locale];
 
     return (
         <div ref={ref} className="absolute top-3 right-3 z-50">
             <button type="button" onClick={() => setOpen((v) => !v)} aria-haspopup="listbox" aria-expanded={open} className="flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-800/90 px-3 py-2 text-sm font-medium text-white shadow-lg backdrop-blur transition-colors hover:border-slate-500 hover:bg-slate-700">
                 <span className="text-base leading-none">{active.flag}</span>
-                <span className="hidden sm:inline">{active.label}</span>
+                <span className="inline">{active.label}</span>
             </button>
 
             {open && (
