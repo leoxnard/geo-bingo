@@ -23,6 +23,7 @@ import StreetView from '@/components/streetview/StreetView';
 import { shuffle } from '@/components/utils/Functions';
 import { Player } from '@/components/utils/types';
 import { VotingView } from '@/components/VotingView';
+import { useGamePhase } from '@/lib/gamePhase';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { categoryLanguageForLocale, CategoryLanguage } from '@/lib/i18n/locales';
 
@@ -38,6 +39,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const gameId = unwrappedParams.id.toLowerCase();
     const router = useRouter();
     const { t, locale } = useT();
+    const { setPhase } = useGamePhase();
 
     useEffect(() => {
         if (unwrappedParams.id !== gameId) {
@@ -48,6 +50,14 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     // Game state
     const [lastUpdated, setLastUpdated] = useState<string>('');
     const [status, setStatus] = useState<GameStatus>('lobby');
+
+    // Report the room's phase so the global LanguageSwitcher can hide itself once
+    // a round is underway. Reset to null on unmount (navigating back out of the
+    // game) so the switcher reappears on the home/landing pages.
+    useEffect(() => {
+        setPhase(status);
+        return () => setPhase(null);
+    }, [status, setPhase]);
     const [exclusiveMode, setExclusiveMode] = useState(false);
     const [categories, setCategories] = useState<string[]>(['', '', '', '', '', '', '', '', '', '']);
     const [suggestedCategories, setSuggestedCategories] = useState<string[]>([]);

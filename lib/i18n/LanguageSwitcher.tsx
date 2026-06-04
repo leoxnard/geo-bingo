@@ -14,11 +14,13 @@ never overrides other players.
 
 import { useEffect, useRef, useState } from 'react';
 
+import { useGamePhase } from '../gamePhase';
 import { useT } from './I18nProvider';
 import { LOCALE_CODES, LOCALES } from './locales';
 
 export default function LanguageSwitcher() {
     const { locale, setLocale } = useT();
+    const { phase } = useGamePhase();
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
@@ -30,6 +32,8 @@ export default function LanguageSwitcher() {
         document.addEventListener('mousedown', onClick);
         return () => document.removeEventListener('mousedown', onClick);
     }, [open]);
+
+    if (phase && phase !== 'lobby') return null;
 
     const active = LOCALES[locale];
 

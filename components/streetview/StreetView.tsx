@@ -409,7 +409,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
     }, []);
 
     useEffect(() => {
-        if (isNarrow) {
+        if (isNarrow || isPortrait) {
             setListLayout('compact');
             return;
         }
@@ -677,20 +677,20 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
     if (!isLoaded) return <div className="h-screen flex items-center justify-center text-indigo-400">Loading Maps...</div>;
 
     const getSidebarWidthClass = () => {
-        if (gameMode !== 'bingo') return 'lg:w-96';
+        if (gameMode !== 'bingo') return 'w-96';
         switch (gridSize) {
         case 2:
-            return 'lg:w-[400px]';
+            return 'w-[400px]';
         case 3:
-            return 'lg:w-[500px]';
+            return 'w-[500px]';
         case 4:
-            return 'lg:w-[600px]';
+            return 'w-[600px]';
         case 5:
-            return 'lg:w-[700px]';
+            return 'w-[700px]';
         case 6:
-            return 'lg:w-[800px]';
+            return 'w-[800px]';
         default:
-            return 'lg:w-[400px]';
+            return 'w-[400px]';
         }
     };
 
@@ -723,7 +723,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
             <div className="w-full mx-auto shrink-0">
                 {playerId && (
-                    <div className={`flex gap-4 ${isMobileLandscape ? 'flex-row h-[calc(100dvh-2rem)] min-h-0' : isPortrait ? 'flex-col h-[calc(100dvh-6rem)] min-h-0' : 'flex-col lg:flex-row h-[calc(100dvh-2rem)] min-h-0'}`}>
+                    <div className={`flex gap-4 ${isMobileLandscape ? 'flex-row h-[calc(100dvh-2rem)] min-h-0' : isPortrait ? 'flex-col h-[calc(100dvh-6rem)] min-h-0' : 'flex-row h-[calc(100dvh-2rem)] min-h-0'}`}>
                         {/* Left: Map */}
                         <StreetViewMapPanel
                             containerRef={containerRef}

@@ -20,6 +20,7 @@ import { Submission } from '../utils/types';
 
 interface ChecklistListProps {
     listLayout: 'roomy' | 'compact';
+    isPortrait: boolean;
     setGridEl: (el: HTMLDivElement | null) => void;
     myBoard: string[];
     mySubmissions: Submission[];
@@ -35,13 +36,13 @@ interface ChecklistListProps {
     handleVerifyOne: (sub: Submission) => void;
 }
 
-export default function ChecklistList({ listLayout, setGridEl, myBoard, mySubmissions, otherSubmissions, exclusiveMode, allowHints, startingPoint, submittingCategory, inStreetView, verifyingIds, handleSubmit, jumpToLocation, handleVerifyOne }: ChecklistListProps) {
+export default function ChecklistList({ listLayout, isPortrait, setGridEl, myBoard, mySubmissions, otherSubmissions, exclusiveMode, allowHints, startingPoint, submittingCategory, inStreetView, verifyingIds, handleSubmit, jumpToLocation, handleVerifyOne }: ChecklistListProps) {
     const { t } = useT();
     return (
         <div ref={setGridEl} className="flex flex-1 min-h-0 flex-col overflow-hidden">
             {listLayout === 'compact' ? (
                 // Compact List View
-                <ul className="flex flex-col flex-1 min-h-0 overflow-y-auto p-2 sm:p-0" style={{ gap: COMPACT_GAP }}>
+                <ul className={`flex flex-col flex-1 min-h-0 overflow-y-auto p-2 ${isPortrait ? '' : 'sm:p-0'}`} style={{ gap: COMPACT_GAP }}>
                     {myBoard.map((cat) => {
                         const foundSub = mySubmissions.find((s) => s.category === cat);
                         const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some((s) => s.category === cat);
