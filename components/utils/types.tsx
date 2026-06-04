@@ -26,7 +26,6 @@ export interface Submission {
     heading: number;
     pitch: number;
     zoom: number;
-    is_valid: boolean | null;
     votes: Record<string, boolean>;
     ai_verdict?: boolean | null;
     ai_verified_hash?: string | null;

@@ -570,7 +570,7 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "generation_number" integer DEFAULT 10 NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"(),
     "category_details" "jsonb"[] DEFAULT '{}'::"jsonb"[] NOT NULL,
-    "language" "text" DEFAULT '''german''::text'::"text" NOT NULL,
+    "language" "text" DEFAULT '''english''::text'::"text" NOT NULL,
     "categories_generated" boolean DEFAULT false NOT NULL,
     "ai_end_game" boolean DEFAULT false NOT NULL,
     "difficulty" "text" DEFAULT 'default'::"text" NOT NULL
@@ -582,7 +582,7 @@ ALTER TABLE "public"."games" OWNER TO "postgres";
 
 CREATE TABLE IF NOT EXISTS "public"."players" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "game_id" "text",
+    "game_id" "text" NOT NULL,
     "name" "text",
     "score" integer DEFAULT 0,
     "bingo_board" "jsonb" DEFAULT '[]'::"jsonb",
@@ -596,15 +596,14 @@ ALTER TABLE "public"."players" OWNER TO "postgres";
 
 CREATE TABLE IF NOT EXISTS "public"."submissions" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "game_id" "text",
-    "player_id" "uuid",
-    "category" "text",
+    "game_id" "text" NOT NULL,
+    "player_id" "uuid" NOT NULL,
+    "category" "text" NOT NULL,
     "lat" double precision,
     "lng" double precision,
     "heading" double precision,
     "pitch" double precision,
     "zoom" double precision,
-    "is_valid" boolean,
     "votes" "jsonb" DEFAULT '{}'::"jsonb",
     "ai_verdict" boolean,
     "ai_verified_hash" "text"
@@ -631,6 +630,18 @@ ALTER TABLE ONLY "public"."players"
 
 ALTER TABLE ONLY "public"."submissions"
     ADD CONSTRAINT "submissions_pkey" PRIMARY KEY ("id");
+
+
+
+CREATE INDEX "players_game_id_idx" ON "public"."players" USING "btree" ("game_id");
+
+
+
+CREATE UNIQUE INDEX "submissions_game_player_category_uniq" ON "public"."submissions" USING "btree" ("game_id", "player_id", "category");
+
+
+
+CREATE INDEX "submissions_player_id_idx" ON "public"."submissions" USING "btree" ("player_id");
 
 
 

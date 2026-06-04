@@ -495,7 +495,6 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
             ...submissionData,
             id: tempId,
             votes: existingSub?.votes || {},
-            is_valid: null,
             ai_verdict: null,
             ai_verified_hash: null,
         } as Submission;
