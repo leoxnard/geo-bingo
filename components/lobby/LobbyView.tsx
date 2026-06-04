@@ -18,6 +18,8 @@ import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.
 import Image from 'next/image';
 import toast from 'react-hot-toast';
 
+import { CategoryLanguage } from '@/lib/i18n/locales';
+
 import LobbyCategories from './LobbyCategories';
 import LobbyMap from './LobbyMap';
 import LobbySettings from './LobbySettings';
@@ -68,7 +70,7 @@ interface LobbyViewProps {
     isDeveloper: boolean;
     generationRadius: number;
     generationNumber: number;
-    language: 'english' | 'german';
+    language: CategoryLanguage;
     difficulty: 'default' | 'easy' | 'hard';
     categoriesGenerated: boolean;
     notifyGameEvent?: (event: 'ai_end_game' | 'ai_generating_categories', payload: { player_id: string }) => void;
@@ -183,7 +185,7 @@ export default function LobbyView(props: LobbyViewProps) {
     };
 
     return (
-        <div className="min-h-screen flex flex-col items-center px-4 py-6 sm:px-6 sm:py-8 lg:p-10 bg-slate-900 text-white relative">
+        <div className="min-h-screen flex flex-col items-center px-4 pb-6 pt-14 sm:pt-8 sm:pb-8 lg:p-10 bg-slate-900 text-white relative">
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 mb-8 sm:mb-12 hidden sm:flex">
                 <Image src="/mappin.and.ellipse.png" alt="Logo" width={60} height={60} className="w-auto h-auto" />
                 <h1 className="text-6xl font-bold text-indigo-400 tracking-tighter">Geo BingBong</h1>

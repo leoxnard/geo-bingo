@@ -99,7 +99,7 @@ export const InfoHint = ({ text }: { text: string }) => {
     return (
         <span
             ref={ref}
-            className="relative inline-flex items-center cursor-help group"
+            className="relative ml-1 inline-flex items-center align-middle cursor-help group"
             onMouseEnter={() => setOpen(true)}
             onMouseLeave={() => setOpen(false)}
             onClick={(e) => {
@@ -114,19 +114,37 @@ export const InfoHint = ({ text }: { text: string }) => {
     );
 };
 
-export const ToggleSwitch = ({ checked, onChange, disabled, label, tooltip }: { checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean; label: string; tooltip?: string }) => (
-    <label className="flex items-center justify-between group">
-        <span className="flex items-center gap-1.5">
-            <span className="text-slate-300 font-medium text-sm group-hover:text-white transition-colors">{label}</span>
-            {tooltip && <InfoHint text={tooltip} />}
-        </span>
-        <div className={`relative ${disabled ? 'opacity-50' : 'cursor-pointer'}`}>
-            <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => !disabled && onChange(e.target.checked)} className="sr-only peer" />
-            {/* Der Hintergrund des Schalters */}
-            <div className="w-11 h-6 bg-slate-700 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-400 peer-checked:bg-indigo-600 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
-        </div>
-    </label>
-);
+export const ToggleSwitch = ({ checked, onChange, disabled, label, tooltip }: { checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean; label: string; tooltip?: string }) => {
+    // Glue the last word and the "?" together (whitespace-nowrap) so a wrap can
+    // only happen BEFORE the last word — the icon never gets pushed to its own
+    // line or separated from the word it belongs to.
+    const words = label.trim().split(/\s+/);
+    const lastWord = words.pop() ?? label;
+    const head = words.join(' ');
+
+    return (
+        <label className="flex items-center justify-between gap-3 group">
+            <span className="text-slate-300 font-medium text-sm group-hover:text-white transition-colors">
+                {tooltip ? (
+                    <>
+                        {head && `${head} `}
+                        <span className="whitespace-nowrap">
+                            {lastWord}
+                            <InfoHint text={tooltip} />
+                        </span>
+                    </>
+                ) : (
+                    label
+                )}
+            </span>
+            <div className={`relative shrink-0 ${disabled ? 'opacity-50' : 'cursor-pointer'}`}>
+                <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => !disabled && onChange(e.target.checked)} className="sr-only peer" />
+                {/* Der Hintergrund des Schalters */}
+                <div className="w-11 h-6 bg-slate-700 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-400 peer-checked:bg-indigo-600 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
+            </div>
+        </label>
+    );
+};
 
 export const ToggleButton = ({ classname, active, labelLeft, labelRight, onClick, disabled, title, isHost, position = 'middle', description }: { classname?: string; active: 'left' | 'right'; labelLeft: string; labelRight: string; onClick: (val: 'left' | 'right') => void; disabled?: boolean; title: string; isHost?: boolean; position?: 'top' | 'middle' | 'bottom'; description?: string }) => (
     <div

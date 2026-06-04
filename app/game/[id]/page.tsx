@@ -24,7 +24,7 @@ import { shuffle } from '@/components/utils/Functions';
 import { Player } from '@/components/utils/types';
 import { VotingView } from '@/components/VotingView';
 import { useT } from '@/lib/i18n/I18nProvider';
-import { categoryLanguageForLocale } from '@/lib/i18n/locales';
+import { categoryLanguageForLocale, CategoryLanguage } from '@/lib/i18n/locales';
 
 import { getHostToken, newHostToken, clearHostToken } from '../../../lib/hostToken';
 import { adjectives, animals } from '../../../lib/names';
@@ -93,7 +93,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const confirmedMemberRef = useRef(false);
 
     // more game options
-    const [language, setLanguage] = useState<'german' | 'english'>('german');
+    const [language, setLanguage] = useState<CategoryLanguage>('german');
     const [hideMapSymbols, setHideMapSymbols] = useState(false);
     const [hideMiniMap, setHideMiniMap] = useState(false);
     const [aiEndGame, setAiEndGame] = useState(true);
@@ -114,7 +114,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
         generation_radius?: number;
         generation_number?: number;
-        language?: 'english' | 'german';
+        language?: CategoryLanguage;
         difficulty?: 'default' | 'easy' | 'hard';
         categories_generated?: boolean;
     }) => {
@@ -217,6 +217,21 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             }
         })();
     };
+
+    // When the HOST changes the UI language via the top-of-page switcher, follow
+    // it with the shared category language so the board language matches. We only
+    // react to actual changes (not the initial value) and only as host — the
+    // category language is shared by everyone, so non-hosts can't move it. The
+    // host can still override it independently in More Game Settings afterwards.
+    const prevLocaleRef = useRef(locale);
+
+    useEffect(() => {
+        if (prevLocaleRef.current === locale) return;
+        prevLocaleRef.current = locale;
+        if (!isHost) return;
+        const nextLanguage = categoryLanguageForLocale(locale);
+        if (nextLanguage !== language) updateGameModeInfo({ language: nextLanguage });
+    }, [locale, isHost]);
 
     useEffect(() => {
         checkAiKeysAvailable().then((status) => {

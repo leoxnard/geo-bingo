@@ -17,6 +17,7 @@ import toast from 'react-hot-toast';
 import { CiCirclePlus, CiCircleMinus, CiCircleRemove, CiCircleCheck, CiCircleQuestion } from 'react-icons/ci';
 
 import { useT } from '@/lib/i18n/I18nProvider';
+import { CategoryLanguage } from '@/lib/i18n/locales';
 
 import { generateAICategories } from './AICategories';
 import { generateNearbyPlaceCategories } from './NearbyPlaceCategories';
@@ -154,10 +155,10 @@ const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, o
 };
 
 interface LobbyCategoriesProps {
-    updateGameModeInfo: (updates: { game_mode?: string; team_mode?: string; grid_size?: number; starting_point?: string; gameBoundary?: string; categories?: string[]; category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView'; generation_radius?: number; generation_number?: number; difficulty?: 'default' | 'easy' | 'hard'; categories_generated?: boolean; language?: 'english' | 'german' }) => void;
+    updateGameModeInfo: (updates: { game_mode?: string; team_mode?: string; grid_size?: number; starting_point?: string; gameBoundary?: string; categories?: string[]; category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView'; generation_radius?: number; generation_number?: number; difficulty?: 'default' | 'easy' | 'hard'; categories_generated?: boolean; language?: CategoryLanguage }) => void;
     isHost: boolean;
     gameMode: 'list' | 'bingo';
-    language: 'english' | 'german';
+    language: CategoryLanguage;
     gridSize: number;
     categories: string[];
     suggestedCategories: string[];
@@ -414,23 +415,18 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
     };
 
     const getAvailableWords = async () => {
-        const { categoriesDe, categoriesEn, categoriesSimpleDe, categoriesSimpleEn, categoriesHardDe, categoriesHardEn, GeoGuessrMetaDe, GeoGuessrMetaEn } = await import('../../lib/categories');
+        const { categoriesBalanced, categoriesSimple, categoriesHard, geoGuessrMeta } = await import('../../lib/categories');
         let allWords: string[] = [];
 
         if (wordSource === 'balanced') {
-            allWords = language === 'german' ? categoriesDe : categoriesEn;
+            allWords = categoriesBalanced[language] ?? categoriesBalanced.english;
         } else if (wordSource === 'easy') {
-            allWords = language === 'german' ? categoriesSimpleDe : categoriesSimpleEn;
+            allWords = categoriesSimple[language] ?? categoriesSimple.english;
         } else if (wordSource === 'hard') {
-            allWords = language === 'german' ? categoriesHardDe : categoriesHardEn;
+            allWords = categoriesHard[language] ?? categoriesHard.english;
         } else {
-            const geoDb = language === 'german' ? GeoGuessrMetaDe : GeoGuessrMetaEn;
-            if (wordSource === 'geo_all') {
-                allWords = geoDb.map((item: { term: string; category: string }) => item.term);
-            } else {
-                const category = wordSource.replace('geo_', '');
-                allWords = geoDb.filter((item: { term: string; category: string }) => item.category === category).map((item: { term: string; category: string }) => item.term);
-            }
+            const pool = wordSource === 'geo_all' ? geoGuessrMeta : geoGuessrMeta.filter((item) => item.category === wordSource.replace('geo_', ''));
+            allWords = pool.map((item) => item.term[language] ?? item.term.english);
         }
 
         return allWords.filter((w) => !localCategories.map((c) => (c || '').toLowerCase()).includes(w.toLowerCase()));

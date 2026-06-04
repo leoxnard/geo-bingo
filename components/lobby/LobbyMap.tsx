@@ -15,6 +15,8 @@ import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { GoogleMap, PolygonF, MarkerF, OverlayView, OverlayViewF, CircleF, PolylineF } from '@react-google-maps/api';
 import { FaPlus, FaTimes, FaCaretDown, FaCaretRight, FaUndo } from 'react-icons/fa';
 
+import { useT } from '@/lib/i18n/I18nProvider';
+
 import { insertPoint, insertPointPhase1, mapOptions } from '../utils/mapUtils';
 import { BoundaryPolygon } from '../utils/types';
 
@@ -35,6 +37,26 @@ interface LobbyMapProps {
 }
 
 export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary, generationRadius, updateGameModeInfo }: LobbyMapProps) {
+    const { t } = useT();
+    // Translate the preset GROUP headers (the keys stay English for grouping logic).
+    const groupLabel = (key: string) => {
+        switch (key) {
+        case 'Continents':
+            return t('map.groupContinents');
+        case 'Large Cities':
+            return t('map.groupLargeCities');
+        case 'Regions & Nature':
+            return t('map.groupRegions');
+        case 'US States':
+            return t('map.groupUsStates');
+        case 'German States':
+            return t('map.groupGermanStates');
+        case 'Countries':
+            return t('map.groupCountries');
+        default:
+            return key;
+        }
+    };
     const containerRef = useRef<HTMLDivElement>(null);
     const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
     const [hoveredLocation, setHoveredLocation] = useState<Point | null>(null);
@@ -65,13 +87,6 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         streetViewControl: isHost,
         gestureHandling: 'greedy',
         draggableCursor: isHost ? 'crosshair' : 'default',
-        styles: [
-            {
-                featureType: 'all',
-                elementType: 'labels.icon',
-                stylers: [{ visibility: 'off' }],
-            },
-        ],
     };
 
     useEffect(() => {
@@ -520,13 +535,13 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
 
     return (
         <div className="bg-slate-800 p-4 sm:p-6 rounded-xl flex-1 border border-slate-700 h-fit">
-            <label className="block font-bold cursor-pointer text-slate-200 mb-2">Starting Location & Game Boundary</label>
-            <p className="text-xs text-slate-400 mb-4">Left-click the map to draw movement boundaries. Click on the starting point again to close and fill the polygon. After closing, you can add more points to refine it. If multiple areas are defined, the priority defines the order of precedence. Drop the Pegman to set a custom starting point, or select a recommended city marker. Selecting a starting point will automatically disable exiting street view ingame.</p>
+            <label className="block font-bold cursor-pointer text-slate-200 mb-2">{t('map.heading')}</label>
+            <p className="text-xs text-slate-400 mb-4">{t('map.description')}</p>
 
             <div className="mt-4 flex flex-col gap-2">
                 <div className="h-[320px] min-h-[320px] sm:h-[400px] sm:min-h-[400px] w-full rounded-lg overflow-hidden border border-slate-700 relative bg-slate-800/50 flex flex-col items-center justify-center">
                     {!isLoaded || presetsLoading ? (
-                        <div className="text-slate-400">Loading map configuration and presets...</div>
+                        <div className="text-slate-400">{t('map.loadingPresets')}</div>
                     ) : (
                         <div ref={containerRef} className="absolute inset-0 w-full h-full">
                             <GoogleMap onLoad={setMapInstance} mapContainerStyle={{ width: '100%', height: '100%' }} center={DEFAULT_CENTER} zoom={2} onClick={handleMapClick} options={mapOptions(additionalMapOptions)}>
@@ -550,10 +565,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                 )}
 
                                 {generationRadius && actualStart.startsWith('{') && (
-                                    // Radius circle around starting point. CircleF (not Circle)
-                                    // so the overlay is properly removed on unmount / prop change —
-                                    // the plain Circle leaves stale rings on the map when the
-                                    // category source (and thus generationRadius) changes.
+                                    // Radius circle around the starting point for nearby category generation preview
                                     <CircleF
                                         center={JSON.parse(actualStart)}
                                         radius={generationRadius * 100}
@@ -619,17 +631,14 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                                     }}
                                                 />
                                                 {isHost && (
-                                                    // Invisible, larger click target over each point: click it to
-                                                    // delete that boundary point. zIndex stays below the phase-1
-                                                    // start-handle (999) so clicking the first point still closes
-                                                    // an open polygon instead of deleting it.
+                                                    // Clickable invisible marker on top of each point for removal (only for hosts)
                                                     <MarkerF
                                                         position={point}
                                                         onClick={() => handleRemoveBoundaryPoint(boundary.id, idx)}
                                                         options={{
                                                             clickable: true,
                                                             cursor: 'pointer',
-                                                            title: 'Click to remove this point',
+                                                            title: t('map.clickToRemovePoint'),
                                                             zIndex: 990,
                                                             icon: {
                                                                 path: google.maps.SymbolPath.CIRCLE,
@@ -666,7 +675,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                                     onClick={() => handleCloseBoundary(boundary.id)}
                                                     options={{
                                                         clickable: true,
-                                                        title: 'Click to close polygon',
+                                                        title: t('map.clickToClosePolygon'),
                                                         cursor: 'pointer',
                                                         zIndex: 999,
                                                         icon: {
@@ -692,12 +701,12 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                 {isHost && (
                     <div className="flex flex-col gap-4 my-2">
                         <div className="flex flex-col sm:flex-row justify-between items-center w-full text-sm text-slate-400 gap-2">
-                            <div className="flex gap-2 flex-wrap justify-end">
+                            <div className="flex gap-2 flex-wrap justify-center">
                                 <button type="button" onClick={() => handleAddBoundary()} className="px-3 py-2 bg-emerald-900/60 border border-emerald-700 hover:bg-emerald-800 text-emerald-100 rounded-lg flex gap-2 items-center transition-colors">
-                                    <FaPlus /> Add Area
+                                    <FaPlus /> {t('map.addArea')}
                                 </button>
-                                <button type="button" onClick={handleUndoBoundary} disabled={boundaryHistory.length === 0} className="px-3 py-2 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-200 rounded-lg flex gap-2 items-center transition-colors disabled:opacity-50" title={boundaryHistory.length === 0 ? 'Nothing to undo' : `Undo last change (${boundaryHistory.length}/${HISTORY_LIMIT})`}>
-                                    <FaUndo /> Undo
+                                <button type="button" onClick={handleUndoBoundary} disabled={boundaryHistory.length === 0} className="px-3 py-2 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-200 rounded-lg flex gap-2 items-center transition-colors disabled:opacity-50" title={boundaryHistory.length === 0 ? t('map.nothingToUndo') : t('map.undoLastChange', { count: boundaryHistory.length, limit: HISTORY_LIMIT })}>
+                                    <FaUndo /> {t('map.undo')}
                                 </button>
                                 <button
                                     type="button"
@@ -709,7 +718,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                     disabled={draftBoundaries.length === 0}
                                     className="px-3 py-2 bg-rose-900 border border-rose-700 hover:bg-rose-800 text-slate-200 rounded-lg flex gap-2 items-center transition-colors disabled:opacity-50"
                                 >
-                                    Reset Areas
+                                    {t('map.resetAreas')}
                                 </button>
                             </div>
 
@@ -724,16 +733,16 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                 disabled={actualStart === 'open-world'}
                                 className="px-3 py-2 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-200 rounded-lg flex gap-2 items-center transition-colors disabled:opacity-50 disabled:bg-slate-800 disabled:border-slate-700 disabled:text-slate-500"
                             >
-                                Reset Starting Point
+                                {t('map.resetStartingPoint')}
                             </button>
                         </div>
 
                         <div ref={dropdownRef} className="relative w-full sm:w-64 z-[100]">
-                            <span className="block text-xs text-slate-400 mb-1">Or select a preset boundary:</span>
+                            <span className="block text-xs text-slate-400 mb-1">{t('map.orSelectPreset')}</span>
                             <div onClick={() => setIsMenuOpen(true)} className={`w-full bg-slate-900 border border-slate-700 hover:border-slate-500 rounded-lg flex items-center transition-colors cursor-text ${presetsLoading ? 'opacity-50 pointer-events-none' : ''}`}>
                                 <input
                                     type="text"
-                                    placeholder={selectedPreset ? getDisplayName(selectedPreset) : '-- Search / Select Preset --'}
+                                    placeholder={selectedPreset ? getDisplayName(selectedPreset) : t('map.searchSelectPreset')}
                                     value={searchTerm}
                                     onChange={(e) => {
                                         updateSearchAndSelection(e.target.value);
@@ -774,7 +783,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                                             `}
                                                         >
                                                             <span className="font-semibold">
-                                                                {item.value} <span className="text-xs font-normal opacity-50 ml-1">({count})</span>
+                                                                {groupLabel(item.value)} <span className="text-xs font-normal opacity-50 ml-1">({count})</span>
                                                             </span>
                                                             <span className={`text-[10px] transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}>
                                                                 <FaCaretRight size={15} />
@@ -806,7 +815,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                                 }
                                             })
                                         ) : (
-                                            <div className="px-4 py-2 text-slate-500 text-sm italic">No matching areas found</div>
+                                            <div className="px-4 py-2 text-slate-500 text-sm italic">{t('map.noMatchingAreas')}</div>
                                         )}
                                     </div>
                                 </div>
@@ -831,7 +840,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                             <span className="text-slate-500 cursor-grab px-1 text-lg">⋮⋮</span>
                                             <span className="text-slate-200 font-medium text-sm flex flex-col">
                                                 <span>{getDisplayName(g.name)}</span>
-                                                <span className="text-[10px] text-slate-500 font-normal">{index === displayBoundaries.length - 1 ? 'Highest Priority' : index === 0 ? 'Lowest Priority' : `Priority ${index + 1}`}</span>
+                                                <span className="text-[10px] text-slate-500 font-normal">{index === displayBoundaries.length - 1 ? t('map.highestPriority') : index === 0 ? t('map.lowestPriority') : t('map.priority', { n: index + 1 })}</span>
                                             </span>
                                             <button
                                                 onClick={(e) => {
@@ -840,11 +849,11 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                                 }}
                                                 className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${g.type === 'allow' ? 'bg-green-600/20 text-green-400 border border-green-700 hover:bg-green-600/40' : 'bg-red-600/20 text-red-400 border border-red-700 hover:bg-red-600/40'}`}
                                             >
-                                                {g.type === 'allow' ? 'Allow' : 'Forbid'}
+                                                {g.type === 'allow' ? t('map.allow') : t('map.forbid')}
                                             </button>
                                         </div>
                                         <button
-                                            title="remove-boundary"
+                                            title={t('map.removeBoundary')}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 handleRemoveGroup(g.key);

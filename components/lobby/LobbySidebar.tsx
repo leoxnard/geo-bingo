@@ -17,7 +17,7 @@ import toast from 'react-hot-toast';
 import { FaRegCopy, FaCopy, FaRegEdit, FaPlus, FaRandom, FaTimes, FaEye, FaEyeSlash } from 'react-icons/fa';
 
 import { useT } from '@/lib/i18n/I18nProvider';
-import { categoryLanguageForLocale, LOCALE_CODES, LOCALES } from '@/lib/i18n/locales';
+import { categoryLanguageForLocale, CategoryLanguage, LOCALE_CODES, LOCALES } from '@/lib/i18n/locales';
 
 import { ToggleSwitch } from '../utils/Elements';
 import { shuffle } from '../utils/Functions';
@@ -48,7 +48,7 @@ interface LobbySidebarProps {
     hideMapSymbols: boolean;
     hideMiniMap: boolean;
     aiEndGame: boolean;
-    language: 'english' | 'german';
+    language: CategoryLanguage;
     updateGameModeInfo: (updates: Record<string, unknown>) => void;
     categorySource: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
     isGenerating: boolean;
@@ -328,7 +328,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                         <label htmlFor="category-language" className="flex items-center gap-1.5 font-bold mb-2 text-sm text-slate-300" title={t('sidebar.categoryLanguageTooltip')}>
                             {t('sidebar.categoryLanguage')}
                         </label>
-                        <select id="category-language" title={t('sidebar.categoryLanguage')} value={props.language} onChange={(e) => props.updateGameModeInfo({ language: e.target.value as 'english' | 'german' })} disabled={!props.isHost} className="h-[42px] px-3 w-full rounded-lg bg-slate-900 border border-slate-600 text-sm text-white cursor-pointer transition-colors focus:outline-none focus:border-indigo-500 hover:border-slate-500 disabled:opacity-50">
+                        <select id="category-language" title={t('sidebar.categoryLanguage')} value={props.language} onChange={(e) => props.updateGameModeInfo({ language: e.target.value as CategoryLanguage })} disabled={!props.isHost} className="h-[42px] px-3 w-full rounded-lg bg-slate-900 border border-slate-600 text-sm text-white cursor-pointer transition-colors focus:outline-none focus:border-indigo-500 hover:border-slate-500 disabled:opacity-50">
                             {LOCALE_CODES.map((code) => (
                                 <option key={code} value={categoryLanguageForLocale(code)}>
                                     {LOCALES[code].label}

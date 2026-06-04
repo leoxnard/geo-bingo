@@ -9,7 +9,7 @@ building logic across the presentational components.
 ================================================================================
 */
 
-import { GeoGuessrMetaDe, GeoGuessrMetaEn } from '../../lib/categories';
+import { geoGuessrMeta } from '../../lib/categories';
 import { Submission } from '../utils/types';
 
 export const safeStartCenter = { lat: 30, lng: 10 };
@@ -32,12 +32,15 @@ export const panoOptions = {
     linksControl: false,
 };
 
-// Hilfsfunktion, um den Hint für eine Kategorie aus der Datenbank zu fischen
+// Find the region hint for a category. The board category can be in any
+// language, so we search every localized term and return the hint in the same
+// language it matched.
 export const getHintForCategory = (cat: string) => {
-    const foundDe = GeoGuessrMetaDe?.find((item) => item.term === cat);
-    if (foundDe) return foundDe.term_hint;
-    const foundEn = GeoGuessrMetaEn?.find((item) => item.term === cat);
-    if (foundEn) return foundEn.term_hint;
+    for (const meta of geoGuessrMeta) {
+        for (const lang of Object.keys(meta.term) as (keyof typeof meta.term)[]) {
+            if (meta.term[lang] === cat) return meta.term_hint[lang];
+        }
+    }
     return null;
 };
 

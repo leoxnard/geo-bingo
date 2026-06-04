@@ -12,12 +12,12 @@ import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import './globals.css';
 
 import { I18nProvider } from '@/lib/i18n/I18nProvider';
 import LanguageSwitcher from '@/lib/i18n/LanguageSwitcher';
-import { LOCALE_COOKIE, normalizeLocale } from '@/lib/i18n/locales';
+import { DEFAULT_LOCALE, isLocale, LOCALE_COOKIE, localeFromAcceptLanguage } from '@/lib/i18n/locales';
 
 const geistSans = Geist({
     variable: '--font-geist-sans',
@@ -87,8 +87,12 @@ export default async function RootLayout({
 }: Readonly<{
     children: React.ReactNode;
 }>) {
+    // The user's saved choice (cookie) wins; otherwise fall back to the device /
+    // browser language from the Accept-Language header, then the default locale.
     const cookieStore = await cookies();
-    const locale = normalizeLocale(cookieStore.get(LOCALE_COOKIE)?.value);
+    const savedLocale = cookieStore.get(LOCALE_COOKIE)?.value;
+    const headerStore = await headers();
+    const locale = isLocale(savedLocale) ? savedLocale : (localeFromAcceptLanguage(headerStore.get('accept-language')) ?? DEFAULT_LOCALE);
 
     return (
         <html lang={locale} className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
