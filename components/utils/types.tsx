@@ -77,7 +77,7 @@ export interface LobbyViewProps {
     gameMode: 'list' | 'bingo';
     teamMode: 'ffa' | 'teams';
     startingPoint: string;
-    updateGameModeInfo: (updates: { game_mode?: string; team_mode?: string; grid_size?: number; bingo_board_mode?: 'shared' | 'individual'; starting_point?: string; gameBoundary?: string }) => void;
+    updateGameModeInfo: (updates: { game_mode?: string; team_mode?: string; grid_size?: number; starting_point?: string; gameBoundary?: string }) => void;
     isHost: boolean;
     gridSize: number;
     timeLimit: number;

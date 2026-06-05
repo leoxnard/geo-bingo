@@ -87,6 +87,10 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     // Run initializeRoom once per game (guards against React strict-mode running
     // the effect twice and racing two initializers).
     const initedGameRef = useRef<string | null>(null);
+    // Tracks the last host_id we've seen so the realtime handler can detect an
+    // actual host *transition* (vs. host_id merely being present on every games
+    // UPDATE) and re-register the capability token exactly once on promotion.
+    const gameHostIdRef = useRef<string>('');
     // Only treat "I'm not in the players list" as a kick AFTER we've seen
     // ourselves present at least once — otherwise the transient empty reads
     // during startup would bounce us home.
@@ -103,7 +107,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         team_mode?: string;
         time_limit?: number;
         grid_size?: number;
-        bingo_board_mode?: 'shared' | 'individual';
         starting_point?: string;
         gameBoundary?: string;
         end_condition?: 'first_bingo' | 'timer';
@@ -301,6 +304,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     justCreated = true;
                     setIsHost(true);
                     setGameHostId(currentPlayerId);
+                    gameHostIdRef.current = currentPlayerId;
                     gameData = newGameData;
                     localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
                     // Claim the host capability token (the secret the host RPCs check).
@@ -330,6 +334,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setBannedPlayers(gameData.banned_players || []);
                 setTimeLimit(gameData.time_limit || 600);
                 setGameHostId(gameData.host_id || '');
+                gameHostIdRef.current = gameData.host_id || '';
                 setGameMode(gameData.game_mode || 'list');
                 setTeamMode(gameData.team_mode || 'ffa');
                 setGridSize(gameData.grid_size || 3);
@@ -362,21 +367,12 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             }
 
             // register player
+            // Bingo mode gives each player an independently shuffled board. (There
+            // is no shared-board column on `games`, so every board is individual.)
             let bingoBoardToAssign = null;
             if (gameData.status === 'playing' && gameData.game_mode === 'bingo' && gameData.categories) {
                 const neededCount = (gameData.grid_size || 3) * (gameData.grid_size || 3);
-
-                if (gameData.bingo_board_mode === 'shared') {
-                    const { data: otherPlayers } = await supabase.from('players').select('bingo_board').eq('game_id', gameId).not('bingo_board', 'is', null).limit(1);
-
-                    if (otherPlayers && otherPlayers.length > 0 && otherPlayers[0].bingo_board) {
-                        bingoBoardToAssign = otherPlayers[0].bingo_board;
-                    } else {
-                        bingoBoardToAssign = gameData.categories.slice(0, neededCount);
-                    }
-                } else {
-                    bingoBoardToAssign = shuffle([...gameData.categories]).slice(0, neededCount);
-                }
+                bingoBoardToAssign = shuffle([...gameData.categories]).slice(0, neededCount);
             }
 
             if (!existingPlayer) {
@@ -464,13 +460,22 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
                     if (payload.new.host_id !== undefined) {
                         const newHostId = payload.new.host_id;
+                        // host_id is present on *every* games UPDATE, so compare against
+                        // the last value we saw to act only on an actual host change.
+                        const justPromoted = newHostId === currentPlayerId && gameHostIdRef.current !== currentPlayerId;
+                        gameHostIdRef.current = newHostId;
                         setGameHostId(newHostId);
                         setIsHost(newHostId === currentPlayerId);
                         if (newHostId === currentPlayerId) {
                             localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
-                            // Promoted via host transfer — claim a fresh capability token
-                            // (the previous host's token was consumed on transfer).
-                            if (!getHostToken(gameId)) {
+                            // Promoted via host transfer: the previous host's secret was
+                            // consumed (deleted) on transfer, so claim a fresh token
+                            // unconditionally. We must NOT guard on an existing local token
+                            // here — a transfer always invalidates it server-side, so a
+                            // stale token would otherwise leave us unable to act (every
+                            // host RPC returning NOT_HOST). register_host_secret upserts,
+                            // so this also repairs a previously poisoned token state.
+                            if (justPromoted) {
                                 supabase.rpc('register_host_secret', { p_game_id: gameId, p_player_id: currentPlayerId, p_token: newHostToken(gameId) });
                             }
                         } else {

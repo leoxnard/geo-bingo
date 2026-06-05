@@ -16,8 +16,11 @@ import { useJsApiLoader } from '@react-google-maps/api';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import Image from 'next/image';
+import Link from 'next/link';
 import toast from 'react-hot-toast';
+import { FaRegQuestionCircle } from 'react-icons/fa';
 
+import { useT } from '@/lib/i18n/I18nProvider';
 import LanguageSwitcher from '@/lib/i18n/LanguageSwitcher';
 import { CategoryLanguage } from '@/lib/i18n/locales';
 
@@ -78,6 +81,7 @@ interface LobbyViewProps {
 }
 
 export default function LobbyView(props: LobbyViewProps) {
+    const { t } = useT();
     const [libraries] = useState<('places' | 'geometry')[]>(['places', 'geometry']);
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
@@ -188,6 +192,10 @@ export default function LobbyView(props: LobbyViewProps) {
     return (
         <div className="min-h-screen flex flex-col items-center px-4 pb-6 pt-14 sm:pt-8 sm:pb-8 lg:p-10 bg-slate-900 text-white relative">
             <LanguageSwitcher />
+            <Link href="/how-to-play" target="_blank" rel="noopener noreferrer" title={t('home.howToPlay')} className="absolute top-3 left-3 z-50 inline-flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-800/90 px-3 py-2 text-sm font-medium text-white shadow-lg backdrop-blur transition-colors hover:border-slate-500 hover:bg-slate-700">
+                <FaRegQuestionCircle aria-hidden />
+                <span className="hidden sm:inline">{t('home.howToPlay')}</span>
+            </Link>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 mb-8 sm:mb-12 hidden sm:flex">
                 <Image src="/mappin.and.ellipse.png" alt="Logo" width={60} height={60} className="w-auto h-auto" />
                 <h1 className="text-6xl font-bold text-indigo-400 tracking-tighter">Geo BingBong</h1>

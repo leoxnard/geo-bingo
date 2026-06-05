@@ -24,7 +24,7 @@ interface LobbySettingsProps {
     timeLimit: number;
     endCondition: 'first_bingo' | 'timer';
     exclusiveMode: boolean;
-    updateGameModeInfo: (updates: { game_mode?: string; team_mode?: string; time_limit?: number; grid_size?: number; bingo_board_mode?: 'shared' | 'individual'; end_condition?: 'first_bingo' | 'timer'; exclusive_mode?: boolean }) => void;
+    updateGameModeInfo: (updates: { game_mode?: string; team_mode?: string; time_limit?: number; grid_size?: number; end_condition?: 'first_bingo' | 'timer'; exclusive_mode?: boolean }) => void;
 }
 
 export default function LobbySettings({ isHost, gameMode, teamMode, timeLimit, endCondition, exclusiveMode, updateGameModeInfo }: LobbySettingsProps) {
