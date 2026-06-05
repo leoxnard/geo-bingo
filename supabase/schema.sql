@@ -97,6 +97,27 @@ $$;
 ALTER FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."cleanup_stale_games"() RETURNS integer
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    deleted_count integer;
+BEGIN
+    WITH deleted AS (
+        DELETE FROM public.games
+        WHERE updated_at < now() - interval '24 hours'
+        RETURNING id
+    )
+    SELECT count(*) INTO deleted_count FROM deleted;
+    RETURN deleted_count;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."cleanup_stale_games"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."clear_submissions_for_game"("p_game_id" "text", "p_host_id" "text") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -278,19 +299,18 @@ CREATE OR REPLACE FUNCTION "public"."register_host_secret"("p_game_id" "text", "
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
     AS $$
-DECLARE
-    rows_affected int;
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM games WHERE id = p_game_id AND host_id = p_player_id) THEN
         RETURN jsonb_build_object('success', false, 'error', 'NOT_HOST');
     END IF;
 
+    -- Upsert: the rightful host (host_id == caller) can always (re)claim the
+    -- secret, repairing a missing/mismatched server secret after a transfer.
     INSERT INTO game_host_secrets (game_id, host_token)
     VALUES (p_game_id, p_token)
-    ON CONFLICT (game_id) DO NOTHING;
+    ON CONFLICT (game_id) DO UPDATE SET host_token = EXCLUDED.host_token;
 
-    GET DIAGNOSTICS rows_affected = ROW_COUNT;
-    RETURN jsonb_build_object('success', rows_affected > 0);
+    RETURN jsonb_build_object('success', true);
 END;
 $$;
 
@@ -570,7 +590,7 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "generation_number" integer DEFAULT 10 NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"(),
     "category_details" "jsonb"[] DEFAULT '{}'::"jsonb"[] NOT NULL,
-    "language" "text" DEFAULT '''english''::text'::"text" NOT NULL,
+    "language" "text" DEFAULT 'english'::"text" NOT NULL,
     "categories_generated" boolean DEFAULT false NOT NULL,
     "ai_end_game" boolean DEFAULT false NOT NULL,
     "difficulty" "text" DEFAULT 'default'::"text" NOT NULL
@@ -719,6 +739,11 @@ GRANT ALL ON FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id
 GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) TO "anon";
 GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."cleanup_stale_games"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."cleanup_stale_games"() TO "service_role";
 
 
 
