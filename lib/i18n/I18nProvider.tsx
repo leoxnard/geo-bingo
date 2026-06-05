@@ -14,8 +14,9 @@ updates <html lang> live.
 
 import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 
-import { DEFAULT_LOCALE, LOCALE_COOKIE, Locale } from './locales';
-import { messages, MessageKey } from './messages';
+import { LOCALE_COOKIE, Locale } from './locales';
+import { MessageKey } from './messages';
+import { translate } from './translate';
 
 type Vars = Record<string, string | number>;
 
@@ -29,16 +30,8 @@ interface I18nContextValue {
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 
-export function translate(locale: Locale, key: MessageKey, vars?: Vars): string {
-    const dict = messages[locale] ?? messages[DEFAULT_LOCALE];
-    let str: string = dict[key] ?? messages[DEFAULT_LOCALE][key] ?? key;
-    if (vars) {
-        for (const name of Object.keys(vars)) {
-            str = str.split(`{${name}}`).join(String(vars[name]));
-        }
-    }
-    return str;
-}
+// Re-exported for callers that still import `translate` from here.
+export { translate };
 
 export function I18nProvider({ initialLocale, children }: { initialLocale: Locale; children: React.ReactNode }) {
     const [locale, setLocaleState] = useState<Locale>(initialLocale);
