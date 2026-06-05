@@ -46,9 +46,6 @@ export const metadata: Metadata = {
         icon: '/mappin.and.ellipse.png',
         apple: '/mappin.and.ellipse.png',
     },
-    alternates: {
-        canonical: '/',
-    },
     robots: {
         index: true,
         follow: true,
