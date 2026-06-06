@@ -317,13 +317,12 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                     {t('sidebar.leaveLobby')}
                 </button>
             </div>
+
+            {/* More Game Settings */}
             <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 h-fit">
                 <h2 className="text-xl font-semibold mb-6 text-slate-100 border-b border-slate-700 pb-3">{t('sidebar.moreGameSettings')}</h2>
 
                 <div className="flex flex-col gap-5">
-                    {/* Category-generation language. Defaults to the host's UI language when
-                        the game is created; this override lets the host pick a different
-                        board language for everyone (it is shared, unlike the per-user UI). */}
                     <div>
                         <label htmlFor="category-language" className="flex items-center gap-1.5 font-bold mb-2 text-sm text-slate-300" title={t('sidebar.categoryLanguageTooltip')}>
                             {t('sidebar.categoryLanguage')}

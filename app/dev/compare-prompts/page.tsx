@@ -79,9 +79,7 @@ export default function ComparePromptsPage() {
             motionTracking: false,
             motionTrackingControl: false,
         });
-        // `source` isn't in the typed options; set it the same way StreetView does.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        pano.setOptions({ source: google.maps.StreetViewSource.GOOGLE } as any);
+
         panoInstanceRef.current = pano;
 
         // Places search box to jump anywhere in the world.

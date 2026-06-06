@@ -337,10 +337,6 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
         (pano: google.maps.StreetViewPanorama) => {
             streetViewRef.current = pano;
 
-            // Disable Google Source to prevent black pictures
-
-            // pano.setOptions({ source: google.maps.StreetViewSource.GOOGLE } as any);
-
             if (startingPoint !== 'open-world') {
                 const parsedStart = JSON.parse(startingPoint) as {
                     lat: number;

@@ -285,7 +285,6 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                     {
                         location: pos,
                         radius: 500,
-                        source: google.maps.StreetViewSource.GOOGLE,
                     },
                     (data, status) => {
                         if (status === google.maps.StreetViewStatus.OK && data && data.links && data.links.length > 0) {
@@ -601,6 +600,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                             // Phase 2: show filled polygon for completed boundaries
                                             <PolygonF
                                                 paths={boundary.points}
+                                                onUnmount={(p) => p.setMap(null)}
                                                 options={{
                                                     fillOpacity: boundary.isComplete ? 0.1 : 0,
                                                     fillColor: boundary.type === 'allow' ? '#008000' : '#ff0000',
@@ -608,7 +608,6 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                                     strokeOpacity: boundary.isComplete ? 0.6 : 0,
                                                     strokeWeight: activeBoundaryId === (boundary.groupId || boundary.id) ? 4 : 2,
                                                     clickable: false,
-                                                    geodesic: true,
                                                 }}
                                             />
                                         )}
@@ -660,13 +659,13 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                             <>
                                                 <PolylineF
                                                     path={boundary.points}
+                                                    onUnmount={(p) => p.setMap(null)}
                                                     options={{
                                                         strokeColor: '#7a7a7a',
                                                         strokeOpacity: 0.8,
                                                         strokeWeight: 2,
                                                         clickable: false,
                                                         zIndex: 998,
-                                                        geodesic: true,
                                                     }}
                                                 />
                                                 <MarkerF

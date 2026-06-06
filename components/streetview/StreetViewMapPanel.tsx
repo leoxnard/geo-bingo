@@ -77,7 +77,6 @@ export default function StreetViewMapPanel(props: StreetViewMapPanelProps) {
                         strokeOpacity: 1,
                         strokeWeight: 4,
                         clickable: false,
-                        geodesic: true,
                     }}
                 />
             ) : null,

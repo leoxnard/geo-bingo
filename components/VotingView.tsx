@@ -95,7 +95,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     const streetViewPanoramaRef = useRef<google.maps.StreetViewPanorama | null>(null);
 
     const dummyPath = useMemo(() => [], []);
-    const dummyPos = useMemo(() => ({ lat: 0, lng: 0 }), []);
+    const dummyPos = useMemo(() => ({ lat: 20, lng: 0 }), []);
 
     const [maxItemsPerColumn, setMaxItemsPerColumn] = useState(8);
     const categoryRef = useRef<HTMLDivElement>(null);
@@ -881,7 +881,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                     {/* Radius Circle */}
                     {isLineComplete && (
                         <Circle
-                            center={startingPoint || { lat: 0, lng: 0 }}
+                            center={startingPoint || { lat: 20, lng: 0 }}
                             radius={generationRadius * 100}
                             options={{
                                 fillOpacity: 0,

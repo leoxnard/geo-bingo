@@ -279,9 +279,9 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 const newGameData = {
                     id: gameId,
                     status: 'lobby',
-                    categories: ['', '', '', '', '', '', '', '', '', ''],
+                    categories: seedCategories ?? ['', '', '', '', '', '', '', '', '', ''],
                     ready_players: [],
-                    time_limit: 600,
+                    time_limit: seedTimeLimit ?? 600,
                     host_id: currentPlayerId,
                     banned_players: [],
                     game_mode: 'list',
