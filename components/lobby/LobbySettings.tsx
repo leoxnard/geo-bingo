@@ -72,7 +72,7 @@ export default function LobbySettings({ isHost, gameMode, teamMode, timeLimit, e
             )}
 
             {/* Time Slider */}
-            <RangeSlider title={t('settings.timeLimit')} min={1} max={30} step={1} value={localTimeLimit} displayValue={t('settings.minutes', { count: localTimeLimit })} onChange={setLocalTimeLimit} disabled={!isHost} onCommit={handleCommit} position="bottom" />
+            <RangeSlider title={t('settings.timeLimit')} min={1} max={60} step={1} value={localTimeLimit} displayValue={t('settings.minutes', { count: localTimeLimit })} onChange={setLocalTimeLimit} disabled={!isHost} onCommit={handleCommit} position="bottom" />
         </div>
     );
 }

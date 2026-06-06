@@ -53,6 +53,10 @@ const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => 
 export function VotingView({ gameId, isHost, playerId, players, teamMode, onFinishGame, isDeveloper = false }: VotingViewProps) {
     const { t } = useT();
     const { isNarrow } = useViewport();
+    const isNarrowRef = useRef(isNarrow);
+    useEffect(() => {
+        isNarrowRef.current = isNarrow;
+    }, [isNarrow]);
     const [gameCategories, setGameCategories] = useState<string[]>([]);
     const [gridSize, setGridSize] = useState<number>(3);
     const [gameMode, setGameMode] = useState<string>('list');
@@ -264,7 +268,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                 shownSubIdsRef.current.clear();
                 setShownSubIds(new Set());
                 animationProgressRef.current = 0;
-                if (progressBarRef.current) progressBarRef.current.style.transform = `scale${isNarrow ? 'X' : 'Y'}(0)`;
+                if (progressBarRef.current) progressBarRef.current.style.transform = `scale${isNarrowRef.current ? 'X' : 'Y'}(0)`;
 
                 setCurrentPlayerIndex(payload.payload.index);
             })

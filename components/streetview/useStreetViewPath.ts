@@ -14,7 +14,7 @@ the array directly without round-tripping through React state.
 ================================================================================
 */
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import { supabase } from '../../lib/supabase';
 import type { PathPoint } from '../utils/types';
@@ -40,6 +40,7 @@ export function useStreetViewPath(playerId: string) {
 
         return () => {
             clearInterval(saveInterval);
+            // eslint-disable-next-line react-hooks/exhaustive-deps
             const pathAtCleanup = pathRef.current;
             if (pathAtCleanup.length > lastSavedLengthRef.current) {
                 supabase.rpc('update_player', { p_id: playerId, p_patch: { path: pathAtCleanup } }).then();
@@ -51,12 +52,12 @@ export function useStreetViewPath(playerId: string) {
      * Append a point unless it's the same coords as the last one (panorama
      * change events fire even when the player just rotates).
      */
-    const recordPoint = (lat: number, lng: number) => {
+    const recordPoint = useCallback((lat: number, lng: number) => {
         const last = pathRef.current[pathRef.current.length - 1];
         if (!last || last.lat !== lat || last.lng !== lng) {
             pathRef.current.push({ lat, lng, timestamp: Date.now() });
         }
-    };
+    }, []);
 
     /**
      * Manual save used before the player triggers an end-of-round vote, so the

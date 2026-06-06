@@ -229,7 +229,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                 polylines.forEach((line) => line.setMap(null));
             };
         }
-    }, [minimapInstance, panoInstance, hideMiniMap]);
+    }, [minimapInstance, panoInstance, hideMiniMap, pathRef]);
 
     useEffect(() => {
         if (mainMapInstance && panoInstance && startingPoint === 'open-world') {
@@ -338,7 +338,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
             streetViewRef.current = pano;
 
             // Disable Google Source to prevent black pictures
-             
+
             // pano.setOptions({ source: google.maps.StreetViewSource.GOOGLE } as any);
 
             if (startingPoint !== 'open-world') {
@@ -398,7 +398,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                 }
             });
         },
-        [startingPoint, gameBoundary],
+        [startingPoint, gameBoundary, recordPoint, t],
     );
 
     const onUnmount = useCallback(() => {

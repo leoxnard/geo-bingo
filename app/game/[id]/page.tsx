@@ -234,7 +234,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (!isHost) return;
         const nextLanguage = categoryLanguageForLocale(locale);
         if (nextLanguage !== language) updateGameModeInfo({ language: nextLanguage });
-    }, [locale, isHost]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [locale, isHost, language]);
 
     useEffect(() => {
         checkAiKeysAvailable().then((status) => {
@@ -573,14 +574,16 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 }
             });
 
+        const pendingUpdates = pendingOptimisticUpdatesRef.current;
         return () => {
             supabase.removeChannel(gameChannel);
             supabase.removeChannel(playerChannel);
             supabase.removeChannel(presenceChannel);
             supabase.removeChannel(gameEventsChannel);
             gameEventsChannelRef.current = null;
-            pendingOptimisticUpdatesRef.current.clear();
+            pendingUpdates.clear();
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [gameId, router]);
 
     useEffect(() => {
