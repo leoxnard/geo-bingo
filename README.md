@@ -6,28 +6,34 @@ Geo BingBong is a multiplayer geolocation game that brings the fun of Bingo into
 
 - **Real-Time Multiplayer:** Built with [Supabase](https://supabase.com) Realtime to instantly sync player states, submissions, and voting.
 - **Interactive Street View:** Utilizes the Google Maps JavaScript API and Street View Static API so players can explore and capture the perfect angle of their findings.
-- **Game Modes:** Choose between classic List mode or Bingo Mode (dynamic grid sizes).
-- **Dynamic Categories:** Powered by the Gemini API, each game generates unique and fun categories to keep things fresh.
-- **AI Submission Verification:** Optionally have Gemini vision-check your captures against their category, automatically ending the round once every tile passes.
+- **Game Modes:** Choose between classic List mode or Bingo Mode (dynamic 3×3, 4×4, or 5×5 grid sizes).
+- **Team Support:** Play Free-for-All or split into teams.
+- **Dynamic AI Categories:** Powered by the Gemini API, each game generates unique and fun categories with selectable difficulty (easy, default, hard) to keep things fresh.
+- **Nearby Place Categories:** Optionally generate categories from real Points of Interest near the game area using the Google Places API, so every game reflects its actual surroundings.
+- **Nearby Street View Categories:** Gemini's vision API scans random Street View panoramas inside the game area and derives categories directly from what's visible on the streets.
+- **AI Submission Verification:** Optionally have Gemini vision-check captures against their category, automatically ending the round once every tile passes.
 - **Map Areas:** Hosts can create allow and disallow regions on the map to guide players to specific areas or landmarks.
-- **Custom Settings:** Hosts can customize game duration, if categories can only be found by the first player or multiple players, win conditions, and more.
-- **Snapshot Memory:** Bingo tiles update with the Street View snapshot of your exact camera position, zoom, and angle once you find a category!
+- **Custom Settings:** Hosts can customize game duration, category exclusivity (first-finder or shared), win conditions, and more.
+- **Snapshot Memory:** Bingo tiles update with the Street View snapshot of your exact camera position, zoom, and angle once you find a category.
 - **Blind Voting System:** Players vote anonymously on the validity of other players' submissions.
 - **Podium Ceremony:** See who scored the most points with a clean, animated results view.
+- **Internationalization:** The UI and AI-generated categories are available in English, German, Spanish, French, and Chinese (Simplified). The language is auto-detected from the browser and can be switched at any time.
 
 ## Tech Stack
 
-- **Framework:** [Next.js](https://nextjs.org/) (App Router, Turbopack)
+- **Framework:** [Next.js](https://nextjs.org/) 16 (App Router, Turbopack)
 - **Backend & Database:** [Supabase](https://supabase.com/) (PostgreSQL & Realtime Channels)
-- **AI:** [Gemini API](https://ai.google.dev/gemini) for generating dynamic categories and verifying submissions.
-- **Maps:** `@react-google-maps/api` & Google Maps APIs
+- **AI:** [Gemini API](https://ai.google.dev/gemini) for generating dynamic categories and verifying submissions
+- **Maps:** `@react-google-maps/api` & Google Maps APIs (JavaScript API, Street View Static API, Places API)
+- **Styling:** [Tailwind CSS](https://tailwindcss.com/) v4
+- **Deployment:** [Vercel](https://vercel.com/) (Analytics & Speed Insights included)
 - **Security:** Postgres Row-Level Security — all writes go through `SECURITY DEFINER` RPCs that validate the caller (`host_id` / `player_id`) and whitelist the columns they may touch.
 
 ## Getting Started
 
 ### Prerequisites
 
-Make sure you have Node.js installed, as well as a Supabase project and a Google Cloud project with the Maps JavaScript API and Street View Static API enabled.
+Make sure you have Node.js installed, as well as a Supabase project and a Google Cloud project with the Maps JavaScript API, Street View Static API, and Places API enabled.
 
 ### 1. Clone the repository
 
@@ -84,7 +90,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ## How to Play
 
-1. **Create a Match:** A host creates a game room and generates custom categories.
+1. **Create a Match:** A host creates a game room, picks a map area, and generates custom categories.
 2. **Join the Game:** Players join via the game link/ID.
 3. **The Hunt:** Players get dropped into Street View. Whenever you spot a category (e.g., "A red car", "A funny sign"), point your camera at it and capture!
 4. **Voting:** Once the hunt ends, players review everyone's submissions and vote if they actually captured the prompt.
