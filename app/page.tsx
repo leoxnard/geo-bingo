@@ -28,6 +28,12 @@ export default async function Home() {
             <HomeInteractive />
 
             <footer className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 px-4 py-6 text-sm font-medium text-slate-500">
+                <a href="/community" className="transition-colors hover:text-slate-300">
+                    {translate(locale, 'home.community')}
+                </a>
+                <span aria-hidden className="text-slate-700">
+                    ·
+                </span>
                 <a href="/how-to-play" className="transition-colors hover:text-slate-300">
                     {translate(locale, 'home.howToPlay')}
                 </a>

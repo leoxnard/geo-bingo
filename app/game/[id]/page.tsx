@@ -276,6 +276,31 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             // Setup or Load the Game Room
             let justCreated = false;
             if (!gameData) {
+                // Fork-on-import: arriving via /game/<id>?preset=<presetId> seeds the
+                // fresh room from a community preset (category names + boundaries +
+                // starting point). The import is a copy — it never touches the preset.
+                let seedCategories: string[] | null = null;
+                let seedBoundary: string | null = null;
+                let seedStartingPoint: string | null = null;
+                let seedGameMode: string | null = null;
+                let seedGridSize: number | null = null;
+                let seedTimeLimit: number | null = null;
+                let seedSettings: { hideMiniMap?: boolean; hideMapSymbols?: boolean; exclusiveMode?: boolean; aiEndGame?: boolean; endCondition?: string } = {};
+                const presetId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('preset') : null;
+                if (presetId) {
+                    const { data: preset } = await supabase.from('community_presets').select('categories, boundaries, starting_point, game_mode, grid_size, recommended_time, settings').eq('id', presetId).maybeSingle();
+                    if (preset) {
+                        const names = Array.isArray(preset.categories) ? (preset.categories as { categoryName?: string }[]).map((c) => c.categoryName || '').filter(Boolean) : [];
+                        if (names.length) seedCategories = names;
+                        if (preset.boundaries) seedBoundary = JSON.stringify(preset.boundaries);
+                        if (preset.starting_point) seedStartingPoint = preset.starting_point;
+                        if (preset.game_mode) seedGameMode = preset.game_mode;
+                        if (preset.grid_size) seedGridSize = preset.grid_size;
+                        if (preset.recommended_time) seedTimeLimit = preset.recommended_time;
+                        if (preset.settings && typeof preset.settings === 'object') seedSettings = preset.settings;
+                    }
+                }
+
                 const newGameData = {
                     id: gameId,
                     status: 'lobby',
@@ -284,14 +309,16 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     time_limit: seedTimeLimit ?? 600,
                     host_id: currentPlayerId,
                     banned_players: [],
-                    game_mode: 'list',
+                    game_mode: seedGameMode ?? 'list',
                     team_mode: 'ffa',
-                    grid_size: 3,
-                    starting_point: 'open-world',
-                    end_condition: 'timer',
-                    hide_map_symbols: false,
-                    ai_end_game: false,
-                    exclusive_mode: false,
+                    grid_size: seedGridSize ?? 3,
+                    starting_point: seedStartingPoint ?? 'open-world',
+                    gameBoundary: seedBoundary ?? '[]',
+                    end_condition: seedSettings.endCondition === 'first_bingo' ? 'first_bingo' : 'timer',
+                    hide_minimap: seedSettings.hideMiniMap ?? false,
+                    hide_map_symbols: seedSettings.hideMapSymbols ?? false,
+                    ai_end_game: seedSettings.aiEndGame ?? false,
+                    exclusive_mode: seedSettings.exclusiveMode ?? false,
                     category_source: 'manual',
                     generation_radius: 10,
                     generation_number: 10,

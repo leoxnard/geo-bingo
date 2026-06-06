@@ -34,9 +34,11 @@ interface LobbyMapProps {
     gameBoundary: string;
     generationRadius?: number;
     updateGameModeInfo: (updates: { starting_point?: string; gameBoundary?: string; category_source?: 'manual' | 'nearbyPlaces' | 'nearbyStreetView' }) => void;
+    /** Read-only reference markers (e.g. saved community-preset spots) rendered on top of the map. */
+    extraMarkers?: { lat: number; lng: number; label?: string }[];
 }
 
-export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary, generationRadius, updateGameModeInfo }: LobbyMapProps) {
+export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary, generationRadius, updateGameModeInfo, extraMarkers }: LobbyMapProps) {
     const { t } = useT();
     // Translate the preset GROUP headers (the keys stay English for grouping logic).
     const groupLabel = (key: string) => {
@@ -544,6 +546,26 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                     ) : (
                         <div ref={containerRef} className="absolute inset-0 w-full h-full">
                             <GoogleMap onLoad={setMapInstance} mapContainerStyle={{ width: '100%', height: '100%' }} center={DEFAULT_CENTER} zoom={2} onClick={handleMapClick} options={mapOptions(additionalMapOptions)}>
+                                {extraMarkers?.map((m, i) => (
+                                    <MarkerF
+                                        key={`extra-${i}`}
+                                        position={{ lat: m.lat, lng: m.lng }}
+                                        title={m.label}
+                                        onMouseOver={() => setHoveredLocation({ lat: m.lat, lng: m.lng })}
+                                        onMouseOut={() => setHoveredLocation(null)}
+                                        options={{
+                                            icon: {
+                                                path: google.maps.SymbolPath.CIRCLE,
+                                                scale: 6,
+                                                fillColor: '#f59e0b',
+                                                fillOpacity: 1,
+                                                strokeColor: '#fde68a',
+                                                strokeWeight: 2,
+                                            },
+                                        }}
+                                    />
+                                ))}
+
                                 {actualStart.startsWith('{') && (
                                     // Starting point marker with hover preview
                                     <MarkerF

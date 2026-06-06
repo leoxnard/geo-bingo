@@ -94,9 +94,14 @@ export default function HomeInteractive() {
                 </form>
             </div>
 
-            <Link href="/how-to-play" className="mt-6 inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800/60 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:border-indigo-500 hover:text-white">
-                {t('home.howToPlay')} →
-            </Link>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                <Link href="/community" className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800/60 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:border-indigo-500 hover:text-white">
+                    {t('home.community')}
+                </Link>
+                <Link href="/how-to-play" className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800/60 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:border-indigo-500 hover:text-white">
+                    {t('home.howToPlay')}
+                </Link>
+            </div>
         </section>
     );
 }

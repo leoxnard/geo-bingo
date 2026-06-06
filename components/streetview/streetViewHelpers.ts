@@ -50,8 +50,9 @@ export const getAiVerdictState = (submission?: Submission | null) => {
     return 'unverified';
 };
 
-// Builds the static Street View image URL for a submission's saved camera angle.
-export const getStreetViewImageUrl = (sub: Submission, size = 600) => {
+// Builds the static Street View image URL for a saved camera angle. Accepts any
+// object carrying a viewpoint (a game Submission or a community CommunityCategory).
+export const getStreetViewImageUrl = (sub: { lat: number; lng: number; heading: number; pitch: number; zoom: number }, size = 600) => {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
     const fov = sub.zoom ? 180 / Math.pow(2, sub.zoom) : 90;
     let safeHeading = sub.heading % 360;

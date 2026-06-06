@@ -73,6 +73,68 @@ export interface BoundaryPolygon {
     isComplete?: boolean; // true if polygon drawing is complete and in refinement phase
 }
 
+// ---- community presets ----
+
+// A saved category that carries its exact Street View viewpoint, so the preset
+// can render a real preview (via the Street View Static API) in the browse /
+// voting UI — the same shape a game submission stores.
+export interface CommunityCategory {
+    categoryName: string;
+    lat: number;
+    lng: number;
+    heading: number;
+    pitch: number;
+    zoom: number;
+}
+
+// Optional gameplay toggles carried by a preset (applied to the game on import).
+export interface PresetSettings {
+    hideMiniMap?: boolean;
+    hideMapSymbols?: boolean;
+    exclusiveMode?: boolean;
+    aiEndGame?: boolean;
+    endCondition?: 'timer' | 'first_bingo';
+}
+
+export interface CommunityPreset {
+    id: string;
+    author_id: string;
+    author_name: string | null;
+    name: string;
+    description: string | null;
+    categories: CommunityCategory[];
+    boundaries: BoundaryPolygon[];
+    starting_point: string; // 'open-world' or JSON {lat,lng}
+    category_count: number;
+    recommended_time: number | null; // suggested round length in seconds
+    difficulty: string; // 'easy' | 'medium' | 'hard'
+    game_mode: string; // 'list' | 'bingo'
+    grid_size: number;
+    settings: PresetSettings;
+    upvotes: number;
+    downvotes: number;
+    score: number;
+    status: string;
+    created_at: string;
+    updated_at: string;
+}
+
+// Pre-seed payload handed from the lobby "publish" path into the builder wizard
+// (via sessionStorage). `boundaries`/`startingPoint` reuse the game string
+// formats; `pendingCategoryNames` are categories that were configured but never
+// found in the game, so they still need a Street View spot captured.
+export interface PresetSeed {
+    name?: string;
+    description?: string;
+    categories: CommunityCategory[];
+    boundaries: string; // gameBoundary JSON string
+    startingPoint: string;
+    pendingCategoryNames?: string[];
+    // Every submission from the played game, grouped by category name, so the
+    // builder can let the author pick which find to use per category.
+    submissionsByCategory?: Record<string, CommunityCategory[]>;
+}
+
 export interface LobbyViewProps {
     gameMode: 'list' | 'bingo';
     teamMode: 'ffa' | 'teams';

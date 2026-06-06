@@ -14,6 +14,7 @@ import { useState, useEffect } from 'react';
 
 import Confetti from 'react-confetti';
 
+import { buildPresetSeedFromGame } from '@/lib/community';
 import { useT } from '@/lib/i18n/I18nProvider';
 
 import { getHostToken } from '../lib/hostToken';
@@ -551,9 +552,33 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
                     </div>
                 )}
 
-                {/* BACK TO LOBBY — at the bottom, fades in with the stats */}
+                {/* ACTIONS — at the bottom, fade in with the stats */}
                 {animPhase >= 5 && (
-                    <div className="w-full flex justify-center mt-6 md:mt-8 animate-fade-in">
+                    <div className="w-full flex flex-wrap justify-center gap-3 mt-6 md:mt-8 animate-fade-in">
+                        {/* Any player can turn the just-played game into a community preset. */}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                // Open the tab synchronously inside the click gesture — otherwise
+                                // the popup blocker kills window.open once it runs after the async
+                                // seed build below.
+                                const win = window.open('about:blank', '_blank');
+                                // Submissions are cleared on "Back to Lobby", so harvest them now.
+                                buildPresetSeedFromGame(supabase, gameId).then((seed) => {
+                                    if (!seed) {
+                                        win?.close();
+                                        return;
+                                    }
+                                    localStorage.setItem('geoBingoPresetSeed', JSON.stringify(seed));
+                                    if (win) win.location.href = '/community/create';
+                                    else window.location.href = '/community/create'; // blocked anyway → same tab
+                                });
+                            }}
+                            className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-8 rounded-lg transition-all uppercase text-sm tracking-wide shadow-lg"
+                        >
+                            {t('community.createFromGame')}
+                        </button>
+
                         {isHost && (
                             <button
                                 type="button"
