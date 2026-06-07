@@ -12,12 +12,12 @@ Integrates with nearby place and street view category generation.
 
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 
-import { GoogleMap, PolygonF, MarkerF, OverlayView, OverlayViewF, CircleF, PolylineF } from '@react-google-maps/api';
+import { GoogleMap, PolygonF, MarkerF, OverlayView, OverlayViewF, CircleF, PolylineF, RectangleF } from '@react-google-maps/api';
 import { FaPlus, FaTimes, FaCaretDown, FaCaretRight, FaUndo } from 'react-icons/fa';
 
 import { useT } from '@/lib/i18n/I18nProvider';
 
-import { insertPoint, insertPointPhase1, mapOptions } from '../utils/mapUtils';
+import { insertPoint, insertPointPhase1, mapOptions, WORLD_DEFAULT_ID, parseWorldDefault } from '../utils/mapUtils';
 import { BoundaryPolygon } from '../utils/types';
 
 const DEFAULT_CENTER = { lat: 20, lng: 0 };
@@ -68,6 +68,8 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     const [searchTerm, setSearchTerm] = useState('');
     const [optimisticGameBoundary, setOptimisticGameBoundary] = useState(gameBoundary);
     const optimisticGameBoundaryRef = useRef(gameBoundary);
+    // Whether everything outside the drawn areas is allowed or forbidden by default.
+    const [worldDefault, setWorldDefault] = useState<'allow' | 'forbid'>(() => parseWorldDefault(gameBoundary));
     type BoundaryHistoryEntry = { boundaries: string; selectedId: string | null };
     const [boundaryHistory, setBoundaryHistory] = useState<BoundaryHistoryEntry[]>([]);
     const HISTORY_LIMIT = 20;
@@ -117,6 +119,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     useEffect(() => {
         optimisticGameBoundaryRef.current = gameBoundary;
         setOptimisticGameBoundary(gameBoundary);
+        setWorldDefault(parseWorldDefault(gameBoundary));
     }, [gameBoundary]);
 
     const parseBoundaryString = (boundaryString: string): BoundaryPolygon[] => {
@@ -130,10 +133,12 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                 return [{ id: 'legacy-1', type: 'allow', points: parsed, isComplete: true }];
             }
 
-            return parsed.map((p) => ({
-                ...p,
-                isComplete: p.isComplete !== false, // Default to true if not explicitly set to false
-            }));
+            return parsed
+                .filter((p) => p.id !== WORLD_DEFAULT_ID) // drop the world-default sentinel; tracked separately
+                .map((p) => ({
+                    ...p,
+                    isComplete: p.isComplete !== false, // Default to true if not explicitly set to false
+                }));
         } catch (e) {
             console.error('Invalid polygon data', e);
             return [];
@@ -232,8 +237,12 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         return parseBoundaryString(boundarySource);
     }, [optimisticGameBoundary, gameBoundary]);
 
-    const commitBoundaryChange = (nextBoundaries: BoundaryPolygon[], options: { skipHistory?: boolean } = {}) => {
-        const nextBoundaryString = JSON.stringify(nextBoundaries);
+    // Serialize the drawn areas plus the world-default sentinel (only stored when
+    // 'forbid', kept at index 0 = lowest priority so drawn areas override it).
+    const serializeBoundaries = (boundaries: BoundaryPolygon[], wd: 'allow' | 'forbid') => JSON.stringify(wd === 'forbid' ? [{ id: WORLD_DEFAULT_ID, type: 'forbid' as const, points: [] }, ...boundaries] : boundaries);
+
+    const commitBoundaryChange = (nextBoundaries: BoundaryPolygon[], options: { skipHistory?: boolean; worldDefault?: 'allow' | 'forbid' } = {}) => {
+        const nextBoundaryString = serializeBoundaries(nextBoundaries, options.worldDefault ?? worldDefault);
         const previous = optimisticGameBoundaryRef.current ?? '[]';
         if (!options.skipHistory && previous !== nextBoundaryString) {
             const snapshot: BoundaryHistoryEntry = { boundaries: previous, selectedId: selectedBoundaryId };
@@ -257,8 +266,15 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         optimisticGameBoundaryRef.current = restored.boundaries;
         setOptimisticGameBoundary(restored.boundaries);
         updateGameModeInfo({ gameBoundary: restored.boundaries });
+        setWorldDefault(parseWorldDefault(restored.boundaries));
         setSelectedBoundaryId(restoredId);
         setSelectedPreset('');
+    };
+
+    const handleSetWorldDefault = (next: 'allow' | 'forbid') => {
+        if (next === worldDefault) return;
+        setWorldDefault(next);
+        commitBoundaryChange(draftBoundaries, { worldDefault: next });
     };
 
     const activeBoundaryId = useMemo(() => {
@@ -546,6 +562,18 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                     ) : (
                         <div ref={containerRef} className="absolute inset-0 w-full h-full">
                             <GoogleMap onLoad={setMapInstance} mapContainerStyle={{ width: '100%', height: '100%' }} center={DEFAULT_CENTER} zoom={2} onClick={handleMapClick} options={mapOptions(additionalMapOptions)}>
+                                {/* World-default tint: green when the rest of the world is allowed, red when forbidden. */}
+                                <RectangleF
+                                    bounds={{ north: 85, south: -85, east: 180, west: -180 }}
+                                    options={{
+                                        fillColor: worldDefault === 'allow' ? '#008000' : '#ff0000',
+                                        fillOpacity: worldDefault === 'allow' ? 0 : 0.05,
+                                        strokeOpacity: 0,
+                                        clickable: false,
+                                        zIndex: 0,
+                                    }}
+                                />
+
                                 {extraMarkers?.map((m, i) => (
                                     <MarkerF
                                         key={`extra-${i}`}
@@ -758,89 +786,100 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                             </button>
                         </div>
 
-                        <div ref={dropdownRef} className="relative w-full sm:w-64 z-[100]">
-                            <span className="block text-xs text-slate-400 mb-1">{t('map.orSelectPreset')}</span>
-                            <div onClick={() => setIsMenuOpen(true)} className={`w-full bg-slate-900 border border-slate-700 hover:border-slate-500 rounded-lg flex items-center transition-colors cursor-text ${presetsLoading ? 'opacity-50 pointer-events-none' : ''}`}>
-                                <input
-                                    type="text"
-                                    placeholder={selectedPreset ? getDisplayName(selectedPreset) : t('map.searchSelectPreset')}
-                                    value={searchTerm}
-                                    onChange={(e) => {
-                                        updateSearchAndSelection(e.target.value);
-                                    }}
-                                    onKeyDown={handleKeyDown}
-                                    className="w-full bg-transparent px-4 py-2 text-slate-200 outline-none placeholder:text-slate-400 text-sm"
-                                />
-                                <span className="pr-4 text-xs text-slate-400 pointer-events-none">
-                                    <FaCaretDown size={15} />
-                                </span>
-                            </div>
-
-                            {/* Dropdown-Menü */}
-                            {isMenuOpen && (
-                                <div className="absolute left-0 top-full w-full pt-1 z-[100]">
-                                    <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-xl py-1 max-h-64 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                                        {visibleItems.length > 0 ? (
-                                            visibleItems.map((item, idx) => {
-                                                const isHighlighted = highlightedIndex === idx;
-
-                                                if (item.type === 'group') {
-                                                    const count = filteredGroups[item.value].length;
-                                                    const isExpanded = expandedGroup === item.value;
-                                                    const isEmpty = count === 0;
-
-                                                    return (
-                                                        <div
-                                                            key={`group-${item.value}`}
-                                                            ref={isHighlighted ? (el) => el?.scrollIntoView({ block: 'nearest' }) : null}
-                                                            onMouseEnter={() => setHighlightedIndex(idx)}
-                                                            onClick={() => {
-                                                                if (isExpanded) setExpandedGroup(null);
-                                                                else if (!isEmpty) setExpandedGroup(item.value);
-                                                            }}
-                                                            className={`px-4 py-2 cursor-pointer flex justify-between items-center text-sm transition-colors select-none
-                                                                ${isHighlighted ? 'bg-slate-700' : 'hover:bg-slate-700'}
-                                                                ${isEmpty ? 'text-slate-500' : 'text-slate-200'}
-                                                            `}
-                                                        >
-                                                            <span className="font-semibold">
-                                                                {groupLabel(item.value)} <span className="text-xs font-normal opacity-50 ml-1">({count})</span>
-                                                            </span>
-                                                            <span className={`text-[10px] transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}>
-                                                                <FaCaretRight size={15} />
-                                                            </span>
-                                                        </div>
-                                                    );
-                                                } else {
-                                                    // Item Rendering
-                                                    return (
-                                                        <div
-                                                            key={`item-${item.value}`}
-                                                            ref={isHighlighted ? (el) => el?.scrollIntoView({ block: 'nearest' }) : null}
-                                                            onMouseEnter={() => setHighlightedIndex(idx)}
-                                                            onMouseDown={(e) => {
-                                                                e.preventDefault();
-                                                            }}
-                                                            onClick={() => {
-                                                                handlePresetChange(item.value);
-                                                                setSearchTerm('');
-                                                                setIsMenuOpen(false);
-                                                            }}
-                                                            className={`pl-8 pr-4 py-2 cursor-pointer text-sm truncate transition-colors
-                                                                ${isHighlighted ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-indigo-600/50 hover:text-white'}
-                                                            `}
-                                                        >
-                                                            {getDisplayName(item.value)}
-                                                        </div>
-                                                    );
-                                                }
-                                            })
-                                        ) : (
-                                            <div className="px-4 py-2 text-slate-500 text-sm italic">{t('map.noMatchingAreas')}</div>
-                                        )}
-                                    </div>
+                        <div className="flex flex-wrap items-center justify-start gap-3 text-sm">
+                            <div className="relative flex items-center gap-3 align-middle min-w-fit">
+                                <div className="flex flex-col items-center">
+                                    <span className="text-slate-400">{t('map.worldDefaultLabel') + ':'}</span>
+                                    <span className={`text-xs font-semibold ${worldDefault === 'allow' ? 'text-green-400' : 'text-red-400'}`}>{worldDefault === 'allow' ? t('map.allow') : t('map.forbid')}</span>
                                 </div>
-                            )}
+                                <button type="button" role="switch" aria-checked={worldDefault === 'allow'} onClick={() => handleSetWorldDefault(worldDefault === 'allow' ? 'forbid' : 'allow')} className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors ${worldDefault === 'allow' ? 'bg-green-600/60' : 'bg-red-600/60'}`} title={t('map.worldDefaultHint')}>
+                                    <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${worldDefault === 'allow' ? 'translate-x-8' : 'translate-x-1'}`} />
+                                </button>
+                            </div>
+                            <div ref={dropdownRef} className="relative ml-auto z-[100] min-w-[230px]">
+                                <span className="block text-xs text-slate-400 mb-1">{t('map.orSelectPreset')}</span>
+                                <div onClick={() => setIsMenuOpen(true)} className={`w-full bg-slate-900 border border-slate-700 hover:border-slate-500 rounded-lg flex items-center transition-colors cursor-text ${presetsLoading ? 'opacity-50 pointer-events-none' : ''}`}>
+                                    <input
+                                        type="text"
+                                        placeholder={selectedPreset ? getDisplayName(selectedPreset) : t('map.searchSelectPreset')}
+                                        value={searchTerm}
+                                        onChange={(e) => {
+                                            updateSearchAndSelection(e.target.value);
+                                        }}
+                                        onKeyDown={handleKeyDown}
+                                        className="w-full bg-transparent px-4 py-2 text-slate-200 outline-none placeholder:text-slate-400 text-sm"
+                                    />
+                                    <span className="pr-4 text-xs text-slate-400 pointer-events-none">
+                                        <FaCaretDown size={15} />
+                                    </span>
+                                </div>
+
+                                {/* Dropdown-Menü */}
+                                {isMenuOpen && (
+                                    <div className="absolute left-0 top-full w-full pt-1 z-[100]">
+                                        <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-xl py-1 max-h-64 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                                            {visibleItems.length > 0 ? (
+                                                visibleItems.map((item, idx) => {
+                                                    const isHighlighted = highlightedIndex === idx;
+
+                                                    if (item.type === 'group') {
+                                                        const count = filteredGroups[item.value].length;
+                                                        const isExpanded = expandedGroup === item.value;
+                                                        const isEmpty = count === 0;
+
+                                                        return (
+                                                            <div
+                                                                key={`group-${item.value}`}
+                                                                ref={isHighlighted ? (el) => el?.scrollIntoView({ block: 'nearest' }) : null}
+                                                                onMouseEnter={() => setHighlightedIndex(idx)}
+                                                                onClick={() => {
+                                                                    if (isExpanded) setExpandedGroup(null);
+                                                                    else if (!isEmpty) setExpandedGroup(item.value);
+                                                                }}
+                                                                className={`px-4 py-2 cursor-pointer flex justify-between items-center text-sm transition-colors select-none
+                                                                    ${isHighlighted ? 'bg-slate-700' : 'hover:bg-slate-700'}
+                                                                    ${isEmpty ? 'text-slate-500' : 'text-slate-200'}
+                                                                `}
+                                                            >
+                                                                <span className="font-semibold">
+                                                                    {groupLabel(item.value)} <span className="text-xs font-normal opacity-50 ml-1">({count})</span>
+                                                                </span>
+                                                                <span className={`text-[10px] transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}>
+                                                                    <FaCaretRight size={15} />
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    } else {
+                                                        // Item Rendering
+                                                        return (
+                                                            <div
+                                                                key={`item-${item.value}`}
+                                                                ref={isHighlighted ? (el) => el?.scrollIntoView({ block: 'nearest' }) : null}
+                                                                onMouseEnter={() => setHighlightedIndex(idx)}
+                                                                onMouseDown={(e) => {
+                                                                    e.preventDefault();
+                                                                }}
+                                                                onClick={() => {
+                                                                    handlePresetChange(item.value);
+                                                                    setSearchTerm('');
+                                                                    setIsMenuOpen(false);
+                                                                }}
+                                                                className={`pl-8 pr-4 py-2 cursor-pointer text-sm truncate transition-colors
+                                                                    ${isHighlighted ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-indigo-600/50 hover:text-white'}
+                                                                `}
+                                                            >
+                                                                {getDisplayName(item.value)}
+                                                            </div>
+                                                        );
+                                                    }
+                                                })
+                                            ) : (
+                                                <div className="px-4 py-2 text-slate-500 text-sm italic">{t('map.noMatchingAreas')}</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {displayBoundaries.length > 0 && (

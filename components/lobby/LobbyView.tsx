@@ -10,7 +10,7 @@ Handles game state synchronization and start game functionality.
 ================================================================================
 */
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 
 import { useJsApiLoader } from '@react-google-maps/api';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -26,7 +26,7 @@ import LobbyMap from './LobbyMap';
 import LobbySettings from './LobbySettings';
 import LobbySidebar from './LobbySidebar';
 import { getHostToken } from '../../lib/hostToken';
-import { isLocationAllowed } from '../utils/mapUtils';
+import { GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from '../utils/mapUtils';
 
 interface Player {
     id: string;
@@ -75,14 +75,14 @@ interface LobbyViewProps {
     difficulty: 'default' | 'easy' | 'hard';
     categoriesGenerated: boolean;
     notifyGameEvent?: (event: 'ai_end_game' | 'ai_generating_categories', payload: { player_id: string }) => void;
+    onCategoryLanguageChange?: (newLanguage: CategoryLanguage) => Promise<void>;
 }
 
 export default function LobbyView(props: LobbyViewProps) {
-    const [libraries] = useState<('places' | 'geometry')[]>(['places', 'geometry']);
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
         googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-        libraries,
+        libraries: GOOGLE_MAPS_LIBRARIES,
     });
 
     const MAXGRIDSIZE = 6;
@@ -245,6 +245,7 @@ export default function LobbyView(props: LobbyViewProps) {
                     aiEndGame={props.aiEndGame}
                     language={props.language}
                     updateGameModeInfo={props.updateGameModeInfo}
+                    onCategoryLanguageChange={props.onCategoryLanguageChange}
                     categorySource={props.categorySource}
                     isGenerating={false}
                 />

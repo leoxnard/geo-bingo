@@ -24,7 +24,7 @@ import { shuffle } from '@/components/utils/Functions';
 import { Player } from '@/components/utils/types';
 import { VotingView } from '@/components/VotingView';
 import { useT } from '@/lib/i18n/I18nProvider';
-import { categoryLanguageForLocale, CategoryLanguage } from '@/lib/i18n/locales';
+import { categoryLanguageForLocale, CategoryLanguage, normalizeLocale } from '@/lib/i18n/locales';
 
 import { getHostToken, newHostToken, clearHostToken } from '../../../lib/hostToken';
 import { adjectives, animals } from '../../../lib/names';
@@ -98,6 +98,9 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
     // more game options
     const [language, setLanguage] = useState<CategoryLanguage>('german');
+    // Per-locale category translations copied from an imported preset, used to
+    // reuse aligned translations when the host switches the board language.
+    const [categoryTranslations, setCategoryTranslations] = useState<Record<string, string[]>>({});
     const [hideMapSymbols, setHideMapSymbols] = useState(false);
     const [hideMiniMap, setHideMiniMap] = useState(false);
     const [aiEndGame, setAiEndGame] = useState(true);
@@ -105,6 +108,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const updateGameModeInfo = (updates: {
         game_mode?: string;
         team_mode?: string;
+        categories?: string[];
         time_limit?: number;
         grid_size?: number;
         starting_point?: string;
@@ -134,6 +138,10 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (updates.team_mode) {
             setTeamMode(updates.team_mode as 'ffa' | 'teams');
             fieldsToUpdate.push('team_mode');
+        }
+        if (updates.categories) {
+            setCategories(updates.categories);
+            fieldsToUpdate.push('categories');
         }
         if (updates.time_limit) {
             setTimeLimit(updates.time_limit);
@@ -221,6 +229,54 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         })();
     };
 
+    // Switch the shared board language. Reuse the imported preset's aligned
+    // translations when the board still matches them; otherwise DeepL-translate the
+    // current category names. Always updates language + categories together.
+    const handleBoardLanguageChange = async (newLang: CategoryLanguage) => {
+        if (!isHost) return;
+        const newLocale = normalizeLocale(newLang);
+        const curLocale = normalizeLocale(language);
+        if (newLocale === curLocale) return;
+
+        const cats = categories;
+        const nonEmpty = cats.filter((c) => c.trim());
+        if (nonEmpty.length === 0) {
+            updateGameModeInfo({ language: newLang });
+            return;
+        }
+
+        // Reuse: the imported preset's aligned translations, when the board still
+        // matches the stored source-locale list exactly.
+        const srcList = categoryTranslations[curLocale];
+        const tgtList = categoryTranslations[newLocale];
+        if (Array.isArray(srcList) && Array.isArray(tgtList) && srcList.length === cats.length && srcList.every((v, i) => v === cats[i])) {
+            updateGameModeInfo({ language: newLang, categories: tgtList });
+            return;
+        }
+
+        // DeepL fallback — translate the non-empty entries, preserving positions.
+        try {
+            const res = await fetch('/api/translate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ texts: nonEmpty, targetLangs: [newLocale], sourceLang: curLocale }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                const arr = data?.translations?.[newLocale];
+                if (Array.isArray(arr) && arr.length === nonEmpty.length) {
+                    let k = 0;
+                    const merged = cats.map((c) => (c.trim() ? arr[k++] : c));
+                    updateGameModeInfo({ language: newLang, categories: merged });
+                    return;
+                }
+            }
+            updateGameModeInfo({ language: newLang });
+        } catch {
+            updateGameModeInfo({ language: newLang });
+        }
+    };
+
     // When the HOST changes the UI language via the top-of-page switcher, follow
     // it with the shared category language so the board language matches. We only
     // react to actual changes (not the initial value) and only as host — the
@@ -286,11 +342,22 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 let seedGridSize: number | null = null;
                 let seedTimeLimit: number | null = null;
                 let seedSettings: { hideMiniMap?: boolean; hideMapSymbols?: boolean; exclusiveMode?: boolean; aiEndGame?: boolean; endCondition?: string } = {};
+                let seedCategoryTranslations: Record<string, string[]> = {};
                 const presetId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('preset') : null;
                 if (presetId) {
-                    const { data: preset } = await supabase.from('community_presets').select('categories, boundaries, starting_point, game_mode, grid_size, recommended_time, settings').eq('id', presetId).maybeSingle();
+                    // Select '*' (not an explicit column list) so the import is resilient
+                    // to optional columns like `category_translations` not existing yet on
+                    // a DB that hasn't run the latest migration — a missing named column
+                    // would otherwise error the whole query and silently skip all seeding.
+                    const { data: preset, error: presetError } = await supabase.from('community_presets').select('*').eq('id', presetId).maybeSingle();
+                    if (presetError) console.error('[GameRoom] preset import read failed:', presetError);
                     if (preset) {
-                        const names = Array.isArray(preset.categories) ? (preset.categories as { categoryName?: string }[]).map((c) => c.categoryName || '').filter(Boolean) : [];
+                        // Seed categories in the host's UI language when the preset carries a
+                        // translation for it (the board language is shared + switchable in
+                        // settings); otherwise fall back to the author's original names.
+                        const originals = Array.isArray(preset.categories) ? (preset.categories as { categoryName?: string }[]).map((c) => c.categoryName || '') : [];
+                        const translatedList = (preset.category_translations as Record<string, string[]> | null)?.[locale];
+                        const names = (Array.isArray(translatedList) && translatedList.length === originals.length ? translatedList : originals).filter(Boolean);
                         if (names.length) seedCategories = names;
                         if (preset.boundaries) seedBoundary = JSON.stringify(preset.boundaries);
                         if (preset.starting_point) seedStartingPoint = preset.starting_point;
@@ -298,6 +365,9 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                         if (preset.grid_size) seedGridSize = preset.grid_size;
                         if (preset.recommended_time) seedTimeLimit = preset.recommended_time;
                         if (preset.settings && typeof preset.settings === 'object') seedSettings = preset.settings;
+                        // Carry the preset's per-locale translations so the lobby language
+                        // switch can reuse them (DeepL fallback for anything not covered).
+                        if (preset.category_translations && typeof preset.category_translations === 'object') seedCategoryTranslations = preset.category_translations as Record<string, string[]>;
                     }
                 }
 
@@ -327,7 +397,17 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     language: categoryLanguageForLocale(locale),
                     categories_generated: false,
                 };
-                const { error } = await supabase.from('games').insert([newGameData]);
+                // Persist category_translations when the preset has them. If that fails
+                // (e.g. the games.category_translations column isn't there yet on a DB
+                // that hasn't run the migration), retry the insert without it so game
+                // creation/import never breaks — the host still gets the translations in
+                // memory (set below) for live language switching this session.
+                const hasSeedTranslations = Object.keys(seedCategoryTranslations).length > 0;
+                let { error } = await supabase.from('games').insert([hasSeedTranslations ? { ...newGameData, category_translations: seedCategoryTranslations } : newGameData]);
+                if (error && hasSeedTranslations) {
+                    console.warn('[GameRoom] games.category_translations not available; importing without persisting it.', error);
+                    ({ error } = await supabase.from('games').insert([newGameData]));
+                }
                 if (!error) {
                     justCreated = true;
                     setIsHost(true);
@@ -335,6 +415,24 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     gameHostIdRef.current = currentPlayerId;
                     gameData = newGameData;
                     localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
+                    // Hydrate the lobby UI from the freshly-seeded values. The state-sync
+                    // block below only runs for *loaded* games (!justCreated), and the
+                    // realtime channel doesn't replay the creator's own INSERT — so without
+                    // this an imported preset would show a default lobby to the host until
+                    // a manual reload (the reported "nothing is applied" bug).
+                    setCategories(newGameData.categories);
+                    setTimeLimit(newGameData.time_limit);
+                    setGameMode(newGameData.game_mode as 'list' | 'bingo');
+                    setGridSize(newGameData.grid_size);
+                    setStartingPoint(newGameData.starting_point);
+                    setGameBoundary(newGameData.gameBoundary);
+                    setEndCondition(newGameData.end_condition as 'timer' | 'first_bingo');
+                    setHideMapSymbols(newGameData.hide_map_symbols);
+                    setHideMiniMap(newGameData.hide_minimap);
+                    setAiEndGame(newGameData.ai_end_game);
+                    setExclusiveMode(newGameData.exclusive_mode);
+                    setLanguage(newGameData.language as CategoryLanguage);
+                    setCategoryTranslations(seedCategoryTranslations);
                     // Claim the host capability token (the secret the host RPCs check).
                     await supabase.rpc('register_host_secret', { p_game_id: gameId, p_player_id: currentPlayerId, p_token: newHostToken(gameId) });
                 } else {
@@ -377,6 +475,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setGenerationRadius(gameData.generation_radius || 10);
                 setGenerationNumber(gameData.generation_number || 10);
                 setLanguage(gameData.language || 'german');
+                setCategoryTranslations(gameData.category_translations || {});
                 setCategoriesGenerated(gameData.categories_generated || false);
 
                 const isActuallyHost = gameData.host_id === currentPlayerId;
@@ -808,6 +907,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     difficulty={difficulty}
                     categoriesGenerated={categoriesGenerated}
                     notifyGameEvent={notifyGameEvent}
+                    onCategoryLanguageChange={handleBoardLanguageChange}
                 />
             );
         }

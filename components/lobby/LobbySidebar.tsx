@@ -50,6 +50,7 @@ interface LobbySidebarProps {
     aiEndGame: boolean;
     language: CategoryLanguage;
     updateGameModeInfo: (updates: Record<string, unknown>) => void;
+    onCategoryLanguageChange?: (newLanguage: CategoryLanguage) => Promise<void>;
     categorySource: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
     isGenerating: boolean;
 }
@@ -64,6 +65,22 @@ export default function LobbySidebar(props: LobbySidebarProps) {
     const [isEditingSelfName, setIsEditingSelfName] = useState(false);
     const [selfNameInput, setSelfNameInput] = useState('');
     const selfNameInputRef = useRef<HTMLInputElement>(null);
+    const [langBusy, setLangBusy] = useState(false);
+
+    // Changing the board language re-translates the categories (preset reuse or
+    // DeepL) via the parent; fall back to a plain language change if no handler.
+    const handleLanguageSelect = async (value: CategoryLanguage) => {
+        if (!props.onCategoryLanguageChange) {
+            props.updateGameModeInfo({ language: value });
+            return;
+        }
+        setLangBusy(true);
+        try {
+            await props.onCategoryLanguageChange(value);
+        } finally {
+            setLangBusy(false);
+        }
+    };
 
     const [isMounted, setIsMounted] = useState(false);
     const [teamCount, setTeamCount] = useState(1);
@@ -326,8 +343,9 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                     <div>
                         <label htmlFor="category-language" className="flex items-center gap-1.5 font-bold mb-2 text-sm text-slate-300" title={t('sidebar.categoryLanguageTooltip')}>
                             {t('sidebar.categoryLanguage')}
+                            {langBusy && <span className="text-xs font-normal text-indigo-400">{t('common.generating')}</span>}
                         </label>
-                        <select id="category-language" title={t('sidebar.categoryLanguage')} value={props.language} onChange={(e) => props.updateGameModeInfo({ language: e.target.value as CategoryLanguage })} disabled={!props.isHost} className="h-[42px] px-3 w-full rounded-lg bg-slate-900 border border-slate-600 text-sm text-white cursor-pointer transition-colors focus:outline-none focus:border-indigo-500 hover:border-slate-500 disabled:opacity-50">
+                        <select id="category-language" title={t('sidebar.categoryLanguage')} value={props.language} onChange={(e) => handleLanguageSelect(e.target.value as CategoryLanguage)} disabled={!props.isHost || langBusy} className="h-[42px] px-3 w-full rounded-lg bg-slate-900 border border-slate-600 text-sm text-white cursor-pointer transition-colors focus:outline-none focus:border-indigo-500 hover:border-slate-500 disabled:opacity-50">
                             {LOCALE_CODES.map((code) => (
                                 <option key={code} value={categoryLanguageForLocale(code)}>
                                     {LOCALES[code].label}

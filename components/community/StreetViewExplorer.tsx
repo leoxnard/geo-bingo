@@ -23,7 +23,7 @@ is wired to realtime game state, scoring and AI verification.
 ================================================================================
 */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState } from 'react';
 
 import { GoogleMap, MarkerF, PolygonF, StreetViewPanorama } from '@react-google-maps/api';
 import toast from 'react-hot-toast';
@@ -40,6 +40,13 @@ interface Viewpoint {
     heading: number;
     pitch: number;
     zoom: number;
+}
+
+// Imperative API exposed to the builder: jump the panorama to a saved viewpoint
+// (clicking a category thumbnail). Done via a ref so the move happens in the
+// parent's click handler rather than a prop-driven effect.
+export interface StreetViewExplorerHandle {
+    openViewpoint: (vp: Viewpoint) => void;
 }
 
 interface StreetViewExplorerProps {
@@ -63,7 +70,7 @@ const DEFAULT_POSITION = { lat: 20, lng: 0 };
 
 const SPOT_ICON = { path: 0 as google.maps.SymbolPath, scale: 6, fillColor: '#f59e0b', fillOpacity: 1, strokeColor: '#fde68a', strokeWeight: 2 };
 
-export default function StreetViewExplorer({ isLoaded, mode = 'capture', onSave, onViewpointChange, spots = [], existingNames = [], gameBoundary = '[]', initialPosition }: StreetViewExplorerProps) {
+const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplorerProps>(function StreetViewExplorer({ isLoaded, mode = 'capture', onSave, onViewpointChange, spots = [], existingNames = [], gameBoundary = '[]', initialPosition }, ref) {
     const { t } = useT();
     const exploreMapRef = useRef<google.maps.Map | null>(null); // map that owns the navigable panorama
     const panoRef = useRef<google.maps.StreetViewPanorama | null>(null);
@@ -132,6 +139,31 @@ export default function StreetViewExplorer({ isLoaded, mode = 'capture', onSave,
         },
         [getPano, onViewpointChange, readViewpoint],
     );
+
+    // Open the panorama at a fully-specified viewpoint (position + POV + zoom),
+    // restoring exactly what was captured. Used when a saved spot is focused.
+    const openViewpoint = useCallback(
+        (vp: Viewpoint) => {
+            const pano = getPano();
+            if (!pano) return;
+            const loc = { lat: vp.lat, lng: vp.lng };
+            pano.setPosition(loc);
+            pano.setPov({ heading: vp.heading, pitch: vp.pitch });
+            pano.setZoom(vp.zoom);
+            pano.setVisible(true);
+            setOpened(true);
+            youAreHereRef.current?.setPosition(loc);
+            youAreHereConeRef.current?.setPosition(loc);
+            youAreHereRef.current?.setVisible(true);
+            youAreHereConeRef.current?.setVisible(true);
+            miniMapRef.current?.panTo(loc);
+            onViewpointChange?.(readViewpoint());
+        },
+        [getPano, onViewpointChange, readViewpoint],
+    );
+
+    // Let the builder jump the panorama to a saved spot (thumbnail click).
+    useImperativeHandle(ref, () => ({ openViewpoint }), [openViewpoint]);
 
     // The navigable panorama (right side in capture; the only map in simulate).
     const onExploreMapLoad = useCallback(
@@ -279,7 +311,7 @@ export default function StreetViewExplorer({ isLoaded, mode = 'capture', onSave,
                 <div className="flex h-full w-full flex-col md:flex-row">
                     {/* Left: (mini)map with saved spots, you-are-here dot, droppable Pegman + search */}
                     <div className="relative h-1/2 w-full md:h-full md:w-1/2 border-b md:border-b-0 md:border-r border-slate-800">
-                        <GoogleMap mapContainerClassName="absolute inset-0" center={start} zoom={1} options={mapOptions()} onLoad={onMiniMapLoad} onClick={onMiniMapClick}>
+                        <GoogleMap mapContainerClassName="absolute inset-0" center={start} zoom={2} options={mapOptions()} onLoad={onMiniMapLoad} onClick={onMiniMapClick}>
                             {boundaryPolys
                                 .filter((b) => (b.points?.length ?? 0) >= 3)
                                 .map((b) => (
@@ -302,7 +334,7 @@ export default function StreetViewExplorer({ isLoaded, mode = 'capture', onSave,
 
                     {/* Right: navigable panorama (opens once a position is picked) */}
                     <div className="relative h-1/2 w-full md:h-full md:w-1/2">
-                        <GoogleMap mapContainerClassName="absolute inset-0" center={start} zoom={1} options={mapOptions()} onLoad={onExploreMapLoad}>
+                        <GoogleMap mapContainerClassName="absolute inset-0" center={start} zoom={2} options={mapOptions()} onLoad={onExploreMapLoad}>
                             <StreetViewPanorama options={panoOptions} />
                         </GoogleMap>
 
@@ -321,7 +353,7 @@ export default function StreetViewExplorer({ isLoaded, mode = 'capture', onSave,
                     </div>
                 </div>
             ) : (
-                <GoogleMap mapContainerClassName="absolute inset-0" center={start} zoom={1} options={mapOptions()} onLoad={onExploreMapLoad}>
+                <GoogleMap mapContainerClassName="absolute inset-0" center={start} zoom={2} options={mapOptions()} onLoad={onExploreMapLoad}>
                     <StreetViewPanorama options={panoOptions} />
                 </GoogleMap>
             )}
@@ -346,4 +378,6 @@ export default function StreetViewExplorer({ isLoaded, mode = 'capture', onSave,
             )}
         </div>
     );
-}
+});
+
+export default StreetViewExplorer;

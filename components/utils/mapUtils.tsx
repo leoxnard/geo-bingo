@@ -152,28 +152,66 @@ export function isPointInPolygon(point: { lat: number; lng: number }, polygon: {
     return isInside;
 }
 
-export function isLocationAllowed(point: { lat: number; lng: number }, gameBoundary: string) {
-    if (!gameBoundary || gameBoundary === '[]') return true;
+interface Point {
+    lat: number;
+    lng: number;
+}
+
+// Sentinel zone (no points) stored inside the gameBoundary array to record the
+// "rest of the world" default — i.e. whether anything outside every drawn area
+// is allowed or forbidden. Absent means the legacy default: 'allow'.
+export const WORLD_DEFAULT_ID = '__world_default__';
+
+export function parseWorldDefault(gameBoundary: string): 'allow' | 'forbid' {
+    if (!gameBoundary || gameBoundary === '[]') return 'allow';
     try {
         const parsed = JSON.parse(gameBoundary);
+        if (!Array.isArray(parsed)) return 'allow';
+        const sentinel = parsed.find((z) => z && z.id === WORLD_DEFAULT_ID);
+        return sentinel?.type === 'forbid' ? 'forbid' : 'allow';
+    } catch {
+        return 'allow';
+    }
+}
+
+interface BoundaryZone {
+    id?: string | number;
+    type?: 'allow' | 'forbid' | 'deny';
+    points?: Point[];
+    lat?: number;
+    lng?: number;
+}
+
+export function isLocationAllowed(point: Point, gameBoundary: string): boolean {
+    if (!gameBoundary || gameBoundary === '[]') return true;
+
+    try {
+        const parsed: BoundaryZone[] = JSON.parse(gameBoundary);
+
         if (!Array.isArray(parsed) || parsed.length === 0) return true;
+
         if (parsed.length > 0 && parsed[0].lat !== undefined && parsed[0].id === undefined) {
-            return isPointInPolygon(point, parsed);
+            return isPointInPolygon(point, parsed as unknown as Point[]);
         }
-        for (let i = parsed.length - 1; i >= 0; i--) {
-            const boundary = parsed[i];
-            if (boundary.points && boundary.points.length >= 3) {
-                if (isPointInPolygon(point, boundary.points)) {
-                    return boundary.type === 'allow';
+
+        // The "rest of the world" default is configured explicitly via a sentinel
+        // zone (default 'allow'). Drawn areas override it where the point falls
+        // inside, evaluated highest-priority-first (last in the array wins).
+        const worldDefault = parsed.find((z) => z.id === WORLD_DEFAULT_ID)?.type === 'forbid' ? 'forbid' : 'allow';
+        const zones = parsed.filter((z) => z.id !== WORLD_DEFAULT_ID);
+
+        for (let i = zones.length - 1; i >= 0; i--) {
+            const boundaryPoints = zones[i].points;
+
+            if (boundaryPoints && boundaryPoints.length >= 3) {
+                if (isPointInPolygon(point, boundaryPoints)) {
+                    return zones[i].type === 'allow';
                 }
             }
         }
-        const hasAllowZones = parsed.some((b) => b.type === 'allow' && b.points.length >= 3);
-        if (hasAllowZones) {
-            return false;
-        }
-        return true;
-    } catch (e) {
+
+        return worldDefault === 'allow';
+    } catch (e: unknown) {
         console.error('Invalid boundary data', e);
         return true;
     }

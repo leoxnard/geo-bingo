@@ -102,6 +102,14 @@ export interface CommunityPreset {
     author_name: string | null;
     name: string;
     description: string | null;
+    icon: string | null; // display emoji shown as the card banner (e.g. '🌍' or a flag)
+    // Category names translated into every app locale ({ en: [...], de: [...] }),
+    // aligned to `categories` order. Filled at publish time (Gemini + DeepL).
+    category_translations: Record<string, string[]>;
+    // Preset name + description translated per app locale ({ en: '…', de: '…' }),
+    // used to render browse cards in the viewer's language.
+    title_translations: Record<string, string>;
+    description_translations: Record<string, string>;
     categories: CommunityCategory[];
     boundaries: BoundaryPolygon[];
     starting_point: string; // 'open-world' or JSON {lat,lng}

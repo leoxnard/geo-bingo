@@ -10,7 +10,7 @@ Provides toggle switches and range sliders for game customization.
 ================================================================================
 */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useT } from '@/lib/i18n/I18nProvider';
 
@@ -30,6 +30,14 @@ interface LobbySettingsProps {
 export default function LobbySettings({ isHost, gameMode, teamMode, timeLimit, endCondition, exclusiveMode, updateGameModeInfo }: LobbySettingsProps) {
     const { t } = useT();
     const [localTimeLimit, setLocalTimeLimit] = useState(timeLimit / 60);
+
+    // Follow external changes to the time limit (preset import hydration, or
+    // another host editing it via realtime). The initializer only runs once, so
+    // without this the slider would keep its mount-time value. During local
+    // dragging the parent prop doesn't change, so this never fights the user.
+    useEffect(() => {
+        setLocalTimeLimit(timeLimit / 60);
+    }, [timeLimit]);
 
     const handleCommit = () => {
         if (!isHost) return;

@@ -8,6 +8,8 @@ interactivity lives in the CommunityBuilder client component.
 ================================================================================
 */
 
+import { Suspense } from 'react';
+
 import type { Metadata } from 'next';
 
 import CommunityBuilder from '@/components/community/CommunityBuilder';
@@ -18,5 +20,10 @@ export const metadata: Metadata = {
 };
 
 export default function CreatePresetPage() {
-    return <CommunityBuilder />;
+    // Suspense boundary required because CommunityBuilder reads useSearchParams (?edit).
+    return (
+        <Suspense fallback={null}>
+            <CommunityBuilder />
+        </Suspense>
+    );
 }

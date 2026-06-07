@@ -75,6 +75,7 @@ export async function votePreset(presetId: string, value: 1 | -1): Promise<VoteR
 export interface CreatePresetInput {
     name: string;
     description: string;
+    icon: string;
     authorName: string;
     categories: CommunityCategory[];
     boundaries: BoundaryPolygon[];
@@ -84,6 +85,9 @@ export interface CreatePresetInput {
     gameMode: 'list' | 'bingo';
     gridSize: number;
     settings: PresetSettings;
+    categoryTranslations: Record<string, string[]>; // { <locale>: names[] }, aligned to categories
+    titleTranslations: Record<string, string>; // { <locale>: translated name }
+    descriptionTranslations: Record<string, string>; // { <locale>: translated description }
 }
 
 export interface CreateResult {
@@ -105,9 +109,49 @@ export async function createPreset(input: CreatePresetInput): Promise<CreateResu
         p_game_mode: input.gameMode,
         p_grid_size: input.gridSize,
         p_settings: input.settings,
+        p_icon: input.icon,
+        p_category_translations: input.categoryTranslations,
+        p_title_translations: input.titleTranslations,
+        p_description_translations: input.descriptionTranslations,
     });
     if (error) throw error;
     return data as CreateResult;
+}
+
+/** Edit an existing preset the caller owns (ownership enforced in the RPC). */
+export async function updatePreset(id: string, input: Omit<CreatePresetInput, 'authorName'>): Promise<CreateResult> {
+    const { data, error } = await supabase.rpc('update_community_preset', {
+        p_id: id,
+        p_name: input.name,
+        p_description: input.description,
+        p_categories: input.categories,
+        p_boundaries: input.boundaries,
+        p_starting_point: input.startingPoint,
+        p_recommended_time: input.recommendedTime,
+        p_difficulty: input.difficulty,
+        p_game_mode: input.gameMode,
+        p_grid_size: input.gridSize,
+        p_settings: input.settings,
+        p_icon: input.icon,
+        p_category_translations: input.categoryTranslations,
+        p_title_translations: input.titleTranslations,
+        p_description_translations: input.descriptionTranslations,
+    });
+    if (error) throw error;
+    return data as CreateResult;
+}
+
+/**
+ * Set the caller's single account-wide display name. Writes it to the auth user's
+ * metadata (so new presets pick it up) and rewrites author_name on every preset
+ * the caller already owns. Returns nothing useful; throws on error.
+ */
+export async function renameAuthor(name: string): Promise<void> {
+    const trimmed = name.trim();
+    const { error: metaError } = await supabase.auth.updateUser({ data: { display_name: trimmed } });
+    if (metaError) throw metaError;
+    const { error: rpcError } = await supabase.rpc('rename_my_presets_author', { p_name: trimmed });
+    if (rpcError) throw rpcError;
 }
 
 /**

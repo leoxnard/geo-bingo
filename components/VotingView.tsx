@@ -10,7 +10,7 @@ Features yellow submission markers and blue category markers on completed tracks
 ================================================================================
 */
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 
 import { GoogleMap, useJsApiLoader, Polyline, MarkerF, StreetViewPanorama, Circle, OverlayViewF, OverlayView } from '@react-google-maps/api';
 import toast from 'react-hot-toast';
@@ -26,6 +26,10 @@ import { VotingPanel } from './voting/VotingPanel';
 
 const MAX_ANIMATION_DURATION = 8000;
 
+// Distinct colours for the simultaneous teammate paths in a team round.
+// Index 0 is the original single-player yellow so FFA replays look unchanged.
+const PATH_COLORS = ['#22d3ee', '#f472b6', '#a3e635', '#fb923c', '#c084fc', '#fac800'];
+
 interface PlayerWithPaths {
     id: string;
     name: string;
@@ -33,6 +37,57 @@ interface PlayerWithPaths {
     team?: number;
     path: PathPoint[];
 }
+
+interface PlayerRoundData {
+    player: PlayerWithPaths;
+    color: string;
+    rawPath: PathPoint[];
+    totalDist: number;
+    dists: number[];
+    subProgressions: { sub: Submission; progress: number }[];
+}
+
+// Compute a player's current marker position and the drawn polyline portion for
+// a shared, distance-normalized progress value (0..1). Because every player in a
+// round is driven by the same progress, they all start and finish together and a
+// pause freezes everyone mid-stride.
+const computePartial = (pd: PlayerRoundData, progress: number): { currentPoint: PathPoint | null; partialPath: PathPoint[] } => {
+    const { rawPath, totalDist, dists } = pd;
+    if (rawPath.length === 0) return { currentPoint: null, partialPath: [] };
+    if (progress <= 0 || totalDist === 0 || rawPath.length < 2) {
+        return { currentPoint: rawPath[0], partialPath: [rawPath[0]] };
+    }
+    if (progress >= 1) {
+        return { currentPoint: rawPath[rawPath.length - 1], partialPath: rawPath };
+    }
+
+    const targetDist = progress * totalDist;
+    let idx = 0;
+    while (idx < dists.length - 2 && dists[idx + 1] < targetDist) {
+        idx++;
+    }
+    const p1 = rawPath[idx];
+    const p2 = rawPath[idx + 1];
+    const segmentDist = dists[idx + 1] - dists[idx];
+    const t = segmentDist === 0 ? 0 : (targetDist - dists[idx]) / segmentDist;
+
+    let dLng = p2.lng - p1.lng;
+    if (dLng > 180) dLng -= 360;
+    else if (dLng < -180) dLng += 360;
+
+    let currentLng = p1.lng + dLng * t;
+    if (currentLng > 180) currentLng -= 360;
+    else if (currentLng < -180) currentLng += 360;
+
+    const currentPoint = {
+        lat: p1.lat + (p2.lat - p1.lat) * t,
+        lng: currentLng,
+        timestamp: p1.timestamp + (p2.timestamp - p1.timestamp) * t,
+    };
+    const partialPath = rawPath.slice(0, idx + 1);
+    partialPath.push(currentPoint);
+    return { currentPoint, partialPath };
+};
 
 interface BingoCategory {
     categoryName: string;
@@ -70,7 +125,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         lng: number;
     } | null>(null);
 
-    const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
+    const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
     const [isPaused, setIsPaused] = useState(false);
     const [isLineComplete, setIsLineComplete] = useState(false);
 
@@ -81,10 +136,9 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     const [isDataLoaded, setIsDataLoaded] = useState(false);
 
     const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
-    const [finalPath, setFinalPath] = useState<PathPoint[]>([]);
 
-    const polylineRef = useRef<google.maps.Polyline | null>(null);
-    const markerRef = useRef<google.maps.Marker | null>(null);
+    const polylineRefs = useRef<Map<string, google.maps.Polyline>>(new Map());
+    const movingMarkerRefs = useRef<Map<string, google.maps.Marker>>(new Map());
     const progressBarRef = useRef<HTMLDivElement | null>(null);
 
     const animationProgressRef = useRef(0);
@@ -120,14 +174,40 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         libraries: GOOGLE_MAPS_LIBRARIES,
     });
 
-    const currentPlayer = playersWithPaths[currentPlayerIndex];
+    // A "round" is the unit being replayed: a single player in FFA, or a whole
+    // team in team mode. Team rounds animate every teammate's path at once.
+    const rounds = useMemo<{ team: number | undefined; players: PlayerWithPaths[] }[]>(() => {
+        if (teamMode === 'teams') {
+            const byTeam = new Map<number, PlayerWithPaths[]>();
+            const solo: { team: number | undefined; players: PlayerWithPaths[] }[] = [];
+            playersWithPaths.forEach((p) => {
+                if (p.team === undefined || p.team < 0) {
+                    solo.push({ team: p.team, players: [p] });
+                    return;
+                }
+                if (!byTeam.has(p.team)) byTeam.set(p.team, []);
+                byTeam.get(p.team)!.push(p);
+            });
+            const teamRounds = Array.from(byTeam.entries())
+                .sort((a, b) => a[0] - b[0])
+                .map(([team, players]) => ({ team, players }));
+            return [...teamRounds, ...solo];
+        }
+        return playersWithPaths.map((p) => ({ team: p.team, players: [p] }));
+    }, [playersWithPaths, teamMode]);
+
+    const currentRound = rounds[currentRoundIndex];
+    const roundPlayers = useMemo(() => currentRound?.players ?? [], [currentRound]);
+    const roundPlayerIds = useMemo(() => new Set(roundPlayers.map((p) => p.id)), [roundPlayers]);
+    const roundTeam = currentRound?.team;
+    const roundLabel = useMemo(() => roundPlayers.map((p) => p.name).join(' & '), [roundPlayers]);
 
     const activeSubLatest = useMemo(() => {
-        if (activeSubmission && activeSubmission.player_id === currentPlayer?.id) {
+        if (activeSubmission && roundPlayerIds.has(activeSubmission.player_id)) {
             return submissions.find((s) => s.id === activeSubmission.id) || null;
         }
         return null;
-    }, [activeSubmission, submissions, currentPlayer]);
+    }, [activeSubmission, submissions, roundPlayerIds]);
 
     useEffect(() => {
         // Only auto-show street view for active submissions, not for manual selections
@@ -197,11 +277,12 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     const displaySub = activeSubLatest || lastActiveSub;
 
     const currentBoard = useMemo(() => {
-        if (currentPlayer?.bingo_board && currentPlayer.bingo_board.length > 0) {
-            return currentPlayer.bingo_board;
+        const board = roundPlayers[0]?.bingo_board;
+        if (board && board.length > 0) {
+            return board;
         }
         return gameCategories.slice(0, gameMode === 'list' ? gameCategories.length : gridSize * gridSize);
-    }, [currentPlayer, gameCategories, gridSize, gameMode]);
+    }, [roundPlayers, gameCategories, gridSize, gameMode]);
 
     const votingStats = useMemo(() => {
         let isComplete = false;
@@ -212,12 +293,12 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
             const actualVotes = Object.keys(votesMap).filter((k) => k !== 'host_continued');
             cast = actualVotes.length;
 
-            const eligibleVoters = playersWithPaths.filter((p) => (teamMode === 'teams' ? p.team !== currentPlayer?.team : p.id !== currentPlayer?.id));
+            const eligibleVoters = playersWithPaths.filter((p) => (teamMode === 'teams' ? p.team !== roundTeam : !roundPlayerIds.has(p.id)));
             eligibleCount = eligibleVoters.length;
             isComplete = cast >= eligibleCount || eligibleCount === 0;
         }
         return { isComplete, cast, eligibleCount };
-    }, [activeSubLatest, playersWithPaths, currentPlayer, teamMode]);
+    }, [activeSubLatest, playersWithPaths, roundTeam, roundPlayerIds, teamMode]);
 
     // Data Fetching
     useEffect(() => {
@@ -264,13 +345,12 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                 setActiveSubmission(null);
                 setIsPaused(false);
                 setIsLineComplete(false);
-                setFinalPath([]);
                 shownSubIdsRef.current.clear();
                 setShownSubIds(new Set());
                 animationProgressRef.current = 0;
                 if (progressBarRef.current) progressBarRef.current.style.transform = `scale${isNarrowRef.current ? 'X' : 'Y'}(0)`;
 
-                setCurrentPlayerIndex(payload.payload.index);
+                setCurrentRoundIndex(payload.payload.index);
             })
             .subscribe();
         // NOTE: a previous 'finish_game' broadcast handler also called
@@ -285,20 +365,22 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         };
     }, [gameId]);
 
-    // Path Calculations
-    const pathData = useMemo(() => {
-        const rawPath = currentPlayer?.path || [];
-        let totalDist = 0;
-        const dists = [0];
+    // Path Calculations — one entry per player in the current round. Each path is
+    // measured by its own cumulative distance so a shared 0..1 progress maps every
+    // player proportionally along their route.
+    const roundData = useMemo<PlayerRoundData[]>(() => {
+        return roundPlayers.map((player, idx) => {
+            const rawPath = player.path || [];
+            let totalDist = 0;
+            const dists = [0];
 
-        for (let i = 0; i < rawPath.length - 1; i++) {
-            totalDist += getDistance(rawPath[i].lat, rawPath[i].lng, rawPath[i + 1].lat, rawPath[i + 1].lng);
-            dists.push(totalDist);
-        }
+            for (let i = 0; i < rawPath.length - 1; i++) {
+                totalDist += getDistance(rawPath[i].lat, rawPath[i].lng, rawPath[i + 1].lat, rawPath[i + 1].lng);
+                dists.push(totalDist);
+            }
 
-        const subsForPlayer = submissions.filter((s) => s.player_id === currentPlayer?.id);
-        const subProgressions = subsForPlayer
-            .map((sub) => {
+            const subsForPlayer = submissions.filter((s) => s.player_id === player.id);
+            const subProgressions = subsForPlayer.map((sub) => {
                 let minDistance = Infinity;
                 let bestProgress = 0;
                 for (let i = 0; i < rawPath.length; i++) {
@@ -309,43 +391,51 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                     }
                 }
                 return { sub, progress: bestProgress };
-            })
-            .sort((a, b) => a.progress - b.progress);
+            });
 
-        return { rawPath, totalDist, dists, subProgressions };
-    }, [currentPlayer, submissions]);
+            return { player, color: PATH_COLORS[idx % PATH_COLORS.length], rawPath, totalDist, dists, subProgressions };
+        });
+    }, [roundPlayers, submissions]);
 
-    // Map Init
+    // All teammate submissions sorted by progress, so the animation can pause at
+    // whichever submission comes next across the whole team.
+    const allSubProgressions = useMemo(() => roundData.flatMap((pd) => pd.subProgressions).sort((a, b) => a.progress - b.progress), [roundData]);
+
+    const allRoundPoints = useMemo(() => roundData.flatMap((pd) => pd.rawPath), [roundData]);
+
+    // Map Init — frame the entire round so every teammate's path stays visible.
     useEffect(() => {
-        if (!mapInstance || !pathData || pathData.rawPath.length === 0) return;
+        if (!mapInstance || allRoundPoints.length === 0) return;
 
         const initMap = () => {
-            if (pathData.rawPath.length > 1) {
+            if (allRoundPoints.length > 1) {
                 const bounds = new window.google.maps.LatLngBounds();
-                pathData.rawPath.forEach((p: { lat: number; lng: number }) => bounds.extend({ lat: p.lat, lng: p.lng }));
-                mapInstance.fitBounds(bounds, 50);
+                allRoundPoints.forEach((p) => bounds.extend({ lat: p.lat, lng: p.lng }));
+                mapInstance.fitBounds(bounds, 80);
             } else {
                 mapInstance.setZoom(15);
-                mapInstance.setCenter(pathData.rawPath[0]);
+                mapInstance.setCenter(allRoundPoints[0]);
             }
         };
 
         if (animationProgressRef.current === 0) {
             initMap();
         }
-    }, [mapInstance, pathData]);
+    }, [mapInstance, allRoundPoints]);
 
     const calculatedDuration = useMemo(() => {
-        if (!pathData) return MAX_ANIMATION_DURATION;
-        const numPoints = pathData.rawPath.length;
+        const numPoints = roundData.reduce((max, pd) => Math.max(max, pd.rawPath.length), 0);
         if (numPoints <= 10) return MAX_ANIMATION_DURATION * 0.25;
         if (numPoints <= 50) return MAX_ANIMATION_DURATION * 0.5;
         return MAX_ANIMATION_DURATION;
-    }, [pathData]);
+    }, [roundData]);
 
-    // Animation Loop
+    // Animation Loop — drives every teammate's path off one shared, normalized
+    // progress value. The map is framed to the whole round up front, so we never
+    // recenter per frame (that would fight the multi-path view).
     useEffect(() => {
-        if (!mapInstance || isPaused || isLineComplete || !pathData || pathData.rawPath.length === 0) return;
+        if (!mapInstance || isPaused || isLineComplete || roundData.length === 0) return;
+        if (!roundData.some((pd) => pd.rawPath.length > 0)) return;
 
         lastTimeRef.current = performance.now();
 
@@ -355,19 +445,16 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
             lastTimeRef.current = time;
 
-            if (pathData.totalDist === 0) {
-                animationProgressRef.current = 1;
-            }
-
             let progress = animationProgressRef.current + delta / calculatedDuration;
             let hitSub = false;
 
             if (progress >= 1) progress = 1;
 
-            let crossedSub = pathData.subProgressions.find((sp) => sp.progress <= progress && !shownSubIdsRef.current.has(sp.sub.id));
+            // Next submission to surface across all teammates, in progress order.
+            let crossedSub = allSubProgressions.find((sp) => sp.progress <= progress && !shownSubIdsRef.current.has(sp.sub.id));
 
             if (progress === 1 && !crossedSub) {
-                const unshownSub = pathData.subProgressions.find((sp) => !shownSubIdsRef.current.has(sp.sub.id));
+                const unshownSub = allSubProgressions.find((sp) => !shownSubIdsRef.current.has(sp.sub.id));
                 if (unshownSub) crossedSub = unshownSub;
             }
 
@@ -387,55 +474,18 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                 progressBarRef.current.style.transform = `scale${isNarrow ? 'X' : 'Y'}(${progress})`;
             }
 
-            let currentPoint;
-            let partialPath: PathPoint[] = [];
-
-            if (progress <= 0) {
-                currentPoint = pathData.rawPath[0];
-                partialPath = [currentPoint];
-            } else if (progress >= 1) {
-                currentPoint = pathData.rawPath[pathData.rawPath.length - 1];
-                partialPath = pathData.rawPath;
-            } else if (pathData.rawPath.length < 2) {
-                currentPoint = pathData.rawPath[0];
-                partialPath = [currentPoint];
-            } else {
-                const targetDist = progress * pathData.totalDist;
-                let idx = 0;
-                while (idx < pathData.dists.length - 2 && pathData.dists[idx + 1] < targetDist) {
-                    idx++;
-                }
-                const p1 = pathData.rawPath[idx];
-                const p2 = pathData.rawPath[idx + 1];
-                const segmentDist = pathData.dists[idx + 1] - pathData.dists[idx];
-                const t = segmentDist === 0 ? 0 : (targetDist - pathData.dists[idx]) / segmentDist;
-
-                let dLng = p2.lng - p1.lng;
-                if (dLng > 180) dLng -= 360;
-                else if (dLng < -180) dLng += 360;
-
-                let currentLng = p1.lng + dLng * t;
-                if (currentLng > 180) currentLng -= 360;
-                else if (currentLng < -180) currentLng += 360;
-
-                currentPoint = {
-                    lat: p1.lat + (p2.lat - p1.lat) * t,
-                    lng: currentLng,
-                    timestamp: p1.timestamp + (p2.timestamp - p1.timestamp) * t,
-                };
-                partialPath = pathData.rawPath.slice(0, idx + 1);
-                partialPath.push(currentPoint);
-            }
-
-            if (polylineRef.current) polylineRef.current.setPath(partialPath);
-            if (markerRef.current) markerRef.current.setPosition(currentPoint);
-
-            if (mapInstance && currentPoint) {
-                mapInstance.setCenter(currentPoint);
+            // Advance every teammate to the same shared progress so nobody stalls:
+            // when one player pauses on a found category, the others freeze partway
+            // between two of theirs.
+            for (const pd of roundData) {
+                const { currentPoint, partialPath } = computePartial(pd, progress);
+                const pl = polylineRefs.current.get(pd.player.id);
+                const mk = movingMarkerRefs.current.get(pd.player.id);
+                if (pl) pl.setPath(partialPath);
+                if (mk && currentPoint) mk.setPosition(currentPoint);
             }
 
             if (progress >= 1 && !hitSub) {
-                setFinalPath(pathData.rawPath);
                 setIsLineComplete(true);
             } else if (!hitSub) {
                 rAFRef.current = requestAnimationFrame(animate);
@@ -444,16 +494,16 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
         rAFRef.current = requestAnimationFrame(animate);
         return () => cancelAnimationFrame(rAFRef.current);
-    }, [isPaused, isLineComplete, mapInstance, pathData, calculatedDuration, isNarrow]);
+    }, [isPaused, isLineComplete, mapInstance, roundData, allSubProgressions, calculatedDuration, isNarrow]);
 
-    //
+    // On completion, re-fit so all teammate paths are framed together.
     useEffect(() => {
-        if (isLineComplete && mapInstance && pathData && pathData.rawPath.length > 1) {
+        if (isLineComplete && mapInstance && allRoundPoints.length > 1) {
             const bounds = new window.google.maps.LatLngBounds();
-            pathData.rawPath.forEach((p: { lat: number; lng: number }) => bounds.extend({ lat: p.lat, lng: p.lng }));
-            mapInstance.panTo(bounds.getCenter());
+            allRoundPoints.forEach((p) => bounds.extend({ lat: p.lat, lng: p.lng }));
+            mapInstance.fitBounds(bounds, 80);
         }
-    }, [isLineComplete, mapInstance, pathData]);
+    }, [isLineComplete, mapInstance, allRoundPoints]);
 
     useEffect(() => {
         let timeoutId: ReturnType<typeof setTimeout>;
@@ -484,39 +534,37 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     };
 
     const handleNextPlayer = () => {
-        if (currentPlayerIndex < playersWithPaths.length - 1) {
-            const nextIndex = currentPlayerIndex + 1;
+        if (currentRoundIndex < rounds.length - 1) {
+            const nextIndex = currentRoundIndex + 1;
 
             setActiveSubmission(null);
             setIsPaused(false);
             setIsLineComplete(false);
-            setFinalPath([]);
             shownSubIdsRef.current.clear();
             setShownSubIds(new Set());
             animationProgressRef.current = 0;
             if (progressBarRef.current) progressBarRef.current.style.transform = `scale${isNarrow ? 'X' : 'Y'}(0)`;
 
-            setCurrentPlayerIndex(nextIndex);
+            setCurrentRoundIndex(nextIndex);
 
-            supabase.channel(`voting-journey-${gameId}`).send({
-                type: 'broadcast',
-                event: 'next_player',
-                payload: { index: nextIndex },
-            });
+            supabase
+                .channel(`voting-journey-${gameId}`)
+                .httpSend('next_player', { index: nextIndex })
+                .catch(() => {});
         } else {
-            supabase.channel(`voting-journey-${gameId}`).send({
-                type: 'broadcast',
-                event: 'finish_game',
-            });
+            supabase
+                .channel(`voting-journey-${gameId}`)
+                .httpSend('finish_game', {})
+                .catch(() => {});
             onFinishGame();
         }
     };
 
     const handleSkipToPodium = () => {
-        supabase.channel(`voting-journey-${gameId}`).send({
-            type: 'broadcast',
-            event: 'finish_game',
-        });
+        supabase
+            .channel(`voting-journey-${gameId}`)
+            .httpSend('finish_game', {})
+            .catch(() => {});
         onFinishGame();
     };
 
@@ -596,8 +644,8 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     let finalSubmissionMarkers = null;
 
     if (isLineComplete) {
-        // Add submission markers (yellow)
-        const currentPlayerSubmissions = submissions.filter((s) => s.player_id === currentPlayer?.id);
+        // Add submission markers (yellow) for every teammate in the round
+        const currentPlayerSubmissions = submissions.filter((s) => roundPlayerIds.has(s.player_id));
         finalSubmissionMarkers = currentPlayerSubmissions.map((sub) => {
             const mId = `final-sub-${sub.id}`;
             return (
@@ -819,32 +867,39 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
             {/* Left Panel (Map) */}
             <div className={`relative ${isNarrow ? 'w-full h-1/2' : 'w-1/2 h-full'} z-10 flex-shrink-0`}>
                 <GoogleMap onLoad={(map) => setMapInstance(map)} mapContainerClassName="w-full h-full" options={currentMapOptions}>
-                    <Polyline
-                        path={isLineComplete ? finalPath : dummyPath}
-                        onLoad={(p) => (polylineRef.current = p)}
-                        options={{
-                            strokeColor: '#fac800',
-                            strokeOpacity: 0.8,
-                            strokeWeight: 6,
-                            geodesic: true,
-                            zIndex: 10000,
-                        }}
-                    />
-
-                    {!isLineComplete && (
-                        <MarkerF
-                            position={dummyPos}
-                            onLoad={(m) => (markerRef.current = m)}
-                            icon={{
-                                path: window.google.maps.SymbolPath.CIRCLE,
-                                scale: 8,
-                                fillColor: '#ffffff',
-                                fillOpacity: 1,
-                                strokeColor: '#fac800',
-                                strokeWeight: 4,
+                    {roundData.map((pd) => (
+                        <Polyline
+                            key={`pl-${pd.player.id}`}
+                            path={isLineComplete ? pd.rawPath : dummyPath}
+                            onLoad={(p) => polylineRefs.current.set(pd.player.id, p)}
+                            onUnmount={() => polylineRefs.current.delete(pd.player.id)}
+                            options={{
+                                strokeColor: pd.color,
+                                strokeOpacity: 0.8,
+                                strokeWeight: 6,
+                                geodesic: true,
+                                zIndex: 10000,
                             }}
                         />
-                    )}
+                    ))}
+
+                    {!isLineComplete &&
+                        roundData.map((pd) => (
+                            <MarkerF
+                                key={`mk-${pd.player.id}`}
+                                position={pd.rawPath[0] || dummyPos}
+                                onLoad={(m) => movingMarkerRefs.current.set(pd.player.id, m)}
+                                onUnmount={() => movingMarkerRefs.current.delete(pd.player.id)}
+                                icon={{
+                                    path: window.google.maps.SymbolPath.CIRCLE,
+                                    scale: 8,
+                                    fillColor: '#ffffff',
+                                    fillOpacity: 1,
+                                    strokeColor: pd.color,
+                                    strokeWeight: 4,
+                                }}
+                            />
+                        ))}
 
                     {/* Category Markers */}
                     {activeCategoryMarkers}
@@ -900,14 +955,24 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                         <div>
                             <h1 className="text-3xl font-black uppercase text-indigo-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">{t('voting.journeyReplay')}</h1>
                             <p className="text-white font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] mt-1">
-                                <span className="bg-slate-900/70 px-4 py-1.5 rounded-full border border-slate-700 backdrop-blur-md">
-                                    {t('voting.following')} <span className="text-indigo-400">{currentPlayer?.name}</span>
+                                {/* color player name with their path color */}
+                                <span className="bg-slate-900/70 px-4 py-1.5 rounded-full border border-slate-700 backdrop-blur-md text-slate-300">
+                                    <span className="text-slate-400 font-bold">{t('voting.following')} </span>
+                                    {roundData.map((pd, index) => (
+                                        <Fragment key={pd.player.id}>
+                                            {/* Player name in their specific color */}
+                                            <span style={{ color: pd.color }}>{pd.player.name}</span>
+
+                                            {/* Separators in the default text color */}
+                                            {index < roundData.length - 2 ? ', ' : index === roundData.length - 2 ? ' and ' : ''}
+                                        </Fragment>
+                                    ))}
                                 </span>
                             </p>
                         </div>
                     </div>
 
-                    {isHost && currentPlayerIndex < playersWithPaths.length - 1 && (
+                    {isHost && currentRoundIndex < rounds.length - 1 && (
                         <button type="button" onClick={handleSkipToPodium} className="pointer-events-auto font-bold px-6 py-3 rounded-xl shadow-[0_0_20px_rgba(34,197,94,0.3)] transition-all bg-red-600 hover:bg-red-500 text-white border border-red-400">
                             {t('voting.skip')}
                         </button>
@@ -916,12 +981,12 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
                 {isLineComplete && !activeSubLatest && (
                     <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-800/95 backdrop-blur p-6 rounded-2xl border-2 border-indigo-500 shadow-[0_0_50px_rgba(79,70,229,0.4)] w-[350px] text-center animate-in zoom-in-90 duration-300">
-                        <h2 className="text-2xl font-black uppercase text-indigo-400 mb-2">{t('voting.journeyOf', { player: currentPlayer?.name ?? '' })}</h2>
+                        <h2 className="text-2xl font-black uppercase text-indigo-400 mb-2">{t('voting.journeyOf', { player: roundLabel })}</h2>
                         <p className="text-slate-300 font-medium mb-6">{t('voting.complete')}</p>
 
                         {isHost ? (
                             <button type="button" onClick={handleNextPlayer} className="w-full py-3 rounded-xl font-black uppercase text-sm border bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-400 transition-all shadow-[0_0_15px_rgba(79,70,229,0.4)]">
-                                {currentPlayerIndex < playersWithPaths.length - 1 ? t('voting.nextPlayer') : t('voting.showPodium')}
+                                {currentRoundIndex < rounds.length - 1 ? t('voting.nextPlayer') : t('voting.showPodium')}
                             </button>
                         ) : (
                             <p className="text-sm text-slate-400 uppercase tracking-widest font-bold">{t('common.waitingForHost')}</p>
@@ -1042,10 +1107,10 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                 {/* BINGO BOARD CONTAINER */}
                 <div className={`absolute inset-0 flex flex-col items-center justify-center p-8 z-20 transition-all duration-500 ease-in-out ${isStreetViewVisible ? 'opacity-0 -translate-x-12 pointer-events-none' : 'opacity-100 translate-x-0 pointer-events-auto'}`}>
                     <div className="text-center mb-8">
-                        <h2 className="text-3xl font-black text-indigo-400 tracking-widest">{t('voting.boardOf', { player: currentPlayer?.name ?? '' })}</h2>
+                        <h2 className="text-3xl font-black text-indigo-400 tracking-widest">{t('voting.boardOf', { player: roundLabel })}</h2>
                     </div>
 
-                    {submissions.filter((s) => s.player_id === currentPlayer?.id).length === 0 && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-slate-900/90 p-6 rounded-2xl text-red-400 font-bold border border-red-500/50 backdrop-blur-md text-center shadow-[0_0_30px_rgba(239,68,68,0.3)]">{t('voting.noSubmissionsForPlayer')}</div>}
+                    {submissions.filter((s) => roundPlayerIds.has(s.player_id)).length === 0 && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-slate-900/90 p-6 rounded-2xl text-red-400 font-bold border border-red-500/50 backdrop-blur-md text-center shadow-[0_0_30px_rgba(239,68,68,0.3)]">{t('voting.noSubmissionsForPlayer')}</div>}
 
                     <div
                         ref={categoryRef}
@@ -1057,7 +1122,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                         }}
                     >
                         {currentBoard?.map((category: string, idx: number) => {
-                            const sub = submissions.find((s) => s.player_id === currentPlayer?.id && s.category === category);
+                            const sub = submissions.find((s) => roundPlayerIds.has(s.player_id) && s.category === category);
                             const isReached = sub && shownSubIds.has(sub.id);
 
                             let yesPercent = 0;
@@ -1081,7 +1146,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                             }
 
                             return (
-                                <div key={`${currentPlayer?.id}-${idx}`} className={`relative rounded-xl overflow-hidden flex items-center justify-center border-2 transition-colors duration-500 ${tileClass}`}>
+                                <div key={`${currentRoundIndex}-${idx}`} className={`relative rounded-xl overflow-hidden flex items-center justify-center border-2 transition-colors duration-500 ${tileClass}`}>
                                     <div className="absolute left-0 top-0 bottom-0 bg-green-500/30 transition-all duration-700 ease-out" style={{ width: `${yesPercent}%` }}></div>
 
                                     <div className="absolute right-0 top-0 bottom-0 bg-red-500/30 transition-all duration-700 ease-out" style={{ width: `${noPercent}%` }}></div>

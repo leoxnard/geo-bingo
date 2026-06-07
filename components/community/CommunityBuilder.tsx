@@ -17,27 +17,31 @@ the lobby "publish" path via sessionStorage.
 ================================================================================
 */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useJsApiLoader } from '@react-google-maps/api';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { FaArrowLeft, FaCaretDown, FaCaretRight, FaExclamationTriangle, FaRegTrashAlt } from 'react-icons/fa';
+import { FaArrowLeft, FaCaretDown, FaCaretRight, FaExclamationTriangle, FaPen, FaRegTrashAlt } from 'react-icons/fa';
 
 import LobbyMap from '@/components/lobby/LobbyMap';
 import { getStreetViewImageUrl } from '@/components/streetview/streetViewHelpers';
 import { RangeSlider } from '@/components/utils/Elements';
 import { GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from '@/components/utils/mapUtils';
 import type { BoundaryPolygon, CommunityCategory, PresetSeed, PresetSettings } from '@/components/utils/types';
-import { createPreset } from '@/lib/community';
+import { createPreset, getPreset, updatePreset } from '@/lib/community';
 import { useT } from '@/lib/i18n/I18nProvider';
 
 import AuthGate from './AuthGate';
-import StreetViewExplorer from './StreetViewExplorer';
+import { finalizePreset } from './finalizePreset';
+import StreetViewExplorer, { type StreetViewExplorerHandle } from './StreetViewExplorer';
 import { displayNameFor, useUser } from './useUser';
 
 const SEED_KEY = 'geoBingoPresetSeed';
 const TOTAL_STEPS = 4;
+
+// Fallback banner emoji used when Gemini can't pick one at publish time.
+const ICON_FALLBACK = '🗺️';
 
 // Indigo-themed checkbox (dark-indigo box, bright indigo + white check when on).
 const CHECKBOX_CLASS = "h-4 w-4 shrink-0 cursor-pointer appearance-none rounded border border-indigo-500 bg-indigo-950 transition-colors checked:bg-indigo-600 disabled:opacity-40 relative after:absolute after:inset-0 after:flex after:items-center after:justify-center after:text-[11px] after:leading-none after:text-white checked:after:content-['✓']";
@@ -47,6 +51,12 @@ export default function CommunityBuilder() {
     const router = useRouter();
     const { user } = useUser();
     const { isLoaded } = useJsApiLoader({ id: 'google-map-script', googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '', libraries: GOOGLE_MAPS_LIBRARIES });
+
+    // When editing, /community/create?edit=<id> seeds the wizard from an existing
+    // preset and submitting updates it instead of creating a new one. Read via
+    // useSearchParams (not window) so it's correct under client-side navigation
+    // from the browse page's Edit button, not just a full page load.
+    const editId = useSearchParams().get('edit');
 
     const [step, setStep] = useState(0);
     const [categories, setCategories] = useState<CommunityCategory[]>([]);
@@ -60,6 +70,12 @@ export default function CommunityBuilder() {
     const [startingPoint, setStartingPoint] = useState('open-world');
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
+    const [icon, setIcon] = useState('🌍');
+    // Clicking a saved spot's thumbnail jumps the explorer panorama there.
+    const explorerRef = useRef<StreetViewExplorerHandle>(null);
+    // Inline rename: the category currently being renamed + its draft name.
+    const [renaming, setRenaming] = useState<string | null>(null);
+    const [renameValue, setRenameValue] = useState('');
     const [recommendedMinutes, setRecommendedMinutes] = useState(10);
     const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
     const [bingoEnabled, setBingoEnabled] = useState(false);
@@ -74,8 +90,9 @@ export default function CommunityBuilder() {
 
     const setSetting = <K extends keyof PresetSettings>(key: K, value: PresetSettings[K]) => setSettings((prev) => ({ ...prev, [key]: value }));
 
-    // Hydrate from a lobby "publish" seed, if present.
+    // Hydrate from a lobby "publish" seed, if present (skipped when editing).
     useEffect(() => {
+        if (editId) return;
         try {
             const raw = localStorage.getItem(SEED_KEY);
             if (!raw) return;
@@ -91,7 +108,32 @@ export default function CommunityBuilder() {
         } catch {
             // ignore malformed seed
         }
-    }, []);
+    }, [editId]);
+
+    // Edit mode: load the existing preset and prefill every field.
+    useEffect(() => {
+        if (!editId) return;
+        let cancelled = false;
+        (async () => {
+            const preset = await getPreset(editId);
+            if (cancelled || !preset) return;
+            setCategories(preset.categories ?? []);
+            setBoundaries(JSON.stringify(preset.boundaries ?? []));
+            setStartingPoint(preset.starting_point ?? 'open-world');
+            setName(preset.name ?? '');
+            setDescription(preset.description ?? '');
+            setIcon(preset.icon ?? '🌍');
+            setRecommendedMinutes(preset.recommended_time ? Math.max(1, Math.round(preset.recommended_time / 60)) : 10);
+            if (preset.difficulty === 'easy' || preset.difficulty === 'medium' || preset.difficulty === 'hard') setDifficulty(preset.difficulty);
+            setBingoEnabled(preset.game_mode === 'bingo');
+            setSettings(preset.settings ?? { endCondition: 'timer' });
+            // A saved fixed start was already acknowledged when first created.
+            if ((preset.starting_point ?? '').startsWith('{')) setStartAcknowledged(true);
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [editId]);
 
     // Assign (or replace) a category's viewpoint, moving it out of "pending".
     const assignViewpoint = (cat: CommunityCategory) => {
@@ -112,6 +154,42 @@ export default function CommunityBuilder() {
         setPendingNames((prev) => prev.filter((n) => n !== categoryName));
     };
 
+    // Jump the explorer panorama to a saved spot (its captured viewpoint).
+    const focusOnSpot = (vp: CommunityCategory) => explorerRef.current?.openViewpoint(vp);
+
+    // Stable so the explorer's focus effect doesn't re-run every render.
+    const handleViewpointChange = useCallback((vp: { lat: number; lng: number; heading: number; pitch: number; zoom: number } | null) => {
+        currentViewpointRef.current = vp;
+    }, []);
+
+    // Rename a category in place — updates the saved category, any pending name,
+    // and the "from game" submissions keyed by it. Blocks case-insensitive dupes.
+    const renameCategory = (oldName: string, raw: string) => {
+        const newName = raw.trim();
+        if (!newName || newName === oldName) return;
+        const taken = [...categories.map((c) => c.categoryName), ...pendingNames].some((n) => n.toLowerCase() === newName.toLowerCase() && n.toLowerCase() !== oldName.toLowerCase());
+        if (taken) {
+            toast.error(t('community.duplicateCategory'));
+            return;
+        }
+        setCategories((prev) => prev.map((c) => (c.categoryName === oldName ? { ...c, categoryName: newName } : c)));
+        setPendingNames((prev) => prev.map((n) => (n === oldName ? newName : n)));
+        setSubmissionsByCategory((prev) => {
+            const subs = prev[oldName];
+            if (!subs) return prev;
+            const next = { ...prev };
+            delete next[oldName];
+            next[newName] = subs.map((s) => ({ ...s, categoryName: newName }));
+            return next;
+        });
+    };
+
+    const confirmRename = () => {
+        if (renaming === null) return;
+        renameCategory(renaming, renameValue);
+        setRenaming(null);
+    };
+
     // Snapshot the live panorama view into a category.
     const takeSnapshot = (categoryName: string) => {
         const vp = currentViewpointRef.current;
@@ -130,13 +208,32 @@ export default function CommunityBuilder() {
 
     const renderCategoryRow = (name: string, viewpoint: CommunityCategory | null) => (
         <div key={(viewpoint ? 'a-' : 'p-') + name} className="flex items-start gap-3 bg-slate-800 rounded-xl p-2">
-            {viewpoint ? <img src={getStreetViewImageUrl(viewpoint, 120)} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0" /> : <div className="w-14 h-14 rounded-lg shrink-0 bg-slate-900 border border-dashed border-amber-700/50 flex items-center justify-center text-center text-[9px] font-bold uppercase text-amber-400 px-1">{t('community.needsSpot')}</div>}
+            {viewpoint ? (
+                <button type="button" onClick={() => focusOnSpot(viewpoint)} title={t('community.jumpToSpot')} aria-label={t('community.jumpToSpot')} className="w-14 h-14 rounded-lg overflow-hidden shrink-0 ring-2 ring-transparent hover:ring-indigo-500 transition-shadow">
+                    <img src={getStreetViewImageUrl(viewpoint, 120)} alt="" className="w-full h-full object-cover" />
+                </button>
+            ) : (
+                <div className="w-14 h-14 rounded-lg shrink-0 bg-slate-900 border border-dashed border-amber-700/50 flex items-center justify-center text-center text-[9px] font-bold uppercase text-amber-400 px-1">{t('community.needsSpot')}</div>
+            )}
             <div className="flex-1 min-w-0 flex flex-col gap-1.5">
                 <div className="flex items-center gap-2">
                     <span className="text-sm font-medium truncate">{name}</span>
-                    <button type="button" onClick={() => removeByName(name)} className="ml-auto text-slate-500 hover:text-red-400 p-1 shrink-0" aria-label={t('community.deleteSpot')}>
-                        <FaRegTrashAlt />
-                    </button>
+                    <div className="ml-auto flex items-center gap-1 shrink-0">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setRenaming(name);
+                                setRenameValue(name);
+                            }}
+                            className="text-slate-500 hover:text-indigo-400 p-1"
+                            aria-label={t('community.renameCategory')}
+                        >
+                            <FaPen size={13} />
+                        </button>
+                        <button type="button" onClick={() => removeByName(name)} className="text-slate-500 hover:text-red-400 p-1" aria-label={t('community.deleteSpot')}>
+                            <FaRegTrashAlt />
+                        </button>
+                    </div>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                     {(submissionsByCategory[name]?.length ?? 0) > 0 && (
@@ -145,7 +242,7 @@ export default function CommunityBuilder() {
                         </button>
                     )}
                     <button type="button" onClick={() => takeSnapshot(name)} className="text-[11px] font-bold uppercase px-2 py-1 rounded-md bg-slate-700 hover:bg-slate-600 text-slate-200">
-                        {t('community.takeSnapshot')}
+                        {t('community.replaceLocation')}
                     </button>
                 </div>
             </div>
@@ -219,27 +316,35 @@ export default function CommunityBuilder() {
         setSubmitting(true);
         try {
             const useBingo = bingoEnabled && canBingo;
-            const res = await createPreset({
+            // Auto-pick an emoji + detect the source language (Gemini) and translate
+            // the category names into every app language (DeepL). Degrades to the
+            // fallback emoji / original names if the AI is unavailable.
+            const finalized = await finalizePreset({ name, description, categoryNames: categories.map((c) => c.categoryName) });
+            const payload = {
                 name,
                 description,
-                authorName: displayNameFor(user),
+                icon: finalized.icon || icon || ICON_FALLBACK,
+                categoryTranslations: finalized.translations,
+                titleTranslations: finalized.titleTranslations,
+                descriptionTranslations: finalized.descriptionTranslations,
                 categories,
                 boundaries: JSON.parse(boundaries) as BoundaryPolygon[],
                 startingPoint,
                 recommendedTime: Math.max(1, Math.round(recommendedMinutes)) * 60,
                 difficulty,
-                gameMode: useBingo ? 'bingo' : 'list',
+                gameMode: (useBingo ? 'bingo' : 'list') as 'bingo' | 'list',
                 gridSize: bingoGrid ?? 3,
                 settings: { ...settings, endCondition: useBingo ? (settings.endCondition ?? 'timer') : 'timer' },
-            });
+            };
+            const res = editId ? await updatePreset(editId, payload) : await createPreset({ ...payload, authorName: displayNameFor(user) });
             if (res.success) {
-                toast.success(t('community.submitSuccess'));
+                toast.success(editId ? t('community.updateSuccess') : t('community.submitSuccess'));
                 router.push('/community');
             } else {
-                toast.error(t('community.submitError'));
+                toast.error(editId ? t('community.updateError') : t('community.submitError'));
             }
         } catch {
-            toast.error(t('community.submitError'));
+            toast.error(editId ? t('community.updateError') : t('community.submitError'));
         } finally {
             setSubmitting(false);
         }
@@ -270,17 +375,7 @@ export default function CommunityBuilder() {
                 {step === 0 && (
                     <div className="flex h-full flex-col md:flex-row">
                         <div className="flex-1 min-h-0 relative">
-                            <StreetViewExplorer
-                                isLoaded={isLoaded}
-                                mode="capture"
-                                onSave={assignViewpoint}
-                                onViewpointChange={(vp) => {
-                                    currentViewpointRef.current = vp;
-                                }}
-                                spots={categories}
-                                existingNames={existingNames}
-                                gameBoundary={boundaries}
-                            />
+                            <StreetViewExplorer ref={explorerRef} isLoaded={isLoaded} mode="capture" onSave={assignViewpoint} onViewpointChange={handleViewpointChange} spots={categories} existingNames={existingNames} gameBoundary={boundaries} />
                         </div>
                         <aside className="w-full md:w-80 border-t md:border-t-0 md:border-l border-slate-800 overflow-y-auto p-4 flex flex-col gap-3 shrink-0">
                             <h2 className="font-bold text-sm uppercase text-slate-400">{t('community.savedCategories', { count: categories.length })}</h2>
@@ -327,6 +422,9 @@ export default function CommunityBuilder() {
                                 <label className="text-xs text-slate-400 font-bold uppercase mb-1 block">{t('community.presetDesc')}</label>
                                 <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t('community.presetDescPlaceholder')} rows={3} className="w-full p-3 rounded-xl bg-slate-800 border border-slate-600 focus:border-indigo-500 text-white outline-none resize-none" />
                             </div>
+
+                            {/* Icon + category translations are generated automatically on publish */}
+                            <p className="text-xs text-slate-400 bg-slate-800 rounded-xl p-3">{t('community.autoFinalizeNote')}</p>
 
                             {/* Recommended round time (same slider as the lobby) */}
                             <RangeSlider title={t('community.recommendedTime')} min={1} max={60} step={1} value={recommendedMinutes} displayValue={t('settings.minutes', { count: recommendedMinutes })} onChange={setRecommendedMinutes} onCommit={() => {}} />
@@ -393,14 +491,15 @@ export default function CommunityBuilder() {
 
                             <div className="text-sm text-slate-400 bg-slate-800 rounded-xl p-3 flex flex-col gap-1">
                                 <span>{t('community.categoriesCount', { count: categories.length })}</span>
-                                <span>{t('community.boundariesCount', { count: countBoundaries(boundaries) })}</span>
-                                <span>{startingPoint.startsWith('{') ? t('community.fixedStart') : t('community.openWorld')}</span>
+                                <span>{countBoundaries(boundaries) > 0 && t('community.boundariesCount', { count: countBoundaries(boundaries) })}</span>
+                                <span>{startingPoint.startsWith('{') && t('community.fixedStart')}</span>
+                                <span>{difficulty}</span>
                             </div>
                             {!canSubmit && <p className="text-amber-400 text-xs">{t('community.submitRequirements')}</p>}
                             {!user && <p className="text-xs text-slate-400">{t('community.signUpHint')}</p>}
                             <AuthGate>
                                 <button type="button" onClick={handleSubmit} disabled={!canSubmit || submitting} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-xl uppercase transition-all disabled:opacity-50">
-                                    {submitting ? t('community.submitting') : t('community.submit')}
+                                    {submitting ? t('community.submitting') : editId ? t('community.saveChanges') : t('community.submit')}
                                 </button>
                             </AuthGate>
                         </div>
@@ -435,6 +534,24 @@ export default function CommunityBuilder() {
                             </button>
                             <button type="button" onClick={acknowledgeStart} className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase text-sm">
                                 {t('community.startWarnAck')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Rename a category */}
+            {renaming !== null && (
+                <div className="absolute inset-0 z-30 bg-black/60 flex items-center justify-center p-4">
+                    <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 w-full max-w-md flex flex-col gap-4">
+                        <h3 className="font-bold text-white">{t('community.renameCategory')}</h3>
+                        <input autoFocus type="text" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && confirmRename()} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-600 focus:border-indigo-500 text-white outline-none" />
+                        <div className="flex gap-2 justify-end">
+                            <button type="button" onClick={() => setRenaming(null)} className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold uppercase text-sm">
+                                {t('common.cancel')}
+                            </button>
+                            <button type="button" onClick={confirmRename} disabled={!renameValue.trim()} className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase text-sm disabled:opacity-50">
+                                {t('community.rename')}
                             </button>
                         </div>
                     </div>

@@ -45,12 +45,15 @@ export function useUser() {
     return { user, loading };
 }
 
-/** Best-effort display name for preset authorship: stored player name → email local part → "Anonymous". */
+/**
+ * The account's single community display name: the name stored on the auth user
+ * (set via the "change name" control) → email local part → "Anonymous". This is
+ * deliberately account-scoped (one name per email, shown under all their presets)
+ * and independent of the per-device in-game lobby name.
+ */
 export function displayNameFor(user: User | null): string {
-    if (typeof window !== 'undefined') {
-        const stored = localStorage.getItem('geoBingoPlayerName');
-        if (stored && stored.trim()) return stored.trim();
-    }
+    const meta = user?.user_metadata?.display_name;
+    if (typeof meta === 'string' && meta.trim()) return meta.trim();
     if (user?.email) return user.email.split('@')[0];
     return 'Anonymous';
 }
