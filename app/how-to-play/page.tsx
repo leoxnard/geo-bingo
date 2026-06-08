@@ -16,6 +16,7 @@ image, replace the placeholder with e.g.
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
+import { FaThumbsUp } from 'react-icons/fa';
 import { FiArrowLeft, FiArrowRight, FiCheckCircle, FiFlag, FiGift, FiGrid, FiTag, FiUsers } from 'react-icons/fi';
 
 import { getServerLocale } from '@/lib/i18n/getServerLocale';
@@ -54,6 +55,7 @@ export default async function HowToPlayPage() {
         { icon: FiTag, title: t('landing.feature4Title'), text: t('landing.feature4Text') },
         { icon: FiCheckCircle, title: t('landing.feature5Title'), text: t('landing.feature5Text') },
         { icon: FiGift, title: t('landing.feature6Title'), text: t('landing.feature6Text') },
+        { icon: FaThumbsUp, title: t('community.title'), text: t('community.subtitle') },
     ];
 
     return (
@@ -119,8 +121,8 @@ export default async function HowToPlayPage() {
             <section className="border-t border-slate-800">
                 <div className="mx-auto flex max-w-5xl flex-col items-center gap-5 px-4 py-16 text-center sm:px-8">
                     <p className="max-w-xl text-lg font-medium text-slate-300">{t('home.tagline')}</p>
-                    <Link href="/" className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-8 py-4 font-bold uppercase tracking-wide text-white transition-all hover:bg-indigo-500">
-                        {t('landing.ctaPlay')} <FiArrowRight aria-hidden />
+                    <Link href="/community" className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-8 py-4 font-bold uppercase tracking-wide text-white transition-all hover:bg-indigo-500">
+                        {t('home.community')} <FiArrowRight aria-hidden />
                     </Link>
                 </div>
             </section>

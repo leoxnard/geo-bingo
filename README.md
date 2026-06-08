@@ -6,8 +6,8 @@ Geo BingBong is a multiplayer geolocation game that brings the fun of Bingo into
 
 - **Real-Time Multiplayer:** Built with [Supabase](https://supabase.com) Realtime to instantly sync player states, submissions, and voting.
 - **Interactive Street View:** Utilizes the Google Maps JavaScript API and Street View Static API so players can explore and capture the perfect angle of their findings.
-- **Community Presets:** Browse and use community-created game presets, or create your own to share. Presets include custom categories, recommended time limits, difficulty, and game settings.
-- **Preset Voting:** Upvote your favorite community presets to help others find the best content, with anonymous voting to prevent abuse.
+- **Community Presets:** Browse and use community-created game presets, or create your own to share. Each preset includes custom categories with viewpoints, recommended time limits, difficulty, game mode (list/bingo), grid size, optional starting point, boundary restrictions, and advanced settings (hide minimap/map symbols, exclusive mode, AI end-game).
+- **Preset Voting:** Upvote your favorite community presets (with automatic model-fallback regenerate option for authors) to help others find the best content. Authors can also edit or delete their own presets.
 - **Game Modes:** Choose between classic List mode or Bingo Mode (dynamic 3×3, 4×4, or 5×5 grid sizes).
 - **Team Support:** Play Free-for-All or split into teams.
 - **Dynamic AI Categories:** Powered by the Gemini API, each game generates unique and fun categories with selectable difficulty (easy, default, hard) to keep things fresh.
@@ -15,7 +15,7 @@ Geo BingBong is a multiplayer geolocation game that brings the fun of Bingo into
 - **Nearby Street View Categories:** Gemini's vision API scans random Street View panoramas inside the game area and derives categories directly from what's visible on the streets.
 - **AI Submission Verification:** Optionally have Gemini vision-check captures against their category, automatically ending the round once every tile passes.
 - **Map Areas:** Hosts can create allow and disallow regions on the map to guide players to specific areas or landmarks.
-- **Custom Settings:** Hosts can customize game duration, category exclusivity (first-finder or shared), win conditions, and more.
+- **Custom Settings:** Hosts can customize game duration (up to 60 minutes), category exclusivity (first-finder or shared), win conditions, and more.
 - **Snapshot Memory:** Bingo tiles update with the Street View snapshot of your exact camera position, zoom, and angle once you find a category.
 - **Blind Voting System:** Players vote anonymously on the validity of other players' submissions.
 - **Podium Ceremony:** See who scored the most points with a clean, animated results view.
@@ -25,7 +25,7 @@ Geo BingBong is a multiplayer geolocation game that brings the fun of Bingo into
 
 - **Framework:** [Next.js](https://nextjs.org/) 16.2 (App Router, Turbopack)
 - **Backend & Database:** [Supabase](https://supabase.com/) (PostgreSQL & Realtime Channels)
-- **AI:** [Gemini API](https://ai.google.dev/gemini) for generating dynamic categories and verifying submissions
+- **AI:** [Gemini API](https://ai.google.dev/gemini) for generating dynamic categories and verifying submissions (with automatic model fallback for rate limit resilience)
 - **Maps:** `@react-google-maps/api` & Google Maps APIs (JavaScript API, Street View Static API, Places API)
 - **Styling:** [Tailwind CSS](https://tailwindcss.com/) v4
 - **Deployment:** [Vercel](https://vercel.com/) (Analytics & Speed Insights included)
@@ -92,11 +92,14 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ## How to Play
 
-1. **Create a Match:** A host creates a game room, picks a map area, and generates custom categories.
-2. **Join the Game:** Players join via the game link/ID.
-3. **The Hunt:** Players get dropped into Street View. Whenever you spot a category (e.g., "A red car", "A funny sign"), point your camera at it and capture!
-4. **Voting:** Once the hunt ends, players review everyone's submissions and vote if they actually captured the prompt.
-5. **Results:** The points are tallied, and the winner is crowned!
+Visit the dedicated [How to Play](/how-to-play) page for a complete walkthrough with screenshots and to browse community-made game configurations.
+
+Quick summary:
+
+1. **Create or Join a Match:** A host creates a game room, picks a map area (or browses `/community` for community presets), and generates custom categories.
+2. **The Hunt:** Players get dropped into Street View. Whenever you spot a category (e.g., "A red car", "A funny sign"), point your camera at it and capture!
+3. **Voting:** Once the hunt ends, players review everyone's submissions and vote if they actually captured the prompt.
+4. **Results:** The points are tallied, and the winner is crowned!
 
 ## License
 

@@ -50,4 +50,8 @@ build
 *ignore.*
 data/
 .claude/
+.opencode/
 .hintrc
+.planning/
+
+AGENTS.md
