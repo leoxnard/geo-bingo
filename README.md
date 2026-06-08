@@ -6,6 +6,8 @@ Geo BingBong is a multiplayer geolocation game that brings the fun of Bingo into
 
 - **Real-Time Multiplayer:** Built with [Supabase](https://supabase.com) Realtime to instantly sync player states, submissions, and voting.
 - **Interactive Street View:** Utilizes the Google Maps JavaScript API and Street View Static API so players can explore and capture the perfect angle of their findings.
+- **Community Presets:** Browse and use community-created game presets, or create your own to share. Presets include custom categories, recommended time limits, difficulty, and game settings.
+- **Preset Voting:** Upvote your favorite community presets to help others find the best content, with anonymous voting to prevent abuse.
 - **Game Modes:** Choose between classic List mode or Bingo Mode (dynamic 3×3, 4×4, or 5×5 grid sizes).
 - **Team Support:** Play Free-for-All or split into teams.
 - **Dynamic AI Categories:** Powered by the Gemini API, each game generates unique and fun categories with selectable difficulty (easy, default, hard) to keep things fresh.
@@ -21,7 +23,7 @@ Geo BingBong is a multiplayer geolocation game that brings the fun of Bingo into
 
 ## Tech Stack
 
-- **Framework:** [Next.js](https://nextjs.org/) 16 (App Router, Turbopack)
+- **Framework:** [Next.js](https://nextjs.org/) 16.2 (App Router, Turbopack)
 - **Backend & Database:** [Supabase](https://supabase.com/) (PostgreSQL & Realtime Channels)
 - **AI:** [Gemini API](https://ai.google.dev/gemini) for generating dynamic categories and verifying submissions
 - **Maps:** `@react-google-maps/api` & Google Maps APIs (JavaScript API, Street View Static API, Places API)
