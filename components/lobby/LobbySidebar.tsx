@@ -14,11 +14,11 @@ import { useState, useRef, useEffect } from 'react';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import toast from 'react-hot-toast';
-import { FaRegCopy, FaCopy, FaRegEdit, FaPlus, FaRandom, FaTimes, FaEye, FaEyeSlash, FaLanguage } from 'react-icons/fa';
+import { FaRegCopy, FaCopy, FaRegEdit, FaPlus, FaRandom, FaTimes, FaEye, FaEyeSlash } from 'react-icons/fa';
 
 import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
-import { categoryLanguageForLocale, CategoryLanguage, LOCALE_CODES, LOCALES, normalizeLocale } from '@/lib/i18n/locales';
+import { categoryLanguageForLocale, CategoryLanguage, LOCALE_CODES, LOCALES } from '@/lib/i18n/locales';
 
 import { ToggleSwitch } from '../utils/Elements';
 import { shuffle } from '../utils/Functions';
@@ -68,7 +68,6 @@ export default function LobbySidebar(props: LobbySidebarProps) {
     const [selfNameInput, setSelfNameInput] = useState('');
     const selfNameInputRef = useRef<HTMLInputElement>(null);
     const [langBusy, setLangBusy] = useState(false);
-    const [translating, setTranslating] = useState(false);
 
     // Changing the board language re-translates the categories (preset reuse or
     // DeepL) via the parent; fall back to a plain language change if no handler.
@@ -82,39 +81,6 @@ export default function LobbySidebar(props: LobbySidebarProps) {
             await props.onCategoryLanguageChange(value);
         } finally {
             setLangBusy(false);
-        }
-    };
-
-    // Translate every current category into the selected board language via DeepL,
-    // letting DeepL auto-detect the source language (categories may have been typed
-    // or imported in any language). Empty slots are preserved in place.
-    const handleTranslateCategories = async () => {
-        if (!props.isHost || translating) return;
-        const cats = props.categories;
-        const nonEmpty = cats.filter((c) => c.trim());
-        if (nonEmpty.length === 0) {
-            toast.error(t('sidebar.translateNothing'));
-            return;
-        }
-        setTranslating(true);
-        try {
-            const target = normalizeLocale(props.language);
-            const res = await fetch('/api/translate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ texts: nonEmpty, targetLangs: [target] }),
-            });
-            const data = res.ok ? await res.json() : null;
-            const arr = data?.translations?.[target];
-            if (!Array.isArray(arr) || arr.length !== nonEmpty.length) throw new Error('translate failed');
-            let k = 0;
-            const merged = cats.map((c) => (c.trim() ? arr[k++] : c));
-            props.updateGameModeInfo({ categories: merged });
-            toast.success(t('sidebar.translateSuccess'));
-        } catch {
-            toast.error(t('sidebar.translateError'));
-        } finally {
-            setTranslating(false);
         }
     };
 
@@ -381,20 +347,13 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                             {t('sidebar.categoryLanguage')}
                             {langBusy && <span className="text-xs font-normal text-indigo-400">{t('common.generating')}</span>}
                         </label>
-                        <div className="flex gap-2">
-                            <select id="category-language" title={t('sidebar.categoryLanguage')} value={props.language} onChange={(e) => handleLanguageSelect(e.target.value as CategoryLanguage)} disabled={!props.isHost || langBusy} className="h-[42px] px-3 flex-1 min-w-0 rounded-lg bg-slate-900 border border-slate-600 text-sm text-white cursor-pointer transition-colors focus:outline-none focus:border-indigo-500 hover:border-slate-500 disabled:opacity-50">
-                                {LOCALE_CODES.map((code) => (
-                                    <option key={code} value={categoryLanguageForLocale(code)}>
-                                        {LOCALES[code].label}
-                                    </option>
-                                ))}
-                            </select>
-                            {props.isHost && (
-                                <button type="button" onClick={handleTranslateCategories} disabled={translating || langBusy} title={t('sidebar.translateCategories')} aria-label={t('sidebar.translateCategories')} className="h-[42px] w-[42px] shrink-0 flex items-center justify-center rounded-lg bg-indigo-600 text-white transition-colors hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50">
-                                    {translating ? <span className="text-xs font-bold">…</span> : <FaLanguage size={20} />}
-                                </button>
-                            )}
-                        </div>
+                        <select id="category-language" title={t('sidebar.categoryLanguage')} value={props.language} onChange={(e) => handleLanguageSelect(e.target.value as CategoryLanguage)} disabled={!props.isHost || langBusy} className="h-[42px] px-3 w-full rounded-lg bg-slate-900 border border-slate-600 text-sm text-white cursor-pointer transition-colors focus:outline-none focus:border-indigo-500 hover:border-slate-500 disabled:opacity-50">
+                            {LOCALE_CODES.map((code) => (
+                                <option key={code} value={categoryLanguageForLocale(code)}>
+                                    {LOCALES[code].label}
+                                </option>
+                            ))}
+                        </select>
                     </div>
 
                     {props.isHost && (
