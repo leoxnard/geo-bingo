@@ -62,9 +62,9 @@ export default function HomeInteractive() {
     };
 
     return (
-        <section id="play" className="relative flex flex-1 flex-col items-center justify-start sm:justify-center px-4 py-16 sm:px-8 lg:p-24">
+        <section id="play" className="relative flex flex-1 flex-col items-center justify-start sm:justify-center px-4 py-8 sm:px-8 sm:py-10 lg:px-24">
             <LanguageSwitcher />
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 mb-6 sm:mb-12 hover">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 mb-6 sm:mb-8 hover">
                 <GeoBingoLogo size={isNarrow ? 50 : 80} className="animate-pulse" />
                 <h1 className="text-3xl sm:text-6xl font-bold text-indigo-400 tracking-tighter text-center sm:text-left">Geo BingBong</h1>
             </div>
