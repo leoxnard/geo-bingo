@@ -736,6 +736,17 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         playersRef.current = players;
     }, [players]);
 
+    // The `?preset=` param is a one-time import instruction consumed during room
+    // creation. Once the room is loaded, drop it from the URL so it isn't kept in
+    // shared links (and never re-triggers anything). Runs after gameLoaded so the
+    // importer has already read it.
+    useEffect(() => {
+        if (!gameLoaded) return;
+        if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('preset')) {
+            router.replace(`/game/${gameId}`);
+        }
+    }, [gameLoaded, gameId, router]);
+
     const notifyGameEvent = useCallback((event: 'ai_end_game' | 'ai_generating_categories', payload: { player_id: string }) => {
         gameEventsChannelRef.current?.send({ type: 'broadcast', event, payload });
     }, []);
