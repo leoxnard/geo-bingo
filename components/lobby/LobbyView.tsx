@@ -19,7 +19,7 @@ import Image from 'next/image';
 import toast from 'react-hot-toast';
 
 import LanguageSwitcher from '@/lib/i18n/LanguageSwitcher';
-import { CategoryLanguage } from '@/lib/i18n/locales';
+import { CategoryLanguage, normalizeLocale } from '@/lib/i18n/locales';
 
 import LobbyCategories from './LobbyCategories';
 import LobbyCommunityPresets from './LobbyCommunityPresets';
@@ -92,11 +92,13 @@ export default function LobbyView(props: LobbyViewProps) {
     const [showCommunityPresets, setShowCommunityPresets] = useState(false);
     const isPendingSyncRef = useRef(false);
 
-    const handleImportPreset = (preset: CommunityPreset, locale: string) => {
+    const handleImportPreset = (preset: CommunityPreset) => {
         if (!props.isHost) return;
 
+        // Import the categories in the lobby's currently-selected board language.
+        const catLocale = normalizeLocale(props.language);
         const originals = preset.categories.map((c) => c.categoryName);
-        const translatedList = preset.category_translations?.[locale];
+        const translatedList = preset.category_translations?.[catLocale];
         const importedNames = Array.isArray(translatedList) && translatedList.length === originals.length ? translatedList : originals;
 
         const targetCount = props.gameMode === 'bingo' ? props.gridSize * props.gridSize : importedNames.length;
@@ -125,7 +127,7 @@ export default function LobbyView(props: LobbyViewProps) {
             window?.sessionStorage?.setItem(`geoBingoTranslations_${props.gameId}`, JSON.stringify(preset.category_translations));
         }
 
-        toast.success('Preset imported into lobby!');
+        // Success toast is shown by the import modal (LobbyCommunityPresets).
         setTimeout(() => {
             isPendingSyncRef.current = false;
         }, 1200);

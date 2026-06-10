@@ -27,11 +27,11 @@ const SORTS: { key: PresetSort; labelKey: string }[] = [
 interface LobbyCommunityPresetsProps {
     isOpen: boolean;
     onClose: () => void;
-    onImport: (preset: CommunityPreset, locale: string) => void;
+    onImport: (preset: CommunityPreset) => void;
 }
 
 export default function LobbyCommunityPresets({ isOpen, onClose, onImport }: LobbyCommunityPresetsProps) {
-    const { t, locale } = useT();
+    const { t } = useT();
     const [presets, setPresets] = useState<CommunityPreset[]>([]);
     const sortRef = useRef<PresetSort>('top');
     const [sort, setSortState] = useState<PresetSort>('top');
@@ -71,7 +71,7 @@ export default function LobbyCommunityPresets({ isOpen, onClose, onImport }: Lob
     const handleImport = async (preset: CommunityPreset) => {
         setImportingId(preset.id);
         try {
-            onImport(preset, locale);
+            onImport(preset);
             toast.success(t('community.importSuccess'));
         } catch {
             toast.error(t('community.importError'));
