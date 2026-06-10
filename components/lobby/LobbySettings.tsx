@@ -12,6 +12,7 @@ Provides toggle switches and range sliders for game customization.
 
 import { useEffect, useState } from 'react';
 
+import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
 
 import { ToggleButton, RangeSlider } from '../utils/Elements';
@@ -57,7 +58,9 @@ export default function LobbySettings({ isHost, gameMode, teamMode, timeLimit, e
             <ToggleButton title={t('settings.gameMode')} active={gameMode === 'list' ? 'left' : 'right'} onClick={(val: 'left' | 'right') => updateGameModeInfo({ game_mode: val === 'left' ? 'list' : 'bingo' })} disabled={!isHost} isHost={isHost} labelLeft={t('settings.classicList')} labelRight={t('settings.bingoGrid')} description={gameMode === 'list' ? t('settings.gameModeDescList') : t('settings.gameModeDescBingo')} />
 
             {/* Select if Categories are exclusive or not */}
-            <ToggleButton title={t('settings.categoryMode')} active={exclusiveMode === false ? 'left' : 'right'} labelLeft={t('settings.notExclusive')} labelRight={t('settings.exclusive')} onClick={(val: 'left' | 'right') => updateGameModeInfo({ exclusive_mode: val === 'left' ? false : true })} disabled={!isHost} isHost={isHost} position="middle" description={exclusiveMode === false ? t('settings.categoryModeDescNotExclusive') : t('settings.categoryModeDescExclusive')} />
+            {FEATURES.exclusiveCategories && (
+                <ToggleButton title={t('settings.categoryMode')} active={exclusiveMode === false ? 'left' : 'right'} labelLeft={t('settings.notExclusive')} labelRight={t('settings.exclusive')} onClick={(val: 'left' | 'right') => updateGameModeInfo({ exclusive_mode: val === 'left' ? false : true })} disabled={!isHost} isHost={isHost} position="middle" description={exclusiveMode === false ? t('settings.categoryModeDescNotExclusive') : t('settings.categoryModeDescExclusive')} />
+            )}
 
             {/* End Condition Selection */}
             {gameMode === 'bingo' && (

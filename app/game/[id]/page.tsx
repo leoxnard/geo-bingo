@@ -24,6 +24,7 @@ import { buildHintMap } from '@/components/streetview/streetViewHelpers';
 import { shuffle } from '@/components/utils/Functions';
 import { Player } from '@/components/utils/types';
 import { VotingView } from '@/components/VotingView';
+import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { categoryLanguageForLocale, CategoryLanguage, normalizeLocale } from '@/lib/i18n/locales';
 
@@ -888,6 +889,11 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     // by name so it stays correct when a bingo board is shuffled.
     const hintByCategory = useMemo(() => buildHintMap(categories, categoryHintTranslations, normalizeLocale(language)), [categories, categoryHintTranslations, language]);
 
+    // Feature flags can force a feature off regardless of game/preset state, so a
+    // disabled feature never leaks into the lobby UI or gameplay.
+    const effectiveExclusiveMode = FEATURES.exclusiveCategories ? exclusiveMode : false;
+    const effectiveHideMiniMap = FEATURES.hideMiniMap ? hideMiniMap : false;
+
     const selectView = () => {
         // --- VIEW 1: LOBBY ---
         if (status === 'lobby') {
@@ -903,7 +909,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     gameBoundary={gameBoundary}
                     updateGameModeInfo={updateGameModeInfo}
                     timeLimit={timeLimit}
-                    exclusiveMode={exclusiveMode}
+                    exclusiveMode={effectiveExclusiveMode}
                     categories={categories}
                     suggestedCategories={suggestedCategories}
                     gameId={gameId}
@@ -919,7 +925,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     updateStatus={updateStatus}
                     setPlayers={setPlayers}
                     hideMapSymbols={hideMapSymbols}
-                    hideMiniMap={hideMiniMap}
+                    hideMiniMap={effectiveHideMiniMap}
                     aiEndGame={aiEndGame}
                     categorySource={categorySource}
                     aiEnabled={apiStatus.aiEnabled}
@@ -954,8 +960,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     readyPlayers={readyPlayers}
                     players={players}
                     hideMapSymbols={hideMapSymbols}
-                    hideMiniMap={hideMiniMap}
-                    exclusiveMode={exclusiveMode}
+                    hideMiniMap={effectiveHideMiniMap}
+                    exclusiveMode={effectiveExclusiveMode}
                     aiEndGame={aiEndGame}
                     onVoteEnd={handleVoteEndOptimistic}
                     notifyGameEvent={notifyGameEvent}
