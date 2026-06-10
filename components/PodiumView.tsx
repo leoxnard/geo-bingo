@@ -276,15 +276,17 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
 
     if (loading)
         return (
-            <>
-                <div className="w-full flex md:mb-4">
-                    <div className="flex items-center gap-4">
-                        <GeoBingoLogo size={50} className="hidden sm:block" />
-                        <h1 className="text-4xl font-black uppercase tracking-widest text-indigo-400">{t('podium.results')}</h1>
+            <div className="min-h-screen flex flex-col items-center p-4 bg-slate-900 text-white">
+                <div className="w-full max-w-6xl mx-auto flex flex-col items-center text-white relative z-10">
+                    <div className="w-full flex md:mb-4">
+                        <div className="flex items-center gap-4">
+                            <GeoBingoLogo size={50} className="hidden sm:block" />
+                            <h1 className="text-4xl font-black uppercase tracking-widest text-indigo-400">{t('podium.results')}</h1>
+                        </div>
                     </div>
+                    <div className="text-white text-center py-20 text-xl animate-pulse">{t('podium.calculating')}</div>
                 </div>
-                <div className="text-white text-center py-20 text-xl animate-pulse">{t('podium.calculating')}</div>
-            </>
+            </div>
         );
 
     const rank1 = stats.filter((s) => s.rank === 1);
