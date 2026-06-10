@@ -281,6 +281,19 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
     const displaySub = activeSubLatest || lastActiveSub;
 
+    // Re-apply the active submission's exact viewpoint each time a new one surfaces,
+    // so every voting starts from the right framing to follow the path into the next
+    // category — instead of keeping the previous submission's manual pan/zoom.
+    useEffect(() => {
+        if (selectedSubmission || selectedFinalMarker) return;
+        const pano = streetViewPanoramaRef.current;
+        if (pano && displaySub) {
+            pano.setPosition({ lat: displaySub.lat, lng: displaySub.lng });
+            pano.setPov({ heading: displaySub.heading, pitch: displaySub.pitch });
+            pano.setZoom(displaySub.zoom || 1);
+        }
+    }, [displaySub, selectedSubmission, selectedFinalMarker]);
+
     const currentBoard = useMemo(() => {
         const board = roundPlayers[0]?.bingo_board;
         if (board && board.length > 0) {
@@ -349,6 +362,10 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
             )
             .on('broadcast', { event: 'next_player' }, (payload) => {
                 setActiveSubmission(null);
+                // Close any manually-opened Street View so the next player starts on the map.
+                setIsStreetViewVisible(false);
+                setSelectedSubmission(null);
+                setSelectedFinalMarker(null);
                 setIsPaused(false);
                 setIsLineComplete(false);
                 shownSubIdsRef.current.clear();
@@ -559,6 +576,10 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
             const nextIndex = currentRoundIndex + 1;
 
             setActiveSubmission(null);
+            // Close any manually-opened Street View so the next player starts on the map.
+            setIsStreetViewVisible(false);
+            setSelectedSubmission(null);
+            setSelectedFinalMarker(null);
             setIsPaused(false);
             setIsLineComplete(false);
             shownSubIdsRef.current.clear();
@@ -666,23 +687,55 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     let presetCategoryMarkers = null;
 
     if (isLineComplete) {
-        // Purple markers for the preset's target spots (imported games only).
+        // Purple markers for the preset's target spots (imported games only). They
+        // behave like the AI category markers: hover shows the name + a preview,
+        // clicking opens that target location in the right-hand Street View.
         if (presetPositions.length > 0) {
             presetCategoryMarkers = presetPositions.map((cat, idx) => {
                 const mId = `preset-${idx}`;
+                const labelConfig = {
+                    text: labelForCategory(cat.categoryName),
+                    className: 'bg-slate-900/90 text-white p-3 rounded-lg border border-purple-500 text-[10px] font-bold mt-10 whitespace-nowrap shadow-lg',
+                    color: '#e9d5ff',
+                };
                 return (
                     <MarkerF
                         key={mId}
                         position={{ lat: cat.lat, lng: cat.lng }}
-                        icon={{
-                            path: window.google.maps.SymbolPath.CIRCLE,
-                            scale: 7,
-                            fillColor: '#a855f7',
-                            fillOpacity: 1,
-                            strokeWeight: 2,
-                            strokeColor: '#e9d5ff',
+                        onLoad={(marker) => markersRef.current.set(mId, marker)}
+                        onUnmount={() => markersRef.current.delete(mId)}
+                        onMouseOver={() => {
+                            const marker = markersRef.current.get(mId);
+                            if (marker) {
+                                marker.setLabel(labelConfig);
+                                marker.setZIndex(100);
+                            }
+                            setHoveredFinalMarker({ lat: cat.lat, lng: cat.lng, categoryNames: [cat.categoryName] });
                         }}
-                        zIndex={4}
+                        onMouseOut={() => {
+                            const marker = markersRef.current.get(mId);
+                            if (marker) {
+                                marker.setLabel(null);
+                                marker.setZIndex(4);
+                            }
+                            setHoveredFinalMarker(null);
+                        }}
+                        onClick={() => {
+                            setSelectedFinalMarker({ lat: cat.lat, lng: cat.lng, categoryNames: [cat.categoryName] });
+                            setSelectedSubmission(null);
+                            setIsStreetViewVisible(true);
+                        }}
+                        options={{
+                            icon: {
+                                path: window.google.maps.SymbolPath.CIRCLE,
+                                scale: 7,
+                                fillColor: '#a855f7',
+                                fillOpacity: 1,
+                                strokeWeight: 2,
+                                strokeColor: '#e9d5ff',
+                            },
+                            zIndex: 4,
+                        }}
                     />
                 );
             });
@@ -957,7 +1010,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                     {/* Preset Category Position Markers */}
                     {presetCategoryMarkers}
 
-                    {hoveredFinalMarker && categorySource === 'nearbyStreetView' && (
+                    {hoveredFinalMarker && (categorySource === 'nearbyStreetView' || presetPositions.length > 0) && (
                         <OverlayViewF
                             position={{
                                 lat: hoveredFinalMarker.lat,
