@@ -34,7 +34,7 @@ import { GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from '../utils/mapUtils';
 import { Submission, StreetViewProps, BoundaryPolygon } from '../utils/types';
 import { useViewport } from '../utils/useViewport';
 
-export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list', teamMode = 'ffa', gridSize = 3, startingPoint = 'open-world', gameBoundary = '[]', endCondition = 'timer', timeLeft, readyPlayers, players, hideMapSymbols = false, hideMiniMap = false, exclusiveMode = false, allowHints = true, aiEndGame = true, onVoteEnd, notifyGameEvent }: StreetViewProps) {
+export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list', teamMode = 'ffa', gridSize = 3, startingPoint = 'open-world', gameBoundary = '[]', endCondition = 'timer', timeLeft, readyPlayers, players, hideMapSymbols = false, hideMiniMap = false, exclusiveMode = false, allowHints = true, aiEndGame = true, onVoteEnd, notifyGameEvent, hintByCategory = {} }: StreetViewProps) {
     const { t } = useT();
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
@@ -757,6 +757,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                             submittingCategory={submittingCategory}
                             textSizeClass={sidebarTextSizeClass}
                             handleSubmit={handleSubmit}
+                            hintByCategory={hintByCategory}
                         />
 
                         {/* Right: Checklist */}
@@ -790,6 +791,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                             handleSubmit={handleSubmit}
                             jumpToLocation={jumpToLocation}
                             handleBingoTileClick={handleBingoTileClick}
+                            hintByCategory={hintByCategory}
                         />
                     </div>
                 )}

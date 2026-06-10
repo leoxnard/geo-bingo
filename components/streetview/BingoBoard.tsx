@@ -14,7 +14,7 @@ import { FaCamera, FaEye, FaInfoCircle } from 'react-icons/fa';
 
 import { useT } from '@/lib/i18n/I18nProvider';
 
-import { getHintForCategory, getStreetViewImageUrl } from './streetViewHelpers';
+import { getStreetViewImageUrl, resolveHint, type HintMap } from './streetViewHelpers';
 import { Submission } from '../utils/types';
 
 interface BingoBoardProps {
@@ -30,17 +30,17 @@ interface BingoBoardProps {
     handleSubmit: (category: string) => void;
     handleBingoTileClick: (category: string) => void;
     jumpToLocation: (sub: Submission) => void;
+    hintByCategory?: HintMap;
 }
 
-export default function BingoBoard({ gridSize, myBoard, mySubmissions, otherSubmissions, exclusiveMode, allowHints, submittingCategory, inStreetView, textSizeClass, handleSubmit, handleBingoTileClick, jumpToLocation }: BingoBoardProps) {
+export default function BingoBoard({ gridSize, myBoard, mySubmissions, otherSubmissions, exclusiveMode, allowHints, submittingCategory, inStreetView, textSizeClass, handleSubmit, handleBingoTileClick, jumpToLocation, hintByCategory = {} }: BingoBoardProps) {
     const { t } = useT();
     return (
         <div className={`grid gap-2 flex-1 min-h-0 overflow-y-auto pr-1 auto-rows-fr bingo-grid-${gridSize}`}>
-            {/* Bingo Mode Grid View */}
             {myBoard.map((cat) => {
                 const foundSub = mySubmissions.find((s) => s.category === cat);
                 const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some((s) => s.category === cat);
-                const hint = allowHints ? getHintForCategory(cat) : null;
+                const hint = allowHints ? resolveHint(cat, hintByCategory) : null;
                 const streetViewImageUrl = foundSub ? getStreetViewImageUrl(foundSub, 400) : '';
 
                 return (

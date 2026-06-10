@@ -4,12 +4,11 @@
 ================================================================================
 COMMUNITY BUILDER (wizard)
 ================================================================================
-The 4-step flow for authoring a community preset:
+The 3-step flow for authoring a community preset:
   1. Explore Street View and save categories (each captured WITH its viewpoint).
   2. Draw allow/forbid boundaries and (optionally) drop a starting point — both
      happen on the same map.
-  3. Walk a simulation to sanity-check the configured map.
-  4. Name it and submit (requires an account — AuthGate).
+  3. Name it and submit (requires an account — AuthGate).
 
 Reuses the lobby map (boundary drawing + start-point picking) and a lightweight
 StreetViewExplorer. Can be entered blank (/community/create) or pre-seeded from
@@ -22,7 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useJsApiLoader } from '@react-google-maps/api';
 import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { FaArrowLeft, FaCaretDown, FaCaretRight, FaExclamationTriangle, FaPen, FaRegTrashAlt } from 'react-icons/fa';
+import { FaArrowLeft, FaCaretDown, FaCaretRight, FaExclamationTriangle, FaInfoCircle, FaPen, FaRegTrashAlt } from 'react-icons/fa';
 
 import LobbyMap from '@/components/lobby/LobbyMap';
 import { getStreetViewImageUrl } from '@/components/streetview/streetViewHelpers';
@@ -38,7 +37,7 @@ import StreetViewExplorer, { type StreetViewExplorerHandle } from './StreetViewE
 import { displayNameFor, useUser } from './useUser';
 
 const SEED_KEY = 'geoBingoPresetSeed';
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 3;
 
 // Fallback banner emoji used when Gemini can't pick one at publish time.
 const ICON_FALLBACK = '🗺️';
@@ -76,6 +75,7 @@ export default function CommunityBuilder() {
     // Inline rename: the category currently being renamed + its draft name.
     const [renaming, setRenaming] = useState<string | null>(null);
     const [renameValue, setRenameValue] = useState('');
+    const [renameHintValue, setRenameHintValue] = useState('');
     const [recommendedMinutes, setRecommendedMinutes] = useState(10);
     const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
     const [bingoEnabled, setBingoEnabled] = useState(false);
@@ -165,15 +165,26 @@ export default function CommunityBuilder() {
 
     // Rename a category in place — updates the saved category, any pending name,
     // and the "from game" submissions keyed by it. Blocks case-insensitive dupes.
-    const renameCategory = (oldName: string, raw: string) => {
-        const newName = raw.trim();
-        if (!newName || newName === oldName) return;
+    const renameCategory = (oldName: string, rawName: string, rawHint?: string) => {
+        const newName = rawName.trim();
+        const hintValue = rawHint?.trim() || undefined;
+
+        // Check if only hint is being edited (name unchanged but hint text provided)
+        if (newName === oldName) {
+            setCategories((prev) => prev.map((c) => (c.categoryName === oldName ? { ...c, hint: hintValue } : c)));
+            return;
+        }
+
+        // Require name to be non-empty
+        if (!newName) return;
+
+        // Check for duplicate names
         const taken = [...categories.map((c) => c.categoryName), ...pendingNames].some((n) => n.toLowerCase() === newName.toLowerCase() && n.toLowerCase() !== oldName.toLowerCase());
         if (taken) {
             toast.error(t('community.duplicateCategory'));
             return;
         }
-        setCategories((prev) => prev.map((c) => (c.categoryName === oldName ? { ...c, categoryName: newName } : c)));
+        setCategories((prev) => prev.map((c) => (c.categoryName === oldName ? { ...c, categoryName: newName, hint: hintValue } : c)));
         setPendingNames((prev) => prev.map((n) => (n === oldName ? newName : n)));
         setSubmissionsByCategory((prev) => {
             const subs = prev[oldName];
@@ -187,8 +198,9 @@ export default function CommunityBuilder() {
 
     const confirmRename = () => {
         if (renaming === null) return;
-        renameCategory(renaming, renameValue);
+        renameCategory(renaming, renameValue, renameHintValue);
         setRenaming(null);
+        setRenameHintValue('');
     };
 
     // Snapshot the live panorama view into a category.
@@ -219,12 +231,23 @@ export default function CommunityBuilder() {
             <div className="flex-1 min-w-0 flex flex-col gap-1.5">
                 <div className="flex items-center gap-2">
                     <span className="text-sm font-medium truncate">{name}</span>
+                    {/* Hint icon is informational only — shown when a hint exists. Adding
+                        or editing a hint goes through the pencil (edit) button. */}
+                    {viewpoint?.hint && (
+                        <div className="relative group flex-shrink-0 cursor-help" onClick={(e) => e.stopPropagation()}>
+                            <FaInfoCircle className="text-slate-400/70 hover:text-white" size={12} />
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max max-w-[200px] bg-slate-800 text-white text-xs p-2 rounded-lg shadow-xl border border-slate-600 z-[100] whitespace-normal text-center cursor-default">
+                                <span className="font-bold text-indigo-300">{t('sv.tip')}</span> {viewpoint.hint}
+                            </div>
+                        </div>
+                    )}
                     <div className="ml-auto flex items-center gap-1 shrink-0">
                         <button
                             type="button"
                             onClick={() => {
                                 setRenaming(name);
                                 setRenameValue(name);
+                                setRenameHintValue(viewpoint?.hint ?? '');
                             }}
                             className="text-slate-500 hover:text-indigo-400 p-1"
                             aria-label={t('community.renameCategory')}
@@ -270,17 +293,6 @@ export default function CommunityBuilder() {
         setPendingStart(null);
     };
 
-    const startPos = useMemo(() => {
-        if (startingPoint.startsWith('{')) {
-            try {
-                return JSON.parse(startingPoint) as { lat: number; lng: number };
-            } catch {
-                return undefined;
-            }
-        }
-        return categories[0] ? { lat: categories[0].lat, lng: categories[0].lng } : undefined;
-    }, [startingPoint, categories]);
-
     // Saved-spot markers for the map steps. Any category sitting on the starting
     // point is dropped so the start shows as a single pin (no stacked duplicate).
     const extraMarkers = useMemo(() => {
@@ -313,10 +325,8 @@ export default function CommunityBuilder() {
         setSubmitting(true);
         try {
             const useBingo = bingoEnabled && canBingo;
-            // Auto-pick an emoji + detect the source language (Gemini) and translate
-            // the category names into every app language (DeepL). Degrades to the
-            // fallback emoji / original names if the AI is unavailable.
-            const finalized = await finalizePreset({ name, description, categoryNames: categories.map((c) => c.categoryName) });
+            const hintTexts = categories.map((c) => c.hint ?? '');
+            const finalized = await finalizePreset({ name, description, categoryNames: categories.map((c) => c.categoryName), categoryHints: hintTexts });
             const payload = {
                 name,
                 description,
@@ -332,6 +342,7 @@ export default function CommunityBuilder() {
                 gameMode: (useBingo ? 'bingo' : 'list') as 'bingo' | 'list',
                 gridSize: bingoGrid ?? 3,
                 settings: { ...settings, endCondition: useBingo ? (settings.endCondition ?? 'timer') : 'timer' },
+                categoryHintTranslations: finalized.hintTranslations,
             };
             const res = editId ? await updatePreset(editId, payload) : await createPreset({ ...payload, authorName: displayNameFor(user) });
             if (res.success) {
@@ -347,7 +358,7 @@ export default function CommunityBuilder() {
         }
     };
 
-    const stepTitles = [t('community.step1Title'), t('community.step2Title'), t('community.step3Title'), t('community.step4Title')];
+    const stepTitles = [t('community.step1Title'), t('community.step2Title'), t('community.step3Title')]; // step3Title = Publish (step 2 in 0-indexed)
 
     return (
         <main className="h-dvh flex flex-col bg-slate-900 text-white">
@@ -397,15 +408,6 @@ export default function CommunityBuilder() {
                 )}
 
                 {step === 2 && (
-                    <div className="h-full flex flex-col">
-                        <p className="text-sm text-slate-400 px-4 py-2 shrink-0">{t('community.simHelp')}</p>
-                        <div className="flex-1 min-h-0 relative">
-                            <StreetViewExplorer isLoaded={isLoaded} mode="simulate" gameBoundary={boundaries} initialPosition={startPos} />
-                        </div>
-                    </div>
-                )}
-
-                {step === 3 && (
                     <div className="h-full overflow-y-auto p-4 sm:p-8 flex flex-col items-center">
                         <div className="w-full max-w-md flex flex-col gap-4">
                             <h2 className="text-xl font-bold text-indigo-400">{t('community.publishTitle')}</h2>
@@ -503,7 +505,7 @@ export default function CommunityBuilder() {
             </section>
 
             {/* Footer nav */}
-            {step < 3 && (
+            {step < 2 && (
                 <footer className="flex items-center justify-between gap-3 px-4 py-3 border-t border-slate-800 shrink-0">
                     <button type="button" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0} className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold uppercase text-sm disabled:opacity-40">
                         {t('community.back')}
@@ -541,8 +543,16 @@ export default function CommunityBuilder() {
                     <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 w-full max-w-md flex flex-col gap-4">
                         <h3 className="font-bold text-white">{t('community.renameCategory')}</h3>
                         <input autoFocus type="text" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && confirmRename()} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-600 focus:border-indigo-500 text-white outline-none" />
+                        <input type="text" placeholder={t('community.categoryHintPlaceholder')} value={renameHintValue} onChange={(e) => setRenameHintValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && confirmRename()} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-600 focus:border-indigo-500 text-white outline-none" />
                         <div className="flex gap-2 justify-end">
-                            <button type="button" onClick={() => setRenaming(null)} className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold uppercase text-sm">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setRenaming(null);
+                                    setRenameHintValue('');
+                                }}
+                                className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold uppercase text-sm"
+                            >
                                 {t('common.cancel')}
                             </button>
                             <button type="button" onClick={confirmRename} disabled={!renameValue.trim()} className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase text-sm disabled:opacity-50">

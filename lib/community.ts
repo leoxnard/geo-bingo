@@ -88,6 +88,7 @@ export interface CreatePresetInput {
     categoryTranslations: Record<string, string[]>; // { <locale>: names[] }, aligned to categories
     titleTranslations: Record<string, string>; // { <locale>: translated name }
     descriptionTranslations: Record<string, string>; // { <locale>: translated description }
+    categoryHintTranslations: Record<string, string[]>; // { <locale>: hints[] }, aligned to categories
 }
 
 export interface CreateResult {
@@ -113,6 +114,7 @@ export async function createPreset(input: CreatePresetInput): Promise<CreateResu
         p_category_translations: input.categoryTranslations,
         p_title_translations: input.titleTranslations,
         p_description_translations: input.descriptionTranslations,
+        p_category_hint_translations: input.categoryHintTranslations,
     });
     if (error) throw error;
     return data as CreateResult;
@@ -136,6 +138,7 @@ export async function updatePreset(id: string, input: Omit<CreatePresetInput, 'a
         p_category_translations: input.categoryTranslations,
         p_title_translations: input.titleTranslations,
         p_description_translations: input.descriptionTranslations,
+        p_category_hint_translations: input.categoryHintTranslations,
     });
     if (error) throw error;
     return data as CreateResult;

@@ -396,8 +396,7 @@ export const zh: Messages = {
     'community.stepLabel': '第 {current} 步，共 {total} 步',
     'community.step1Title': '寻找并保存类别',
     'community.step2Title': '区域和起点',
-    'community.step3Title': '预览模拟',
-    'community.step4Title': '发布',
+    'community.step3Title': '发布',
     'community.savedCategories': '已保存的类别（{count}）',
     'community.noCategoriesYet': '还没有类别。在街景中探索并保存地点。',
     'community.deleteSpot': '删除地点',
@@ -458,4 +457,5 @@ export const zh: Messages = {
     'community.renameNameHelp': '该名字会显示在你所有的预设下方。',
     'community.nameUpdated': '名字已更新。',
     'community.nameUpdateError': '无法更新你的名字。',
+    'community.categoryHintPlaceholder': '提示（可选）—— 例如：“红色的颜色，黑色的轮子”',
 };

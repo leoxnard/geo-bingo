@@ -10,7 +10,10 @@ building logic across the presentational components.
 */
 
 import { geoGuessrMeta } from '../../lib/categories';
+import { Locale } from '../../lib/i18n/locales';
 import { Submission } from '../utils/types';
+
+export type HintMap = Record<string, string>;
 
 export const safeStartCenter = { lat: 30, lng: 10 };
 export const initialWorldZoom = 2.4;
@@ -43,6 +46,25 @@ export const getHintForCategory = (cat: string) => {
     }
     return null;
 };
+
+// Build a category-name -> hint lookup for the active locale from a preset's
+// per-locale hint translations (aligned to the canonical `categories` order).
+// Keying by name (not index) keeps hints correct even when the board is shuffled
+// (bingo) or reordered, which a positional lookup would get wrong.
+export const buildHintMap = (categories: string[], hintTranslations: Record<string, string[]>, locale: Locale): HintMap => {
+    const localeHints = hintTranslations[locale];
+    if (!Array.isArray(localeHints)) return {};
+    const map: HintMap = {};
+    categories.forEach((cat, i) => {
+        const hint = localeHints[i];
+        if (typeof hint === 'string' && hint.trim()) map[cat] = hint.trim();
+    });
+    return map;
+};
+
+// Resolve a category's hint: prefer the preset's translated hint, then fall back
+// to the built-in geoGuessrMeta region hint.
+export const resolveHint = (category: string, hintMap: HintMap): string | null => hintMap[category] ?? getHintForCategory(category);
 
 export const getAiVerdictState = (submission?: Submission | null) => {
     if (submission?.ai_verdict === true) return 'verified';

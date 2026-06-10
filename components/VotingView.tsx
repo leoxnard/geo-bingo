@@ -14,10 +14,12 @@ import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 
 import { GoogleMap, useJsApiLoader, Polyline, MarkerF, StreetViewPanorama, Circle, OverlayViewF, OverlayView } from '@react-google-maps/api';
 import toast from 'react-hot-toast';
+import { FaInfoCircle } from 'react-icons/fa';
 
 import { useT } from '@/lib/i18n/I18nProvider';
 
 import { supabase } from '../lib/supabase';
+import { resolveHint } from './streetview/streetViewHelpers';
 import { GeoBingoLogo } from './utils/Elements';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES } from './utils/mapUtils';
 import { VotingViewProps, Submission, PathPoint } from './utils/types';
@@ -105,7 +107,7 @@ const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => 
     return Math.sqrt(Math.pow(lat1 - lat2, 2) + Math.pow(dLng, 2));
 };
 
-export function VotingView({ gameId, isHost, playerId, players, teamMode, onFinishGame, isDeveloper = false }: VotingViewProps) {
+export function VotingView({ gameId, isHost, playerId, players, teamMode, onFinishGame, isDeveloper = false, hintByCategory = {} }: VotingViewProps) {
     const { t } = useT();
     const { isNarrow } = useViewport();
     const isNarrowRef = useRef(isNarrow);
@@ -120,6 +122,9 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     const [shownSubIds, setShownSubIds] = useState<Set<string>>(new Set());
     const [categoryDetails, setCategoryDetails] = useState<BingoCategory[]>([]);
     const [generationRadius, setGenerationRadius] = useState<number>(1000);
+    // Preset category target positions, persisted on the game at import time, shown
+    // as purple markers once a journey completes.
+    const [presetPositions, setPresetPositions] = useState<{ categoryName: string; lat: number; lng: number }[]>([]);
     const [startingPoint, setStartingPoint] = useState<{
         lat: number;
         lng: number;
@@ -303,7 +308,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     // Data Fetching
     useEffect(() => {
         const fetchData = async () => {
-            const { data: gData } = await supabase.from('games').select('categories, grid_size, game_mode, category_details, generation_radius, starting_point, category_source').eq('id', gameId).single();
+            const { data: gData } = await supabase.from('games').select('categories, grid_size, game_mode, category_details, generation_radius, starting_point, category_source, preset_categories').eq('id', gameId).single();
 
             if (gData) {
                 setGameCategories(gData.categories || []);
@@ -313,6 +318,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                 setGenerationRadius(gData.generation_radius || 1000);
                 setCategorySource(gData.category_source || 'manual');
                 setStartingPoint(gData.starting_point !== 'open-world' && gData.category_source !== 'manual' ? JSON.parse(gData.starting_point) : null);
+                if (Array.isArray(gData.preset_categories)) setPresetPositions(gData.preset_categories);
             }
 
             const { data: subData } = await supabase.from('submissions').select('*').eq('game_id', gameId);
@@ -642,8 +648,31 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
     let finalCategoryMarkers = null;
     let finalSubmissionMarkers = null;
+    let presetCategoryMarkers = null;
 
     if (isLineComplete) {
+        // Purple markers for the preset's target spots (imported games only).
+        if (presetPositions.length > 0) {
+            presetCategoryMarkers = presetPositions.map((cat, idx) => {
+                const mId = `preset-${idx}`;
+                return (
+                    <MarkerF
+                        key={mId}
+                        position={{ lat: cat.lat, lng: cat.lng }}
+                        icon={{
+                            path: window.google.maps.SymbolPath.CIRCLE,
+                            scale: 7,
+                            fillColor: '#a855f7',
+                            fillOpacity: 1,
+                            strokeWeight: 2,
+                            strokeColor: '#e9d5ff',
+                        }}
+                        zIndex={4}
+                    />
+                );
+            });
+        }
+
         // Add submission markers (yellow) for every teammate in the round
         const currentPlayerSubmissions = submissions.filter((s) => roundPlayerIds.has(s.player_id));
         finalSubmissionMarkers = currentPlayerSubmissions.map((sub) => {
@@ -910,6 +939,9 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                     {/* Final Submission Markers */}
                     {finalSubmissionMarkers}
 
+                    {/* Preset Category Position Markers */}
+                    {presetCategoryMarkers}
+
                     {hoveredFinalMarker && categorySource === 'nearbyStreetView' && (
                         <OverlayViewF
                             position={{
@@ -1124,6 +1156,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                         {currentBoard?.map((category: string, idx: number) => {
                             const sub = submissions.find((s) => roundPlayerIds.has(s.player_id) && s.category === category);
                             const isReached = sub && shownSubIds.has(sub.id);
+                            const hint = resolveHint(category, hintByCategory);
 
                             let yesPercent = 0;
                             let noPercent = 0;
@@ -1152,6 +1185,14 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                                     <div className="absolute right-0 top-0 bottom-0 bg-red-500/30 transition-all duration-700 ease-out" style={{ width: `${noPercent}%` }}></div>
 
                                     <span className="relative z-10 text-center font-bold text-sm sm:text-base px-2 drop-shadow-md">{category}</span>
+                                    {hint && (
+                                        <div className="absolute top-1 right-1 z-20 group cursor-help">
+                                            <FaInfoCircle className="text-white/60 hover:text-white text-[10px]" />
+                                            <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block w-max max-w-[200px] bg-slate-800 text-white text-[10px] p-2 rounded-lg shadow-xl border border-slate-600 z-[100] whitespace-normal text-center cursor-default">
+                                                <span className="font-bold text-indigo-300">{t('sv.tip')}</span> {hint}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}

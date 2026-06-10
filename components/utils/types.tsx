@@ -85,6 +85,7 @@ export interface CommunityCategory {
     heading: number;
     pitch: number;
     zoom: number;
+    hint?: string;
 }
 
 // Optional gameplay toggles carried by a preset (applied to the game on import).
@@ -110,6 +111,9 @@ export interface CommunityPreset {
     // used to render browse cards in the viewer's language.
     title_translations: Record<string, string>;
     description_translations: Record<string, string>;
+    // Category hints translated per app locale ({ en: ['hint1', ...], de: [...] }),
+    // aligned to `categories` order. Filled at publish time (Gemini + DeepL).
+    category_hint_translations: Record<string, string[]>;
     categories: CommunityCategory[];
     boundaries: BoundaryPolygon[];
     starting_point: string; // 'open-world' or JSON {lat,lng}
@@ -187,6 +191,9 @@ export interface StreetViewProps {
     aiEndGame?: boolean;
     onVoteEnd?: () => void;
     notifyGameEvent?: (event: 'ai_end_game' | 'ai_generating_categories', payload: { player_id: string }) => void;
+    // Category name -> resolved hint for the active locale (preset hints), looked
+    // up by name so it survives the bingo board shuffle.
+    hintByCategory?: Record<string, string>;
 }
 
 export interface VotingViewProps {
@@ -198,6 +205,8 @@ export interface VotingViewProps {
     teamMode: 'ffa' | 'teams';
     onFinishGame: () => Promise<void> | void;
     isDeveloper?: boolean;
+    // Category name -> resolved hint for the active locale (preset hints).
+    hintByCategory?: Record<string, string>;
 }
 
 export interface PodiumViewProps {

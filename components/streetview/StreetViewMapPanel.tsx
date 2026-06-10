@@ -17,7 +17,7 @@ import { GoMoveToStart } from 'react-icons/go';
 
 import { useT } from '@/lib/i18n/I18nProvider';
 
-import { ROOMY_MAX, ROOMY_MIN, getAiVerdictState, getHintForCategory, getStreetViewImageUrl, panoOptions, safeStartCenter } from './streetViewHelpers';
+import { ROOMY_MAX, ROOMY_MIN, getAiVerdictState, getStreetViewImageUrl, resolveHint, type HintMap, panoOptions, safeStartCenter } from './streetViewHelpers';
 import { ExitButton, FullscreenButton } from '../utils/Elements';
 import { mapOptions } from '../utils/mapUtils';
 import { BoundaryPolygon, Submission } from '../utils/types';
@@ -57,12 +57,13 @@ interface StreetViewMapPanelProps {
     submittingCategory: string | null;
     textSizeClass: string;
     handleSubmit: (category: string) => void;
+    hintByCategory?: HintMap;
 }
 
 export default function StreetViewMapPanel(props: StreetViewMapPanelProps) {
     const { t } = useT();
     const { containerRef, panelRef, streetViewRef, minimapCenter, isMobileLandscape, isPortrait, isNarrow, gameId, mapCenter, mapZoom, additionalMapOptions, additionalMiniMapOptions, parsedBoundaries, setMainMapInstance, setMinimapInstance, setPanoInstance, onLoad, onUnmount } = props;
-    const { inStreetView, hideMiniMap, isFullscreen, fsPanelOpen, setFsPanelOpen, setIsFullscreen, measuredPanelWidth, startingPoint, myBoard, mySubmissions, otherSubmissions, exclusiveMode, allowHints, submittingCategory, textSizeClass, handleSubmit } = props;
+    const { inStreetView, hideMiniMap, isFullscreen, fsPanelOpen, setFsPanelOpen, setIsFullscreen, measuredPanelWidth, startingPoint, myBoard, mySubmissions, otherSubmissions, exclusiveMode, allowHints, submittingCategory, textSizeClass, handleSubmit, hintByCategory } = props;
 
     const renderBoundaries = (keyPrefix: string) =>
         parsedBoundaries.map((boundary, index) =>
@@ -119,7 +120,7 @@ export default function StreetViewMapPanel(props: StreetViewMapPanelProps) {
                         {myBoard.map((cat) => {
                             const foundSub = mySubmissions.find((s) => s.category === cat);
                             const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some((s) => s.category === cat);
-                            const hint = allowHints ? getHintForCategory(cat) : null;
+                            const hint = allowHints ? resolveHint(cat, hintByCategory || {}) : null;
                             const isDisabled = submittingCategory === cat || !inStreetView || isBlocked;
                             const streetViewImageUrl = foundSub ? getStreetViewImageUrl(foundSub) : '';
 

@@ -83,6 +83,7 @@ export default function PresetCard({ preset, myVote, isOwner, onVote, onDelete, 
                 categoryTranslations: fin.translations,
                 titleTranslations: fin.titleTranslations,
                 descriptionTranslations: fin.descriptionTranslations,
+                categoryHintTranslations: fin.hintTranslations,
             });
             if (res.success) {
                 toast.success(t('community.regenerated'));

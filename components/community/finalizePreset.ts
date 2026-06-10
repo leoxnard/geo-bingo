@@ -28,6 +28,8 @@ export interface FinalizeResult {
     titleTranslations: Record<string, string>;
     /** Preset description per app locale; always complete (falls back to the original). */
     descriptionTranslations: Record<string, string>;
+    /** Category hints per app locale, aligned to the input order; always complete. */
+    hintTranslations: Record<string, string[]>;
 }
 
 function extractJson(text: string): string {
@@ -39,8 +41,8 @@ function extractJson(text: string): string {
     return match ? match[0] : cleaned;
 }
 
-export async function finalizePreset(input: { name: string; description: string; categoryNames: string[] }): Promise<FinalizeResult> {
-    const { name, description, categoryNames } = input;
+export async function finalizePreset(input: { name: string; description: string; categoryNames: string[]; categoryHints?: string[] }): Promise<FinalizeResult> {
+    const { name, description, categoryNames, categoryHints = [] } = input;
 
     // 1) Gemini — one request for both the emoji and the source language.
     let icon = '';
@@ -73,12 +75,12 @@ Example: {"emoji":"🗼","language":"fr"}`;
         // Leave icon/language empty — handled by fallbacks below + the caller.
     }
 
-    // 2) DeepL — translate category names + the title (+ description) into every
-    // app language in a single batched call per locale. The trailing slots carry
-    // the name and (when present) the description.
+    // 2) DeepL — translate category names + hints + the title (+ description) into every
+    // app language in a single batched call per locale.
     const hasDesc = !!description.trim();
-    const texts = [...categoryNames, name, ...(hasDesc ? [description] : [])];
-    const nameIdx = categoryNames.length;
+    // Build text array: [catNames..., hints..., title, description?]
+    const texts = [...categoryNames, ...categoryHints, name, ...(hasDesc ? [description] : [])];
+    const nameIdx = categoryNames.length + categoryHints.length;
     const descIdx = nameIdx + 1;
 
     const raw: Record<string, string[]> = {};
@@ -96,18 +98,20 @@ Example: {"emoji":"🗼","language":"fr"}`;
         // Ignore — back-filled with originals below.
     }
 
-    // Split each locale's batch back into categories / title / description, and
+    // Split each locale's batch back into categories / hints / title / description, and
     // guarantee a complete map: any missing/partial locale falls back to originals.
     const translations: Record<string, string[]> = {};
     const titleTranslations: Record<string, string> = {};
     const descriptionTranslations: Record<string, string> = {};
+    const hintTranslations: Record<string, string[]> = {};
     for (const code of LOCALE_CODES) {
         const arr = raw[code];
         const ok = Array.isArray(arr) && arr.length === texts.length;
         translations[code] = ok ? arr.slice(0, categoryNames.length) : categoryNames;
+        hintTranslations[code] = ok ? arr.slice(categoryNames.length, categoryNames.length + categoryHints.length) : categoryHints;
         titleTranslations[code] = ok ? arr[nameIdx] : name;
         descriptionTranslations[code] = hasDesc ? (ok ? arr[descIdx] : description) : '';
     }
 
-    return { icon, language, translations, titleTranslations, descriptionTranslations };
+    return { icon, language, translations, titleTranslations, descriptionTranslations, hintTranslations };
 }

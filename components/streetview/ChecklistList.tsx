@@ -15,7 +15,7 @@ import { FaInfoCircle } from 'react-icons/fa';
 import { useT } from '@/lib/i18n/I18nProvider';
 
 import { AiReasonLabel } from './AiReasonLabel';
-import { COMPACT_GAP, COMPACT_MAX, COMPACT_MIN, ROOMY_GAP, ROOMY_MAX, ROOMY_MIN, getAiVerdictState, getHintForCategory, getStreetViewImageUrl } from './streetViewHelpers';
+import { COMPACT_GAP, COMPACT_MAX, COMPACT_MIN, ROOMY_GAP, ROOMY_MAX, ROOMY_MIN, getAiVerdictState, getStreetViewImageUrl, resolveHint, type HintMap } from './streetViewHelpers';
 import { Submission } from '../utils/types';
 
 interface ChecklistListProps {
@@ -31,9 +31,10 @@ interface ChecklistListProps {
     inStreetView: boolean;
     handleSubmit: (category: string) => void;
     jumpToLocation: (sub: Submission) => void;
+    hintByCategory?: HintMap;
 }
 
-export default function ChecklistList({ listLayout, isPortrait, setGridEl, myBoard, mySubmissions, otherSubmissions, exclusiveMode, allowHints, submittingCategory, inStreetView, handleSubmit, jumpToLocation }: ChecklistListProps) {
+export default function ChecklistList({ listLayout, isPortrait, setGridEl, myBoard, mySubmissions, otherSubmissions, exclusiveMode, allowHints, submittingCategory, inStreetView, handleSubmit, jumpToLocation, hintByCategory = {} }: ChecklistListProps) {
     const { t } = useT();
     return (
         <div ref={setGridEl} className="flex flex-1 min-h-0 flex-col overflow-hidden">
@@ -43,7 +44,7 @@ export default function ChecklistList({ listLayout, isPortrait, setGridEl, myBoa
                     {myBoard.map((cat) => {
                         const foundSub = mySubmissions.find((s) => s.category === cat);
                         const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some((s) => s.category === cat);
-                        const hint = allowHints ? getHintForCategory(cat) : null;
+                        const hint = allowHints ? resolveHint(cat, hintByCategory) : null;
                         const streetViewImageUrl = foundSub ? getStreetViewImageUrl(foundSub) : '';
 
                         return (
@@ -118,7 +119,7 @@ export default function ChecklistList({ listLayout, isPortrait, setGridEl, myBoa
                     {myBoard.map((cat) => {
                         const foundSub = mySubmissions.find((s) => s.category === cat);
                         const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some((s) => s.category === cat);
-                        const hint = allowHints ? getHintForCategory(cat) : null;
+                        const hint = allowHints ? resolveHint(cat, hintByCategory) : null;
                         const streetViewImageUrl = foundSub ? getStreetViewImageUrl(foundSub) : '';
 
                         return (

@@ -82,6 +82,7 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
 
     const [pendingSpot, setPendingSpot] = useState<Viewpoint | null>(null);
     const [categoryName, setCategoryName] = useState('');
+    const [categoryHint, setCategoryHint] = useState('');
     const [search, setSearch] = useState('');
     // Capture mode starts with NO open panorama — the author picks the first
     // position on the minimap. Simulate mode opens at the start immediately.
@@ -314,9 +315,11 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
             toast.error(t('community.duplicateCategory'));
             return;
         }
-        onSave({ categoryName: name, ...pendingSpot });
+        const hint = categoryHint.trim();
+        onSave({ categoryName: name, hint: hint || undefined, ...pendingSpot });
         setPendingSpot(null);
         setCategoryName('');
+        setCategoryHint('');
     };
 
     if (!isLoaded) return <div className="h-full w-full flex items-center justify-center bg-slate-800 text-slate-400">{t('common.loading')}</div>;
@@ -399,8 +402,16 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
                         <h3 className="font-bold text-white">{t('community.nameSpotTitle')}</h3>
                         <img src={getStreetViewImageUrl(pendingSpot, 400)} alt="" className="w-full rounded-xl aspect-square object-cover" />
                         <input autoFocus type="text" placeholder={t('community.categoryNamePlaceholder')} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-600 focus:border-indigo-500 text-white outline-none" value={categoryName} onChange={(e) => setCategoryName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && confirmSave()} />
+                        <input type="text" placeholder={t('community.categoryHintPlaceholder')} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-600 focus:border-indigo-500 text-white outline-none" value={categoryHint} onChange={(e) => setCategoryHint(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && confirmSave()} />
                         <div className="flex gap-2 justify-end">
-                            <button type="button" onClick={() => setPendingSpot(null)} className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold uppercase text-sm">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setPendingSpot(null);
+                                    setCategoryHint('');
+                                }}
+                                className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold uppercase text-sm"
+                            >
                                 {t('common.cancel')}
                             </button>
                             <button type="button" onClick={confirmSave} disabled={!categoryName.trim()} className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase text-sm disabled:opacity-50">

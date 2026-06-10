@@ -10,7 +10,7 @@ Integrates LobbyView, StreetView, VotingView, and PodiumView components.
 ================================================================================
 */
 
-import { useState, use, useEffect, useRef, useCallback } from 'react';
+import { useState, use, useEffect, useRef, useCallback, useMemo } from 'react';
 
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
@@ -20,6 +20,7 @@ import { CiCircleAlert, CiCircleCheck } from 'react-icons/ci';
 import LobbyView from '@/components/lobby/LobbyView';
 import PodiumView from '@/components/PodiumView';
 import StreetView from '@/components/streetview/StreetView';
+import { buildHintMap } from '@/components/streetview/streetViewHelpers';
 import { shuffle } from '@/components/utils/Functions';
 import { Player } from '@/components/utils/types';
 import { VotingView } from '@/components/VotingView';
@@ -101,6 +102,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     // Per-locale category translations copied from an imported preset, used to
     // reuse aligned translations when the host switches the board language.
     const [categoryTranslations, setCategoryTranslations] = useState<Record<string, string[]>>({});
+    // Per-locale category hint translations from imported preset.
+    const [categoryHintTranslations, setCategoryHintTranslations] = useState<Record<string, string[]>>({});
     const [hideMapSymbols, setHideMapSymbols] = useState(false);
     const [hideMiniMap, setHideMiniMap] = useState(false);
     const [aiEndGame, setAiEndGame] = useState(true);
@@ -343,6 +346,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 let seedTimeLimit: number | null = null;
                 let seedSettings: { hideMiniMap?: boolean; hideMapSymbols?: boolean; exclusiveMode?: boolean; aiEndGame?: boolean; endCondition?: string } = {};
                 let seedCategoryTranslations: Record<string, string[]> = {};
+                let seedCategoryHintTranslations: Record<string, string[]> = {};
+                let seedPresetPositions: { categoryName: string; lat: number; lng: number }[] = [];
                 const presetId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('preset') : null;
                 if (presetId) {
                     // Select '*' (not an explicit column list) so the import is resilient
@@ -368,6 +373,13 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                         // Carry the preset's per-locale translations so the lobby language
                         // switch can reuse them (DeepL fallback for anything not covered).
                         if (preset.category_translations && typeof preset.category_translations === 'object') seedCategoryTranslations = preset.category_translations as Record<string, string[]>;
+                        // Carry the preset's per-locale hint translations.
+                        if (preset.category_hint_translations && typeof preset.category_hint_translations === 'object') seedCategoryHintTranslations = preset.category_hint_translations as Record<string, string[]>;
+                        // Preset category target positions (lat/lng), persisted on the game so
+                        // the voting map can mark them for every player (not just the importer).
+                        if (Array.isArray(preset.categories)) {
+                            seedPresetPositions = (preset.categories as Array<{ categoryName?: string; lat?: number; lng?: number }>).filter((c) => c && typeof c.lat === 'number' && typeof c.lng === 'number').map((c) => ({ categoryName: c.categoryName || '', lat: c.lat as number, lng: c.lng as number }));
+                        }
                     }
                 }
 
@@ -397,15 +409,18 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     language: categoryLanguageForLocale(locale),
                     categories_generated: false,
                 };
-                // Persist category_translations when the preset has them. If that fails
-                // (e.g. the games.category_translations column isn't there yet on a DB
-                // that hasn't run the migration), retry the insert without it so game
-                // creation/import never breaks — the host still gets the translations in
-                // memory (set below) for live language switching this session.
-                const hasSeedTranslations = Object.keys(seedCategoryTranslations).length > 0;
-                let { error } = await supabase.from('games').insert([hasSeedTranslations ? { ...newGameData, category_translations: seedCategoryTranslations } : newGameData]);
-                if (error && hasSeedTranslations) {
-                    console.warn('[GameRoom] games.category_translations not available; importing without persisting it.', error);
+                // Optional preset columns (translations, hints, target positions) are
+                // persisted when present. If the DB hasn't run the latest migration the
+                // insert errors, so we retry without them — import never breaks, and the
+                // host still keeps the translations in memory for this session.
+                const optionalCols: Record<string, unknown> = {};
+                if (Object.keys(seedCategoryTranslations).length > 0) optionalCols.category_translations = seedCategoryTranslations;
+                if (Object.keys(seedCategoryHintTranslations).length > 0) optionalCols.category_hint_translations = seedCategoryHintTranslations;
+                if (seedPresetPositions.length > 0) optionalCols.preset_categories = seedPresetPositions;
+                const hasOptionalCols = Object.keys(optionalCols).length > 0;
+                let { error } = await supabase.from('games').insert([hasOptionalCols ? { ...newGameData, ...optionalCols } : newGameData]);
+                if (error && hasOptionalCols) {
+                    console.warn('[GameRoom] optional preset columns not available; importing without persisting them.', error);
                     ({ error } = await supabase.from('games').insert([newGameData]));
                 }
                 if (!error) {
@@ -433,6 +448,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     setExclusiveMode(newGameData.exclusive_mode);
                     setLanguage(newGameData.language as CategoryLanguage);
                     setCategoryTranslations(seedCategoryTranslations);
+                    setCategoryHintTranslations(seedCategoryHintTranslations);
                     // Claim the host capability token (the secret the host RPCs check).
                     await supabase.rpc('register_host_secret', { p_game_id: gameId, p_player_id: currentPlayerId, p_token: newHostToken(gameId) });
                 } else {
@@ -476,6 +492,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setGenerationNumber(gameData.generation_number || 10);
                 setLanguage(gameData.language || 'german');
                 setCategoryTranslations(gameData.category_translations || {});
+                setCategoryHintTranslations(gameData.category_hint_translations || {});
                 setCategoriesGenerated(gameData.categories_generated || false);
 
                 const isActuallyHost = gameData.host_id === currentPlayerId;
@@ -639,6 +656,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     if (payload.new.language !== undefined && !pendingOptimisticUpdatesRef.current.has('language')) setLanguage(payload.new.language);
                     if (payload.new.difficulty !== undefined && !pendingOptimisticUpdatesRef.current.has('difficulty')) setDifficulty(payload.new.difficulty);
                     if (payload.new.categories_generated !== undefined && !pendingOptimisticUpdatesRef.current.has('categories_generated')) setCategoriesGenerated(payload.new.categories_generated);
+                    if (payload.new.category_hint_translations !== undefined && !pendingOptimisticUpdatesRef.current.has('category_hint_translations')) setCategoryHintTranslations(payload.new.category_hint_translations);
                 },
             )
             .subscribe();
@@ -865,6 +883,11 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         })();
     }, [gameId, playerId, readyPlayers, players.length]);
 
+    // Category-name -> hint for the current UI locale, built from the imported
+    // preset's per-locale hints (aligned to the canonical category order). Keyed
+    // by name so it stays correct when a bingo board is shuffled.
+    const hintByCategory = useMemo(() => buildHintMap(categories, categoryHintTranslations, normalizeLocale(language)), [categories, categoryHintTranslations, language]);
+
     const selectView = () => {
         // --- VIEW 1: LOBBY ---
         if (status === 'lobby') {
@@ -916,12 +939,34 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (status === 'playing') {
             const currentPlayer = players.find((p) => p.id === playerId);
             const myBoard = gameMode === 'bingo' && currentPlayer?.bingo_board && currentPlayer.bingo_board.length > 0 ? currentPlayer.bingo_board : categories;
-            return <StreetView myBoard={myBoard} gameId={gameId} playerId={playerId} gameMode={gameMode} teamMode={teamMode} gridSize={gridSize} startingPoint={startingPoint} gameBoundary={gameBoundary} endCondition={endCondition} timeLeft={timeLeft} readyPlayers={readyPlayers} players={players} hideMapSymbols={hideMapSymbols} hideMiniMap={hideMiniMap} exclusiveMode={exclusiveMode} aiEndGame={aiEndGame} onVoteEnd={handleVoteEndOptimistic} notifyGameEvent={notifyGameEvent} />;
+            return (
+                <StreetView
+                    myBoard={myBoard}
+                    gameId={gameId}
+                    playerId={playerId}
+                    gameMode={gameMode}
+                    teamMode={teamMode}
+                    gridSize={gridSize}
+                    startingPoint={startingPoint}
+                    gameBoundary={gameBoundary}
+                    endCondition={endCondition}
+                    timeLeft={timeLeft}
+                    readyPlayers={readyPlayers}
+                    players={players}
+                    hideMapSymbols={hideMapSymbols}
+                    hideMiniMap={hideMiniMap}
+                    exclusiveMode={exclusiveMode}
+                    aiEndGame={aiEndGame}
+                    onVoteEnd={handleVoteEndOptimistic}
+                    notifyGameEvent={notifyGameEvent}
+                    hintByCategory={hintByCategory}
+                />
+            );
         }
 
         // --- VIEW 3: VOTING ---
         if (status === 'voting') {
-            return <VotingView gameId={gameId} isHost={isHost} categories={categories} playerId={playerId} players={players} teamMode={teamMode} onFinishGame={handleFinishGame} isDeveloper={apiStatus.isDeveloper} />;
+            return <VotingView gameId={gameId} isHost={isHost} categories={categories} playerId={playerId} players={players} teamMode={teamMode} onFinishGame={handleFinishGame} isDeveloper={apiStatus.isDeveloper} hintByCategory={hintByCategory} />;
         }
 
         // --- VIEW 4: PODIUM (FINISHED) ---

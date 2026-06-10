@@ -397,8 +397,7 @@ export const de: Messages = {
     'community.stepLabel': 'Schritt {current} von {total}',
     'community.step1Title': 'Kategorien finden und speichern',
     'community.step2Title': 'Bereiche & Startpunkt',
-    'community.step3Title': 'Simulation testen',
-    'community.step4Title': 'Veröffentlichen',
+    'community.step3Title': 'Veröffentlichen',
     'community.savedCategories': 'Gespeicherte Kategorien ({count})',
     'community.noCategoriesYet': 'Noch keine Kategorien. Erkunde Street View und speichere Orte.',
     'community.deleteSpot': 'Ort löschen',
@@ -459,4 +458,5 @@ export const de: Messages = {
     'community.renameNameHelp': 'Dieser Name wird unter all deinen Vorlagen angezeigt.',
     'community.nameUpdated': 'Name aktualisiert.',
     'community.nameUpdateError': 'Name konnte nicht aktualisiert werden.',
+    'community.categoryHintPlaceholder': 'Hinweis (optional) – z. B. „Schwarze Farbe, offene Räder“',
 };

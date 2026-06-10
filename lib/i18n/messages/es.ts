@@ -397,8 +397,7 @@ export const es: Messages = {
     'community.stepLabel': 'Paso {current} de {total}',
     'community.step1Title': 'Encuentra y guarda categorías',
     'community.step2Title': 'Zonas y punto de partida',
-    'community.step3Title': 'Prueba la simulación',
-    'community.step4Title': 'Publicar',
+    'community.step3Title': 'Publicar',
     'community.savedCategories': 'Categorías guardadas ({count})',
     'community.noCategoriesYet': 'Aún no hay categorías. Explora Street View y guarda lugares.',
     'community.deleteSpot': 'Eliminar lugar',
@@ -459,4 +458,5 @@ export const es: Messages = {
     'community.renameNameHelp': 'Este nombre se muestra bajo todas tus plantillas.',
     'community.nameUpdated': 'Nombre actualizado.',
     'community.nameUpdateError': 'No se pudo actualizar tu nombre.',
+    'community.categoryHintPlaceholder': 'Pista (opcional) – ej. “Color rojo, ruedas negras”',
 };
