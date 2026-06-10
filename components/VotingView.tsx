@@ -387,13 +387,28 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
             const subsForPlayer = submissions.filter((s) => s.player_id === player.id);
             const subProgressions = subsForPlayer.map((sub) => {
-                let minDistance = Infinity;
                 let bestProgress = 0;
-                for (let i = 0; i < rawPath.length; i++) {
-                    const d = getDistance(rawPath[i].lat, rawPath[i].lng, sub.lat, sub.lng);
-                    if (d < minDistance) {
-                        minDistance = d;
-                        bestProgress = totalDist === 0 ? 0 : dists[i] / totalDist;
+                // Prefer matching by capture time (recorded in the same clock as the
+                // path), so an overwrite surfaces where it was actually re-taken — not
+                // at the first pass when the path revisits the same spot. Fall back to
+                // nearest-in-space for rows without a capture timestamp.
+                if (typeof sub.captured_at === 'number' && rawPath.length > 0 && totalDist > 0) {
+                    let bestDelta = Infinity;
+                    for (let i = 0; i < rawPath.length; i++) {
+                        const delta = Math.abs(rawPath[i].timestamp - sub.captured_at);
+                        if (delta < bestDelta) {
+                            bestDelta = delta;
+                            bestProgress = dists[i] / totalDist;
+                        }
+                    }
+                } else {
+                    let minDistance = Infinity;
+                    for (let i = 0; i < rawPath.length; i++) {
+                        const d = getDistance(rawPath[i].lat, rawPath[i].lng, sub.lat, sub.lng);
+                        if (d < minDistance) {
+                            minDistance = d;
+                            bestProgress = totalDist === 0 ? 0 : dists[i] / totalDist;
+                        }
                     }
                 }
                 return { sub, progress: bestProgress };

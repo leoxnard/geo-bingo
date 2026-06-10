@@ -30,6 +30,9 @@ export interface Submission {
     ai_verdict?: boolean | null;
     ai_verified_hash?: string | null;
     ai_reason?: string | null;
+    // Client-side capture time (epoch ms, same clock as the player's path). Used
+    // by the voting replay to place a submission by time rather than by space.
+    captured_at?: number | null;
 }
 
 export interface BingoCategory {

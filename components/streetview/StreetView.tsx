@@ -473,6 +473,10 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
             return;
         }
 
+        // Capture time in the same clock as the path points, so the voting replay
+        // can place this submission by when it was taken (correct even when the
+        // path revisits the spot), not just by nearest location.
+        const capturedAt = Date.now();
         const submissionData = {
             game_id: gameId,
             player_id: playerId,
@@ -491,6 +495,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
         const optimisticSub = {
             ...submissionData,
             id: tempId,
+            captured_at: capturedAt,
             votes: existingSub?.votes || {},
             ai_verdict: null,
             ai_verified_hash: null,
@@ -516,6 +521,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                 p_heading: submissionData.heading,
                 p_pitch: submissionData.pitch,
                 p_zoom: submissionData.zoom,
+                p_captured_at: capturedAt,
             });
 
             if (data && data.success === false && data.error === 'ALREADY_CLAIMED') {
@@ -543,6 +549,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                 p_heading: submissionData.heading,
                 p_pitch: submissionData.pitch,
                 p_zoom: submissionData.zoom,
+                p_captured_at: capturedAt,
             });
 
             if (error || (data && data.success === false)) {
