@@ -893,6 +893,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     // disabled feature never leaks into the lobby UI or gameplay.
     const effectiveExclusiveMode = FEATURES.exclusiveCategories ? exclusiveMode : false;
     const effectiveHideMiniMap = FEATURES.hideMiniMap ? hideMiniMap : false;
+    const effectiveAiEndGame = FEATURES.aiVerifyEndGame ? aiEndGame : false;
 
     const selectView = () => {
         // --- VIEW 1: LOBBY ---
@@ -926,7 +927,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     setPlayers={setPlayers}
                     hideMapSymbols={hideMapSymbols}
                     hideMiniMap={effectiveHideMiniMap}
-                    aiEndGame={aiEndGame}
+                    aiEndGame={effectiveAiEndGame}
                     categorySource={categorySource}
                     aiEnabled={apiStatus.aiEnabled}
                     isDeveloper={apiStatus.isDeveloper}
@@ -962,7 +963,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     hideMapSymbols={hideMapSymbols}
                     hideMiniMap={effectiveHideMiniMap}
                     exclusiveMode={effectiveExclusiveMode}
-                    aiEndGame={aiEndGame}
+                    aiEndGame={effectiveAiEndGame}
                     onVoteEnd={handleVoteEndOptimistic}
                     notifyGameEvent={notifyGameEvent}
                     hintByCategory={hintByCategory}

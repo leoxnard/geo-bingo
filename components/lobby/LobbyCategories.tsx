@@ -16,6 +16,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import toast from 'react-hot-toast';
 import { CiCirclePlus, CiCircleMinus, CiCircleRemove, CiCircleCheck, CiCircleQuestion } from 'react-icons/ci';
 
+import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { CategoryLanguage } from '@/lib/i18n/locales';
 
@@ -27,6 +28,29 @@ import { RangeSlider, MultiToggleButton, Selection } from '../utils/Elements';
 import { shuffle } from '../utils/Functions';
 import type { BingoCategory } from '../utils/types';
 import { useViewport } from '../utils/useViewport';
+
+type CategorySource = 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
+
+// Category sources enabled by the feature flags (manual is always available).
+const ENABLED_SOURCES: CategorySource[] = ['manual', ...(['ai', 'nearbyPlaces', 'nearbyStreetView'] as const).filter((s) => FEATURES.categorySources[s])];
+
+// Built-in word databases enabled by the feature flags, in display order.
+const ENABLED_DATABASES = (
+    [
+        { key: 'balanced', labelKey: 'cat.dbBalanced' },
+        { key: 'easy', labelKey: 'cat.dbEasy' },
+        { key: 'hard', labelKey: 'cat.dbHard' },
+        { key: 'geo_all', labelKey: 'cat.dbGeoAll' },
+        { key: 'geo_Vehicle', labelKey: 'cat.dbGeoVehicles' },
+        { key: 'geo_Camera', labelKey: 'cat.dbGeoCamera' },
+        { key: 'geo_Infrastructure', labelKey: 'cat.dbGeoInfrastructure' },
+        { key: 'geo_Nature', labelKey: 'cat.dbGeoNature' },
+        { key: 'geo_Plate', labelKey: 'cat.dbGeoPlates' },
+        { key: 'geo_Marking', labelKey: 'cat.dbGeoMarkings' },
+    ] as const
+).filter((d) => FEATURES.categoryDatabases[d.key]);
+
+const DEFAULT_DATABASE: string = ENABLED_DATABASES[0]?.key ?? 'balanced';
 
 interface CategoryItemProps {
     initialValue: string;
@@ -206,7 +230,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
     const { isNarrow } = useViewport();
 
     // DB Source Selection State
-    const [wordSource, setWordSource] = useState<string>('balanced');
+    const [wordSource, setWordSource] = useState<string>(DEFAULT_DATABASE);
     const [localCategories, setLocalCategories] = useState<string[]>(categories);
     const [localSuggested, setLocalSuggested] = useState<string[]>(suggestedCategories);
 
@@ -248,7 +272,11 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
 
     const SUGGESTION_BUFFER = 12;
 
-    const isGeneratedSource = categorySource === 'ai' || categorySource === 'nearbyPlaces' || categorySource === 'nearbyStreetView';
+    // A source disabled by a feature flag is treated as manual, so a stale/preset
+    // value never leaves the lobby stuck on a hidden source.
+    const effectiveSource: CategorySource = ENABLED_SOURCES.includes(categorySource) ? categorySource : 'manual';
+    const showSourceSwitcher = aiEnabled && ENABLED_SOURCES.length > 1;
+    const isGeneratedSource = effectiveSource === 'ai' || effectiveSource === 'nearbyPlaces' || effectiveSource === 'nearbyStreetView';
 
     const handleGenerate = async () => {
         if (!isHost || !isGeneratedSource) return;
@@ -652,35 +680,30 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
 
     return (
         <div className="bg-slate-800 p-6 rounded-xl flex-1 border border-slate-700 h-fit">
-            {aiEnabled && (
+            {showSourceSwitcher && (
                 <MultiToggleButton
                     title={t('cat.sourceTitle')}
-                    options={[
-                        { value: 'manual', label: t('cat.sourceManual') },
-                        { value: 'ai', label: t('cat.sourceAi') },
-                        { value: 'nearbyPlaces', label: t('cat.sourceNearbyPlaces') },
-                        { value: 'nearbyStreetView', label: isNarrow ? t('cat.sourceNearbyStreetViewShort') : t('cat.sourceNearbyStreetView') },
-                    ]}
-                    activeValue={categorySource}
+                    options={[{ value: 'manual' as const, label: t('cat.sourceManual') }, ...(FEATURES.categorySources.ai ? [{ value: 'ai' as const, label: t('cat.sourceAi') }] : []), ...(FEATURES.categorySources.nearbyPlaces ? [{ value: 'nearbyPlaces' as const, label: t('cat.sourceNearbyPlaces') }] : []), ...(FEATURES.categorySources.nearbyStreetView ? [{ value: 'nearbyStreetView' as const, label: isNarrow ? t('cat.sourceNearbyStreetViewShort') : t('cat.sourceNearbyStreetView') }] : [])]}
+                    activeValue={effectiveSource}
                     onChange={handleCategorySourceChange}
                     disabled={!isHost}
-                    allowedValues={startingPoint === 'open-world' ? ['manual', 'ai'] : undefined}
+                    allowedValues={startingPoint === 'open-world' ? (['manual', 'ai'] as CategorySource[]).filter((s) => ENABLED_SOURCES.includes(s)) : undefined}
                     isHost={isHost}
                     position="top"
                     columns={2}
                     sizeRatios={[1, 1.5, 1.5, 2.5]}
-                    description={categorySource === 'manual' ? t('cat.sourceDescManual') : categorySource === 'ai' ? t('cat.sourceDescAi') : categorySource === 'nearbyPlaces' ? t('cat.sourceDescNearbyPlaces') : t('cat.sourceDescNearbyStreetView')}
+                    description={effectiveSource === 'manual' ? t('cat.sourceDescManual') : effectiveSource === 'ai' ? t('cat.sourceDescAi') : effectiveSource === 'nearbyPlaces' ? t('cat.sourceDescNearbyPlaces') : t('cat.sourceDescNearbyStreetView')}
                 />
             )}
 
-            {categorySource === 'ai' && (
+            {effectiveSource === 'ai' && (
                 <div className="py-3 border-t border-slate-700">
                     <label className="flex justify-between font-bold mb-2 text-xl text-slate-300">{t('cat.customPrompt')}</label>
                     <textarea value={customPrompt} onChange={(e) => setCustomPrompt(e.target.value)} placeholder={isHost ? t('cat.customPromptPlaceholderHost') : t('cat.customPromptPlaceholderWaiting')} className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none" rows={2} disabled={!isHost || isGenerating} />
                 </div>
             )}
 
-            {categorySource !== 'manual' && (
+            {effectiveSource !== 'manual' && (
                 <>
                     <MultiToggleButton
                         title={t('cat.difficulty')}
@@ -700,7 +723,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                 </>
             )}
 
-            {(categorySource === 'nearbyPlaces' || categorySource === 'nearbyStreetView') && <RangeSlider title={t('cat.poiRadius')} min={1} max={50} minLabel="100m" maxLabel="10km" value={localRadius} disabled={!isHost} displayValue={localRadius >= 10 ? `${(localRadius / 10).toFixed(1)} km` : `${localRadius * 100} m`} onChange={(val) => setLocalRadius(val)} onCommit={handleCommit} position="bottom" description={t('cat.poiRadiusDesc')} />}
+            {(effectiveSource === 'nearbyPlaces' || effectiveSource === 'nearbyStreetView') && <RangeSlider title={t('cat.poiRadius')} min={1} max={50} minLabel="100m" maxLabel="10km" value={localRadius} disabled={!isHost} displayValue={localRadius >= 10 ? `${(localRadius / 10).toFixed(1)} km` : `${localRadius * 100} m`} onChange={(val) => setLocalRadius(val)} onCommit={handleCommit} position="bottom" description={t('cat.poiRadiusDesc')} />}
 
             {isGeneratedSource && isHost && (
                 <div className="flex items-center justify-center pt-3">
@@ -710,9 +733,9 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                 </div>
             )}
 
-            {(categorySource === 'manual' || (isGeneratedSource && categoriesGenerated)) && (
+            {(effectiveSource === 'manual' || (isGeneratedSource && categoriesGenerated)) && (
                 <>
-                    <h3 className={`text-xl font-bold mb-4 text-slate-300 flex justify-between items-center transition-all ${categorySource === 'manual' && aiEnabled ? 'pt-4 border-t border-slate-700' : ''}`}>
+                    <h3 className={`text-xl font-bold mb-4 text-slate-300 flex justify-between items-center transition-all ${effectiveSource === 'manual' && showSourceSwitcher ? 'pt-4 border-t border-slate-700' : ''}`}>
                         <span>{t('cat.title')}</span>
                         <div className="flex items-center">
                             <span className={`text-sm font-normal ${localCategories.length === 0 || (gameMode === 'bingo' && localCategories.length < gridSize * gridSize) ? 'text-red-400' : 'text-slate-400'} bg-slate-900 px-3 py-1 rounded-full`}>{gameMode === 'bingo' ? `${Math.min(localCategories.length, gridSize * gridSize)} / ${gridSize * gridSize}` : t('cat.wordsCount', { count: localCategories.length })}</span>
@@ -757,24 +780,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
 
                             <div className="flex flex-wrap gap-2 items-end mt-2">
                                 <div className="flex flex-1 gap-2 items-end justify-end min-w-[300px]">
-                                    <Selection
-                                        title={t('cat.database')}
-                                        options={[
-                                            { label: t('cat.dbBalanced'), value: 'balanced' },
-                                            { label: t('cat.dbEasy'), value: 'easy' },
-                                            { label: t('cat.dbHard'), value: 'hard' },
-                                            { label: t('cat.dbGeoAll'), value: 'geo_all' },
-                                            { label: t('cat.dbGeoVehicles'), value: 'geo_Vehicle' },
-                                            { label: t('cat.dbGeoCamera'), value: 'geo_Camera' },
-                                            { label: t('cat.dbGeoInfrastructure'), value: 'geo_Infrastructure' },
-                                            { label: t('cat.dbGeoNature'), value: 'geo_Nature' },
-                                            { label: t('cat.dbGeoPlates'), value: 'geo_Plate' },
-                                            { label: t('cat.dbGeoMarkings'), value: 'geo_Marking' },
-                                        ]}
-                                        value={wordSource}
-                                        onChange={setWordSource}
-                                        position="clean"
-                                    />
+                                    <Selection title={t('cat.database')} options={ENABLED_DATABASES.map((d) => ({ label: t(d.labelKey as Parameters<typeof t>[0]), value: d.key }))} value={wordSource} onChange={setWordSource} position="clean" />
                                     <button type="button" onClick={fillUpRandom} className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 rounded-lg font-bold transition-colors whitespace-nowrap shadow-sm h-[42px]">
                                         {t('cat.fillUp')}
                                     </button>
@@ -813,7 +819,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                             <div className="text-center text-slate-500 italic py-6 border-2 border-dashed border-slate-700 rounded-lg">{t('cat.noCategoriesPlayer')}</div>
                         )}
 
-                    {!isHost && (
+                    {FEATURES.categorySuggestions && !isHost && (
                         <div className="flex gap-2 mb-4 mt-6 pt-4 border-t border-slate-700">
                             <input
                                 type="text"
@@ -831,37 +837,39 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                         </div>
                     )}
 
-                    <div className="p-4 bg-slate-800/80 rounded-xl border border-dashed border-indigo-500/50 mt-6">
-                        <div className="flex items-center">
-                            <h4 className="text-xs font-bold text-indigo-400 mb-3 uppercase tracking-wider">{t('cat.suggestions')}</h4>
-                            {isHost && (
-                                <button type="button" onClick={clearSuggestions} className="text-xs font-bold ml-auto text-slate-400 bg-slate-800 hover:bg-slate-700 hover:text-white px-3 py-1 rounded-full ml-2 transition-colors">
-                                    {t('cat.clear')}
-                                </button>
-                            )}
+                    {FEATURES.categorySuggestions && (
+                        <div className="p-4 bg-slate-800/80 rounded-xl border border-dashed border-indigo-500/50 mt-6">
+                            <div className="flex items-center">
+                                <h4 className="text-xs font-bold text-indigo-400 mb-3 uppercase tracking-wider">{t('cat.suggestions')}</h4>
+                                {isHost && (
+                                    <button type="button" onClick={clearSuggestions} className="text-xs font-bold ml-auto text-slate-400 bg-slate-800 hover:bg-slate-700 hover:text-white px-3 py-1 rounded-full ml-2 transition-colors">
+                                        {t('cat.clear')}
+                                    </button>
+                                )}
+                            </div>
+                            <ul className="space-y-2">
+                                {localSuggested.length === 0 ? (
+                                    <li className="text-slate-500 italic py-2">{t('cat.noSuggestions')}</li>
+                                ) : (
+                                    localSuggested.map((cat, i) => (
+                                        <li key={i} className="bg-slate-700 rounded-lg flex justify-between items-center border border-slate-600 italic shadow-sm overflow-hidden p-1 h-[42px]">
+                                            <span className="break-words py-2 px-3 flex items-center text-white">{cat}</span>
+                                            {isHost && (
+                                                <div className="flex shrink-0 border-l border-slate-600">
+                                                    <button type="button" onClick={() => acceptSuggestion(cat)} className="text-green-400 hover:text-green-300 px-4 transition-colors border-r border-slate-600 flex items-center justify-center h-[42px]" title={t('cat.accept')}>
+                                                        <CiCircleCheck size={30} />
+                                                    </button>
+                                                    <button type="button" onClick={() => rejectSuggestion(cat)} className="text-red-400 hover:text-red-300 pl-4 pr-2 transition-colors flex items-center justify-center h-[42px]" title={t('cat.reject')}>
+                                                        <CiCircleRemove size={30} />
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </li>
+                                    ))
+                                )}
+                            </ul>
                         </div>
-                        <ul className="space-y-2">
-                            {localSuggested.length === 0 ? (
-                                <li className="text-slate-500 italic py-2">{t('cat.noSuggestions')}</li>
-                            ) : (
-                                localSuggested.map((cat, i) => (
-                                    <li key={i} className="bg-slate-700 rounded-lg flex justify-between items-center border border-slate-600 italic shadow-sm overflow-hidden p-1 h-[42px]">
-                                        <span className="break-words py-2 px-3 flex items-center text-white">{cat}</span>
-                                        {isHost && (
-                                            <div className="flex shrink-0 border-l border-slate-600">
-                                                <button type="button" onClick={() => acceptSuggestion(cat)} className="text-green-400 hover:text-green-300 px-4 transition-colors border-r border-slate-600 flex items-center justify-center h-[42px]" title={t('cat.accept')}>
-                                                    <CiCircleCheck size={30} />
-                                                </button>
-                                                <button type="button" onClick={() => rejectSuggestion(cat)} className="text-red-400 hover:text-red-300 pl-4 pr-2 transition-colors flex items-center justify-center h-[42px]" title={t('cat.reject')}>
-                                                    <CiCircleRemove size={30} />
-                                                </button>
-                                            </div>
-                                        )}
-                                    </li>
-                                ))
-                            )}
-                        </ul>
-                    </div>
+                    )}
                 </>
             )}
         </div>
