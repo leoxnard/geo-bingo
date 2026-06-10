@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "git-commit": {
+      "source": "doocs/leetcode",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/git-commit/SKILL.md",
+      "computedHash": "7629452906d8a63821a13333094b2dc00e6daf1c059081ffa79c15cc932c52e4"
+    }
+  }
+}

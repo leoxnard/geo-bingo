@@ -36,9 +36,11 @@ interface LobbyMapProps {
     updateGameModeInfo: (updates: { starting_point?: string; gameBoundary?: string; category_source?: 'manual' | 'nearbyPlaces' | 'nearbyStreetView' }) => void;
     /** Read-only reference markers (e.g. saved community-preset spots) rendered on top of the map. */
     extraMarkers?: { lat: number; lng: number; label?: string }[];
+    /** Name of the category being hovered - used to zoom map to that category's position. */
+    hoveredCategory?: string | null;
 }
 
-export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary, generationRadius, updateGameModeInfo, extraMarkers }: LobbyMapProps) {
+export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary, generationRadius, updateGameModeInfo, extraMarkers, hoveredCategory }: LobbyMapProps) {
     const { t } = useT();
     // Translate the preset GROUP headers (the keys stay English for grouping logic).
     const groupLabel = (key: string) => {
@@ -63,6 +65,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
     const [hoveredLocation, setHoveredLocation] = useState<Point | null>(null);
     const [selectedBoundaryId, setSelectedBoundaryId] = useState<string | null>(null);
+    const prevZoomRef = useRef<number>(2);
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [selectedPreset, setSelectedPreset] = useState<string>('');
     const [searchTerm, setSearchTerm] = useState('');
@@ -121,6 +124,22 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         setOptimisticGameBoundary(gameBoundary);
         setWorldDefault(parseWorldDefault(gameBoundary));
     }, [gameBoundary]);
+
+    // Zoom to hovered category (slightly zoomed in to see the point)
+    useEffect(() => {
+        if (!mapInstance) return;
+        if (hoveredCategory && extraMarkers) {
+            const marker = extraMarkers.find((m) => m.label === hoveredCategory);
+            if (marker) {
+                prevZoomRef.current = mapInstance.getZoom() ?? 2;
+                mapInstance.panTo({ lat: marker.lat, lng: marker.lng });
+                mapInstance.setZoom(12);
+            }
+        } else if (!hoveredCategory) {
+            // Restore previous zoom when hover ends
+            mapInstance.setZoom(prevZoomRef.current);
+        }
+    }, [hoveredCategory, extraMarkers, mapInstance]);
 
     const parseBoundaryString = (boundaryString: string): BoundaryPolygon[] => {
         if (!boundaryString || boundaryString === '[]') return [];
@@ -574,25 +593,26 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                     }}
                                 />
 
-                                {extraMarkers?.map((m, i) => (
-                                    <MarkerF
-                                        key={`extra-${i}`}
-                                        position={{ lat: m.lat, lng: m.lng }}
-                                        title={m.label}
-                                        onMouseOver={() => setHoveredLocation({ lat: m.lat, lng: m.lng })}
-                                        onMouseOut={() => setHoveredLocation(null)}
-                                        options={{
-                                            icon: {
-                                                path: google.maps.SymbolPath.CIRCLE,
-                                                scale: 6,
-                                                fillColor: '#f59e0b',
-                                                fillOpacity: 1,
-                                                strokeColor: '#fde68a',
-                                                strokeWeight: 2,
-                                            },
-                                        }}
-                                    />
-                                ))}
+                                {extraMarkers?.map((m, i) => {
+                                    const isHovered = m.label === hoveredCategory;
+                                    return (
+                                        <MarkerF
+                                            key={`extra-${i}`}
+                                            position={{ lat: m.lat, lng: m.lng }}
+                                            title={m.label}
+                                            options={{
+                                                icon: {
+                                                    path: google.maps.SymbolPath.CIRCLE,
+                                                    scale: isHovered ? 9 : 6,
+                                                    fillColor: isHovered ? '#fde68a' : '#f59e0b',
+                                                    fillOpacity: 1,
+                                                    strokeColor: isHovered ? '#fde68a' : '#fde68a',
+                                                    strokeWeight: isHovered ? 3 : 2,
+                                                },
+                                            }}
+                                        />
+                                    );
+                                })}
 
                                 {actualStart.startsWith('{') && (
                                     // Starting point marker with hover preview
@@ -796,7 +816,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                     <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${worldDefault === 'allow' ? 'translate-x-8' : 'translate-x-1'}`} />
                                 </button>
                             </div>
-                            <div ref={dropdownRef} className="relative ml-auto z-[100] min-w-[230px]">
+                            <div ref={dropdownRef} className="relative ml-auto z-[10] min-w-[230px]">
                                 <span className="block text-xs text-slate-400 mb-1">{t('map.orSelectPreset')}</span>
                                 <div onClick={() => setIsMenuOpen(true)} className={`w-full bg-slate-900 border border-slate-700 hover:border-slate-500 rounded-lg flex items-center transition-colors cursor-text ${presetsLoading ? 'opacity-50 pointer-events-none' : ''}`}>
                                     <input
@@ -816,7 +836,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
 
                                 {/* Dropdown-Menü */}
                                 {isMenuOpen && (
-                                    <div className="absolute left-0 top-full w-full pt-1 z-[100]">
+                                    <div className="absolute left-0 top-full w-full pt-1 z-[10]">
                                         <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-xl py-1 max-h-64 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                                             {visibleItems.length > 0 ? (
                                                 visibleItems.map((item, idx) => {

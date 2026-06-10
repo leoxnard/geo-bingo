@@ -27,7 +27,7 @@ import { FaArrowLeft, FaCaretDown, FaCaretRight, FaExclamationTriangle, FaPen, F
 import LobbyMap from '@/components/lobby/LobbyMap';
 import { getStreetViewImageUrl } from '@/components/streetview/streetViewHelpers';
 import { RangeSlider } from '@/components/utils/Elements';
-import { GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from '@/components/utils/mapUtils';
+import { GOOGLE_MAPS_LIBRARIES } from '@/components/utils/mapUtils';
 import type { BoundaryPolygon, CommunityCategory, PresetSeed, PresetSettings } from '@/components/utils/types';
 import { createPreset, getPreset, updatePreset } from '@/lib/community';
 import { useT } from '@/lib/i18n/I18nProvider';
@@ -156,6 +156,7 @@ export default function CommunityBuilder() {
 
     // Jump the explorer panorama to a saved spot (its captured viewpoint).
     const focusOnSpot = (vp: CommunityCategory) => explorerRef.current?.openViewpoint(vp);
+    const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
 
     // Stable so the explorer's focus effect doesn't re-run every render.
     const handleViewpointChange = useCallback((vp: { lat: number; lng: number; heading: number; pitch: number; zoom: number } | null) => {
@@ -209,7 +210,7 @@ export default function CommunityBuilder() {
     const renderCategoryRow = (name: string, viewpoint: CommunityCategory | null) => (
         <div key={(viewpoint ? 'a-' : 'p-') + name} className="flex items-start gap-3 bg-slate-800 rounded-xl p-2">
             {viewpoint ? (
-                <button type="button" onClick={() => focusOnSpot(viewpoint)} title={t('community.jumpToSpot')} aria-label={t('community.jumpToSpot')} className="w-14 h-14 rounded-lg overflow-hidden shrink-0 ring-2 ring-transparent hover:ring-indigo-500 transition-shadow">
+                <button type="button" onClick={() => focusOnSpot(viewpoint)} onMouseEnter={() => setHoveredCategory(name)} onMouseLeave={() => setHoveredCategory(null)} title={t('community.jumpToSpot')} aria-label={t('community.jumpToSpot')} className="w-14 h-14 rounded-lg overflow-hidden shrink-0 ring-2 ring-transparent hover:ring-indigo-500 transition-shadow">
                     <img src={getStreetViewImageUrl(viewpoint, 120)} alt="" className="w-full h-full object-cover" />
                 </button>
             ) : (
@@ -268,10 +269,6 @@ export default function CommunityBuilder() {
         setStartAcknowledged(true);
         setPendingStart(null);
     };
-
-    // Categories that fall outside the allowed boundaries (respects stacked
-    // allow/forbid priorities via isLocationAllowed).
-    const categoriesOutside = useMemo(() => categories.filter((c) => !isLocationAllowed({ lat: c.lat, lng: c.lng }, boundaries)), [categories, boundaries]);
 
     const startPos = useMemo(() => {
         if (startingPoint.startsWith('{')) {
@@ -375,7 +372,7 @@ export default function CommunityBuilder() {
                 {step === 0 && (
                     <div className="flex h-full flex-col md:flex-row">
                         <div className="flex-1 min-h-0 relative">
-                            <StreetViewExplorer ref={explorerRef} isLoaded={isLoaded} mode="capture" onSave={assignViewpoint} onViewpointChange={handleViewpointChange} spots={categories} existingNames={existingNames} gameBoundary={boundaries} />
+                            <StreetViewExplorer ref={explorerRef} isLoaded={isLoaded} mode="capture" onSave={assignViewpoint} onViewpointChange={handleViewpointChange} spots={categories} existingNames={existingNames} gameBoundary={boundaries} hoveredSpot={hoveredCategory} />
                         </div>
                         <aside className="w-full md:w-80 border-t md:border-t-0 md:border-l border-slate-800 overflow-y-auto p-4 flex flex-col gap-3 shrink-0">
                             <h2 className="font-bold text-sm uppercase text-slate-400">{t('community.savedCategories', { count: categories.length })}</h2>
@@ -387,17 +384,15 @@ export default function CommunityBuilder() {
                 )}
 
                 {step === 1 && (
-                    <div className="h-full flex flex-col">
-                        <p className="text-sm text-slate-400 px-4 py-2 shrink-0">{t('community.boundariesHelp')}</p>
-                        {categoriesOutside.length > 0 && (
-                            <div className="mx-4 mb-2 shrink-0 flex items-center gap-2 rounded-lg bg-amber-950/60 border border-amber-700/60 px-3 py-2 text-amber-300 text-sm">
-                                <FaExclamationTriangle className="shrink-0" />
-                                <span>{t('community.boundaryWarn', { count: categoriesOutside.length, names: categoriesOutside.map((c) => c.categoryName).join(', ') })}</span>
-                            </div>
-                        )}
+                    <div className="h-full flex flex-col md:flex-row">
                         <div className="flex-1 min-h-0">
-                            <LobbyMap isHost={true} isLoaded={isLoaded} startingPoint={startingPoint} gameBoundary={boundaries} updateGameModeInfo={updateDraft} extraMarkers={extraMarkers} />
+                            <LobbyMap isHost={true} isLoaded={isLoaded} startingPoint={startingPoint} gameBoundary={boundaries} updateGameModeInfo={updateDraft} extraMarkers={extraMarkers} hoveredCategory={hoveredCategory} />
                         </div>
+                        <aside className="w-full md:w-80 border-t md:border-t-0 md:border-l border-slate-800 overflow-y-auto p-4 flex flex-col gap-3 shrink-0">
+                            <h2 className="font-bold text-sm uppercase text-slate-400">{t('community.savedCategories', { count: categories.length })}</h2>
+                            {categories.length === 0 && <p className="text-slate-500 text-sm">{t('community.noCategoriesYet')}</p>}
+                            {categories.map((cat) => renderCategoryRow(cat.categoryName, cat))}
+                        </aside>
                     </div>
                 )}
 

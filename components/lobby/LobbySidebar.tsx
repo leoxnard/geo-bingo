@@ -53,6 +53,7 @@ interface LobbySidebarProps {
     onCategoryLanguageChange?: (newLanguage: CategoryLanguage) => Promise<void>;
     categorySource: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
     isGenerating: boolean;
+    onPresetClick?: () => void;
 }
 
 const darkTeamColors = ['bg-emerald-950/40 border-emerald-900/50 text-emerald-200', 'bg-amber-950/40 border-amber-900/50 text-amber-200', 'bg-cyan-950/40 border-cyan-900/50 text-cyan-200', 'bg-slate-950/40 border-slate-900/50 text-slate-200', 'bg-rose-950/40 border-rose-900/50 text-rose-200', 'bg-indigo-950/40 border-indigo-900/50 text-indigo-200'];
@@ -353,6 +354,13 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                             ))}
                         </select>
                     </div>
+
+                    {props.isHost && (
+                        <button type="button" onClick={props.onPresetClick} className="w-full py-2.5 rounded-lg font-medium bg-indigo-600 text-white hover:bg-indigo-500 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            {t('community.browseTitle')}
+                        </button>
+                    )}
+
                     <ToggleSwitch label={t('sidebar.hideMapSymbols')} tooltip={t('sidebar.hideMapSymbolsTooltip')} checked={props.hideMapSymbols} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ hide_map_symbols: checked })} />
                     <ToggleSwitch label={t('sidebar.hideMiniMap')} tooltip={t('sidebar.hideMiniMapTooltip')} checked={props.hideMiniMap} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ hide_minimap: checked })} />
                     <ToggleSwitch label={t('sidebar.aiVerifyEndGame')} tooltip={t('sidebar.aiVerifyEndGameTooltip')} checked={props.aiEndGame} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ ai_end_game: checked })} />

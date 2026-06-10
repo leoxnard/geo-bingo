@@ -10,7 +10,7 @@ Handles game state synchronization and start game functionality.
 ================================================================================
 */
 
-import { useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 import { useJsApiLoader } from '@react-google-maps/api';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -22,11 +22,13 @@ import LanguageSwitcher from '@/lib/i18n/LanguageSwitcher';
 import { CategoryLanguage } from '@/lib/i18n/locales';
 
 import LobbyCategories from './LobbyCategories';
+import LobbyCommunityPresets from './LobbyCommunityPresets';
 import LobbyMap from './LobbyMap';
 import LobbySettings from './LobbySettings';
 import LobbySidebar from './LobbySidebar';
 import { getHostToken } from '../../lib/hostToken';
 import { GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from '../utils/mapUtils';
+import type { CommunityPreset } from '../utils/types';
 
 interface Player {
     id: string;
@@ -86,6 +88,48 @@ export default function LobbyView(props: LobbyViewProps) {
     });
 
     const MAXGRIDSIZE = 6;
+
+    const [showCommunityPresets, setShowCommunityPresets] = useState(false);
+    const isPendingSyncRef = useRef(false);
+
+    const handleImportPreset = (preset: CommunityPreset, locale: string) => {
+        if (!props.isHost) return;
+
+        const originals = preset.categories.map((c) => c.categoryName);
+        const translatedList = preset.category_translations?.[locale];
+        const importedNames = Array.isArray(translatedList) && translatedList.length === originals.length ? translatedList : originals;
+
+        const targetCount = props.gameMode === 'bingo' ? props.gridSize * props.gridSize : importedNames.length;
+        const paddedCategories = props.gameMode === 'bingo' ? [...importedNames, ...Array(Math.max(0, targetCount - importedNames.length)).fill('')] : importedNames;
+
+        isPendingSyncRef.current = true;
+
+        props.updateGameModeInfo({
+            categories: paddedCategories,
+            gameBoundary: JSON.stringify(preset.boundaries),
+            starting_point: preset.starting_point,
+            game_mode: preset.game_mode === 'bingo' ? 'bingo' : 'list',
+            grid_size: preset.game_mode === 'bingo' ? preset.grid_size : props.gridSize,
+            time_limit: preset.recommended_time ?? props.timeLimit,
+            difficulty: preset.difficulty === 'easy' || preset.difficulty === 'hard' ? preset.difficulty : 'default',
+            ...(preset.settings?.endCondition && { end_condition: preset.settings.endCondition }),
+            ...(preset.settings?.hideMiniMap !== undefined && { hide_minimap: preset.settings.hideMiniMap }),
+            ...(preset.settings?.hideMapSymbols !== undefined && { hide_map_symbols: preset.settings.hideMapSymbols }),
+            ...(preset.settings?.exclusiveMode !== undefined && { exclusive_mode: preset.settings.exclusiveMode }),
+            ...(preset.settings?.aiEndGame !== undefined && { ai_end_game: preset.settings.aiEndGame }),
+            category_source: 'manual',
+            categories_generated: false,
+        });
+
+        if (preset.category_translations) {
+            window?.sessionStorage?.setItem(`geoBingoTranslations_${props.gameId}`, JSON.stringify(preset.category_translations));
+        }
+
+        toast.success('Preset imported into lobby!');
+        setTimeout(() => {
+            isPendingSyncRef.current = false;
+        }, 1200);
+    };
 
     useEffect(() => {
         const today = new Date().toDateString();
@@ -248,8 +292,11 @@ export default function LobbyView(props: LobbyViewProps) {
                     onCategoryLanguageChange={props.onCategoryLanguageChange}
                     categorySource={props.categorySource}
                     isGenerating={false}
+                    onPresetClick={() => setShowCommunityPresets(true)}
                 />
             </div>
+
+            {props.isHost && <LobbyCommunityPresets isOpen={showCommunityPresets} onClose={() => setShowCommunityPresets(false)} onImport={handleImportPreset} />}
         </div>
     );
 }

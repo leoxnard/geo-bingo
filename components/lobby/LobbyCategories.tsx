@@ -25,7 +25,7 @@ import { generateNearbyStreetViewCategories } from './NearbyStreetViewCategories
 import { getHostToken } from '../../lib/hostToken';
 import { RangeSlider, MultiToggleButton, Selection } from '../utils/Elements';
 import { shuffle } from '../utils/Functions';
-import { BingoCategory } from '../utils/types';
+import type { BingoCategory } from '../utils/types';
 import { useViewport } from '../utils/useViewport';
 
 interface CategoryItemProps {
@@ -155,7 +155,26 @@ const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, o
 };
 
 interface LobbyCategoriesProps {
-    updateGameModeInfo: (updates: { game_mode?: string; team_mode?: string; grid_size?: number; starting_point?: string; gameBoundary?: string; categories?: string[]; category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView'; generation_radius?: number; generation_number?: number; difficulty?: 'default' | 'easy' | 'hard'; categories_generated?: boolean; language?: CategoryLanguage }) => void;
+    updateGameModeInfo: (updates: {
+        game_mode?: string;
+        team_mode?: string;
+        grid_size?: number;
+        starting_point?: string;
+        gameBoundary?: string;
+        categories?: string[];
+        category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
+        generation_radius?: number;
+        generation_number?: number;
+        difficulty?: 'default' | 'easy' | 'hard';
+        categories_generated?: boolean;
+        language?: CategoryLanguage;
+        end_condition?: string;
+        hide_minimap?: boolean;
+        hide_map_symbols?: boolean;
+        exclusive_mode?: boolean;
+        ai_end_game?: boolean;
+        time_limit?: number;
+    }) => void;
     isHost: boolean;
     gameMode: 'list' | 'bingo';
     language: CategoryLanguage;
@@ -649,7 +668,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                     position="top"
                     columns={2}
                     sizeRatios={[1, 1.5, 1.5, 2.5]}
-                    description={categorySource === 'manual' ? t('cat.sourceDescManual') : categorySource === 'ai' ? t('cat.sourceDescAi') : categorySource === 'nearbyPlaces' ? t('cat.sourceDescNearbyPlaces') : categorySource === 'nearbyStreetView' ? t('cat.sourceDescNearbyStreetView') : t('cat.sourceDescAi')}
+                    description={categorySource === 'manual' ? t('cat.sourceDescManual') : categorySource === 'ai' ? t('cat.sourceDescAi') : categorySource === 'nearbyPlaces' ? t('cat.sourceDescNearbyPlaces') : t('cat.sourceDescNearbyStreetView')}
                 />
             )}
 

@@ -23,7 +23,7 @@ is wired to realtime game state, scoring and AI verification.
 ================================================================================
 */
 
-import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 
 import { GoogleMap, MarkerF, PolygonF, StreetViewPanorama } from '@react-google-maps/api';
 import toast from 'react-hot-toast';
@@ -64,13 +64,13 @@ interface StreetViewExplorerProps {
     gameBoundary?: string;
     /** Where the panorama opens. Falls back to a default street. */
     initialPosition?: { lat: number; lng: number };
+    /** Hovered category name from the category list (for minimap zoom effect). */
+    hoveredSpot?: string | null;
 }
 
 const DEFAULT_POSITION = { lat: 20, lng: 0 };
 
-const SPOT_ICON = { path: 0 as google.maps.SymbolPath, scale: 6, fillColor: '#f59e0b', fillOpacity: 1, strokeColor: '#fde68a', strokeWeight: 2 };
-
-const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplorerProps>(function StreetViewExplorer({ isLoaded, mode = 'capture', onSave, onViewpointChange, spots = [], existingNames = [], gameBoundary = '[]', initialPosition }, ref) {
+const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplorerProps>(function StreetViewExplorer({ isLoaded, mode = 'capture', onSave, onViewpointChange, spots = [], existingNames = [], gameBoundary = '[]', initialPosition, hoveredSpot }, ref) {
     const { t } = useT();
     const exploreMapRef = useRef<google.maps.Map | null>(null); // map that owns the navigable panorama
     const panoRef = useRef<google.maps.StreetViewPanorama | null>(null);
@@ -78,6 +78,7 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
     const youAreHereRef = useRef<google.maps.Marker | null>(null);
     const youAreHereConeRef = useRef<google.maps.Marker | null>(null); // facing-direction cone
     const lastValidRef = useRef<google.maps.LatLng | null>(null);
+    const prevMiniZoomRef = useRef<number>(2);
 
     const [pendingSpot, setPendingSpot] = useState<Viewpoint | null>(null);
     const [categoryName, setCategoryName] = useState('');
@@ -291,6 +292,21 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
         setCategoryName('');
     };
 
+    // Effect to zoom minimap when hovering a spot (from category list)
+    useEffect(() => {
+        if (!miniMapRef.current || mode !== 'capture') return;
+        if (hoveredSpot) {
+            const spot = spots.find((s) => s.categoryName === hoveredSpot);
+            if (spot) {
+                prevMiniZoomRef.current = miniMapRef.current.getZoom() ?? 2;
+                miniMapRef.current.panTo({ lat: spot.lat, lng: spot.lng });
+                miniMapRef.current.setZoom(10);
+            }
+        } else {
+            miniMapRef.current.setZoom(prevMiniZoomRef.current);
+        }
+    }, [hoveredSpot, spots, mode]);
+
     const confirmSave = () => {
         const name = categoryName.trim();
         if (!pendingSpot || !name || !onSave) return;
@@ -317,9 +333,27 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
                                 .map((b) => (
                                     <PolygonF key={b.id} paths={b.points} onUnmount={(p) => p.setMap(null)} options={{ fillColor: b.type === 'allow' ? '#008000' : '#ff0000', fillOpacity: 0.1, strokeColor: b.type === 'allow' ? '#008000' : '#ff0000', strokeOpacity: 0.6, strokeWeight: 2, clickable: false }} />
                                 ))}
-                            {spots.map((s, i) => (
-                                <MarkerF key={i} position={{ lat: s.lat, lng: s.lng }} title={s.categoryName} icon={SPOT_ICON} />
-                            ))}
+                            {spots.map((s, i) => {
+                                const vp: Viewpoint = { lat: s.lat, lng: s.lng, heading: s.heading, pitch: s.pitch, zoom: s.zoom };
+                                return (
+                                    <MarkerF
+                                        key={i}
+                                        position={{ lat: s.lat, lng: s.lng }}
+                                        title={s.categoryName}
+                                        onClick={() => openViewpoint(vp)}
+                                        options={{
+                                            icon: {
+                                                path: google.maps.SymbolPath.CIRCLE,
+                                                scale: 6,
+                                                fillColor: '#f59e0b',
+                                                fillOpacity: 1,
+                                                strokeColor: '#fde68a',
+                                                strokeWeight: 2,
+                                            },
+                                        }}
+                                    />
+                                );
+                            })}
                         </GoogleMap>
                         <span className="absolute bottom-2 left-2 z-10 rounded-md bg-slate-900/80 px-2 py-1 text-[11px] font-medium text-slate-300 shadow">{t('community.miniMapHint')}</span>
 

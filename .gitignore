@@ -51,6 +51,7 @@ build
 data/
 .claude/
 .opencode/
+.agents/
 .hintrc
 .planning/
 
