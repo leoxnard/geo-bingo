@@ -104,6 +104,10 @@ export default function LobbyView(props: LobbyViewProps) {
         const targetCount = props.gameMode === 'bingo' ? props.gridSize * props.gridSize : importedNames.length;
         const paddedCategories = props.gameMode === 'bingo' ? [...importedNames, ...Array(Math.max(0, targetCount - importedNames.length)).fill('')] : importedNames;
 
+        // Carry the preset's target spots so the voting map can mark them, plus the
+        // per-locale translations + hints, exactly like the fork-on-create import.
+        const presetPositions = preset.categories.filter((c) => typeof c.lat === 'number' && typeof c.lng === 'number').map((c) => ({ categoryName: c.categoryName, lat: c.lat, lng: c.lng }));
+
         isPendingSyncRef.current = true;
 
         props.updateGameModeInfo({
@@ -119,13 +123,12 @@ export default function LobbyView(props: LobbyViewProps) {
             ...(preset.settings?.hideMapSymbols !== undefined && { hide_map_symbols: preset.settings.hideMapSymbols }),
             ...(preset.settings?.exclusiveMode !== undefined && { exclusive_mode: preset.settings.exclusiveMode }),
             ...(preset.settings?.aiEndGame !== undefined && { ai_end_game: preset.settings.aiEndGame }),
+            ...(preset.category_translations && { category_translations: preset.category_translations }),
+            ...(preset.category_hint_translations && { category_hint_translations: preset.category_hint_translations }),
+            ...(presetPositions.length > 0 && { preset_categories: presetPositions }),
             category_source: 'manual',
             categories_generated: false,
         });
-
-        if (preset.category_translations) {
-            window?.sessionStorage?.setItem(`geoBingoTranslations_${props.gameId}`, JSON.stringify(preset.category_translations));
-        }
 
         // Success toast is shown by the import modal (LobbyCommunityPresets).
         setTimeout(() => {

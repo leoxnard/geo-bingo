@@ -658,6 +658,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     if (payload.new.difficulty !== undefined && !pendingOptimisticUpdatesRef.current.has('difficulty')) setDifficulty(payload.new.difficulty);
                     if (payload.new.categories_generated !== undefined && !pendingOptimisticUpdatesRef.current.has('categories_generated')) setCategoriesGenerated(payload.new.categories_generated);
                     if (payload.new.category_hint_translations !== undefined && !pendingOptimisticUpdatesRef.current.has('category_hint_translations')) setCategoryHintTranslations(payload.new.category_hint_translations);
+                    if (payload.new.category_translations !== undefined && !pendingOptimisticUpdatesRef.current.has('category_translations')) setCategoryTranslations(payload.new.category_translations);
                 },
             )
             .subscribe();
