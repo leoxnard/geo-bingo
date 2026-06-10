@@ -32,6 +32,37 @@ export interface FinalizeResult {
     hintTranslations: Record<string, string[]>;
 }
 
+// /api/translate caps each request at 60 texts. A preset bundles category names
+// + hints + title + description, which overflows that for ~28+ categories, so we
+// translate in chunks and stitch the per-locale arrays back together in order. A
+// chunk that fails leaves its locale short, which the caller's length check then
+// back-fills with the originals.
+const TRANSLATE_CHUNK = 50;
+
+async function translateInChunks(texts: string[], sourceLang: string | undefined): Promise<Record<string, string[]>> {
+    const out: Record<string, string[]> = {};
+    for (let i = 0; i < texts.length; i += TRANSLATE_CHUNK) {
+        const slice = texts.slice(i, i + TRANSLATE_CHUNK);
+        try {
+            const r = await fetch('/api/translate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ texts: slice, targetLangs: LOCALE_CODES, sourceLang }),
+            });
+            if (!r.ok) continue;
+            const d = (await r.json()) as { translations?: Record<string, string[]> };
+            if (!d.translations) continue;
+            for (const code of LOCALE_CODES) {
+                const arr = d.translations[code];
+                if (Array.isArray(arr)) (out[code] ??= []).push(...arr);
+            }
+        } catch {
+            // Skip this chunk; the caller's length check falls back to originals.
+        }
+    }
+    return out;
+}
+
 function extractJson(text: string): string {
     const cleaned = text
         .replace(/```json\n?/g, '')
@@ -83,20 +114,7 @@ Example: {"emoji":"🗼","language":"fr"}`;
     const nameIdx = categoryNames.length + categoryHints.length;
     const descIdx = nameIdx + 1;
 
-    const raw: Record<string, string[]> = {};
-    try {
-        const r = await fetch('/api/translate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ texts, targetLangs: LOCALE_CODES, sourceLang: language || undefined }),
-        });
-        if (r.ok) {
-            const d = (await r.json()) as { translations?: Record<string, string[]> };
-            if (d.translations && typeof d.translations === 'object') Object.assign(raw, d.translations);
-        }
-    } catch {
-        // Ignore — back-filled with originals below.
-    }
+    const raw = await translateInChunks(texts, language || undefined);
 
     // Split each locale's batch back into categories / hints / title / description, and
     // guarantee a complete map: any missing/partial locale falls back to originals.
