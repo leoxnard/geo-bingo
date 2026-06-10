@@ -283,29 +283,27 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
         const activeCount = gameMode === 'bingo' ? gridSize * gridSize : localGenerationNumber;
 
         setIsGenerating(true);
+        const loadingToast = toast.loading(categorySource === 'nearbyStreetView' ? t('cat.loadingStreetView') : t('cat.loadingGenerating'));
 
         try {
-            const pool = await toast.promise(
-                (async (): Promise<BingoCategory[]> => {
-                    let result: BingoCategory[];
-                    if (categorySource === 'nearbyStreetView') {
-                        result = await generateNearbyStreetViewCategories(startPos!, generationRadius, activeCount, difficulty, language);
-                    } else if (categorySource === 'nearbyPlaces') {
-                        result = await generateNearbyPlaceCategories(startPos!, generationRadius, activeCount + SUGGESTION_BUFFER, difficulty, language);
-                    } else {
-                        result = await generateAICategories(customPrompt, activeCount + SUGGESTION_BUFFER, language);
-                    }
-                    if (result.length < activeCount) {
-                        throw new Error(t('cat.toastOnlyFound', { found: result.length, need: activeCount }));
-                    }
-                    return result;
-                })(),
-                {
-                    loading: categorySource === 'nearbyStreetView' ? t('cat.loadingStreetView') : t('cat.loadingGenerating'),
-                    success: <b>{t('cat.generatedSuccess')}</b>,
-                    error: (err) => (err instanceof Error ? err.message : t('cat.toastGenerationFailed')),
-                },
-            );
+            let pool: BingoCategory[];
+            if (categorySource === 'nearbyStreetView') {
+                pool = await generateNearbyStreetViewCategories(startPos!, generationRadius, activeCount, difficulty, language);
+            } else if (categorySource === 'nearbyPlaces') {
+                pool = await generateNearbyPlaceCategories(startPos!, generationRadius, activeCount + SUGGESTION_BUFFER, difficulty, language);
+            } else {
+                pool = await generateAICategories(customPrompt, activeCount + SUGGESTION_BUFFER, language);
+            }
+
+            toast.dismiss(loadingToast);
+
+            // Fewer than requested? Still keep everything we generated (the host can
+            // top it up manually) and just warn — don't discard the whole batch.
+            if (pool.length < activeCount) {
+                toast.error(t('cat.toastOnlyFound', { found: pool.length, need: activeCount }));
+            } else {
+                toast.success(t('cat.generatedSuccess'));
+            }
 
             const active = pool.slice(0, activeCount).map((c) => c.categoryName);
             const rest = pool.slice(activeCount).map((c) => c.categoryName);
@@ -317,7 +315,8 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
             const { data, error } = await supabase.rpc('update_game_settings', {
                 p_game_id: gameId,
                 p_host_id: getHostToken(gameId),
-                p_patch: { categories: active, suggested_categories: rest, category_details: pool, categories_generated: true },
+                // Flip to manual right away so the host can keep adding categories by hand.
+                p_patch: { categories: active, suggested_categories: rest, category_details: pool, categories_generated: true, category_source: 'manual' },
             });
 
             if (error || (data && data.success === false)) {
@@ -328,6 +327,8 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                 isPendingSyncRef.current = false;
             }, 1200);
         } catch (error) {
+            toast.dismiss(loadingToast);
+            toast.error(error instanceof Error ? error.message : t('cat.toastGenerationFailed'));
             console.error('Error generating categories:', error);
             isPendingSyncRef.current = false;
         } finally {
