@@ -15,7 +15,7 @@ import { useState } from 'react';
 
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { FaMagic, FaPen, FaRegTrashAlt, FaThumbsDown, FaThumbsUp } from 'react-icons/fa';
+import { FaLink, FaMagic, FaPen, FaRegTrashAlt, FaThumbsDown, FaThumbsUp } from 'react-icons/fa';
 
 import type { CommunityPreset } from '@/components/utils/types';
 import { updatePreset } from '@/lib/community';
@@ -30,6 +30,8 @@ interface PresetCardProps {
     onVote: (value: 1 | -1) => void;
     onDelete: () => void;
     onChanged?: () => void; // re-pull the list after an in-place change (e.g. regenerate)
+    highlighted?: boolean; // true when this card was opened via a share link
+    style?: React.CSSProperties; // lets the grid stagger the entrance animation
 }
 
 // Shown when the author didn't pick an icon.
@@ -45,7 +47,7 @@ function titleSizeClass(name: string): string {
     return 'text-xl sm:text-2xl';
 }
 
-export default function PresetCard({ preset, myVote, isOwner, onVote, onDelete, onChanged }: PresetCardProps) {
+export default function PresetCard({ preset, myVote, isOwner, onVote, onDelete, onChanged, highlighted = false, style }: PresetCardProps) {
     const { t, locale } = useT();
     const router = useRouter();
     const [busy, setBusy] = useState(false);
@@ -59,6 +61,28 @@ export default function PresetCard({ preset, myVote, isOwner, onVote, onDelete, 
     const importPreset = () => {
         const id = Math.random().toString(36).substring(2, 8);
         router.push(`/game/${id}?preset=${preset.id}`);
+    };
+
+    // Share a deep link to this preset (/community?preset=<id>). Uses the native
+    // share sheet where available (mobile), otherwise copies to the clipboard.
+    const sharePreset = async () => {
+        const url = `${window.location.origin}/community?preset=${preset.id}`;
+        if (typeof navigator.share === 'function') {
+            try {
+                await navigator.share({ title: displayName, url });
+                return;
+            } catch (err) {
+                // AbortError = user dismissed the share sheet; not a failure.
+                if (err instanceof DOMException && err.name === 'AbortError') return;
+                // Anything else: fall through to the clipboard path.
+            }
+        }
+        try {
+            await navigator.clipboard.writeText(url);
+            toast.success(t('community.linkCopied'));
+        } catch {
+            toast.error(t('community.shareError'));
+        }
     };
 
     // Backfill the emoji + per-language category translations in place (Gemini +
@@ -99,7 +123,7 @@ export default function PresetCard({ preset, myVote, isOwner, onVote, onDelete, 
     };
 
     return (
-        <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden flex flex-col">
+        <div id={`preset-${preset.id}`} style={style} className={`card-lift animate-fade-in-up bg-slate-800 border rounded-2xl overflow-hidden flex flex-col ${highlighted ? 'border-indigo-500 ring-2 ring-indigo-500/60' : 'border-slate-700'}`}>
             {/* Emoji banner: icon as a big faded backdrop, title sized to fill */}
             <div className="relative aspect-[2/1] overflow-hidden bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center">
                 <span aria-hidden className="pointer-events-none absolute inset-0 flex items-center justify-center text-[7rem] leading-none opacity-25 select-none">
@@ -149,6 +173,9 @@ export default function PresetCard({ preset, myVote, isOwner, onVote, onDelete, 
                 </div>
 
                 <div className="flex items-center gap-2 pt-2 border-t border-slate-700">
+                    <button type="button" onClick={sharePreset} aria-label={t('community.share')} title={t('community.share')} className="flex items-center px-2.5 py-2 rounded-lg text-sm bg-slate-900 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                        <FaLink size={12} />
+                    </button>
                     <button type="button" onClick={() => onVote(1)} aria-label={t('community.upvote')} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-bold transition-colors ${myVote === 1 ? 'bg-green-600 text-white' : 'bg-slate-900 text-slate-300 hover:bg-slate-700'}`}>
                         <FaThumbsUp size={12} /> {preset.upvotes}
                     </button>

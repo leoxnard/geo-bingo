@@ -11,14 +11,15 @@ account-wide rename) plus edit/delete on their own presets.
 ================================================================================
 */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { FaArrowLeft, FaPen, FaPlus, FaSignOutAlt, FaUserCircle } from 'react-icons/fa';
 
 import type { CommunityPreset } from '@/components/utils/types';
-import { getMyVotes, listPresets, votePreset, deletePreset, renameAuthor, type PresetSort } from '@/lib/community';
+import { getMyVotes, getPreset, listPresets, votePreset, deletePreset, renameAuthor, type PresetSort } from '@/lib/community';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { supabase } from '@/lib/supabase';
 
@@ -35,6 +36,12 @@ export default function CommunityBrowse() {
     const { t } = useT();
     const { user, loading: userLoading } = useUser();
 
+    // Share-link deep link: /community?preset=<id> pins that preset to the top
+    // of the list (fetching it if it isn't in the current page), highlights it
+    // and scrolls it into view once.
+    const sharedId = useSearchParams().get('preset');
+    const scrolledToSharedRef = useRef(false);
+
     const [presets, setPresets] = useState<CommunityPreset[]>([]);
     const [myVotes, setMyVotes] = useState<Record<string, number>>({});
     const [sort, setSort] = useState<PresetSort>('top');
@@ -50,18 +57,39 @@ export default function CommunityBrowse() {
         setLoading(true);
         try {
             const [rows, votes] = await Promise.all([listPresets(sort), getMyVotes()]);
-            setPresets(rows);
+            let list = rows;
+            if (sharedId) {
+                const inList = rows.find((p) => p.id === sharedId);
+                if (inList) {
+                    // Pin the shared preset to the top so the recipient sees it first.
+                    list = [inList, ...rows.filter((p) => p.id !== sharedId)];
+                } else {
+                    const shared = await getPreset(sharedId);
+                    if (shared && shared.status === 'published') list = [shared, ...rows];
+                }
+            }
+            setPresets(list);
             setMyVotes(votes);
         } catch {
             toast.error(t('community.loadError'));
         } finally {
             setLoading(false);
         }
-    }, [sort, t]);
+    }, [sort, t, sharedId]);
 
     useEffect(() => {
         load();
     }, [load]);
+
+    // Scroll the shared preset into view once it has rendered.
+    useEffect(() => {
+        if (loading || !sharedId || scrolledToSharedRef.current) return;
+        const el = document.getElementById(`preset-${sharedId}`);
+        if (el) {
+            scrolledToSharedRef.current = true;
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, [loading, sharedId, presets]);
 
     const handleVote = async (preset: CommunityPreset, value: 1 | -1) => {
         try {
@@ -162,7 +190,18 @@ export default function CommunityBrowse() {
                 </div>
 
                 {loading ? (
-                    <p className="text-slate-400 py-16 text-center">{t('common.loading')}</p>
+                    <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-label={t('common.loading')}>
+                        {Array.from({ length: 6 }).map((_, i) => (
+                            <div key={i} className="rounded-2xl border border-slate-700 bg-slate-800/60 overflow-hidden animate-pulse">
+                                <div className="aspect-[2/1] bg-slate-700/40" />
+                                <div className="p-4 flex flex-col gap-3">
+                                    <div className="h-3 w-1/3 rounded bg-slate-700/60" />
+                                    <div className="h-3 w-2/3 rounded bg-slate-700/40" />
+                                    <div className="h-8 w-full rounded-lg bg-slate-700/30" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 ) : presets.length === 0 ? (
                     <div className="py-16 text-center flex flex-col items-center gap-4">
                         <p className="text-slate-400">{t('community.empty')}</p>
@@ -172,8 +211,8 @@ export default function CommunityBrowse() {
                     </div>
                 ) : (
                     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                        {presets.map((preset) => (
-                            <PresetCard key={preset.id} preset={preset} myVote={myVotes[preset.id] ?? 0} isOwner={!!user && user.id === preset.author_id} onVote={(value) => handleVote(preset, value)} onDelete={() => handleDelete(preset)} onChanged={load} />
+                        {presets.map((preset, index) => (
+                            <PresetCard key={preset.id} preset={preset} myVote={myVotes[preset.id] ?? 0} isOwner={!!user && user.id === preset.author_id} onVote={(value) => handleVote(preset, value)} onDelete={() => handleDelete(preset)} onChanged={load} highlighted={preset.id === sharedId} style={{ animationDelay: `${Math.min(index, 9) * 40}ms` }} />
                         ))}
                     </div>
                 )}
