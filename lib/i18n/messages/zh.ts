@@ -85,8 +85,10 @@ export const zh: Messages = {
     'sidebar.couldNotUpdateTeam': '无法更新团队。',
 
     // ---- lobby map ----
-    'map.heading': '起点与游戏区域',
-    'map.description': '在地图上左键单击以绘制活动边界。再次点击起点可闭合并填充多边形。闭合后可继续添加点来细化。如果定义了多个区域，优先级决定先后顺序。拖动小黄人（Pegman）设置自定义起点，或选择推荐的城市标记。设置起点后将自动禁止在游戏中退出街景。',
+    'map.boundaryTitle': '地图边界',
+    'map.startingPointTitle': '起点',
+    'map.boundaryDescription': '在地图上左键单击以绘制活动边界。再次点击起点可闭合并填充多边形。闭合后可继续添加点来细化。如果定义了多个区域，优先级决定先后顺序。拖动小黄人（Pegman）设置自定义起点，或选择推荐的城市标记',
+    'map.pegmanDescription': '设置起点后将自动禁止在游戏中退出街景。',
     'map.loadingPresets': '正在加载地图配置和预设...',
     'map.addArea': '添加区域',
     'map.undo': '撤销',

@@ -85,9 +85,10 @@ export const de: Messages = {
     'sidebar.couldNotUpdateTeam': 'Team konnte nicht aktualisiert werden.',
 
     // ---- lobby map ----
-    'map.heading': 'Startort & Spielgebiet',
-    'map.description':
-        'Klicke mit links auf die Karte, um Bewegungsgrenzen zu zeichnen. Klicke erneut auf den Startpunkt, um das Polygon zu schließen und zu füllen. Danach kannst du weitere Punkte hinzufügen, um es zu verfeinern. Sind mehrere Gebiete definiert, legt die Priorität die Reihenfolge fest. Ziehe das Pegman-Männchen, um einen eigenen Startpunkt zu setzen, oder wähle eine empfohlene Stadtmarkierung. Das Setzen eines Startpunkts deaktiviert automatisch das Verlassen der Street View im Spiel.',
+    'map.boundaryTitle': 'Spielgebiete',
+    'map.startingPointTitle': 'Startpunkt',
+    'map.boundaryDescription': 'Klicke mit links auf die Karte, um Bewegungsgrenzen zu zeichnen. Klicke erneut auf den Startpunkt, um das Polygon zu schließen und zu füllen. Danach kannst du weitere Punkte hinzufügen, um es zu verfeinern. Sind mehrere Gebiete definiert, legt die Priorität die Reihenfolge fest.',
+    'map.pegmanDescription': 'Ziehe das Pegman-Männchen, um einen eigenen Startpunkt zu setzen, oder wähle eine empfohlene Stadtmarkierung. Das Setzen eines Startpunkts deaktiviert automatisch das Verlassen der Street View im Spiel.',
     'map.loadingPresets': 'Lade Kartenkonfiguration und Vorlagen...',
     'map.addArea': 'Gebiet hinzufügen',
     'map.undo': 'Rückgängig',

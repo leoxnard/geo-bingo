@@ -17,6 +17,7 @@ import { FaPlus, FaTimes, FaCaretDown, FaCaretRight, FaUndo } from 'react-icons/
 
 import { useT } from '@/lib/i18n/I18nProvider';
 
+import { MaskIcon } from '../utils/Elements';
 import { insertPoint, insertPointPhase1, mapOptions, WORLD_DEFAULT_ID, parseWorldDefault } from '../utils/mapUtils';
 import { BoundaryPolygon } from '../utils/types';
 
@@ -651,8 +652,19 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
 
     return (
         <div className="bg-slate-800 p-4 sm:p-6 rounded-xl flex-1 border border-slate-700 h-fit">
-            <label className="block font-bold cursor-pointer text-slate-200 mb-2">{t('map.heading')}</label>
-            <p className="text-xs text-slate-400 mb-4">{t('map.description')}</p>
+            {/* use icon public/map.boundary.howto.svg as description */}
+            <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="flex flex-col items-center">
+                    <p className="text-xl font-bold text-slate-200 mb-2">{t('map.boundaryTitle')}</p>
+                    <MaskIcon name="map.boundary.howto" className="h-24 w-48 text-slate-400" />
+                    <p className="text-xs text-slate-400 mt-2">{t('map.boundaryDescription')}</p>
+                </div>
+                <div className="flex flex-col items-center">
+                    <p className="text-xl font-bold text-slate-200 mb-2">{t('map.startingPointTitle')}</p>
+                    <MaskIcon name="map.startingpoint.howto" className="h-24 w-48 text-slate-400" />
+                    <p className="text-xs text-slate-400 mt-2">{t('map.pegmanDescription')}</p>
+                </div>
+            </div>
 
             <div className="mt-4 flex flex-col gap-2">
                 <div className="h-[320px] min-h-[320px] sm:h-[400px] sm:min-h-[400px] w-full rounded-lg overflow-hidden border border-slate-700 relative bg-slate-800/50 flex flex-col items-center justify-center">

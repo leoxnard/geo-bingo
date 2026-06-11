@@ -85,9 +85,10 @@ export const fr: Messages = {
     'sidebar.couldNotUpdateTeam': 'Impossible de mettre à jour l’équipe.',
 
     // ---- lobby map ----
-    'map.heading': 'Point de départ et zone de jeu',
-    'map.description':
-        'Clique gauche sur la carte pour dessiner les limites de déplacement. Clique à nouveau sur le point de départ pour fermer et remplir le polygone. Ensuite, tu peux ajouter d’autres points pour l’affiner. Si plusieurs zones sont définies, la priorité détermine l’ordre de précédence. Fais glisser le Pegman pour définir un point de départ personnalisé, ou sélectionne un marqueur de ville recommandé. Définir un point de départ désactivera automatiquement la sortie du Street View en jeu.',
+    'map.boundaryTitle': 'Limites de la carte',
+    'map.startingPointTitle': 'Point de départ',
+    'map.boundaryDescription': 'Clique gauche sur la carte pour dessiner les limites de déplacement. Clique à nouveau sur le point de départ pour fermer et remplir le polygone. Ensuite, tu peux ajouter d’autres points pour l’affiner. Si plusieurs zones sont définies, la priorité détermine l’ordre de précédence. Fais glisser le Pegman pour définir un point de départ personnalisé, ou sélectionne un marqueur de ville recommandé.',
+    'map.pegmanDescription': 'Définir un point de départ désactivera automatiquement la sortie du Street View en jeu.',
     'map.loadingPresets': 'Chargement de la configuration de la carte et des modèles...',
     'map.addArea': 'Ajouter une zone',
     'map.undo': 'Annuler',

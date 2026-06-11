@@ -85,9 +85,10 @@ export const es: Messages = {
     'sidebar.couldNotUpdateTeam': 'No se pudo actualizar el equipo.',
 
     // ---- lobby map ----
-    'map.heading': 'Ubicación inicial y área de juego',
-    'map.description':
-        'Haz clic izquierdo en el mapa para dibujar los límites de movimiento. Haz clic de nuevo en el punto de inicio para cerrar y rellenar el polígono. Después puedes añadir más puntos para refinarlo. Si se definen varias áreas, la prioridad define el orden de precedencia. Arrastra el muñeco Pegman para fijar un punto de inicio personalizado, o selecciona un marcador de ciudad recomendado. Fijar un punto de inicio desactivará automáticamente la salida de Street View durante la partida.',
+    'map.boundaryTitle': 'Límites del mapa',
+    'map.startingPointTitle': 'Punto de inicio',
+    'map.boundaryDescription': 'Haz clic izquierdo en el mapa para dibujar los límites de movimiento. Haz clic de nuevo en el punto de inicio para cerrar y rellenar el polígono. Después puedes añadir más puntos para refinarlo. Si se definen varias áreas, la prioridad define el orden de precedencia. Arrastra el muñeco Pegman para fijar un punto de inicio personalizado, o selecciona un marcador de ciudad recomendado.',
+    'map.pegmanDescription': 'Arrastra el muñeco Pegman para fijar un punto de inicio personalizado, o selecciona un marcador de ciudad recomendado.',
     'map.loadingPresets': 'Cargando configuración del mapa y plantillas...',
     'map.addArea': 'Añadir área',
     'map.undo': 'Deshacer',

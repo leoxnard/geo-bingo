@@ -86,8 +86,10 @@ export const en = {
     'sidebar.couldNotUpdateTeam': 'Could not update team.',
 
     // ---- lobby map ----
-    'map.heading': 'Starting Location & Game Boundary',
-    'map.description': 'Left-click the map to draw movement boundaries. Click on the starting point again to close and fill the polygon. After closing, you can add more points to refine it. If multiple areas are defined, the priority defines the order of precedence. Drop the Pegman to set a custom starting point, or select a recommended city marker. Selecting a starting point will automatically disable exiting street view ingame.',
+    'map.boundaryTitle': 'Map Boundaries',
+    'map.startingPointTitle': 'Starting Point',
+    'map.boundaryDescription': 'Left-click the map to draw movement boundaries. Click on the starting point again to close and fill the polygon. After closing, you can add more points to refine it. If multiple areas are defined, the priority defines the order of precedence.',
+    'map.pegmanDescription': 'Drag the Pegman to set a custom starting point, or select a recommended city marker.',
     'map.loadingPresets': 'Loading map configuration and presets...',
     'map.addArea': 'Add Area',
     'map.undo': 'Undo',
