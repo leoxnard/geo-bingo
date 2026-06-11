@@ -5,6 +5,10 @@ const nextConfig: NextConfig = {
     reactStrictMode: true,
     turbopack: {},
 
+    // Allow overriding the build output dir (e.g. for CI/sandbox verification
+    // builds that can't write to .next). Defaults to the standard .next.
+    distDir: process.env.NEXT_DIST_DIR || '.next',
+
     // Add X-Robots-Tag: noindex on non-production deployments (e.g. dev branch).
     // VERCEL_ENV is set by Vercel automatically; locally it's undefined.
     async headers() {
