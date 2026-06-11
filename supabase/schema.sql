@@ -23,7 +23,7 @@ COMMENT ON SCHEMA "public" IS 'standard public schema';
 
 
 
-CREATE OR REPLACE FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint DEFAULT NULL::bigint) RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
     AS $$
@@ -35,10 +35,6 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'error', 'NOT_A_PLAYER');
     END IF;
 
-    -- Lock the caller's players row so concurrent claims for the same
-    -- (game_id, player_id, category) serialise. Without this, two racing calls
-    -- (double-click, strict-mode duplicate, retry) can both see no existing row
-    -- and INSERT duplicates that later LIMIT 1 updates can't keep in sync.
     PERFORM 1 FROM players WHERE id = p_player_id FOR UPDATE;
 
     SELECT id INTO existing_id
@@ -49,12 +45,13 @@ BEGIN
     IF existing_id IS NOT NULL THEN
         UPDATE submissions SET
             lat = p_lat, lng = p_lng, heading = p_heading, pitch = p_pitch, zoom = p_zoom,
+            captured_at = p_captured_at,
             ai_verdict = NULL, ai_verified_hash = NULL
         WHERE id = existing_id
         RETURNING * INTO result_sub;
     ELSE
-        INSERT INTO submissions (game_id, player_id, category, lat, lng, heading, pitch, zoom)
-        VALUES (p_game_id, p_player_id, p_category, p_lat, p_lng, p_heading, p_pitch, p_zoom)
+        INSERT INTO submissions (game_id, player_id, category, lat, lng, heading, pitch, zoom, captured_at)
+        VALUES (p_game_id, p_player_id, p_category, p_lat, p_lng, p_heading, p_pitch, p_zoom, p_captured_at)
         RETURNING * INTO result_sub;
     END IF;
 
@@ -63,10 +60,10 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) OWNER TO "postgres";
+ALTER FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint) OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint DEFAULT NULL::bigint) RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
     AS $$
@@ -77,16 +74,14 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'error', 'NOT_A_PLAYER');
     END IF;
 
-    -- Lock the game row briefly so two simultaneous claimers serialise.
     PERFORM 1 FROM games WHERE id = p_game_id FOR UPDATE;
 
-    -- Reject if the category was already claimed in this game.
     IF EXISTS (SELECT 1 FROM submissions WHERE game_id = p_game_id AND category = p_category) THEN
         RETURN jsonb_build_object('success', false, 'error', 'ALREADY_CLAIMED');
     END IF;
 
-    INSERT INTO submissions (game_id, player_id, category, lat, lng, heading, pitch, zoom)
-    VALUES (p_game_id, p_player_id, p_category, p_lat, p_lng, p_heading, p_pitch, p_zoom)
+    INSERT INTO submissions (game_id, player_id, category, lat, lng, heading, pitch, zoom, captured_at)
+    VALUES (p_game_id, p_player_id, p_category, p_lat, p_lng, p_heading, p_pitch, p_zoom, p_captured_at)
     RETURNING * INTO result_sub;
 
     RETURN jsonb_build_object('success', true, 'data', row_to_json(result_sub));
@@ -94,7 +89,7 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) OWNER TO "postgres";
+ALTER FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint) OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."cleanup_stale_games"() RETURNS integer
@@ -136,7 +131,7 @@ $$;
 ALTER FUNCTION "public"."clear_submissions_for_game"("p_game_id" "text", "p_host_id" "text") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."create_community_preset"("p_name" "text", "p_description" "text", "p_author_name" "text", "p_categories" "jsonb", "p_boundaries" "jsonb", "p_starting_point" "text", "p_recommended_time" integer, "p_difficulty" "text", "p_game_mode" "text", "p_grid_size" integer, "p_settings" "jsonb", "p_icon" "text", "p_category_translations" "jsonb", "p_title_translations" "jsonb", "p_description_translations" "jsonb") RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."create_community_preset"("p_name" "text", "p_description" "text", "p_author_name" "text", "p_categories" "jsonb", "p_boundaries" "jsonb", "p_starting_point" "text", "p_recommended_time" integer, "p_difficulty" "text", "p_game_mode" "text", "p_grid_size" integer, "p_settings" "jsonb", "p_icon" "text", "p_category_translations" "jsonb", "p_title_translations" "jsonb", "p_description_translations" "jsonb", "p_category_hint_translations" "jsonb") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
     AS $$
@@ -186,7 +181,8 @@ BEGIN
     INSERT INTO community_presets (
         author_id, author_name, name, description, categories, boundaries,
         starting_point, category_count, recommended_time, difficulty, game_mode, grid_size,
-        settings, icon, category_translations, title_translations, description_translations
+        settings, icon, category_translations, title_translations, description_translations,
+        category_hint_translations
     )
     VALUES (
         caller,
@@ -205,7 +201,8 @@ BEGIN
         NULLIF(trim(coalesce(p_icon, '')), ''),
         COALESCE(p_category_translations, '{}'::jsonb),
         COALESCE(p_title_translations, '{}'::jsonb),
-        COALESCE(p_description_translations, '{}'::jsonb)
+        COALESCE(p_description_translations, '{}'::jsonb),
+        COALESCE(p_category_hint_translations, '{}'::jsonb)
     )
     RETURNING * INTO new_row;
 
@@ -214,7 +211,7 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."create_community_preset"("p_name" "text", "p_description" "text", "p_author_name" "text", "p_categories" "jsonb", "p_boundaries" "jsonb", "p_starting_point" "text", "p_recommended_time" integer, "p_difficulty" "text", "p_game_mode" "text", "p_grid_size" integer, "p_settings" "jsonb", "p_icon" "text", "p_category_translations" "jsonb", "p_title_translations" "jsonb", "p_description_translations" "jsonb") OWNER TO "postgres";
+ALTER FUNCTION "public"."create_community_preset"("p_name" "text", "p_description" "text", "p_author_name" "text", "p_categories" "jsonb", "p_boundaries" "jsonb", "p_starting_point" "text", "p_recommended_time" integer, "p_difficulty" "text", "p_game_mode" "text", "p_grid_size" integer, "p_settings" "jsonb", "p_icon" "text", "p_category_translations" "jsonb", "p_title_translations" "jsonb", "p_description_translations" "jsonb", "p_category_hint_translations" "jsonb") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."delete_community_preset"("p_preset_id" "uuid") RETURNS "jsonb"
@@ -534,7 +531,7 @@ $$;
 ALTER FUNCTION "public"."transfer_host"("p_game_id" "text", "p_current_host_id" "text", "p_new_host_id" "text") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."update_community_preset"("p_id" "uuid", "p_name" "text", "p_description" "text", "p_categories" "jsonb", "p_boundaries" "jsonb", "p_starting_point" "text", "p_recommended_time" integer, "p_difficulty" "text", "p_game_mode" "text", "p_grid_size" integer, "p_settings" "jsonb", "p_icon" "text", "p_category_translations" "jsonb", "p_title_translations" "jsonb", "p_description_translations" "jsonb") RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."update_community_preset"("p_id" "uuid", "p_name" "text", "p_description" "text", "p_categories" "jsonb", "p_boundaries" "jsonb", "p_starting_point" "text", "p_recommended_time" integer, "p_difficulty" "text", "p_game_mode" "text", "p_grid_size" integer, "p_settings" "jsonb", "p_icon" "text", "p_category_translations" "jsonb", "p_title_translations" "jsonb", "p_description_translations" "jsonb", "p_category_hint_translations" "jsonb") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
     AS $$
@@ -586,22 +583,23 @@ BEGIN
     END IF;
 
     UPDATE community_presets SET
-        name                     = trim(p_name),
-        description              = NULLIF(trim(coalesce(p_description, '')), ''),
-        categories               = p_categories,
-        boundaries               = COALESCE(p_boundaries, '[]'::jsonb),
-        starting_point           = COALESCE(NULLIF(trim(p_starting_point), ''), 'open-world'),
-        category_count           = cat_count,
-        recommended_time         = p_recommended_time,
-        difficulty               = safe_diff,
-        game_mode                = safe_mode,
-        grid_size                = safe_grid,
-        settings                 = COALESCE(p_settings, '{}'::jsonb),
-        icon                     = NULLIF(trim(coalesce(p_icon, '')), ''),
-        category_translations    = COALESCE(p_category_translations, '{}'::jsonb),
-        title_translations       = COALESCE(p_title_translations, '{}'::jsonb),
-        description_translations = COALESCE(p_description_translations, '{}'::jsonb),
-        updated_at               = now()
+        name                         = trim(p_name),
+        description                  = NULLIF(trim(coalesce(p_description, '')), ''),
+        categories                   = p_categories,
+        boundaries                   = COALESCE(p_boundaries, '[]'::jsonb),
+        starting_point               = COALESCE(NULLIF(trim(p_starting_point), ''), 'open-world'),
+        category_count               = cat_count,
+        recommended_time             = p_recommended_time,
+        difficulty                   = safe_diff,
+        game_mode                    = safe_mode,
+        grid_size                    = safe_grid,
+        settings                     = COALESCE(p_settings, '{}'::jsonb),
+        icon                         = NULLIF(trim(coalesce(p_icon, '')), ''),
+        category_translations        = COALESCE(p_category_translations, '{}'::jsonb),
+        title_translations           = COALESCE(p_title_translations, '{}'::jsonb),
+        description_translations       = COALESCE(p_description_translations, '{}'::jsonb),
+        category_hint_translations   = COALESCE(p_category_hint_translations, '{}'::jsonb),
+        updated_at                   = now()
     WHERE id = p_id AND author_id = caller
     RETURNING * INTO updated_row;
 
@@ -610,7 +608,7 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."update_community_preset"("p_id" "uuid", "p_name" "text", "p_description" "text", "p_categories" "jsonb", "p_boundaries" "jsonb", "p_starting_point" "text", "p_recommended_time" integer, "p_difficulty" "text", "p_game_mode" "text", "p_grid_size" integer, "p_settings" "jsonb", "p_icon" "text", "p_category_translations" "jsonb", "p_title_translations" "jsonb", "p_description_translations" "jsonb") OWNER TO "postgres";
+ALTER FUNCTION "public"."update_community_preset"("p_id" "uuid", "p_name" "text", "p_description" "text", "p_categories" "jsonb", "p_boundaries" "jsonb", "p_starting_point" "text", "p_recommended_time" integer, "p_difficulty" "text", "p_game_mode" "text", "p_grid_size" integer, "p_settings" "jsonb", "p_icon" "text", "p_category_translations" "jsonb", "p_title_translations" "jsonb", "p_description_translations" "jsonb", "p_category_hint_translations" "jsonb") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."update_game_settings"("p_game_id" "text", "p_host_id" "text", "p_patch" "jsonb") RETURNS "jsonb"
@@ -624,7 +622,8 @@ DECLARE
         'hide_map_symbols', 'suggested_categories', 'exclusive_mode',
         'category_source', 'generation_radius', 'generation_number',
         'category_details', 'language', 'categories_generated', 'ai_end_game',
-        'ready_players', 'banned_players', 'difficulty'
+        'ready_players', 'banned_players', 'difficulty',
+        'category_translations', 'category_hint_translations', 'preset_categories'
     ];
     safe_patch jsonb;
 BEGIN
@@ -666,6 +665,9 @@ BEGIN
         categories_generated  = COALESCE((safe_patch->>'categories_generated')::boolean, categories_generated),
         ai_end_game           = COALESCE((safe_patch->>'ai_end_game')::boolean, ai_end_game),
         difficulty            = COALESCE(safe_patch->>'difficulty', difficulty),
+        category_translations      = COALESCE(safe_patch->'category_translations', category_translations),
+        category_hint_translations = COALESCE(safe_patch->'category_hint_translations', category_hint_translations),
+        preset_categories          = COALESCE(safe_patch->'preset_categories', preset_categories),
         ready_players         = CASE WHEN safe_patch ? 'ready_players'
                                     THEN ARRAY(SELECT jsonb_array_elements_text(safe_patch->'ready_players'))
                                     ELSE ready_players END,
@@ -853,7 +855,8 @@ CREATE TABLE IF NOT EXISTS "public"."community_presets" (
     "icon" "text",
     "category_translations" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
     "title_translations" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
-    "description_translations" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL
+    "description_translations" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "category_hint_translations" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL
 );
 
 
@@ -897,7 +900,9 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "categories_generated" boolean DEFAULT false NOT NULL,
     "ai_end_game" boolean DEFAULT false NOT NULL,
     "difficulty" "text" DEFAULT 'default'::"text" NOT NULL,
-    "category_translations" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL
+    "category_translations" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "category_hint_translations" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "preset_categories" "jsonb" DEFAULT '[]'::"jsonb" NOT NULL
 );
 
 
@@ -930,7 +935,8 @@ CREATE TABLE IF NOT EXISTS "public"."submissions" (
     "zoom" double precision,
     "votes" "jsonb" DEFAULT '{}'::"jsonb",
     "ai_verdict" boolean,
-    "ai_verified_hash" "text"
+    "ai_verified_hash" "text",
+    "captured_at" bigint
 );
 
 
@@ -959,6 +965,11 @@ ALTER TABLE ONLY "public"."games"
 
 ALTER TABLE ONLY "public"."players"
     ADD CONSTRAINT "players_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."submissions"
+    ADD CONSTRAINT "submissions_game_player_category_key" UNIQUE ("game_id", "player_id", "category");
 
 
 
@@ -1080,15 +1091,15 @@ GRANT USAGE ON SCHEMA "public" TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) TO "anon";
-GRANT ALL ON FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) TO "authenticated";
-GRANT ALL ON FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) TO "service_role";
+GRANT ALL ON FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint) TO "anon";
+GRANT ALL ON FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint) TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) TO "anon";
-GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) TO "authenticated";
-GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision) TO "service_role";
+GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint) TO "anon";
+GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint) TO "service_role";
 
 
 
@@ -1103,9 +1114,9 @@ GRANT ALL ON FUNCTION "public"."clear_submissions_for_game"("p_game_id" "text", 
 
 
 
-GRANT ALL ON FUNCTION "public"."create_community_preset"("p_name" "text", "p_description" "text", "p_author_name" "text", "p_categories" "jsonb", "p_boundaries" "jsonb", "p_starting_point" "text", "p_recommended_time" integer, "p_difficulty" "text", "p_game_mode" "text", "p_grid_size" integer, "p_settings" "jsonb", "p_icon" "text", "p_category_translations" "jsonb", "p_title_translations" "jsonb", "p_description_translations" "jsonb") TO "anon";
-GRANT ALL ON FUNCTION "public"."create_community_preset"("p_name" "text", "p_description" "text", "p_author_name" "text", "p_categories" "jsonb", "p_boundaries" "jsonb", "p_starting_point" "text", "p_recommended_time" integer, "p_difficulty" "text", "p_game_mode" "text", "p_grid_size" integer, "p_settings" "jsonb", "p_icon" "text", "p_category_translations" "jsonb", "p_title_translations" "jsonb", "p_description_translations" "jsonb") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."create_community_preset"("p_name" "text", "p_description" "text", "p_author_name" "text", "p_categories" "jsonb", "p_boundaries" "jsonb", "p_starting_point" "text", "p_recommended_time" integer, "p_difficulty" "text", "p_game_mode" "text", "p_grid_size" integer, "p_settings" "jsonb", "p_icon" "text", "p_category_translations" "jsonb", "p_title_translations" "jsonb", "p_description_translations" "jsonb") TO "service_role";
+GRANT ALL ON FUNCTION "public"."create_community_preset"("p_name" "text", "p_description" "text", "p_author_name" "text", "p_categories" "jsonb", "p_boundaries" "jsonb", "p_starting_point" "text", "p_recommended_time" integer, "p_difficulty" "text", "p_game_mode" "text", "p_grid_size" integer, "p_settings" "jsonb", "p_icon" "text", "p_category_translations" "jsonb", "p_title_translations" "jsonb", "p_description_translations" "jsonb", "p_category_hint_translations" "jsonb") TO "anon";
+GRANT ALL ON FUNCTION "public"."create_community_preset"("p_name" "text", "p_description" "text", "p_author_name" "text", "p_categories" "jsonb", "p_boundaries" "jsonb", "p_starting_point" "text", "p_recommended_time" integer, "p_difficulty" "text", "p_game_mode" "text", "p_grid_size" integer, "p_settings" "jsonb", "p_icon" "text", "p_category_translations" "jsonb", "p_title_translations" "jsonb", "p_description_translations" "jsonb", "p_category_hint_translations" "jsonb") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_community_preset"("p_name" "text", "p_description" "text", "p_author_name" "text", "p_categories" "jsonb", "p_boundaries" "jsonb", "p_starting_point" "text", "p_recommended_time" integer, "p_difficulty" "text", "p_game_mode" "text", "p_grid_size" integer, "p_settings" "jsonb", "p_icon" "text", "p_category_translations" "jsonb", "p_title_translations" "jsonb", "p_description_translations" "jsonb", "p_category_hint_translations" "jsonb") TO "service_role";
 
 
 
@@ -1188,9 +1199,9 @@ GRANT ALL ON FUNCTION "public"."transfer_host"("p_game_id" "text", "p_current_ho
 
 
 
-GRANT ALL ON FUNCTION "public"."update_community_preset"("p_id" "uuid", "p_name" "text", "p_description" "text", "p_categories" "jsonb", "p_boundaries" "jsonb", "p_starting_point" "text", "p_recommended_time" integer, "p_difficulty" "text", "p_game_mode" "text", "p_grid_size" integer, "p_settings" "jsonb", "p_icon" "text", "p_category_translations" "jsonb", "p_title_translations" "jsonb", "p_description_translations" "jsonb") TO "anon";
-GRANT ALL ON FUNCTION "public"."update_community_preset"("p_id" "uuid", "p_name" "text", "p_description" "text", "p_categories" "jsonb", "p_boundaries" "jsonb", "p_starting_point" "text", "p_recommended_time" integer, "p_difficulty" "text", "p_game_mode" "text", "p_grid_size" integer, "p_settings" "jsonb", "p_icon" "text", "p_category_translations" "jsonb", "p_title_translations" "jsonb", "p_description_translations" "jsonb") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."update_community_preset"("p_id" "uuid", "p_name" "text", "p_description" "text", "p_categories" "jsonb", "p_boundaries" "jsonb", "p_starting_point" "text", "p_recommended_time" integer, "p_difficulty" "text", "p_game_mode" "text", "p_grid_size" integer, "p_settings" "jsonb", "p_icon" "text", "p_category_translations" "jsonb", "p_title_translations" "jsonb", "p_description_translations" "jsonb") TO "service_role";
+GRANT ALL ON FUNCTION "public"."update_community_preset"("p_id" "uuid", "p_name" "text", "p_description" "text", "p_categories" "jsonb", "p_boundaries" "jsonb", "p_starting_point" "text", "p_recommended_time" integer, "p_difficulty" "text", "p_game_mode" "text", "p_grid_size" integer, "p_settings" "jsonb", "p_icon" "text", "p_category_translations" "jsonb", "p_title_translations" "jsonb", "p_description_translations" "jsonb", "p_category_hint_translations" "jsonb") TO "anon";
+GRANT ALL ON FUNCTION "public"."update_community_preset"("p_id" "uuid", "p_name" "text", "p_description" "text", "p_categories" "jsonb", "p_boundaries" "jsonb", "p_starting_point" "text", "p_recommended_time" integer, "p_difficulty" "text", "p_game_mode" "text", "p_grid_size" integer, "p_settings" "jsonb", "p_icon" "text", "p_category_translations" "jsonb", "p_title_translations" "jsonb", "p_description_translations" "jsonb", "p_category_hint_translations" "jsonb") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_community_preset"("p_id" "uuid", "p_name" "text", "p_description" "text", "p_categories" "jsonb", "p_boundaries" "jsonb", "p_starting_point" "text", "p_recommended_time" integer, "p_difficulty" "text", "p_game_mode" "text", "p_grid_size" integer, "p_settings" "jsonb", "p_icon" "text", "p_category_translations" "jsonb", "p_title_translations" "jsonb", "p_description_translations" "jsonb", "p_category_hint_translations" "jsonb") TO "service_role";
 
 
 
