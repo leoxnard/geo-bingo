@@ -13,17 +13,15 @@ Integrates LobbyView, StreetView, VotingView, and PodiumView components.
 import { useState, use, useEffect, useRef, useCallback, useMemo } from 'react';
 
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import toast, { Toaster } from 'react-hot-toast';
 import { CiCircleAlert, CiCircleCheck } from 'react-icons/ci';
 
 import LobbyView from '@/components/lobby/LobbyView';
-import PodiumView from '@/components/PodiumView';
-import StreetView from '@/components/streetview/StreetView';
 import { buildHintMap } from '@/components/streetview/streetViewHelpers';
 import { shuffle } from '@/components/utils/Functions';
 import { Player } from '@/components/utils/types';
-import { VotingView } from '@/components/VotingView';
 import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { categoryLanguageForLocale, CategoryLanguage, normalizeLocale } from '@/lib/i18n/locales';
@@ -32,6 +30,18 @@ import { getHostToken, newHostToken, clearHostToken } from '../../../lib/hostTok
 import { adjectives, animals } from '../../../lib/names';
 import { supabase } from '../../../lib/supabase';
 import { checkAiKeysAvailable } from '../actions';
+
+// Phase views are code-split: only the lobby (the first thing every player
+// sees) ships in the initial bundle. StreetView/VotingView/PodiumView load
+// lazily when the game actually transitions, cutting the initial load time.
+const phaseLoading = () => (
+    <div className="min-h-dvh flex items-center justify-center bg-slate-900">
+        <div className="h-10 w-10 rounded-full border-4 border-slate-700 border-t-indigo-500 animate-spin" aria-label="Loading" />
+    </div>
+);
+const StreetView = dynamic(() => import('@/components/streetview/StreetView'), { ssr: false, loading: phaseLoading });
+const VotingView = dynamic(() => import('@/components/VotingView').then((m) => m.VotingView), { ssr: false, loading: phaseLoading });
+const PodiumView = dynamic(() => import('@/components/PodiumView'), { ssr: false, loading: phaseLoading });
 
 type GameStatus = 'lobby' | 'playing' | 'voting' | 'finished';
 
@@ -735,6 +745,20 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     useEffect(() => {
         playersRef.current = players;
     }, [players]);
+
+    // Warm up the next phase's code-split chunk in the background so the
+    // lobby→playing and playing→voting transitions render without a loading
+    // spinner. Failures are ignored — the dynamic import retries on render.
+    useEffect(() => {
+        if (!gameLoaded) return;
+        if (status === 'lobby') {
+            import('@/components/streetview/StreetView').catch(() => {});
+        } else if (status === 'playing') {
+            import('@/components/VotingView').catch(() => {});
+        } else if (status === 'voting') {
+            import('@/components/PodiumView').catch(() => {});
+        }
+    }, [status, gameLoaded]);
 
     // The `?preset=` param is a one-time import instruction consumed during room
     // creation. Once the room is loaded, drop it from the URL so it isn't kept in
