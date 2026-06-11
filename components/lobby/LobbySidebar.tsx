@@ -362,7 +362,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                         </button>
                     )}
 
-                    <ToggleSwitch label={t('sidebar.hideMapSymbols')} tooltip={t('sidebar.hideMapSymbolsTooltip')} checked={props.hideMapSymbols} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ hide_map_symbols: checked })} />
+                    {FEATURES.hideMapSymbols && <ToggleSwitch label={t('sidebar.hideMapSymbols')} tooltip={t('sidebar.hideMapSymbolsTooltip')} checked={props.hideMapSymbols} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ hide_map_symbols: checked })} />}
                     {FEATURES.hideMiniMap && <ToggleSwitch label={t('sidebar.hideMiniMap')} tooltip={t('sidebar.hideMiniMapTooltip')} checked={props.hideMiniMap} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ hide_minimap: checked })} />}
                     {FEATURES.aiVerifyEndGame && <ToggleSwitch label={t('sidebar.aiVerifyEndGame')} tooltip={t('sidebar.aiVerifyEndGameTooltip')} checked={props.aiEndGame} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ ai_end_game: checked })} />}
                     {!props.isHost && <p className="text-xs text-slate-500 pt-4 border-t border-slate-700/50 text-center">{t('sidebar.onlyHostCanChange')}</p>}

@@ -34,6 +34,12 @@ export const FEATURES = {
     // ── Lobby sidebar toggles ────────────────────────────────────────────────
 
     /**
+     * The "hide map symbols (POIs)" toggle. When `false` the toggle is removed
+     * and point-of-interest icons are always shown on the map.
+     */
+    hideMapSymbols: true,
+
+    /**
      * The "hide minimap" toggle. When `false` the toggle is removed and the
      * in-game minimap is always shown.
      */

@@ -928,6 +928,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     // Feature flags can force a feature off regardless of game/preset state, so a
     // disabled feature never leaks into the lobby UI or gameplay.
     const effectiveExclusiveMode = FEATURES.exclusiveCategories ? exclusiveMode : false;
+    const effectiveHideMapSymbols = FEATURES.hideMapSymbols ? hideMapSymbols : false;
     const effectiveHideMiniMap = FEATURES.hideMiniMap ? hideMiniMap : false;
     const effectiveAiEndGame = FEATURES.aiVerifyEndGame ? aiEndGame : false;
 
@@ -961,7 +962,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     supabase={supabase}
                     updateStatus={updateStatus}
                     setPlayers={setPlayers}
-                    hideMapSymbols={hideMapSymbols}
+                    hideMapSymbols={effectiveHideMapSymbols}
                     hideMiniMap={effectiveHideMiniMap}
                     aiEndGame={effectiveAiEndGame}
                     categorySource={categorySource}
@@ -996,7 +997,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     timeLeft={timeLeft}
                     readyPlayers={readyPlayers}
                     players={players}
-                    hideMapSymbols={hideMapSymbols}
+                    hideMapSymbols={effectiveHideMapSymbols}
                     hideMiniMap={effectiveHideMiniMap}
                     exclusiveMode={effectiveExclusiveMode}
                     aiEndGame={effectiveAiEndGame}
