@@ -33,6 +33,69 @@ body {
     grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
+/* ---------------------------------------------------------------------------
+   Micro-animations — subtle entrances and feedback. All of them are disabled
+   for users with prefers-reduced-motion.
+--------------------------------------------------------------------------- */
+@keyframes fade-in-up {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pop-in {
+    0% {
+        transform: scale(0.92);
+        opacity: 0.4;
+    }
+    60% {
+        transform: scale(1.03);
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.animate-fade-in-up {
+    animation: fade-in-up 0.35s ease-out both;
+}
+
+.animate-pop-in {
+    animation: pop-in 0.3s ease-out both;
+}
+
+/* Cards that gently lift on hover (pointer devices only). */
+@media (hover: hover) {
+    .card-lift {
+        transition:
+            transform 0.2s ease,
+            box-shadow 0.2s ease,
+            border-color 0.2s ease;
+    }
+    .card-lift:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .animate-fade-in-up,
+    .animate-pop-in {
+        animation: none;
+    }
+    .card-lift,
+    .card-lift:hover {
+        transform: none;
+        transition: none;
+    }
+}
+
 /* Map container styling */
 .google-map-container {
     width: 100%;

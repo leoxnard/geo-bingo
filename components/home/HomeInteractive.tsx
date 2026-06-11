@@ -69,7 +69,7 @@ export default function HomeInteractive() {
                 <h1 className="text-3xl sm:text-6xl font-bold text-indigo-400 tracking-tighter text-center sm:text-left">Geo BingBong</h1>
             </div>
 
-            <div className="bg-slate-800 p-4 md:p-8 rounded-2xl shadow-2xl border border-slate-700 w-full max-w-md flex flex-col gap-3 md:gap-6">
+            <div className="animate-fade-in-up bg-slate-800 p-4 md:p-8 rounded-2xl shadow-2xl border border-slate-700 w-full max-w-md flex flex-col gap-3 md:gap-6">
                 {/* PLAYER NAME INPUT */}
                 <div>
                     <button type="button" className="text-sm text-slate-400 font-bold uppercase mb-2 block" onClick={() => setShowBadNames(!showBadNames)}>
