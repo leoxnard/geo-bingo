@@ -52,14 +52,18 @@ export default function BingoBoard({ gridSize, myBoard, mySubmissions, otherSubm
                     >
                         {/* Background Layer */}
                         <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
-                            {foundSub && <img src={streetViewImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />}
+                            {foundSub && <img src={streetViewImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover animate-pop-in" />}
                             {foundSub && <div className="absolute inset-0 bg-black/50 z-0"></div>}
                         </div>
 
                         {hint && (
                             <div className="absolute top-1 right-1 sm:top-2 sm:right-2 z-[60] group cursor-help" onClick={(e) => e.stopPropagation()}>
-                                <FaInfoCircle className={`transition-colors text-[11px] sm:text-sm drop-shadow-md ${foundSub ? 'text-white/70 hover:text-white' : 'text-slate-400/70 hover:text-white'}`} />
-                                <div className="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-1 sm:mb-2 hidden group-hover:block w-max max-w-[150px] sm:max-w-[200px] bg-slate-800 text-white text-[10px] sm:text-xs p-2 rounded-lg shadow-xl border border-slate-600 z-[100] whitespace-normal text-left sm:text-center cursor-default">
+                                {/* A focusable button so the hint also opens on tap (touch
+                                    devices have no hover) and via keyboard. */}
+                                <button type="button" aria-label={t('sv.tip')} className="block p-0.5 -m-0.5">
+                                    <FaInfoCircle className={`transition-colors text-[11px] sm:text-sm drop-shadow-md ${foundSub ? 'text-white/70 hover:text-white' : 'text-slate-400/70 hover:text-white'}`} />
+                                </button>
+                                <div className="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-1 sm:mb-2 hidden group-hover:block group-focus-within:block w-max max-w-[150px] sm:max-w-[200px] bg-slate-800 text-white text-[10px] sm:text-xs p-2 rounded-lg shadow-xl border border-slate-600 z-[100] whitespace-normal text-left sm:text-center cursor-default">
                                     <span className="font-bold text-indigo-300">{t('sv.tip')}</span> {hint}
                                 </div>
                             </div>
