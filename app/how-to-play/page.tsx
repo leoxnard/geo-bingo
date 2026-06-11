@@ -121,8 +121,8 @@ export default async function HowToPlayPage() {
             <section className="border-t border-slate-800">
                 <div className="mx-auto flex max-w-5xl flex-col items-center gap-5 px-4 py-16 text-center sm:px-8">
                     <p className="max-w-xl text-lg font-medium text-slate-300">{t('home.tagline')}</p>
-                    <Link href="/community" className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-8 py-4 font-bold uppercase tracking-wide text-white transition-all hover:bg-indigo-500">
-                        {t('home.community')} <FiArrowRight aria-hidden />
+                    <Link href="/" className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-8 py-4 font-bold uppercase tracking-wide text-white transition-all hover:bg-indigo-500">
+                        {t('landing.backHome')} <FiArrowRight aria-hidden />
                     </Link>
                 </div>
             </section>
