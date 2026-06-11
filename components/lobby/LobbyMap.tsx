@@ -71,7 +71,22 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     const [searchTerm, setSearchTerm] = useState('');
     const [optimisticGameBoundary, setOptimisticGameBoundary] = useState(gameBoundary);
     const optimisticGameBoundaryRef = useRef(gameBoundary);
-    // Whether everything outside the drawn areas is allowed or forbidden by default.
+    // Boundary strings we've sent to the parent, so we can recognise (and ignore)
+    // their echoes coming back through the gameBoundary prop. The parent echoes
+    // each write twice (optimistic setState + Supabase realtime), so entries are
+    // never deleted — any echo of our own write must always be ignored.
+    const pendingWritesRef = useRef<Set<string>>(new Set());
+    // Latest updateGameModeInfo (prop identity changes each parent render); kept in
+    // a ref so the debounced flush always calls the current one.
+    const updateGameModeInfoRef = useRef(updateGameModeInfo);
+    updateGameModeInfoRef.current = updateGameModeInfo;
+    // Debounce state for persisting boundary edits to the parent.
+    const boundaryWriteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const pendingBoundaryWriteRef = useRef<string | null>(null);
+    // When we last changed boundaries locally. While editing is recent, any prop
+    // value that differs from our optimistic state is a lagging echo, not an
+    // external change — adopting it would resurrect just-deleted/edited areas.
+    const lastLocalEditAtRef = useRef(0);
     const [worldDefault, setWorldDefault] = useState<'allow' | 'forbid'>(() => parseWorldDefault(gameBoundary));
     type BoundaryHistoryEntry = { boundaries: string; selectedId: string | null };
     const [boundaryHistory, setBoundaryHistory] = useState<BoundaryHistoryEntry[]>([]);
@@ -94,6 +109,9 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         streetViewControl: isHost,
         gestureHandling: 'greedy',
         draggableCursor: isHost ? 'crosshair' : 'default',
+        // Hosts place points by clicking; Google Maps otherwise delays each click
+        // ~300ms to detect a double-click (zoom), which swallows rapid point taps.
+        disableDoubleClickZoom: isHost,
     };
 
     useEffect(() => {
@@ -120,6 +138,17 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     }, []);
 
     useEffect(() => {
+        // Already our current local value, or an echo of one of our own writes
+        // (the parent re-emits each write twice — optimistic + realtime). Adopting
+        // it would clobber newer local edits and make points flicker.
+        if (gameBoundary === optimisticGameBoundaryRef.current) return;
+        if (pendingWritesRef.current.has(gameBoundary)) return;
+        // Differs from local and isn't a recognised echo. If we edited recently,
+        // it's almost certainly a lagging echo arriving out of order (the realtime
+        // round-trip can land after a reset and resurrect deleted areas) — ignore
+        // it. Only adopt once local editing has settled: initial load, or a
+        // genuine external change after we've stopped touching the map.
+        if (Date.now() - lastLocalEditAtRef.current < 1500) return;
         optimisticGameBoundaryRef.current = gameBoundary;
         setOptimisticGameBoundary(gameBoundary);
         setWorldDefault(parseWorldDefault(gameBoundary));
@@ -256,21 +285,56 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         return parseBoundaryString(boundarySource);
     }, [optimisticGameBoundary, gameBoundary]);
 
-    // Serialize the drawn areas plus the world-default sentinel (only stored when
-    // 'forbid', kept at index 0 = lowest priority so drawn areas override it).
     const serializeBoundaries = (boundaries: BoundaryPolygon[], wd: 'allow' | 'forbid') => JSON.stringify(wd === 'forbid' ? [{ id: WORLD_DEFAULT_ID, type: 'forbid' as const, points: [] }, ...boundaries] : boundaries);
 
-    const commitBoundaryChange = (nextBoundaries: BoundaryPolygon[], options: { skipHistory?: boolean; worldDefault?: 'allow' | 'forbid' } = {}) => {
+    const writeBoundaryToParent = (value: string) => {
+        while (pendingWritesRef.current.size > 60) {
+            const oldest = pendingWritesRef.current.values().next().value as string;
+            pendingWritesRef.current.delete(oldest);
+        }
+        pendingWritesRef.current.add(value);
+        updateGameModeInfoRef.current({ gameBoundary: value });
+    };
+
+    // Flush any pending debounced write immediately (e.g. on unmount).
+    const flushBoundaryWrite = () => {
+        if (boundaryWriteTimerRef.current) {
+            clearTimeout(boundaryWriteTimerRef.current);
+            boundaryWriteTimerRef.current = null;
+        }
+        const value = pendingBoundaryWriteRef.current;
+        pendingBoundaryWriteRef.current = null;
+        if (value !== null) writeBoundaryToParent(value);
+    };
+
+    const commitBoundaryChange = (nextBoundaries: BoundaryPolygon[], options: { skipHistory?: boolean; worldDefault?: 'allow' | 'forbid'; debounce?: boolean } = {}) => {
         const nextBoundaryString = serializeBoundaries(nextBoundaries, options.worldDefault ?? worldDefault);
         const previous = optimisticGameBoundaryRef.current ?? '[]';
         if (!options.skipHistory && previous !== nextBoundaryString) {
             const snapshot: BoundaryHistoryEntry = { boundaries: previous, selectedId: selectedBoundaryId };
             setBoundaryHistory((prev) => [...prev, snapshot].slice(-HISTORY_LIMIT));
         }
+        // Local optimistic state updates instantly so drawing stays smooth.
         optimisticGameBoundaryRef.current = nextBoundaryString;
+        lastLocalEditAtRef.current = Date.now();
         setOptimisticGameBoundary(nextBoundaryString);
-        updateGameModeInfo({ gameBoundary: nextBoundaryString });
+
+        if (options.debounce) {
+            pendingBoundaryWriteRef.current = nextBoundaryString;
+            if (boundaryWriteTimerRef.current) clearTimeout(boundaryWriteTimerRef.current);
+            boundaryWriteTimerRef.current = setTimeout(flushBoundaryWrite, 250);
+        } else {
+            if (boundaryWriteTimerRef.current) {
+                clearTimeout(boundaryWriteTimerRef.current);
+                boundaryWriteTimerRef.current = null;
+            }
+            pendingBoundaryWriteRef.current = null;
+            writeBoundaryToParent(nextBoundaryString);
+        }
     };
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    useEffect(() => () => flushBoundaryWrite(), []);
 
     const handleUndoBoundary = () => {
         if (boundaryHistory.length === 0) return;
@@ -279,12 +343,17 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         const restoredBoundaries = parseBoundaryString(restored.boundaries);
         const restoredId = restored.selectedId && restoredBoundaries.some((b) => b.id === restored.selectedId) ? restored.selectedId : null;
 
-        // Side effects run in the handler scope (NOT inside the setBoundaryHistory
-        // updater), so they don't fire a parent setState during render.
         setBoundaryHistory((prev) => prev.slice(0, -1));
+
+        if (boundaryWriteTimerRef.current) {
+            clearTimeout(boundaryWriteTimerRef.current);
+            boundaryWriteTimerRef.current = null;
+        }
+        pendingBoundaryWriteRef.current = null;
         optimisticGameBoundaryRef.current = restored.boundaries;
+        lastLocalEditAtRef.current = Date.now();
         setOptimisticGameBoundary(restored.boundaries);
-        updateGameModeInfo({ gameBoundary: restored.boundaries });
+        writeBoundaryToParent(restored.boundaries);
         setWorldDefault(parseWorldDefault(restored.boundaries));
         setSelectedBoundaryId(restoredId);
         setSelectedPreset('');
@@ -364,7 +433,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         const hasActiveSelection = selectedBoundaryId && newBoundaries.some((boundary) => boundary.id === selectedBoundaryId);
 
         if (newBoundaries.length === 0 || !hasActiveSelection) {
-            // eslint-disable-next-line react-hooks/purity
+             
             const newId = Date.now().toString();
             newBoundaries = [...newBoundaries, { id: newId, type: 'allow', points: [newPoint], isComplete: false }];
             setSelectedBoundaryId(newId);
@@ -393,12 +462,12 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                 return b;
             });
         }
-        commitBoundaryChange(newBoundaries);
+        commitBoundaryChange(newBoundaries, { debounce: true });
     };
 
     const handleAddBoundary = (baseBoundaries: BoundaryPolygon[] = draftBoundaries) => {
         setSelectedPreset('');
-        // eslint-disable-next-line react-hooks/purity
+         
         const newId = Date.now().toString();
         const newBoundaries: BoundaryPolygon[] = [...baseBoundaries, { id: newId, type: 'allow' as const, points: [], isComplete: false }];
         commitBoundaryChange(newBoundaries);
@@ -420,8 +489,6 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
             .map((b) => {
                 if (b.id !== boundaryId) return b;
                 const points = b.points.filter((_, i) => i !== pointIdx);
-                // A completed polygon needs at least 3 points; if it drops below,
-                // send it back to drawing mode so it renders as an editable line.
                 const isComplete = b.isComplete && points.length >= 3;
                 return { ...b, points, isComplete };
             })
@@ -503,7 +570,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         const presetData = boundaryPresetsData[presetKey];
         if (presetData && presetData.length > 0) {
             const formattedName = presetKey.replace(/_/g, ' ');
-            // eslint-disable-next-line react-hooks/purity
+             
             const sharedGroupId = Date.now().toString();
 
             const newBoundaries: BoundaryPolygon[] = presetData.map((area) => ({
@@ -780,7 +847,8 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        commitBoundaryChange([]);
+                                        setWorldDefault('allow');
+                                        commitBoundaryChange([], { worldDefault: 'allow' });
                                         setSelectedPreset('');
                                         setSelectedBoundaryId(null);
                                     }}
