@@ -51,28 +51,20 @@ export default function CommunityBuilder() {
     const { user } = useUser();
     const { isLoaded } = useJsApiLoader({ id: 'google-map-script', googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '', libraries: GOOGLE_MAPS_LIBRARIES });
 
-    // When editing, /community/create?edit=<id> seeds the wizard from an existing
-    // preset and submitting updates it instead of creating a new one. Read via
-    // useSearchParams (not window) so it's correct under client-side navigation
-    // from the browse page's Edit button, not just a full page load.
     const editId = useSearchParams().get('edit');
 
     const [step, setStep] = useState(0);
     const [categories, setCategories] = useState<CommunityCategory[]>([]);
     const [pendingNames, setPendingNames] = useState<string[]>([]);
-    // All game submissions per category (for the "Choose from game" picker).
     const [submissionsByCategory, setSubmissionsByCategory] = useState<Record<string, CommunityCategory[]>>({});
     const [pickerCategory, setPickerCategory] = useState<string | null>(null);
-    // Live panorama viewpoint, reported by the explorer, used by "Take snapshot".
     const currentViewpointRef = useRef<{ lat: number; lng: number; heading: number; pitch: number; zoom: number } | null>(null);
     const [boundaries, setBoundaries] = useState('[]');
     const [startingPoint, setStartingPoint] = useState('open-world');
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [icon, setIcon] = useState('🌍');
-    // Clicking a saved spot's thumbnail jumps the explorer panorama there.
     const explorerRef = useRef<StreetViewExplorerHandle>(null);
-    // Inline rename: the category currently being renamed + its draft name.
     const [renaming, setRenaming] = useState<string | null>(null);
     const [renameValue, setRenameValue] = useState('');
     const [renameHintValue, setRenameHintValue] = useState('');
@@ -83,8 +75,6 @@ export default function CommunityBuilder() {
     const [advancedOpen, setAdvancedOpen] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
-    // Starting-point acknowledgement: dropping a start pin pops a warning the
-    // author must confirm (players spawn there and may not reach every spot).
     const [pendingStart, setPendingStart] = useState<string | null>(null);
     const [startAcknowledged, setStartAcknowledged] = useState(false);
 
@@ -110,7 +100,6 @@ export default function CommunityBuilder() {
         }
     }, [editId]);
 
-    // Edit mode: load the existing preset and prefill every field.
     useEffect(() => {
         if (!editId) return;
         let cancelled = false;
@@ -127,7 +116,6 @@ export default function CommunityBuilder() {
             if (preset.difficulty === 'easy' || preset.difficulty === 'medium' || preset.difficulty === 'hard') setDifficulty(preset.difficulty);
             setBingoEnabled(preset.game_mode === 'bingo');
             setSettings(preset.settings ?? { endCondition: 'timer' });
-            // A saved fixed start was already acknowledged when first created.
             if ((preset.starting_point ?? '').startsWith('{')) setStartAcknowledged(true);
         })();
         return () => {
@@ -154,31 +142,24 @@ export default function CommunityBuilder() {
         setPendingNames((prev) => prev.filter((n) => n !== categoryName));
     };
 
-    // Jump the explorer panorama to a saved spot (its captured viewpoint).
     const focusOnSpot = (vp: CommunityCategory) => explorerRef.current?.openViewpoint(vp);
     const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
 
-    // Stable so the explorer's focus effect doesn't re-run every render.
     const handleViewpointChange = useCallback((vp: { lat: number; lng: number; heading: number; pitch: number; zoom: number } | null) => {
         currentViewpointRef.current = vp;
     }, []);
 
-    // Rename a category in place — updates the saved category, any pending name,
-    // and the "from game" submissions keyed by it. Blocks case-insensitive dupes.
     const renameCategory = (oldName: string, rawName: string, rawHint?: string) => {
         const newName = rawName.trim();
         const hintValue = rawHint?.trim() || undefined;
 
-        // Check if only hint is being edited (name unchanged but hint text provided)
         if (newName === oldName) {
             setCategories((prev) => prev.map((c) => (c.categoryName === oldName ? { ...c, hint: hintValue } : c)));
             return;
         }
 
-        // Require name to be non-empty
         if (!newName) return;
 
-        // Check for duplicate names
         const taken = [...categories.map((c) => c.categoryName), ...pendingNames].some((n) => n.toLowerCase() === newName.toLowerCase() && n.toLowerCase() !== oldName.toLowerCase());
         if (taken) {
             toast.error(t('community.duplicateCategory'));
@@ -203,7 +184,6 @@ export default function CommunityBuilder() {
         setRenameHintValue('');
     };
 
-    // Snapshot the live panorama view into a category.
     const takeSnapshot = (categoryName: string) => {
         const vp = currentViewpointRef.current;
         if (!vp) {
@@ -213,7 +193,6 @@ export default function CommunityBuilder() {
         assignViewpoint({ categoryName, ...vp });
     };
 
-    // Pick one of the game's submissions for the category being chosen.
     const pickFromGame = (vp: CommunityCategory) => {
         if (pickerCategory) assignViewpoint({ ...vp, categoryName: pickerCategory });
         setPickerCategory(null);
@@ -231,8 +210,6 @@ export default function CommunityBuilder() {
             <div className="flex-1 min-w-0 flex flex-col gap-1.5">
                 <div className="flex items-center gap-2">
                     <span className="text-sm font-medium truncate">{name}</span>
-                    {/* Hint icon is informational only — shown when a hint exists. Adding
-                        or editing a hint goes through the pencil (edit) button. */}
                     {viewpoint?.hint && (
                         <div className="relative group flex-shrink-0 cursor-help" onClick={(e) => e.stopPropagation()}>
                             <FaInfoCircle className="text-slate-400/70 hover:text-white" size={12} />
@@ -277,8 +254,6 @@ export default function CommunityBuilder() {
         if (u.gameBoundary !== undefined) setBoundaries(u.gameBoundary);
         if (u.starting_point !== undefined) {
             const next = u.starting_point;
-            // Setting a *fixed* start needs a one-time acknowledgement; clearing it
-            // (open-world) applies immediately.
             if (next.startsWith('{') && !startAcknowledged) {
                 setPendingStart(next);
             } else {
@@ -293,8 +268,6 @@ export default function CommunityBuilder() {
         setPendingStart(null);
     };
 
-    // Saved-spot markers for the map steps. Any category sitting on the starting
-    // point is dropped so the start shows as a single pin (no stacked duplicate).
     const extraMarkers = useMemo(() => {
         let sp: { lat: number; lng: number } | null = null;
         if (startingPoint.startsWith('{')) {
@@ -308,8 +281,6 @@ export default function CommunityBuilder() {
         return categories.filter((c) => !sp || Math.abs(c.lat - sp.lat) > EPS || Math.abs(c.lng - sp.lng) > EPS).map((c) => ({ lat: c.lat, lng: c.lng, label: c.categoryName }));
     }, [categories, startingPoint]);
 
-    // Bingo is only offered when the category count is a supported perfect square
-    // (3×3, 4×4, 5×5 — matching the in-game grid sizes).
     const bingoGrid = useMemo(() => {
         const sqrt = Math.sqrt(categories.length);
         return Number.isInteger(sqrt) && sqrt >= 3 && sqrt <= 5 ? sqrt : null;
@@ -570,7 +541,7 @@ export default function CommunityBuilder() {
                         <h3 className="font-bold text-white">{t('community.chooseFindTitle', { name: pickerCategory })}</h3>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                             {(submissionsByCategory[pickerCategory] ?? []).map((vp, i) => (
-                                <button key={i} type="button" onClick={() => pickFromGame(vp)} className="rounded-lg overflow-hidden border-2 border-transparent hover:border-indigo-500 transition-colors">
+                                <button key={i} title={pickerCategory} type="button" onClick={() => pickFromGame(vp)} className="rounded-lg overflow-hidden border-2 border-transparent hover:border-indigo-500 transition-colors">
                                     <img src={getStreetViewImageUrl(vp, 220)} alt="" className="w-full aspect-square object-cover" />
                                 </button>
                             ))}

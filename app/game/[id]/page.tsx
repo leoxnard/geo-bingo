@@ -96,24 +96,13 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const pendingOptimisticUpdatesRef = useRef<Set<string>>(new Set());
     const gameEventsChannelRef = useRef<RealtimeChannel | null>(null);
     const playersRef = useRef<Player[]>([]);
-    // Run initializeRoom once per game (guards against React strict-mode running
-    // the effect twice and racing two initializers).
     const initedGameRef = useRef<string | null>(null);
-    // Tracks the last host_id we've seen so the realtime handler can detect an
-    // actual host *transition* (vs. host_id merely being present on every games
-    // UPDATE) and re-register the capability token exactly once on promotion.
     const gameHostIdRef = useRef<string>('');
-    // Only treat "I'm not in the players list" as a kick AFTER we've seen
-    // ourselves present at least once — otherwise the transient empty reads
-    // during startup would bounce us home.
     const confirmedMemberRef = useRef(false);
 
     // more game options
     const [language, setLanguage] = useState<CategoryLanguage>('german');
-    // Per-locale category translations copied from an imported preset, used to
-    // reuse aligned translations when the host switches the board language.
     const [categoryTranslations, setCategoryTranslations] = useState<Record<string, string[]>>({});
-    // Per-locale category hint translations from imported preset.
     const [categoryHintTranslations, setCategoryHintTranslations] = useState<Record<string, string[]>>({});
     const [hideMapSymbols, setHideMapSymbols] = useState(false);
     const [hideMiniMap, setHideMiniMap] = useState(false);
@@ -141,7 +130,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     }) => {
         if (!isHost) return;
 
-        // Track which fields we're optimistically updating to prevent subscription from overwriting
         const fieldsToUpdate: string[] = [];
 
         // Optimistic update: update UI immediately
@@ -291,11 +279,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         }
     };
 
-    // When the HOST changes the UI language via the top-of-page switcher, follow
-    // it with the shared category language so the board language matches. We only
-    // react to actual changes (not the initial value) and only as host — the
-    // category language is shared by everyone, so non-hosts can't move it. The
-    // host can still override it independently in More Game Settings afterwards.
     const prevLocaleRef = useRef(locale);
 
     useEffect(() => {
@@ -303,7 +286,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         prevLocaleRef.current = locale;
         if (!isHost) return;
         const nextLanguage = categoryLanguageForLocale(locale);
-        if (nextLanguage !== language) updateGameModeInfo({ language: nextLanguage });
+        if (nextLanguage !== language) handleBoardLanguageChange(nextLanguage);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [locale, isHost, language]);
 
@@ -361,16 +344,9 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 let seedPresetPositions: { categoryName: string; lat: number; lng: number }[] = [];
                 const presetId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('preset') : null;
                 if (presetId) {
-                    // Select '*' (not an explicit column list) so the import is resilient
-                    // to optional columns like `category_translations` not existing yet on
-                    // a DB that hasn't run the latest migration — a missing named column
-                    // would otherwise error the whole query and silently skip all seeding.
                     const { data: preset, error: presetError } = await supabase.from('community_presets').select('*').eq('id', presetId).maybeSingle();
                     if (presetError) console.error('[GameRoom] preset import read failed:', presetError);
                     if (preset) {
-                        // Seed categories in the host's UI language when the preset carries a
-                        // translation for it (the board language is shared + switchable in
-                        // settings); otherwise fall back to the author's original names.
                         const originals = Array.isArray(preset.categories) ? (preset.categories as { categoryName?: string }[]).map((c) => c.categoryName || '') : [];
                         const translatedList = (preset.category_translations as Record<string, string[]> | null)?.[locale];
                         const names = (Array.isArray(translatedList) && translatedList.length === originals.length ? translatedList : originals).filter(Boolean);
@@ -381,13 +357,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                         if (preset.grid_size) seedGridSize = preset.grid_size;
                         if (preset.recommended_time) seedTimeLimit = preset.recommended_time;
                         if (preset.settings && typeof preset.settings === 'object') seedSettings = preset.settings;
-                        // Carry the preset's per-locale translations so the lobby language
-                        // switch can reuse them (DeepL fallback for anything not covered).
                         if (preset.category_translations && typeof preset.category_translations === 'object') seedCategoryTranslations = preset.category_translations as Record<string, string[]>;
-                        // Carry the preset's per-locale hint translations.
                         if (preset.category_hint_translations && typeof preset.category_hint_translations === 'object') seedCategoryHintTranslations = preset.category_hint_translations as Record<string, string[]>;
-                        // Preset category target positions (lat/lng), persisted on the game so
-                        // the voting map can mark them for every player (not just the importer).
                         if (Array.isArray(preset.categories)) {
                             seedPresetPositions = (preset.categories as Array<{ categoryName?: string; lat?: number; lng?: number }>).filter((c) => c && typeof c.lat === 'number' && typeof c.lng === 'number').map((c) => ({ categoryName: c.categoryName || '', lat: c.lat as number, lng: c.lng as number }));
                         }
@@ -415,15 +386,9 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     category_source: 'manual',
                     generation_radius: 10,
                     generation_number: 10,
-                    // New games default their (shared) category language to the host's
-                    // current UI language; the host can still override it in More Game Settings.
                     language: categoryLanguageForLocale(locale),
                     categories_generated: false,
                 };
-                // Optional preset columns (translations, hints, target positions) are
-                // persisted when present. If the DB hasn't run the latest migration the
-                // insert errors, so we retry without them — import never breaks, and the
-                // host still keeps the translations in memory for this session.
                 const optionalCols: Record<string, unknown> = {};
                 if (Object.keys(seedCategoryTranslations).length > 0) optionalCols.category_translations = seedCategoryTranslations;
                 if (Object.keys(seedCategoryHintTranslations).length > 0) optionalCols.category_hint_translations = seedCategoryHintTranslations;
@@ -441,11 +406,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     gameHostIdRef.current = currentPlayerId;
                     gameData = newGameData;
                     localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
-                    // Hydrate the lobby UI from the freshly-seeded values. The state-sync
-                    // block below only runs for *loaded* games (!justCreated), and the
-                    // realtime channel doesn't replay the creator's own INSERT — so without
-                    // this an imported preset would show a default lobby to the host until
-                    // a manual reload (the reported "nothing is applied" bug).
                     setCategories(newGameData.categories);
                     setTimeLimit(newGameData.time_limit);
                     setGameMode(newGameData.game_mode as 'list' | 'bingo');
@@ -460,13 +420,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     setLanguage(newGameData.language as CategoryLanguage);
                     setCategoryTranslations(seedCategoryTranslations);
                     setCategoryHintTranslations(seedCategoryHintTranslations);
-                    // Claim the host capability token (the secret the host RPCs check).
                     await supabase.rpc('register_host_secret', { p_game_id: gameId, p_player_id: currentPlayerId, p_token: newHostToken(gameId) });
                 } else {
-                    // A concurrent initializer already created this room — React
-                    // strict mode runs this effect twice in dev, and two clients can
-                    // open the same fresh code at once. Re-fetch the now-existing row
-                    // and fall through to the load path instead of leaving gameData null.
                     const { data: refetched } = await supabase.from('games').select('*').eq('id', gameId).single();
                     gameData = refetched;
                 }
@@ -510,9 +465,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setIsHost(isActuallyHost);
                 if (isActuallyHost) {
                     localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
-                    // Returning host with no local token (e.g. a game created before
-                    // tokens existed, or after a host transfer): claim one. ON CONFLICT
-                    // server-side means this is a no-op if a token already exists.
                     if (!getHostToken(gameId)) {
                         await supabase.rpc('register_host_secret', { p_game_id: gameId, p_player_id: currentPlayerId, p_token: newHostToken(gameId) });
                     }
@@ -522,8 +474,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             }
 
             // register player
-            // Bingo mode gives each player an independently shuffled board. (There
-            // is no shared-board column on `games`, so every board is individual.)
             let bingoBoardToAssign = null;
             if (gameData.status === 'playing' && gameData.game_mode === 'bingo' && gameData.categories) {
                 const neededCount = (gameData.grid_size || 3) * (gameData.grid_size || 3);
@@ -543,11 +493,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 if (playerInsertErr && playerInsertErr.code !== '23505') console.error('CRITICAL: Failed to insert player.', playerInsertErr);
             } else {
                 const shouldAssignBoard = (!existingPlayer.bingo_board || existingPlayer.bingo_board.length === 0) && bingoBoardToAssign;
-                // A session's player UUID is reused across games (one row, keyed
-                // by the session UUID), so re-joining/switching games has to move
-                // that row to the current game by patching game_id — otherwise the
-                // player stays stuck in their previous game and fetchPlayers here
-                // never sees them.
                 const updateData = {
                     name: playerName,
                     game_id: gameId,
@@ -557,8 +502,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 if (playerUpdateErr) {
                     console.error('CRITICAL: Failed to update player.', playerUpdateErr);
                 } else if (updateRes && updateRes.success === false) {
-                    // The join was refused server-side (banned, or trying to join a
-                    // game that's already in progress without having been in it).
                     if (updateRes.error === 'BANNED') toast(t('game.banned'));
                     else if (updateRes.error === 'GAME_IN_PROGRESS') toast(t('game.alreadyStarted'));
                     else toast(t('game.couldNotJoin'));
@@ -579,17 +522,11 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 if (data.some((p) => p.id === currentPlayerId)) {
                     confirmedMemberRef.current = true;
                 } else if (confirmedMemberRef.current) {
-                    // We were in the game and now we're gone → actually kicked.
-                    // (A "not present yet" read during startup must not bounce us.)
                     router.push('/');
                 }
             }
         };
 
-        // Run init once per game. React strict mode mounts the effect twice in
-        // dev; without this guard both runs race (duplicate game/player inserts,
-        // 409s, and a premature kick-redirect). The realtime channels below still
-        // (re)subscribe every mount since the cleanup tears them down.
         if (initedGameRef.current !== gameId) {
             initedGameRef.current = gameId;
             confirmedMemberRef.current = false;
@@ -615,21 +552,12 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
                     if (payload.new.host_id !== undefined) {
                         const newHostId = payload.new.host_id;
-                        // host_id is present on *every* games UPDATE, so compare against
-                        // the last value we saw to act only on an actual host change.
                         const justPromoted = newHostId === currentPlayerId && gameHostIdRef.current !== currentPlayerId;
                         gameHostIdRef.current = newHostId;
                         setGameHostId(newHostId);
                         setIsHost(newHostId === currentPlayerId);
                         if (newHostId === currentPlayerId) {
                             localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
-                            // Promoted via host transfer: the previous host's secret was
-                            // consumed (deleted) on transfer, so claim a fresh token
-                            // unconditionally. We must NOT guard on an existing local token
-                            // here — a transfer always invalidates it server-side, so a
-                            // stale token would otherwise leave us unable to act (every
-                            // host RPC returning NOT_HOST). register_host_secret upserts,
-                            // so this also repairs a previously poisoned token state.
                             if (justPromoted) {
                                 supabase.rpc('register_host_secret', { p_game_id: gameId, p_player_id: currentPlayerId, p_token: newHostToken(gameId) });
                             }
@@ -746,9 +674,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         playersRef.current = players;
     }, [players]);
 
-    // Warm up the next phase's code-split chunk in the background so the
-    // lobby→playing and playing→voting transitions render without a loading
-    // spinner. Failures are ignored — the dynamic import retries on render.
     useEffect(() => {
         if (!gameLoaded) return;
         if (status === 'lobby') {
@@ -760,10 +685,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         }
     }, [status, gameLoaded]);
 
-    // The `?preset=` param is a one-time import instruction consumed during room
-    // creation. Once the room is loaded, drop it from the URL so it isn't kept in
-    // shared links (and never re-triggers anything). Runs after gameLoaded so the
-    // importer has already read it.
     useEffect(() => {
         if (!gameLoaded) return;
         if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('preset')) {
@@ -775,13 +696,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         gameEventsChannelRef.current?.send({ type: 'broadcast', event, payload });
     }, []);
 
-    // Status update handler (host-only path; uses the SECURITY DEFINER rpc so
-    // we don't depend on table-level UPDATE policies staying open).
     const updateStatus = useCallback(
         async (nextStatus: GameStatus) => {
-            // set_game_status returns NOT_HOST / BAD_STATUS in its payload rather
-            // than as a PostgREST error, so check data.success too — otherwise a
-            // rejected transition (e.g. the timer auto-advance) silently no-ops.
             const { data, error } = await supabase.rpc('set_game_status', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_status: nextStatus });
             if (error || (data && data.success === false)) console.error('Error updating game status:', error || data?.error);
         },
@@ -799,7 +715,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             setTimeLeft(0);
         };
 
-        // Non-playing phases always clear persisted timer so a new round starts fresh.
         if (status !== 'playing') {
             clearTimerState();
             return;
@@ -904,8 +819,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             pendingOptimisticUpdatesRef.current.add('status');
         }
 
-        // player_vote_to_end_round handles the dedup-append to ready_players
-        // and the status='voting' transition atomically when the last player votes.
         (async () => {
             try {
                 await supabase.rpc('player_vote_to_end_round', { p_game_id: gameId, p_player_id: playerId });
@@ -920,13 +833,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         })();
     }, [gameId, playerId, readyPlayers, players.length]);
 
-    // Category-name -> hint for the current UI locale, built from the imported
-    // preset's per-locale hints (aligned to the canonical category order). Keyed
-    // by name so it stays correct when a bingo board is shuffled.
     const hintByCategory = useMemo(() => buildHintMap(categories, categoryHintTranslations, normalizeLocale(language)), [categories, categoryHintTranslations, language]);
 
-    // Feature flags can force a feature off regardless of game/preset state, so a
-    // disabled feature never leaks into the lobby UI or gameplay.
     const effectiveExclusiveMode = FEATURES.exclusiveCategories ? exclusiveMode : false;
     const effectiveHideMapSymbols = FEATURES.hideMapSymbols ? hideMapSymbols : false;
     const effectiveHideMiniMap = FEATURES.hideMiniMap ? hideMiniMap : false;
