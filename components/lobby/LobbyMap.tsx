@@ -365,11 +365,25 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         commitBoundaryChange(draftBoundaries, { worldDefault: next });
     };
 
+    const uniformZoneType = useMemo<'allow' | 'forbid' | null>(() => {
+        if (draftBoundaries.length === 0) return null;
+        const first = draftBoundaries[0].type;
+        return draftBoundaries.every((b) => b.type === first) ? first : null;
+    }, [draftBoundaries]);
+    const hasMixedZones = draftBoundaries.length > 0 && uniformZoneType === null;
+
+    useEffect(() => {
+        if (!uniformZoneType) return;
+        const forced: 'allow' | 'forbid' = uniformZoneType === 'allow' ? 'forbid' : 'allow';
+        if (forced !== worldDefault) {
+            setWorldDefault(forced);
+            commitBoundaryChange(draftBoundaries, { worldDefault: forced, skipHistory: true });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [uniformZoneType]);
+
     const activeBoundaryId = useMemo(() => {
         if (draftBoundaries.length === 0) return null;
-        // selectedBoundaryId may be a single boundary id OR a group key (a preset
-        // sets it to the shared groupId, and the list selects by groupId || id),
-        // so resolve against the group key, not just the boundary's own id.
         if (selectedBoundaryId && draftBoundaries.some((b) => (b.groupId || b.id) === selectedBoundaryId)) {
             return selectedBoundaryId;
         }
@@ -433,7 +447,6 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         const hasActiveSelection = selectedBoundaryId && newBoundaries.some((boundary) => boundary.id === selectedBoundaryId);
 
         if (newBoundaries.length === 0 || !hasActiveSelection) {
-             
             const newId = Date.now().toString();
             newBoundaries = [...newBoundaries, { id: newId, type: 'allow', points: [newPoint], isComplete: false }];
             setSelectedBoundaryId(newId);
@@ -467,7 +480,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
 
     const handleAddBoundary = (baseBoundaries: BoundaryPolygon[] = draftBoundaries) => {
         setSelectedPreset('');
-         
+
         const newId = Date.now().toString();
         const newBoundaries: BoundaryPolygon[] = [...baseBoundaries, { id: newId, type: 'allow' as const, points: [], isComplete: false }];
         commitBoundaryChange(newBoundaries);
@@ -570,7 +583,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         const presetData = boundaryPresetsData[presetKey];
         if (presetData && presetData.length > 0) {
             const formattedName = presetKey.replace(/_/g, ' ');
-             
+
             const sharedGroupId = Date.now().toString();
 
             const newBoundaries: BoundaryPolygon[] = presetData.map((area) => ({
@@ -832,6 +845,20 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                             </GoogleMap>
                         </div>
                     )}
+
+                    {/* World-default toggle: only shown when the drawn areas mix zone types. When all areas share a type, the default is forced to the opposite and the toggle is hidden. Overlaid on the map's top-left corner. */}
+                    {isHost && hasMixedZones && (
+                        <div className="absolute top-3 left-3 z-[5] flex items-center gap-2 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-slate-700 px-3 py-2 text-sm shadow-lg">
+                            <div className="flex flex-col">
+                                <span className="text-slate-400 text-xs">{t('map.worldDefaultLabel')}</span>
+                                <span className={`text-xs font-semibold ${worldDefault === 'allow' ? 'text-green-400' : 'text-red-400'}`}>{worldDefault === 'allow' ? t('map.allow') : t('map.forbid')}</span>
+                            </div>
+                            <label className={`relative inline-flex h-7 w-14 cursor-pointer items-center rounded-full transition-colors ${worldDefault === 'allow' ? 'bg-green-600/60' : 'bg-red-600/60'}`} title={t('map.worldDefaultHint')}>
+                                <input type="checkbox" role="switch" className="sr-only" checked={worldDefault === 'allow'} onChange={() => handleSetWorldDefault(worldDefault === 'allow' ? 'forbid' : 'allow')} aria-label={t('map.worldDefaultLabel')} />
+                                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${worldDefault === 'allow' ? 'translate-x-8' : 'translate-x-1'}`} />
+                            </label>
+                        </div>
+                    )}
                 </div>
 
                 {isHost && (
@@ -875,16 +902,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                         </div>
 
                         <div className="flex flex-wrap items-center justify-start gap-3 text-sm">
-                            <div className="relative flex items-center gap-3 align-middle min-w-fit">
-                                <div className="flex flex-col items-center">
-                                    <span className="text-slate-400">{t('map.worldDefaultLabel') + ':'}</span>
-                                    <span className={`text-xs font-semibold ${worldDefault === 'allow' ? 'text-green-400' : 'text-red-400'}`}>{worldDefault === 'allow' ? t('map.allow') : t('map.forbid')}</span>
-                                </div>
-                                <button type="button" role="switch" aria-checked={worldDefault === 'allow'} onClick={() => handleSetWorldDefault(worldDefault === 'allow' ? 'forbid' : 'allow')} className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors ${worldDefault === 'allow' ? 'bg-green-600/60' : 'bg-red-600/60'}`} title={t('map.worldDefaultHint')}>
-                                    <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${worldDefault === 'allow' ? 'translate-x-8' : 'translate-x-1'}`} />
-                                </button>
-                            </div>
-                            <div ref={dropdownRef} className="relative ml-auto z-[10] min-w-[230px]">
+                            <div ref={dropdownRef} className="relative z-[10] min-w-[250px]">
                                 <span className="block text-xs text-slate-400 mb-1">{t('map.orSelectPreset')}</span>
                                 <div onClick={() => setIsMenuOpen(true)} className={`w-full bg-slate-900 border border-slate-700 hover:border-slate-500 rounded-lg flex items-center transition-colors cursor-text ${presetsLoading ? 'opacity-50 pointer-events-none' : ''}`}>
                                     <input
