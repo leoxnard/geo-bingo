@@ -190,11 +190,11 @@ export const ToggleButton = ({ classname, active, labelLeft, labelRight, iconLef
 
             {/* Labels */}
             <div className={`relative z-10 flex-1 flex flex-col items-center justify-center gap-1 py-2 text-sm font-semibold transition-colors duration-200 ${active === 'left' ? 'text-white' : 'text-slate-400'}`}>
-                {iconLeft && <MaskIcon name={iconLeft} className="h-4 w-4" />}
+                {iconLeft && <MaskIcon name={iconLeft} className="h-6 w-24" />}
                 {labelLeft}
             </div>
             <div className={`relative z-10 flex-1 flex flex-col items-center justify-center gap-1 py-2 text-sm font-semibold transition-colors duration-200 ${active === 'right' ? 'text-white' : 'text-slate-400'}`}>
-                {iconRight && <MaskIcon name={iconRight} className="h-4 w-4" />}
+                {iconRight && <MaskIcon name={iconRight} className="h-6 w-24" />}
                 {labelRight}
             </div>
         </button>
