@@ -53,7 +53,7 @@ export const FEATURES = {
      */
     categorySources: {
         ai: true,
-        nearbyPlaces: true,
+        nearbyPlaces: false,
         nearbyStreetView: true,
     },
 
