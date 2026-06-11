@@ -52,14 +52,28 @@ export default function LobbySettings({ isHost, gameMode, teamMode, timeLimit, e
             {/* <h2 className="text-xl font-semibold mb-4 text-slate-300">Settings</h2> */}
 
             {/* Team Mode Selection */}
-            <ToggleButton title={t('settings.teamMode')} active={teamMode === 'ffa' ? 'left' : 'right'} onClick={(val: 'left' | 'right') => updateGameModeInfo({ team_mode: val === 'left' ? 'ffa' : 'teams' })} disabled={!isHost} isHost={isHost} labelLeft={t('settings.noTeams')} labelRight={t('settings.teams')} position="top" />
+            <ToggleButton title={t('settings.teamMode')} active={teamMode === 'ffa' ? 'left' : 'right'} onClick={(val: 'left' | 'right') => updateGameModeInfo({ team_mode: val === 'left' ? 'ffa' : 'teams' })} disabled={!isHost} isHost={isHost} labelLeft={t('settings.noTeams')} labelRight={t('settings.teams')} iconLeft="person" iconRight="person.2" position="top" />
 
             {/* Game Mode Selection */}
-            {FEATURES.bingoMode && <ToggleButton title={t('settings.gameMode')} active={gameMode === 'list' ? 'left' : 'right'} onClick={(val: 'left' | 'right') => updateGameModeInfo({ game_mode: val === 'left' ? 'list' : 'bingo' })} disabled={!isHost} isHost={isHost} labelLeft={t('settings.classicList')} labelRight={t('settings.bingoGrid')} description={gameMode === 'list' ? t('settings.gameModeDescList') : t('settings.gameModeDescBingo')} />}
+            {FEATURES.bingoMode && (
+                <ToggleButton title={t('settings.gameMode')} active={gameMode === 'list' ? 'left' : 'right'} onClick={(val: 'left' | 'right') => updateGameModeInfo({ game_mode: val === 'left' ? 'list' : 'bingo' })} disabled={!isHost} isHost={isHost} labelLeft={t('settings.classicList')} labelRight={t('settings.bingoGrid')} iconLeft="rectangle.grid.1x3" iconRight="square.grid.3x3" description={gameMode === 'list' ? t('settings.gameModeDescList') : t('settings.gameModeDescBingo')} />
+            )}
 
             {/* Select if Categories are exclusive or not */}
             {FEATURES.exclusiveCategories && (
-                <ToggleButton title={t('settings.categoryMode')} active={exclusiveMode === false ? 'left' : 'right'} labelLeft={t('settings.notExclusive')} labelRight={t('settings.exclusive')} onClick={(val: 'left' | 'right') => updateGameModeInfo({ exclusive_mode: val === 'left' ? false : true })} disabled={!isHost} isHost={isHost} position="middle" description={exclusiveMode === false ? t('settings.categoryModeDescNotExclusive') : t('settings.categoryModeDescExclusive')} />
+                <ToggleButton
+                    title={t('settings.categoryMode')}
+                    active={exclusiveMode === false ? 'left' : 'right'}
+                    labelLeft={t('settings.notExclusive')}
+                    labelRight={t('settings.exclusive')}
+                    iconLeft="rectangle.fill.badge.person.2.crop"
+                    iconRight="rectangle.fill.badge.person.crop"
+                    onClick={(val: 'left' | 'right') => updateGameModeInfo({ exclusive_mode: val === 'left' ? false : true })}
+                    disabled={!isHost}
+                    isHost={isHost}
+                    position="middle"
+                    description={exclusiveMode === false ? t('settings.categoryModeDescNotExclusive') : t('settings.categoryModeDescExclusive')}
+                />
             )}
 
             {/* End Condition Selection */}
@@ -70,6 +84,8 @@ export default function LobbySettings({ isHost, gameMode, teamMode, timeLimit, e
                         active={endCondition === 'first_bingo' ? 'left' : 'right'}
                         labelLeft={t('settings.firstBingo')}
                         labelRight={t('settings.fullTime')}
+                        iconLeft="square.grid.3x3.bingo"
+                        iconRight="timer"
                         onClick={(val: 'left' | 'right') =>
                             updateGameModeInfo({
                                 end_condition: val === 'left' ? 'first_bingo' : 'timer',

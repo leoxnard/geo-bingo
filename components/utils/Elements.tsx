@@ -146,7 +146,26 @@ export const ToggleSwitch = ({ checked, onChange, disabled, label, tooltip }: { 
     );
 };
 
-export const ToggleButton = ({ classname, active, labelLeft, labelRight, onClick, disabled, title, isHost, position = 'middle', description }: { classname?: string; active: 'left' | 'right'; labelLeft: string; labelRight: string; onClick: (val: 'left' | 'right') => void; disabled?: boolean; title: string; isHost?: boolean; position?: 'top' | 'middle' | 'bottom'; description?: string }) => (
+// A monochrome glyph from /public/icons rendered via CSS mask so it takes on the
+// current text color (`bg-current`) — letting it dim/brighten with its label.
+export const MaskIcon = ({ name, className = '' }: { name: string; className?: string }) => (
+    <span
+        aria-hidden
+        className={`inline-block bg-current ${className}`}
+        style={{
+            WebkitMaskImage: `url(/icons/${name}.svg)`,
+            maskImage: `url(/icons/${name}.svg)`,
+            WebkitMaskRepeat: 'no-repeat',
+            maskRepeat: 'no-repeat',
+            WebkitMaskPosition: 'center',
+            maskPosition: 'center',
+            WebkitMaskSize: 'contain',
+            maskSize: 'contain',
+        }}
+    />
+);
+
+export const ToggleButton = ({ classname, active, labelLeft, labelRight, iconLeft, iconRight, onClick, disabled, title, isHost, position = 'middle', description }: { classname?: string; active: 'left' | 'right'; labelLeft: string; labelRight: string; iconLeft?: string; iconRight?: string; onClick: (val: 'left' | 'right') => void; disabled?: boolean; title: string; isHost?: boolean; position?: 'top' | 'middle' | 'bottom'; description?: string }) => (
     <div
         className={`py-3 border-t border-slate-700
         ${position === 'top' ? 'pt-0 border-t-0' : ''}
@@ -162,16 +181,22 @@ export const ToggleButton = ({ classname, active, labelLeft, labelRight, onClick
             {/* Slider */}
             <div
                 className={`
-                    absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] 
+                    absolute top-1 bottom-1 left-1 w-[calc(50%-4px)]
                     rounded-md shadow-lg transition-transform duration-300 ease-in-out
-                    ${active === 'right' ? 'translate-x-full' : 'translate-x-0'} 
+                    ${active === 'right' ? 'translate-x-full' : 'translate-x-0'}
                     ${isHost ? 'bg-indigo-600' : 'bg-slate-700'}
                 `}
             />
 
             {/* Labels */}
-            <div className={`relative z-10 flex-1 py-2 text-sm font-semibold transition-colors duration-200 ${active === 'left' ? 'text-white' : 'text-slate-400'}`}>{labelLeft}</div>
-            <div className={`relative z-10 flex-1 py-2 text-sm font-semibold transition-colors duration-200 ${active === 'right' ? 'text-white' : 'text-slate-400'}`}>{labelRight}</div>
+            <div className={`relative z-10 flex-1 flex flex-col items-center justify-center gap-1 py-2 text-sm font-semibold transition-colors duration-200 ${active === 'left' ? 'text-white' : 'text-slate-400'}`}>
+                {iconLeft && <MaskIcon name={iconLeft} className="h-4 w-4" />}
+                {labelLeft}
+            </div>
+            <div className={`relative z-10 flex-1 flex flex-col items-center justify-center gap-1 py-2 text-sm font-semibold transition-colors duration-200 ${active === 'right' ? 'text-white' : 'text-slate-400'}`}>
+                {iconRight && <MaskIcon name={iconRight} className="h-4 w-4" />}
+                {labelRight}
+            </div>
         </button>
         {/* Description */}
         {description && <p className="mt-2 text-xs text-slate-400 text-center min-h-[16px]">{description}</p>}
