@@ -36,9 +36,8 @@ export const generateNearbyStreetViewCategories = async (startPos: { lat: number
             base64: string;
         }[] = [];
         const seenImages = new Set<string>();
-        // Fetch a healthy pool of panoramas independent of the active count, so the
-        // AI always has enough material to extract a pool (active list + suggestions)
-        // from — even when the host only wants a handful of active categories.
+        // Fetch a pool of panoramas larger than the active count so the AI always has
+        // enough material for both the active list and the suggestions.
         const poolImageTarget = Math.min(Math.max(requiredCount + 6, 12), 24);
         const maxAttempts = poolImageTarget * 8;
         let fetchCount = 0;
@@ -158,9 +157,8 @@ export const generateNearbyStreetViewCategories = async (startPos: { lat: number
             })
             .filter((item): item is BingoCategory & { score: number } => item !== null)
             .filter((cat, index, self) => index === self.findIndex((c) => c.categoryName.toLowerCase().trim() === cat.categoryName.toLowerCase().trim()))
-            // Return the FULL ranked pool (highest score first), not just the top
-            // requiredCount. The lobby splits this into the active list (top-K) and
-            // the suggestions list (the rest), so we hand back everything we found.
+            // Return the full ranked pool (highest score first); the lobby splits it
+            // into the active list (top-K) and the suggestions (the rest).
             .sort((a, b) => b.score - a.score)
             .map((cat) => ({
                 categoryName: cat.categoryName,

@@ -12,51 +12,29 @@ to restore it. Intentionally plain constants (no env var needed).
 export const FEATURES = {
     // ── Lobby game settings (LobbySettings) ──────────────────────────────────
 
-    /**
-     * Bingo grid game mode (classic list ↔ bingo grid). When `false` the toggle
-     * is removed and only the list mode is offered.
-     */
+    /** Bingo grid game mode (list ↔ grid). Off → only list mode. */
     bingoMode: true,
 
-    /**
-     * Win condition for bingo games (first bingo ↔ full time). When `false` the
-     * toggle is removed (only ever relevant in bingo mode).
-     */
+    /** Win condition toggle for bingo games (first bingo ↔ full time). */
     winCondition: true,
 
-    /**
-     * Exclusive categories (the first player to claim a category locks it for the
-     * others). When `false` the lobby toggle is removed and every game stays
-     * non-exclusive — even if an imported preset asked for exclusive mode.
-     */
+    /** Exclusive categories (first claimer locks a category). Off → always non-exclusive. */
     exclusiveCategories: false,
 
     // ── Lobby sidebar toggles ────────────────────────────────────────────────
 
-    /**
-     * The "hide map symbols (POIs)" toggle. When `false` the toggle is removed
-     * and point-of-interest icons are always shown on the map.
-     */
+    /** "Hide map symbols (POIs)" toggle. Off → POIs always shown. */
     hideMapSymbols: true,
 
-    /**
-     * The "hide minimap" toggle. When `false` the toggle is removed and the
-     * in-game minimap is always shown.
-     */
+    /** "Hide minimap" toggle. Off → minimap always shown. */
     hideMiniMap: false,
 
-    /**
-     * The "AI verify to end the round" toggle. When `false` the toggle is removed
-     * and AI auto-ending is always off.
-     */
+    /** "AI verify to end the round" toggle. Off → AI auto-ending always off. */
     aiVerifyEndGame: true,
 
     // ── Category sources (LobbyCategories) ───────────────────────────────────
 
-    /**
-     * AI-powered category sources. Manual entry is always available; a disabled
-     * source is removed from the picker (and treated as manual if it was set).
-     */
+    /** AI category sources. Manual is always available; a disabled source is treated as manual. */
     categorySources: {
         ai: true,
         nearbyPlaces: true,

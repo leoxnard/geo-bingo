@@ -1555,9 +1555,8 @@ export const categoriesHardZh = [
 ];
 
 // ===================== LOCALE-KEYED MAPS =====================
-// Keyed by the category language (the game's shared board language). German and
-// English have curated word pools; Spanish/French/Chinese are translations of
-// the English pool. Adding a language = add its key here + a translated array.
+// Keyed by the game's shared board language. German/English have curated pools;
+// Spanish/French/Chinese are translations of the English pool.
 export const categoriesBalanced: Record<CategoryLanguage, string[]> = {
     german: categoriesDe,
     english: categoriesEn,

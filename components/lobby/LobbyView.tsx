@@ -199,9 +199,7 @@ export default function LobbyView(props: LobbyViewProps) {
         if (props.gameMode === 'bingo') {
             try {
                 const board = finalCategories.slice(0, neededCount);
-                // Shared-board mode: every player gets the same board, written
-                // one rpc per row since direct bulk UPDATE on players is the
-                // policy we want to lock down.
+                // Shared board: every player gets the same one, one rpc per row (bulk UPDATE is locked down).
                 const results = await Promise.all(props.players.map((p) => props.supabase.rpc('update_player', { p_id: p.id, p_patch: { bingo_board: board } })));
                 const failure = results.find((r) => r.error);
                 if (failure?.error) throw failure.error;

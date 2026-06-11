@@ -53,8 +53,7 @@ function rememberModel(tier: GeminiTier, model: string): void {
     }
 }
 
-// The order to try models in: the last known-good model first (fast path that
-// skips models we already know are full), then the full list from the top so a
+// Last known-good model first (fast path), then the full list from the top so a
 // recovered/stronger model gets picked back up once the remembered one fails.
 function getModelOrder(tier: GeminiTier): string[] {
     const remembered = getRememberedModel(tier);
@@ -65,11 +64,8 @@ function getModelOrder(tier: GeminiTier): string[] {
 }
 
 /**
- * Runs `run` against Gemini models until one succeeds (resolves without
- * throwing). Tries the remembered last-good model first, then the rest from the
- * top; on success that model is saved for next time. `run` should THROW to
- * signal "this model didn't work — try the next one" (e.g. a 429 "full" / rate
- * limit, an empty reply, or an unparseable response).
+ * Runs `run` against Gemini models until one succeeds, remembering the winner.
+ * `run` should THROW to signal "try the next model" (429/empty/unparseable reply).
  */
 export async function withModelFallback<T>(run: (model: string) => Promise<T>, tier: GeminiTier = 'free'): Promise<T> {
     const order = getModelOrder(tier);

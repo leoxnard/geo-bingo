@@ -135,9 +135,8 @@ REQUIRED JSON TEMPLATE (EXACT):
             throw new Error('AI generated no valid categories');
         }
 
-        // requiredCount is the target pool size; the lobby splits the returned pool
-        // into the active top-K list and the suggestions list. Cap at requiredCount
-        // so an over-eager model doesn't flood the suggestions list.
+        // Cap at the requested pool size so an over-eager model doesn't flood the
+        // suggestions list (the lobby splits this into active top-K + suggestions).
         const bingoCategories: BingoCategory[] = categories.slice(0, requiredCount).map((category) => ({
             categoryName: category,
             matchedPlaces: [],

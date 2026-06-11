@@ -157,9 +157,8 @@ interface Point {
     lng: number;
 }
 
-// Sentinel zone (no points) stored inside the gameBoundary array to record the
-// "rest of the world" default — i.e. whether anything outside every drawn area
-// is allowed or forbidden. Absent means the legacy default: 'allow'.
+// Sentinel zone (no points) in the gameBoundary array recording the "rest of the
+// world" default — allowed or forbidden outside every drawn area. Absent → 'allow'.
 export const WORLD_DEFAULT_ID = '__world_default__';
 
 export function parseWorldDefault(gameBoundary: string): 'allow' | 'forbid' {
@@ -194,9 +193,8 @@ export function isLocationAllowed(point: Point, gameBoundary: string): boolean {
             return isPointInPolygon(point, parsed as unknown as Point[]);
         }
 
-        // The "rest of the world" default is configured explicitly via a sentinel
-        // zone (default 'allow'). Drawn areas override it where the point falls
-        // inside, evaluated highest-priority-first (last in the array wins).
+        // World default comes from the sentinel zone; drawn areas override it where the
+        // point falls inside, evaluated highest-priority-first (last in the array wins).
         const worldDefault = parsed.find((z) => z.id === WORLD_DEFAULT_ID)?.type === 'forbid' ? 'forbid' : 'allow';
         const zones = parsed.filter((z) => z.id !== WORLD_DEFAULT_ID);
 

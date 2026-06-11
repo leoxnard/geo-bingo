@@ -32,10 +32,8 @@ export default function LobbySettings({ isHost, gameMode, teamMode, timeLimit, e
     const { t } = useT();
     const [localTimeLimit, setLocalTimeLimit] = useState(timeLimit / 60);
 
-    // Follow external changes to the time limit (preset import hydration, or
-    // another host editing it via realtime). The initializer only runs once, so
-    // without this the slider would keep its mount-time value. During local
-    // dragging the parent prop doesn't change, so this never fights the user.
+    // Follow external time-limit changes (preset import, another host's realtime edit);
+    // the prop doesn't change during local dragging, so this never fights the user.
     useEffect(() => {
         setLocalTimeLimit(timeLimit / 60);
     }, [timeLimit]);
@@ -49,8 +47,6 @@ export default function LobbySettings({ isHost, gameMode, teamMode, timeLimit, e
 
     return (
         <div className="bg-slate-800 p-4 sm:p-6 rounded-xl flex-1 border border-slate-700 h-fit">
-            {/* <h2 className="text-xl font-semibold mb-4 text-slate-300">Settings</h2> */}
-
             {/* Team Mode Selection */}
             <ToggleButton title={t('settings.teamMode')} active={teamMode === 'ffa' ? 'left' : 'right'} onClick={(val: 'left' | 'right') => updateGameModeInfo({ team_mode: val === 'left' ? 'ffa' : 'teams' })} disabled={!isHost} isHost={isHost} labelLeft={t('settings.noTeams')} labelRight={t('settings.teams')} iconLeft="person" iconRight="person.2" position="top" />
 

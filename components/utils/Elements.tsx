@@ -80,9 +80,8 @@ export const GeoBingoLogo = ({ size = 60, className = '' }: { size?: number; cla
     return <Image src="/mappin.and.ellipse.png" alt="Geo BingBong Logo" loading="eager" width={size} height={size} className={`w-auto h-auto drop-shadow-[0_0_15px_rgba(96,165,250,0.5)] transform-gpu transition-transform ${className}`} />;
 };
 
-// Question-mark badge with a tooltip. Opens on hover (desktop) and toggles
-// on tap (mobile, where hover doesn't fire); taps outside close it. Stops
-// propagation so it can sit inside clickable rows without flipping them.
+// Question-mark badge with a tooltip: hover (desktop) / tap (mobile) to open,
+// outside tap to close. Stops propagation so it can sit inside clickable rows.
 export const InfoHint = ({ text }: { text: string }) => {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLSpanElement>(null);
@@ -116,8 +115,7 @@ export const InfoHint = ({ text }: { text: string }) => {
 
 export const ToggleSwitch = ({ checked, onChange, disabled, label, tooltip }: { checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean; label: string; tooltip?: string }) => {
     // Glue the last word and the "?" together (whitespace-nowrap) so a wrap can
-    // only happen BEFORE the last word — the icon never gets pushed to its own
-    // line or separated from the word it belongs to.
+    // only happen before the last word, never separating the icon from it.
     const words = label.trim().split(/\s+/);
     const lastWord = words.pop() ?? label;
     const head = words.join(' ');

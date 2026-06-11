@@ -85,9 +85,8 @@ export default function PresetCard({ preset, myVote, isOwner, onVote, onDelete, 
         }
     };
 
-    // Backfill the emoji + per-language category translations in place (Gemini +
-    // DeepL), without walking the wizard. Handy for presets created before the
-    // icon/translation columns existed.
+    // Backfill the emoji + per-language translations in place (Gemini + DeepL),
+    // for presets created before the icon/translation columns existed.
     const regenerate = async () => {
         setBusy(true);
         try {

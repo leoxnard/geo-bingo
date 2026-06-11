@@ -473,9 +473,8 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
             return;
         }
 
-        // Capture time in the same clock as the path points, so the voting replay
-        // can place this submission by when it was taken (correct even when the
-        // path revisits the spot), not just by nearest location.
+        // Capture time on the same clock as the path points, so the voting replay
+        // can place this submission by time (correct even when the path revisits a spot).
         const capturedAt = Date.now();
         const submissionData = {
             game_id: gameId,
@@ -573,11 +572,8 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
             if (bingos.count === 0) return;
 
             if (aiEndGame) {
-                // Auto-verify the cells of any clean bingo line(s). The helper
-                // already skips lines containing an AI-rejected cell, so a stale
-                // rejection in one line never blocks verification of a separate
-                // clean bingo. Cached `passed=true` cells hit the verify cache —
-                // only new/cleared cells actually hit Gemini.
+                // Auto-verify any clean bingo line(s); the helper skips lines with an
+                // AI-rejected cell, and cached passes don't re-hit Gemini.
                 const bingoLineSubs = getBingoLineSubmissions(gridSize, myBoard, finalMySubs);
                 if (bingoLineSubs.length === 0) return;
                 await handleVerifyBingoAndEnd(bingoLineSubs);

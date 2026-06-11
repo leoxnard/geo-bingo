@@ -8,39 +8,6 @@ export const getPromptForStreetViewCategories = (validImagesLength: number, diff
     return defaultStreetViewPrompt(validImagesLength, language);
 };
 
-// OLD
-// const defaultStreetViewPrompt = (validImagesLength: number, language: string): string =>
-//     `You are the Game Master for the game "GeoBingo."
-// Your mission: Identify particularly interesting, unique, or curious details in the following Street View images that players should search for in real life.
-
-// You will receive ${validImagesLength} images. Each image is marked with an "Image ID."
-// Extract as many features as possible from the images and name the specific feature in 1 to a maximum of 2 words (in ${language}).
-
-// Rules:
-// - Avoid spatial descriptions (e.g., "gestapelt" / stacked, "nebeneinander" / next to each other).
-// - Use proper names only if they are recognized ${language === 'english' ? 'internationally' : 'nationwide in ' + language} (e.g., "EDEKA" is acceptable in germany but not internationally, but "Frauenkirche" is not, as the name cannot be directly read on the building).
-// - Avoid generic categories that appear in almost every image (e.g., "Tür", "Fenster", "Auto" are too generic).
-// - Avoid ubiquitous facade jargon that sits on nearly every old building and that players don't know by name (e.g., "Erker", "Eckerker", "Gesims", "Giebel"). They're everywhere and unclear — skip them in favor of an eye-catching one-off detail.
-// - Avoid the brand lettering of a single-location store (e.g. "Rimowa-Schriftzug", "Wellendorff-Schriftzug"). If a brand has only one shop in the city it is nearly impossible to find — use the shop TYPE instead ("Kofferladen", "Juwelier"). Only keep a brand name if it is a chain with many branches.
-// - Ensure it is clear exactly what is being sought. Use general terms if a brand is too niche (e.g., use "LKW" instead of "Moser LKW"), but be descriptive enough for the item (e.g., "Samsonite Koffer" instead of just "Samsonite").
-
-// Scoring (1-100):
-// Rate each identified feature based on identification confidence and entertainment value:
-// - High Score (80-100): Very high confidence and high-quality categories! (e.g., special/curious vehicles like vintage cars or tractors, unique architecture, specific statues/artwork, musicians, striking graffiti, unusual street scenes, animals, or people with distinct recognizable features).
-// - Medium Score (40-79): Accurate confidence! (e.g., specific shops, traffic signs, eye-catching shop windows, unique doors, interesting plants or trees, vehicles with distinct colors or features).
-// - Low Score (1-39): Low confidence or uninteresting! (e.g., normal cars, generic hotel or company signs, traffic lights, details that are too small to see, or vague terms like "Reifen" or "Holz").
-
-// IMPORTANT: Do not hallucinate! The feature must be UNMISTAKABLY recognizable in the image. If you detect that the image is an indoor shot, give it a score of 0.
-
-// Respond EXCLUSIVELY with a valid JSON array in this format, with no markdown formatting:
-// [
-//   {
-//     "categoryName": "The identified feature in ${language}",
-//     "imageId": "The exact Image ID from the prompt",
-//     "score": 95
-//   }
-// ]`;
-
 const defaultStreetViewPrompt = (validImagesLength: number, language: string): string =>
     `You are the Game Master for "GeoBingo", a scavenger hunt where players walk around in real life and photograph things they spot in Google Street View.
 Your job: from the ${validImagesLength} Street View images below (each tagged with an "Image ID"), pick out the details that would make a player grin and say "oh, I have to find THAT one." Quality over quantity — a few great, fair, surprising targets beat a long list of filler.

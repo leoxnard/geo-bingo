@@ -170,9 +170,7 @@ export default function StreetViewMapPanel(props: StreetViewMapPanelProps) {
             )}
 
             {startingPoint !== 'open-world' && (
-                // The panel-open offset (translateX) lives on the wrapper, so the
-                // button's own hover:scale transform doesn't fight it — otherwise
-                // hovering in fullscreen made the button jump on the x-axis.
+                // Panel-open offset lives on the wrapper so the button's own hover:scale doesn't fight it.
                 <div style={{ transform: isFullscreen && fsPanelOpen ? `translateX(${measuredPanelWidth}px)` : undefined }} className="absolute top-2 left-2 z-5 transition-transform duration-300 ease-out hidden sm:block">
                     <button type="button" onClick={() => streetViewRef.current?.setPosition(new google.maps.LatLng(startingPoint ? JSON.parse(startingPoint) : safeStartCenter))} className="flex w-12 h-12 bg-slate-800/30 hover:bg-slate-700/80 text-white text-[30px] items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-slate-500 font-bold transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm" title={t('sv.returnToStart')}>
                         <GoMoveToStart />

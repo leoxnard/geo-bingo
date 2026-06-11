@@ -35,9 +35,8 @@ export const panoOptions = {
     linksControl: false,
 };
 
-// Find the region hint for a category. The board category can be in any
-// language, so we search every localized term and return the hint in the same
-// language it matched.
+// Find the region hint for a category. Searches every localized term (the board
+// category can be in any language) and returns the hint in the language it matched.
 export const getHintForCategory = (cat: string) => {
     for (const meta of geoGuessrMeta) {
         for (const lang of Object.keys(meta.term) as (keyof typeof meta.term)[]) {
@@ -48,9 +47,7 @@ export const getHintForCategory = (cat: string) => {
 };
 
 // Build a category-name -> hint lookup for the active locale from a preset's
-// per-locale hint translations (aligned to the canonical `categories` order).
-// Keying by name (not index) keeps hints correct even when the board is shuffled
-// (bingo) or reordered, which a positional lookup would get wrong.
+// per-locale hints. Keying by name (not index) survives the bingo board shuffle.
 export const buildHintMap = (categories: string[], hintTranslations: Record<string, string[]>, locale: Locale): HintMap => {
     const localeHints = hintTranslations[locale];
     if (!Array.isArray(localeHints)) return {};

@@ -144,11 +144,7 @@ export async function updatePreset(id: string, input: Omit<CreatePresetInput, 'a
     return data as CreateResult;
 }
 
-/**
- * Set the caller's single account-wide display name. Writes it to the auth user's
- * metadata (so new presets pick it up) and rewrites author_name on every preset
- * the caller already owns. Returns nothing useful; throws on error.
- */
+/** Set the caller's account-wide display name (auth metadata + every owned preset's author_name). */
 export async function renameAuthor(name: string): Promise<void> {
     const trimmed = name.trim();
     const { error: metaError } = await supabase.auth.updateUser({ data: { display_name: trimmed } });
@@ -157,13 +153,8 @@ export async function renameAuthor(name: string): Promise<void> {
     if (rpcError) throw rpcError;
 }
 
-/**
- * Builds a builder seed from a played game: the category list, boundaries,
- * starting point, and every submission grouped by category (for the
- * per-category "from game" picker). No location is assigned to any category up
- * front — every category starts empty and the author picks each spot (or one of
- * the game's finds) in the builder.
- */
+// Seed a builder from a played game. Every category starts empty (in "pending"):
+// the author picks each spot, optionally from the game's grouped submissions.
 export async function buildPresetSeedFromGame(client: SupabaseClient, gameId: string): Promise<PresetSeed | null> {
     const { data: game } = await client.from('games').select('categories, gameBoundary, starting_point').eq('id', gameId).single();
     if (!game) return null;
@@ -172,8 +163,6 @@ export async function buildPresetSeedFromGame(client: SupabaseClient, gameId: st
 
     const names: string[] = (Array.isArray(game.categories) ? (game.categories as unknown[]) : []).map((c) => String(c).trim()).filter(Boolean);
 
-    // Group every submission by category for the "from game" picker. Nothing is
-    // pre-assigned: all categories start in "pending" so each spot is empty.
     const submissionsByCategory: Record<string, CommunityCategory[]> = {};
     ((subs ?? []) as { category: string; lat: number | null; lng: number | null; heading: number | null; pitch: number | null; zoom: number | null }[]).forEach((s) => {
         if (s.lat == null || s.lng == null) return;

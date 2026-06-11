@@ -48,10 +48,7 @@ export function useStreetViewPath(playerId: string) {
         };
     }, [playerId]);
 
-    /**
-     * Append a point unless it's the same coords as the last one (panorama
-     * change events fire even when the player just rotates).
-     */
+    // Append a point unless it repeats the last coords (pano-change events fire on rotate too).
     const recordPoint = useCallback((lat: number, lng: number) => {
         const last = pathRef.current[pathRef.current.length - 1];
         if (!last || last.lat !== lat || last.lng !== lng) {
@@ -59,17 +56,13 @@ export function useStreetViewPath(playerId: string) {
         }
     }, []);
 
-    /**
-     * Manual save used before the player triggers an end-of-round vote, so the
-     * latest points are durable even if the periodic interval hasn't fired yet.
-     */
+    // Manual save before an end-of-round vote, so the latest points are durable
+    // even if the autosave interval hasn't fired yet.
     const flushNow = () => {
         const lengthAtFlush = pathRef.current.length;
         if (lengthAtFlush > lastSavedLengthRef.current) {
             void (async () => {
-                // supabase.rpc reports failures via { error } rather than throwing,
-                // so only advance the saved cursor on success — otherwise the
-                // autosave interval can retry the not-yet-saved points.
+                // rpc reports failures via { error }, so only advance the cursor on success.
                 const { error } = await supabase.rpc('update_player', { p_id: playerId, p_patch: { path: pathRef.current } });
                 if (error) {
                     console.error('Failed to save path:', error.message);

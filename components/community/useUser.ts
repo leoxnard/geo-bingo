@@ -46,10 +46,8 @@ export function useUser() {
 }
 
 /**
- * The account's single community display name: the name stored on the auth user
- * (set via the "change name" control) → email local part → "Anonymous". This is
- * deliberately account-scoped (one name per email, shown under all their presets)
- * and independent of the per-device in-game lobby name.
+ * The account's community display name: auth-user display_name → email local part
+ * → "Anonymous". Account-scoped, independent of the per-device in-game lobby name.
  */
 export function displayNameFor(user: User | null): string {
     const meta = user?.user_metadata?.display_name;

@@ -78,9 +78,8 @@ export interface BoundaryPolygon {
 
 // ---- community presets ----
 
-// A saved category that carries its exact Street View viewpoint, so the preset
-// can render a real preview (via the Street View Static API) in the browse /
-// voting UI — the same shape a game submission stores.
+// A saved category carrying its exact Street View viewpoint (same shape as a game
+// submission), so the preset can render a real preview in the browse / voting UI.
 export interface CommunityCategory {
     categoryName: string;
     lat: number;
@@ -135,9 +134,8 @@ export interface CommunityPreset {
 }
 
 // Pre-seed payload handed from the lobby "publish" path into the builder wizard
-// (via sessionStorage). `boundaries`/`startingPoint` reuse the game string
-// formats; `pendingCategoryNames` are categories that were configured but never
-// found in the game, so they still need a Street View spot captured.
+// (via sessionStorage). `pendingCategoryNames` are configured-but-never-found
+// categories that still need a Street View spot captured.
 export interface PresetSeed {
     name?: string;
     description?: string;

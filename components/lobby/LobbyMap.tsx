@@ -72,10 +72,8 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     const [searchTerm, setSearchTerm] = useState('');
     const [optimisticGameBoundary, setOptimisticGameBoundary] = useState(gameBoundary);
     const optimisticGameBoundaryRef = useRef(gameBoundary);
-    // Boundary strings we've sent to the parent, so we can recognise (and ignore)
-    // their echoes coming back through the gameBoundary prop. The parent echoes
-    // each write twice (optimistic setState + Supabase realtime), so entries are
-    // never deleted — any echo of our own write must always be ignored.
+    // Boundary strings we've written, to recognise and ignore their echoes coming
+    // back through the gameBoundary prop (parent echoes each write twice).
     const pendingWritesRef = useRef<Set<string>>(new Set());
     // Latest updateGameModeInfo (prop identity changes each parent render); kept in
     // a ref so the debounced flush always calls the current one.
@@ -84,9 +82,8 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     // Debounce state for persisting boundary edits to the parent.
     const boundaryWriteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const pendingBoundaryWriteRef = useRef<string | null>(null);
-    // When we last changed boundaries locally. While editing is recent, any prop
-    // value that differs from our optimistic state is a lagging echo, not an
-    // external change — adopting it would resurrect just-deleted/edited areas.
+    // When we last edited boundaries locally. While recent, a differing prop value is
+    // treated as a lagging echo (not an external change) to avoid resurrecting edits.
     const lastLocalEditAtRef = useRef(0);
     const [worldDefault, setWorldDefault] = useState<'allow' | 'forbid'>(() => parseWorldDefault(gameBoundary));
     type BoundaryHistoryEntry = { boundaries: string; selectedId: string | null };
@@ -139,16 +136,11 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     }, []);
 
     useEffect(() => {
-        // Already our current local value, or an echo of one of our own writes
-        // (the parent re-emits each write twice — optimistic + realtime). Adopting
-        // it would clobber newer local edits and make points flicker.
+        // Ignore our own value and echoes of our own writes (parent re-emits each twice).
         if (gameBoundary === optimisticGameBoundaryRef.current) return;
         if (pendingWritesRef.current.has(gameBoundary)) return;
-        // Differs from local and isn't a recognised echo. If we edited recently,
-        // it's almost certainly a lagging echo arriving out of order (the realtime
-        // round-trip can land after a reset and resurrect deleted areas) — ignore
-        // it. Only adopt once local editing has settled: initial load, or a
-        // genuine external change after we've stopped touching the map.
+        // Differs and isn't a known echo: if we edited recently it's likely a lagging
+        // out-of-order echo, so only adopt once local editing has settled.
         if (Date.now() - lastLocalEditAtRef.current < 1500) return;
         optimisticGameBoundaryRef.current = gameBoundary;
         setOptimisticGameBoundary(gameBoundary);

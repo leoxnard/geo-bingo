@@ -107,10 +107,8 @@ export const calculateBingoCounter = (gridSize: number, board: string[], submiss
     return { count: bingoCount, players: playersArray };
 };
 
-// Returns the unique submissions that make up any completed bingo line(s)
-// on the given board, EXCLUDING lines that contain an AI-rejected cell. Used
-// by AI verify-to-end so a stale rejected cell in one line doesn't block
-// verification of a separate, clean bingo line.
+// Unique submissions making up any completed bingo line(s), excluding lines with
+// an AI-rejected cell (so one stale rejection doesn't block a separate clean line).
 export const getBingoLineSubmissions = (gridSize: number, board: string[], submissions: Submission[]): Submission[] => {
     if (!board || board.length === 0 || gridSize < 2) return [];
 

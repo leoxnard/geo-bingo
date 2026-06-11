@@ -32,11 +32,9 @@ export interface FinalizeResult {
     hintTranslations: Record<string, string[]>;
 }
 
-// /api/translate caps each request at 60 texts. A preset bundles category names
-// + hints + title + description, which overflows that for ~28+ categories, so we
-// translate in chunks and stitch the per-locale arrays back together in order. A
-// chunk that fails leaves its locale short, which the caller's length check then
-// back-fills with the originals.
+// /api/translate caps each request at 60 texts, so translate in chunks and stitch
+// the per-locale arrays back together. A failed chunk leaves its locale short,
+// which the caller's length check back-fills with the originals.
 const TRANSLATE_CHUNK = 50;
 
 async function translateInChunks(texts: string[], sourceLang: string | undefined): Promise<Record<string, string[]>> {

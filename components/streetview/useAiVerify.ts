@@ -19,10 +19,8 @@ import { supabase } from '../../lib/supabase';
 import { isSubmissionVerified, verifySubmissions } from '../utils/aiVerify';
 import type { Submission } from '../utils/types';
 
-// Builds the loading toast from the count that will actually be sent to Gemini —
-// submissions already verified at their current view are skipped (no call, no
-// charge), so showing the total would overstate the work. `noun` distinguishes
-// the all-categories flow from the Bingo-line flow.
+// Loading toast counts only submissions actually sent to Gemini (already-verified
+// ones are skipped). `noun` distinguishes the all-categories vs Bingo-line flow.
 const buildVerifyLabel = (subsToCheck: Submission[], noun: string): string => {
     const pendingCount = subsToCheck.filter((s) => !isSubmissionVerified(s)).length;
     if (pendingCount === 0) return 'All categories already verified — ending round...';
@@ -31,9 +29,8 @@ const buildVerifyLabel = (subsToCheck: Submission[], noun: string): string => {
     return `Verifying ${pendingCount} ${noun}${pendingCount === 1 ? '' : 's'} with AI${tail}...`;
 };
 
-// Sentinel for the "AI rejected one of your cells" path. It's a user-actionable
-// outcome (retake the cell), not a bug, so we surface it via toast only and
-// skip the console.error that Next pipes to the terminal in dev.
+// Sentinel for the "AI rejected one of your cells" path: a user-actionable outcome
+// (retake the cell), not a bug, so it's surfaced via toast only (no console.error).
 class AiRejectionError extends Error {}
 
 interface UseAiVerifyArgs {
@@ -59,9 +56,8 @@ export function useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSu
                 return;
             }
 
-            // Short-circuit on already-AI-rejected cells: claim_category clears
-            // ai_verdict on retake, so a lingering `false` means the player still
-            // needs to replace that submission before the round can end.
+            // A lingering `false` verdict (cleared on retake) means the player must
+            // replace that submission before the round can end.
             const previouslyRejected = subsToCheck.filter((s) => s.ai_verdict === false);
             if (previouslyRejected.length > 0) {
                 toast.error(`Retake ${previouslyRejected.length} AI-rejected ${previouslyRejected.length === 1 ? 'category' : 'categories'} before ending: ${previouslyRejected.map((s) => s.category).join(', ')}`);
@@ -77,10 +73,8 @@ export function useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSu
                 setAllSubmissions((prev) => prev.map((s) => (optimisticUpdates.has(s.id) ? { ...s, ...optimisticUpdates.get(s.id)! } : s)));
 
                 const persistTasks = results.filter((r) => !r.fromCache && !r.error).map((r) => supabase.rpc('set_submission_ai_verdict', { p_id: r.submissionId, p_player_id: playerId, p_verdict: r.passed, p_hash: r.hash }));
-                // supabase.rpc reports failures via { error } (and the function via
-                // data.success), not by throwing — so if any verdict failed to persist,
-                // bail before ending the round to avoid ending on verdicts that were
-                // never stored.
+                // rpc reports failures via { error } / data.success, not by throwing — so
+                // bail before ending the round if any verdict failed to persist.
                 const persistResults = await Promise.all(persistTasks);
                 const persistFailure = persistResults.find((r) => r.error || (r.data && r.data.success === false));
                 if (persistFailure) {

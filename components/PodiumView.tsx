@@ -561,9 +561,8 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
                         <button
                             type="button"
                             onClick={() => {
-                                // Open the tab synchronously inside the click gesture — otherwise
-                                // the popup blocker kills window.open once it runs after the async
-                                // seed build below.
+                                // Open the tab synchronously inside the click gesture, or the popup
+                                // blocker kills it once the async seed build below runs.
                                 const win = window.open('about:blank', '_blank');
                                 // Submissions are cleared on "Back to Lobby", so harvest them now.
                                 buildPresetSeedFromGame(supabase, gameId).then((seed) => {

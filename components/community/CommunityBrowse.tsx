@@ -37,8 +37,7 @@ export default function CommunityBrowse() {
     const { user, loading: userLoading } = useUser();
 
     // Share-link deep link: /community?preset=<id> pins that preset to the top
-    // of the list (fetching it if it isn't in the current page), highlights it
-    // and scrolls it into view once.
+    // (fetching it if absent), highlights it and scrolls it into view once.
     const sharedId = useSearchParams().get('preset');
     const scrolledToSharedRef = useRef(false);
 

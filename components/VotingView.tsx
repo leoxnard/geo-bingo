@@ -29,7 +29,6 @@ import { VotingPanel } from './voting/VotingPanel';
 const MAX_ANIMATION_DURATION = 8000;
 
 // Distinct colours for the simultaneous teammate paths in a team round.
-// Index 0 is the original single-player yellow so FFA replays look unchanged.
 const PATH_COLORS = ['#22d3ee', '#f472b6', '#a3e635', '#fb923c', '#c084fc', '#fac800'];
 
 interface PlayerWithPaths {
@@ -49,10 +48,8 @@ interface PlayerRoundData {
     subProgressions: { sub: Submission; progress: number }[];
 }
 
-// Compute a player's current marker position and the drawn polyline portion for
-// a shared, distance-normalized progress value (0..1). Because every player in a
-// round is driven by the same progress, they all start and finish together and a
-// pause freezes everyone mid-stride.
+// Marker position + drawn polyline portion for a shared, distance-normalized
+// progress (0..1), so every player in a round starts, pauses and finishes together.
 const computePartial = (pd: PlayerRoundData, progress: number): { currentPoint: PathPoint | null; partialPath: PathPoint[] } => {
     const { rawPath, totalDist, dists } = pd;
     if (rawPath.length === 0) return { currentPoint: null, partialPath: [] };
@@ -282,8 +279,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     const displaySub = activeSubLatest || lastActiveSub;
 
     // Re-apply the active submission's exact viewpoint each time a new one surfaces,
-    // so every voting starts from the right framing to follow the path into the next
-    // category — instead of keeping the previous submission's manual pan/zoom.
+    // instead of keeping the previous submission's manual pan/zoom.
     useEffect(() => {
         if (selectedSubmission || selectedFinalMarker) return;
         const pano = streetViewPanoramaRef.current;
@@ -376,21 +372,17 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                 setCurrentRoundIndex(payload.payload.index);
             })
             .subscribe();
-        // NOTE: a previous 'finish_game' broadcast handler also called
-        // onFinishGame() here. That duplicated the host's DB write across
-        // every receiver, which now fails under the host-only set_game_status
-        // RPC. The page-level games subscription already picks up the host's
-        // status='finished' update and re-renders to PodiumView, so the
-        // broadcast handler is redundant and was removed.
+        // NOTE: no 'finish_game' broadcast handler here — it duplicated the host's
+        // DB write on every receiver (now blocked by the host-only set_game_status
+        // RPC). The page-level games subscription already re-renders to PodiumView.
 
         return () => {
             supabase.removeChannel(channel);
         };
     }, [gameId]);
 
-    // Path Calculations — one entry per player in the current round. Each path is
-    // measured by its own cumulative distance so a shared 0..1 progress maps every
-    // player proportionally along their route.
+    // Path Calculations — one entry per player in the current round, each measured by
+    // its own cumulative distance so a shared 0..1 progress maps everyone proportionally.
     const roundData = useMemo<PlayerRoundData[]>(() => {
         return roundPlayers.map((player, idx) => {
             const rawPath = player.path || [];
@@ -405,10 +397,8 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
             const subsForPlayer = submissions.filter((s) => s.player_id === player.id);
             const subProgressions = subsForPlayer.map((sub) => {
                 let bestProgress = 0;
-                // Prefer matching by capture time (recorded in the same clock as the
-                // path), so an overwrite surfaces where it was actually re-taken — not
-                // at the first pass when the path revisits the same spot. Fall back to
-                // nearest-in-space for rows without a capture timestamp.
+                // Prefer matching by capture time (same clock as the path) so an overwrite
+                // surfaces where it was re-taken; fall back to nearest-in-space without it.
                 if (typeof sub.captured_at === 'number' && rawPath.length > 0 && totalDist > 0) {
                     let bestDelta = Infinity;
                     for (let i = 0; i < rawPath.length; i++) {
@@ -469,8 +459,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     }, [roundData]);
 
     // Animation Loop — drives every teammate's path off one shared, normalized
-    // progress value. The map is framed to the whole round up front, so we never
-    // recenter per frame (that would fight the multi-path view).
+    // progress. The map is framed to the whole round up front (no per-frame recenter).
     useEffect(() => {
         if (!mapInstance || isPaused || isLineComplete || roundData.length === 0) return;
         if (!roundData.some((pd) => pd.rawPath.length > 0)) return;
@@ -512,9 +501,8 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                 progressBarRef.current.style.transform = `scale${isNarrow ? 'X' : 'Y'}(${progress})`;
             }
 
-            // Advance every teammate to the same shared progress so nobody stalls:
-            // when one player pauses on a found category, the others freeze partway
-            // between two of theirs.
+            // Advance every teammate to the same shared progress: when one pauses on a
+            // found category, the others freeze partway between two of theirs.
             for (const pd of roundData) {
                 const { currentPoint, partialPath } = computePartial(pd, progress);
                 const pl = polylineRefs.current.get(pd.player.id);
@@ -687,9 +675,8 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     let presetCategoryMarkers = null;
 
     if (isLineComplete) {
-        // Purple markers for the preset's target spots (imported games only). They
-        // behave like the AI category markers: hover shows the name + a preview,
-        // clicking opens that target location in the right-hand Street View.
+        // Purple markers for the preset's target spots (imported games only): hover
+        // shows the name + preview, click opens that location in the right Street View.
         if (presetPositions.length > 0) {
             presetCategoryMarkers = presetPositions.map((cat, idx) => {
                 const mId = `preset-${idx}`;

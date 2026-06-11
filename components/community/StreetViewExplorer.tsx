@@ -42,9 +42,8 @@ interface Viewpoint {
     zoom: number;
 }
 
-// Imperative API exposed to the builder: jump the panorama to a saved viewpoint
-// (clicking a category thumbnail). Done via a ref so the move happens in the
-// parent's click handler rather than a prop-driven effect.
+// Imperative API for the builder: jump the panorama to a saved viewpoint (via a
+// ref, so the move happens in the parent's click handler, not a prop effect).
 export interface StreetViewExplorerHandle {
     openViewpoint: (vp: Viewpoint) => void;
 }
@@ -101,9 +100,8 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
         }
     }, [gameBoundary]);
 
-    // Position is applied imperatively (re-renders never snap it back). The pano
-    // is hidden until a position is picked in capture mode. No exit button, no
-    // zoom +/- (wheel only); walk arrows + compass stay.
+    // Hidden until a position is picked (capture mode); no exit button, no zoom
+    // +/- (wheel only), walk arrows + compass stay.
     const panoOptions = useMemo<google.maps.StreetViewPanoramaOptions>(() => ({ visible: mode === 'simulate', clickToGo: true, linksControl: true, disableDoubleClickZoom: false, addressControl: false, showRoadLabels: false, fullscreenControl: false, motionTracking: false, motionTrackingControl: false, zoomControl: false, enableCloseButton: false, scrollwheel: true }), [mode]);
 
     const getPano = useCallback((): google.maps.StreetViewPanorama | null => {
@@ -212,8 +210,7 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
     );
 
     // Left minimap (capture only). The Pegman repositions the right panorama only
-    // when DROPPED (Street View becomes visible), not while hovering; the minimap
-    // itself never stays in panorama view.
+    // when dropped (not while hovering); the minimap never stays in panorama view.
     const onMiniMapLoad = useCallback(
         (map: google.maps.Map) => {
             miniMapRef.current = map;
@@ -222,8 +219,7 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
             youAreHereConeRef.current?.setMap(null);
             youAreHereRef.current?.setMap(null);
             // Facing-direction cone (rotates with the panorama heading), like the
-            // in-game minimap.
-            // Markers start hidden until the author opens a first position.
+            // in-game minimap. Hidden until the author opens a first position.
             youAreHereConeRef.current = new google.maps.Marker({
                 map,
                 position: start,
