@@ -104,17 +104,18 @@ Example: {"emoji":"🗼","language":"fr"}`;
         // Leave icon/language empty — handled by fallbacks below + the caller.
     }
 
-    // 2) DeepL — translate into every app language. Categories + hints use the
-    // detected category language as the source. The title/description are
-    // translated in a SEPARATE auto-detected batch: they're often written in the
-    // author's UI language rather than the category language, and pinning the
-    // wrong source made DeepL no-op them (so the community card showed the
-    // untranslated title/description to viewers in other languages).
+    // 2) DeepL — translate into every app language, letting DeepL auto-detect the
+    // source per batch. We deliberately do NOT pin Gemini's detected `language`:
+    // it's inferred from a prompt that also contains the title, so a title written
+    // in a different language than the categories biased it to the wrong code —
+    // and a wrong source_lang makes DeepL return the text untranslated (e.g. German
+    // categories came back unchanged for English). Title/description are a separate
+    // batch from categories/hints since they're often in different languages.
     const hasDesc = !!description.trim();
     const catTexts = [...categoryNames, ...categoryHints];
     const metaTexts = [name, ...(hasDesc ? [description] : [])];
 
-    const [rawCats, rawMeta] = await Promise.all([catTexts.length ? translateInChunks(catTexts, language || undefined) : Promise.resolve<Record<string, string[]>>({}), translateInChunks(metaTexts, undefined)]);
+    const [rawCats, rawMeta] = await Promise.all([catTexts.length ? translateInChunks(catTexts, undefined) : Promise.resolve<Record<string, string[]>>({}), translateInChunks(metaTexts, undefined)]);
 
     // Split each locale's batches back into categories / hints and title / description,
     // and guarantee a complete map: any missing/partial locale falls back to originals.
