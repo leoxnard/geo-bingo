@@ -1205,7 +1205,10 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                         style={{
                             gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
                             gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
-                            gridAutoFlow: 'column',
+                            // Bingo boards are filled row-by-row (matching the in-game board),
+                            // so the voting recap must use row flow too or it shows transposed.
+                            // List mode packs categories into vertical columns.
+                            gridAutoFlow: gameMode === 'bingo' ? 'row' : 'column',
                         }}
                     >
                         {currentBoard?.map((category: string, idx: number) => {
