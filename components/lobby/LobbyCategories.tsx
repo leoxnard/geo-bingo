@@ -69,6 +69,19 @@ const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, o
     const { t } = useT();
     const [val, setVal] = useState(initialValue || '');
     const [isDirty, setIsDirty] = useState(false);
+
+    // Reset the local value when the slot's category changes from the outside
+    // (removal, reorder, randomize, import). Without this the cell keeps its stale
+    // text — e.g. after removing a category the "filled" styling and remove button
+    // would wrongly stick around. This is React's "adjust state during render"
+    // pattern, which avoids an effect + cascading re-render.
+    const [prevInitial, setPrevInitial] = useState(initialValue || '');
+    if ((initialValue || '') !== prevInitial) {
+        setPrevInitial(initialValue || '');
+        setVal(initialValue || '');
+        setIsDirty(false);
+    }
+
     const currentValue = isDirty ? val : initialValue || '';
     const getTextSize = (gameMode: string, gridSize: number) => {
         if (gameMode !== 'bingo') return '';
@@ -113,13 +126,13 @@ const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, o
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => onDrop(e, index)}
                 className={`relative flex flex-col rounded-lg border text-center min-h-[80px] overflow-hidden transition-all focus-within:border-indigo-500 focus-within:bg-slate-700
-                    ${val ? 'bg-slate-700 border-slate-600 cursor-grab active:cursor-grabbing hover:bg-slate-600' : 'bg-slate-800/50 border-dashed border-slate-600/50 text-slate-500'}
+                    ${currentValue ? 'bg-slate-700 border-slate-600 cursor-grab active:cursor-grabbing hover:bg-slate-600' : 'bg-slate-800/50 border-dashed border-slate-600/50 text-slate-500'}
                     ${draggedIndex === index ? 'opacity-50 scale-95 border-indigo-500' : ''}
                 `}
             >
                 {/* Top part */}
                 <div className="flex w-full bg-slate-900/60 border-b border-slate-600/50 shrink-0">
-                    <button type="button" onClick={() => onRemove(index)} disabled={!val} className={`flex-1 flex justify-center items-center py-1.5 text-red-400 hover:text-red-300 transition-colors ${!val ? 'opacity-0 hover:bg-transparent' : ''}`} title={t('cat.remove')}>
+                    <button type="button" onClick={() => onRemove(index)} disabled={!currentValue} className={`flex-1 flex justify-center items-center py-1.5 text-red-400 hover:text-red-300 transition-colors ${!currentValue ? 'opacity-0 hover:bg-transparent' : ''}`} title={t('cat.remove')}>
                         <CiCircleRemove size={18} />
                     </button>
                     <button type="button" onClick={() => onRandomize(index)} className="flex-1 flex justify-center items-center py-1.5 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 border-l border-slate-600/50 transition-colors" title={t('cat.randomizeWord')}>
