@@ -186,6 +186,8 @@ interface LobbyCategoriesProps {
         starting_point?: string;
         gameBoundary?: string;
         categories?: string[];
+        suggested_categories?: string[];
+        category_details?: unknown;
         category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
         generation_radius?: number;
         generation_number?: number;
@@ -336,24 +338,21 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
             const active = pool.slice(0, activeCount).map((c) => c.categoryName);
             const rest = pool.slice(activeCount).map((c) => c.categoryName);
 
-            isPendingSyncRef.current = true;
+            // Show the generated lists instantly, then push them through the lobby's
+            // optimistic state path (not a bare RPC). This keeps the parent's
+            // `categories`/`suggested` React state in sync synchronously — otherwise it
+            // only catches up via the realtime echo, and a host who immediately switches
+            // the board language would re-translate stale (or empty) categories.
+            // Flip to manual right away so the host can keep adding categories by hand.
             setLocalCategories(active);
             setLocalSuggested(rest);
-
-            const { data, error } = await supabase.rpc('update_game_settings', {
-                p_game_id: gameId,
-                p_host_id: getHostToken(gameId),
-                // Flip to manual right away so the host can keep adding categories by hand.
-                p_patch: { categories: active, suggested_categories: rest, category_details: pool, categories_generated: true, category_source: 'manual' },
+            updateGameModeInfo({
+                categories: active,
+                suggested_categories: rest,
+                category_details: pool,
+                categories_generated: true,
+                category_source: 'manual',
             });
-
-            if (error || (data && data.success === false)) {
-                throw new Error(error?.message || 'Failed to save generated categories');
-            }
-
-            setTimeout(() => {
-                isPendingSyncRef.current = false;
-            }, 1200);
         } catch (error) {
             toast.dismiss(loadingToast);
             toast.error(error instanceof Error ? error.message : t('cat.toastGenerationFailed'));

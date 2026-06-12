@@ -112,6 +112,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         game_mode?: string;
         team_mode?: string;
         categories?: string[];
+        suggested_categories?: string[];
+        category_details?: unknown;
         time_limit?: number;
         grid_size?: number;
         starting_point?: string;
@@ -144,6 +146,10 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (updates.categories) {
             setCategories(updates.categories);
             fieldsToUpdate.push('categories');
+        }
+        if (updates.suggested_categories !== undefined) {
+            setSuggestedCategories(updates.suggested_categories);
+            fieldsToUpdate.push('suggested_categories');
         }
         if (updates.time_limit) {
             setTimeLimit(updates.time_limit);
@@ -241,39 +247,56 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (newLocale === curLocale) return;
 
         const cats = categories;
-        const nonEmpty = cats.filter((c) => c.trim());
-        if (nonEmpty.length === 0) {
+        const sugg = suggestedCategories;
+        const nonEmptyCats = cats.filter((c) => c.trim());
+        const nonEmptySugg = sugg.filter((c) => c.trim());
+        if (nonEmptyCats.length === 0 && nonEmptySugg.length === 0) {
             updateGameModeInfo({ language: newLang });
             return;
         }
 
-        // Reuse: the imported preset's aligned translations, when the board still
-        // matches the stored source-locale list exactly.
+        // Reuse: the imported preset's aligned category translations, when the board
+        // still matches the stored source-locale list exactly (suggestions have no
+        // pre-aligned translations, so they always go through DeepL below).
         const srcList = categoryTranslations[curLocale];
         const tgtList = categoryTranslations[newLocale];
-        if (Array.isArray(srcList) && Array.isArray(tgtList) && srcList.length === cats.length && srcList.every((v, i) => v === cats[i])) {
-            updateGameModeInfo({ language: newLang, categories: tgtList });
-            return;
-        }
+        const canReuseCats = Array.isArray(srcList) && Array.isArray(tgtList) && srcList.length === cats.length && srcList.every((v, i) => v === cats[i]);
 
-        // DeepL fallback — translate the non-empty entries, preserving positions.
+        // DeepL — translate the categories (unless reused) and the suggestion pool
+        // together in one call, preserving each list's positions.
         try {
-            const res = await fetch('/api/translate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ texts: nonEmpty, targetLangs: [newLocale], sourceLang: curLocale }),
-            });
-            if (res.ok) {
-                const data = await res.json();
-                const arr = data?.translations?.[newLocale];
-                if (Array.isArray(arr) && arr.length === nonEmpty.length) {
-                    let k = 0;
-                    const merged = cats.map((c) => (c.trim() ? arr[k++] : c));
-                    updateGameModeInfo({ language: newLang, categories: merged });
-                    return;
+            const texts = [...(canReuseCats ? [] : nonEmptyCats), ...nonEmptySugg];
+            let translatedCats: string[] | null = canReuseCats ? tgtList : null;
+            let translatedSugg: string[] | null = null;
+
+            if (texts.length > 0) {
+                const res = await fetch('/api/translate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ texts, targetLangs: [newLocale], sourceLang: curLocale }),
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    const arr = data?.translations?.[newLocale];
+                    if (Array.isArray(arr) && arr.length === texts.length) {
+                        let offset = 0;
+                        if (!canReuseCats) {
+                            const catSlice = arr.slice(0, nonEmptyCats.length);
+                            let k = 0;
+                            translatedCats = cats.map((c) => (c.trim() ? catSlice[k++] : c));
+                            offset = nonEmptyCats.length;
+                        }
+                        const suggSlice = arr.slice(offset);
+                        let m = 0;
+                        translatedSugg = sugg.map((c) => (c.trim() ? suggSlice[m++] : c));
+                    }
                 }
             }
-            updateGameModeInfo({ language: newLang });
+
+            const updates: Parameters<typeof updateGameModeInfo>[0] = { language: newLang };
+            if (translatedCats) updates.categories = translatedCats;
+            if (translatedSugg) updates.suggested_categories = translatedSugg;
+            updateGameModeInfo(updates);
         } catch {
             updateGameModeInfo({ language: newLang });
         }
@@ -572,8 +595,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                         console.log('[GameRoom] Subscription status update:', payload.new.status, 'at', new Date().toISOString());
                         setStatus(payload.new.status);
                     }
-                    if (payload.new.categories !== undefined) setCategories(payload.new.categories);
-                    if (payload.new.suggested_categories !== undefined) setSuggestedCategories(payload.new.suggested_categories);
+                    if (payload.new.categories !== undefined && !pendingOptimisticUpdatesRef.current.has('categories')) setCategories(payload.new.categories);
+                    if (payload.new.suggested_categories !== undefined && !pendingOptimisticUpdatesRef.current.has('suggested_categories')) setSuggestedCategories(payload.new.suggested_categories);
                     if (payload.new.ready_players !== undefined) setReadyPlayers(payload.new.ready_players);
                     if (payload.new.banned_players !== undefined) setBannedPlayers(payload.new.banned_players);
                     if (payload.new.time_limit !== undefined && !pendingOptimisticUpdatesRef.current.has('time_limit')) setTimeLimit(payload.new.time_limit);
