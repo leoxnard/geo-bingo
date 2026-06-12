@@ -430,6 +430,7 @@ export const en = {
     'community.diffHard': 'Hard',
     'community.bingoToggle': 'Suggest as a Bingo grid',
     'community.bingoAvailable': 'Can play as a {grid} Bingo grid.',
+    'community.bingoGridEditHint': 'Drag the tiles to arrange the board.',
     'community.bingoNeedsSquare': 'Add a square number of categories (9, 16, or 25) to enable Bingo.',
     'community.signUpHint': 'No account yet? Entering your email below creates one.',
     'community.advancedSettings': 'Advanced settings',

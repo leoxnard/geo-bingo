@@ -428,6 +428,7 @@ export const zh: Messages = {
     'community.diffHard': '困难',
     'community.bingoToggle': '建议作为宾果网格',
     'community.bingoAvailable': '可作为 {grid} 宾果网格游玩。',
+    'community.bingoGridEditHint': '拖动方块来排列棋盘。',
     'community.bingoNeedsSquare': '添加平方数个类别（9、16 或 25）即可启用宾果。',
     'community.signUpHint': '还没有账号？在下方输入邮箱即可创建。',
     'community.advancedSettings': '高级设置',

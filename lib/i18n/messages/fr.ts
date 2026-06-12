@@ -429,6 +429,7 @@ export const fr: Messages = {
     'community.diffHard': 'Difficile',
     'community.bingoToggle': 'Proposer comme grille de Bingo',
     'community.bingoAvailable': 'Jouable comme grille de Bingo {grid}.',
+    'community.bingoGridEditHint': 'Fais glisser les cases pour organiser la grille.',
     'community.bingoNeedsSquare': 'Ajoute un nombre carré de catégories (9, 16 ou 25) pour activer le Bingo.',
     'community.signUpHint': 'Pas encore de compte ? Saisir ton e-mail en crée un.',
     'community.advancedSettings': 'Paramètres avancés',

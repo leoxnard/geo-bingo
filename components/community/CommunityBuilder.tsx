@@ -78,6 +78,20 @@ export default function CommunityBuilder() {
     const [pendingStart, setPendingStart] = useState<string | null>(null);
     const [startAcknowledged, setStartAcknowledged] = useState(false);
 
+    // Drag-and-drop editing of the bingo board preview (step 2): dropping one tile
+    // onto another swaps their two positions.
+    const [draggedBingoIndex, setDraggedBingoIndex] = useState<number | null>(null);
+
+    const swapCategories = (a: number, b: number) => {
+        if (a === b) return;
+        setCategories((prev) => {
+            if (a < 0 || a >= prev.length || b < 0 || b >= prev.length) return prev;
+            const next = [...prev];
+            [next[a], next[b]] = [next[b], next[a]];
+            return next;
+        });
+    };
+
     const setSetting = <K extends keyof PresetSettings>(key: K, value: PresetSettings[K]) => setSettings((prev) => ({ ...prev, [key]: value }));
 
     // Hydrate from a lobby "publish" seed, if present (skipped when editing).
@@ -416,6 +430,33 @@ export default function CommunityBuilder() {
                                     {t('community.bingoToggle')}
                                 </label>
                                 <p className="text-xs text-slate-400 mt-1">{canBingo ? t('community.bingoAvailable', { grid: `${bingoGrid}×${bingoGrid}` }) : t('community.bingoNeedsSquare')}</p>
+
+                                {/* Draggable board preview — swap categories into the desired grid layout. */}
+                                {bingoEnabled && canBingo && bingoGrid && (
+                                    <>
+                                        <p className="text-xs text-slate-500 mt-3 mb-2">{t('community.bingoGridEditHint')}</p>
+                                        <div className={`grid gap-2 bingo-grid-${bingoGrid}`}>
+                                            {categories.map((cat, i) => (
+                                                <div
+                                                    key={cat.categoryName}
+                                                    draggable
+                                                    onDragStart={() => setDraggedBingoIndex(i)}
+                                                    onDragOver={(e) => e.preventDefault()}
+                                                    onDrop={() => {
+                                                        if (draggedBingoIndex !== null) swapCategories(draggedBingoIndex, i);
+                                                        setDraggedBingoIndex(null);
+                                                    }}
+                                                    onDragEnd={() => setDraggedBingoIndex(null)}
+                                                    title={cat.categoryName}
+                                                    className={`relative flex items-center justify-center text-center rounded-lg border bg-slate-900 border-slate-600 cursor-grab active:cursor-grabbing hover:border-indigo-500 transition-all overflow-hidden aspect-square p-1 ${draggedBingoIndex === i ? 'opacity-50 scale-95 border-indigo-500' : ''}`}
+                                                >
+                                                    {cat.lat !== undefined && <img src={getStreetViewImageUrl(cat, 120)} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover opacity-30" />}
+                                                    <span className="relative z-10 text-[10px] sm:text-xs font-bold leading-tight line-clamp-3 [word-break:break-word] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">{cat.categoryName}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
                             </div>
 
                             {/* Win condition — only relevant for a Bingo grid */}

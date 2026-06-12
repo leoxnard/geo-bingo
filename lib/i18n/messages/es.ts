@@ -428,6 +428,7 @@ export const es: Messages = {
     'community.diffHard': 'Difícil',
     'community.bingoToggle': 'Sugerir como cuadrícula de Bingo',
     'community.bingoAvailable': 'Se puede jugar como cuadrícula de Bingo {grid}.',
+    'community.bingoGridEditHint': 'Arrastra las casillas para organizar el tablero.',
     'community.bingoNeedsSquare': 'Añade un número cuadrado de categorías (9, 16 o 25) para activar el Bingo.',
     'community.signUpHint': '¿Aún no tienes cuenta? Al introducir tu correo se crea una.',
     'community.advancedSettings': 'Ajustes avanzados',

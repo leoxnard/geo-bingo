@@ -428,6 +428,7 @@ export const de: Messages = {
     'community.diffHard': 'Schwer',
     'community.bingoToggle': 'Als Bingo-Gitter vorschlagen',
     'community.bingoAvailable': 'Kann als {grid}-Bingo-Gitter gespielt werden.',
+    'community.bingoGridEditHint': 'Ziehe die Felder, um das Spielfeld anzuordnen.',
     'community.bingoNeedsSquare': 'Füge eine Quadratzahl an Kategorien hinzu (9, 16 oder 25), um Bingo zu aktivieren.',
     'community.signUpHint': 'Noch kein Konto? Mit der Eingabe deiner E-Mail wird automatisch eines erstellt.',
     'community.advancedSettings': 'Erweiterte Einstellungen',
