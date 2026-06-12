@@ -104,29 +104,34 @@ Example: {"emoji":"🗼","language":"fr"}`;
         // Leave icon/language empty — handled by fallbacks below + the caller.
     }
 
-    // 2) DeepL — translate category names + hints + the title (+ description) into every
-    // app language in a single batched call per locale.
+    // 2) DeepL — translate into every app language. Categories + hints use the
+    // detected category language as the source. The title/description are
+    // translated in a SEPARATE auto-detected batch: they're often written in the
+    // author's UI language rather than the category language, and pinning the
+    // wrong source made DeepL no-op them (so the community card showed the
+    // untranslated title/description to viewers in other languages).
     const hasDesc = !!description.trim();
-    // Build text array: [catNames..., hints..., title, description?]
-    const texts = [...categoryNames, ...categoryHints, name, ...(hasDesc ? [description] : [])];
-    const nameIdx = categoryNames.length + categoryHints.length;
-    const descIdx = nameIdx + 1;
+    const catTexts = [...categoryNames, ...categoryHints];
+    const metaTexts = [name, ...(hasDesc ? [description] : [])];
 
-    const raw = await translateInChunks(texts, language || undefined);
+    const [rawCats, rawMeta] = await Promise.all([catTexts.length ? translateInChunks(catTexts, language || undefined) : Promise.resolve<Record<string, string[]>>({}), translateInChunks(metaTexts, undefined)]);
 
-    // Split each locale's batch back into categories / hints / title / description, and
-    // guarantee a complete map: any missing/partial locale falls back to originals.
+    // Split each locale's batches back into categories / hints and title / description,
+    // and guarantee a complete map: any missing/partial locale falls back to originals.
     const translations: Record<string, string[]> = {};
     const titleTranslations: Record<string, string> = {};
     const descriptionTranslations: Record<string, string> = {};
     const hintTranslations: Record<string, string[]> = {};
     for (const code of LOCALE_CODES) {
-        const arr = raw[code];
-        const ok = Array.isArray(arr) && arr.length === texts.length;
-        translations[code] = ok ? arr.slice(0, categoryNames.length) : categoryNames;
-        hintTranslations[code] = ok ? arr.slice(categoryNames.length, categoryNames.length + categoryHints.length) : categoryHints;
-        titleTranslations[code] = ok ? arr[nameIdx] : name;
-        descriptionTranslations[code] = hasDesc ? (ok ? arr[descIdx] : description) : '';
+        const cArr = rawCats[code];
+        const cOk = Array.isArray(cArr) && cArr.length === catTexts.length;
+        translations[code] = cOk ? cArr.slice(0, categoryNames.length) : categoryNames;
+        hintTranslations[code] = cOk ? cArr.slice(categoryNames.length) : categoryHints;
+
+        const mArr = rawMeta[code];
+        const mOk = Array.isArray(mArr) && mArr.length === metaTexts.length;
+        titleTranslations[code] = mOk ? mArr[0] : name;
+        descriptionTranslations[code] = hasDesc ? (mOk ? mArr[1] : description) : '';
     }
 
     return { icon, language, translations, titleTranslations, descriptionTranslations, hintTranslations };
