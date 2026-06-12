@@ -12,6 +12,7 @@ Supports both individual and team game modes with animated podium display.
 
 import { useState, useEffect } from 'react';
 
+import { useRouter } from 'next/navigation';
 import Confetti from 'react-confetti';
 
 import { buildPresetSeedFromGame } from '@/lib/community';
@@ -24,6 +25,7 @@ import { ScoreEntity, PlayerStats, PodiumViewProps } from './utils/types';
 
 export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps) {
     const { t } = useT();
+    const router = useRouter();
     const [stats, setStats] = useState<PlayerStats[]>([]);
     const [loading, setLoading] = useState(true);
     const [gameMode, setGameMode] = useState<string>('list');
@@ -593,6 +595,13 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
                                 className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-8 rounded-lg transition-all uppercase text-sm tracking-wide shadow-lg"
                             >
                                 {t('podium.backToLobby')}
+                            </button>
+                        )}
+
+                        {/* Non-hosts can't restart the lobby, so give them a way out instead. */}
+                        {!isHost && (
+                            <button type="button" onClick={() => router.push('/')} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-8 rounded-lg transition-all uppercase text-sm tracking-wide shadow-lg">
+                                {t('sidebar.leaveLobby')}
                             </button>
                         )}
                     </div>
