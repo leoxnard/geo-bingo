@@ -33,6 +33,23 @@ export const insertPoint = (newPoint: { lat: number; lng: number }, points: { la
 
     type Point = { lat: number; lng: number };
 
+    // Antimeridian fix: longitudes are clamped to [-180, 180], so a polygon near
+    // the 180° line (e.g. between Russia and Alaska) has neighbouring vertices like
+    // 179 and -179 that are physically ~2° apart but numerically ~358° apart. That
+    // wrecks the closest-edge and self-intersection maths, so the new point lands
+    // on a far-away edge. We shift every longitude into the same 360° frame as the
+    // clicked point, run the geometry there, then splice back into the originals.
+    const unwrapLng = (lng: number, ref: number) => {
+        let d = lng - ref;
+        while (d > 180) d -= 360;
+        while (d < -180) d += 360;
+        return ref + d;
+    };
+    const ref = newPoint.lng;
+    const originalPoints = points; // splice back into these (valid, clamped longitudes)
+    const pts: Point[] = points.map((p) => ({ lat: p.lat, lng: unwrapLng(p.lng, ref) }));
+    points = pts;
+
     // Helper: Check if three points make a clockwise or counter-clockwise turn
     const orientation = (p: Point, q: Point, r: Point) => {
         const val = (q.lng - p.lng) * (r.lat - q.lat) - (q.lat - p.lat) * (r.lng - q.lng);
@@ -130,7 +147,7 @@ export const insertPoint = (newPoint: { lat: number; lng: number }, points: { la
     // default to the closest edge anyway to prevent the function from failing.
     const insertAt = minIndex !== -1 ? minIndex : fallbackIndex;
 
-    const newPoints = [...points];
+    const newPoints = [...originalPoints];
     newPoints.splice(insertAt + 1, 0, newPoint);
     return newPoints;
 };
