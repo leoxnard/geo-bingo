@@ -26,7 +26,7 @@ import { FaArrowLeft, FaCaretDown, FaCaretRight, FaExclamationTriangle, FaInfoCi
 import LobbyMap from '@/components/lobby/LobbyMap';
 import { getStreetViewImageUrl } from '@/components/streetview/streetViewHelpers';
 import { RangeSlider } from '@/components/utils/Elements';
-import { GOOGLE_MAPS_LIBRARIES } from '@/components/utils/mapUtils';
+import { countDrawnBoundaries, GOOGLE_MAPS_LIBRARIES } from '@/components/utils/mapUtils';
 import type { BoundaryPolygon, CommunityCategory, PresetSeed, PresetSettings } from '@/components/utils/types';
 import { createPreset, getPreset, updatePreset } from '@/lib/community';
 import { useT } from '@/lib/i18n/I18nProvider';
@@ -556,11 +556,13 @@ export default function CommunityBuilder() {
     );
 }
 
-// Count of drawn boundary polygons in a gameBoundary JSON string.
+// Count of drawn boundary polygons in a gameBoundary JSON string. Excludes the
+// world-default sentinel zone (it has no points), which otherwise inflated the
+// count — e.g. one drawn area with a "forbid outside" default showed as two.
 function countBoundaries(boundaryString: string): number {
     try {
         const parsed = JSON.parse(boundaryString);
-        return Array.isArray(parsed) ? parsed.length : 0;
+        return Array.isArray(parsed) ? countDrawnBoundaries(parsed) : 0;
     } catch {
         return 0;
     }

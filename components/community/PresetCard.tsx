@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { FaLink, FaMagic, FaPen, FaRegTrashAlt, FaThumbsDown, FaThumbsUp } from 'react-icons/fa';
 
+import { countDrawnBoundaries } from '@/components/utils/mapUtils';
 import type { CommunityPreset } from '@/components/utils/types';
 import { updatePreset } from '@/lib/community';
 import { useT } from '@/lib/i18n/I18nProvider';
@@ -57,6 +58,7 @@ export default function PresetCard({ preset, myVote, isOwner, onVote, onDelete, 
     const displayDescription = preset.description_translations?.[locale] || preset.description;
 
     const hasStart = preset.starting_point !== 'open-world' && preset.starting_point.startsWith('{');
+    const boundaryCount = countDrawnBoundaries(preset.boundaries);
 
     const importPreset = () => {
         const id = Math.random().toString(36).substring(2, 8);
@@ -156,10 +158,10 @@ export default function PresetCard({ preset, myVote, isOwner, onVote, onDelete, 
 
                 <div className="flex flex-wrap items-center gap-1 text-xs text-slate-400 mt-auto">
                     <span>{t('community.categoriesCount', { count: preset.category_count })}</span>
-                    {preset.boundaries.length > 0 && (
+                    {boundaryCount > 0 && (
                         <>
                             {' '}
-                            <span className="px-1.5">•</span> <span>{t('community.boundariesCount', { count: preset.boundaries.length })}</span>{' '}
+                            <span className="px-1.5">•</span> <span>{t('community.boundariesCount', { count: boundaryCount })}</span>{' '}
                         </>
                     )}
                     {hasStart && (

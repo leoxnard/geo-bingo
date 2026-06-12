@@ -15,6 +15,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { FaArrowLeft, FaTimes } from 'react-icons/fa';
 
+import { countDrawnBoundaries } from '@/components/utils/mapUtils';
 import type { CommunityPreset } from '@/components/utils/types';
 import { listPresets, type PresetSort } from '@/lib/community';
 import { useT } from '@/lib/i18n/I18nProvider';
@@ -135,6 +136,7 @@ function LobbyPresetCard({ preset, isImporting, onImport }: { preset: CommunityP
     const displayDescription = preset.description_translations?.[locale] || preset.description;
 
     const hasStart = preset.starting_point !== 'open-world' && preset.starting_point.startsWith('{');
+    const boundaryCount = countDrawnBoundaries(preset.boundaries);
 
     return (
         <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden flex flex-col">
@@ -156,10 +158,10 @@ function LobbyPresetCard({ preset, isImporting, onImport }: { preset: CommunityP
 
                 <div className="flex flex-wrap items-center gap-1 text-xs text-slate-400 mt-auto">
                     <span>{t('community.categoriesCount', { count: preset.category_count })}</span>
-                    {preset.boundaries.length > 0 && (
+                    {boundaryCount > 0 && (
                         <>
                             {' '}
-                            <span className="px-1.5">•</span> <span>{t('community.boundariesCount', { count: preset.boundaries.length })}</span>{' '}
+                            <span className="px-1.5">•</span> <span>{t('community.boundariesCount', { count: boundaryCount })}</span>{' '}
                         </>
                     )}
                     {hasStart && (

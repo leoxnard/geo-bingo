@@ -178,6 +178,12 @@ interface Point {
 // world" default — allowed or forbidden outside every drawn area. Absent → 'allow'.
 export const WORLD_DEFAULT_ID = '__world_default__';
 
+// Number of actually-drawn boundary polygons, ignoring the world-default sentinel
+// (which has no points) so summaries don't report it as an extra boundary.
+export function countDrawnBoundaries(boundaries: { id?: string | number; points?: { lat: number; lng: number }[] }[]): number {
+    return boundaries.filter((b) => b && b.id !== WORLD_DEFAULT_ID && Array.isArray(b.points) && b.points.length > 0).length;
+}
+
 export function parseWorldDefault(gameBoundary: string): 'allow' | 'forbid' {
     if (!gameBoundary || gameBoundary === '[]') return 'allow';
     try {
