@@ -29,6 +29,7 @@ import { RangeSlider } from '@/components/utils/Elements';
 import { countDrawnBoundaries, GOOGLE_MAPS_LIBRARIES } from '@/components/utils/mapUtils';
 import type { BoundaryPolygon, CommunityCategory, PresetSeed, PresetSettings } from '@/components/utils/types';
 import { createPreset, getPreset, updatePreset } from '@/lib/community';
+import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
 
 import AuthGate from './AuthGate';
@@ -300,6 +301,7 @@ export default function CommunityBuilder() {
         return Number.isInteger(sqrt) && sqrt >= 3 && sqrt <= 5 ? sqrt : null;
     }, [categories.length]);
     const canBingo = bingoGrid !== null;
+    const isBingo = bingoEnabled && canBingo;
 
     const existingNames = useMemo(() => categories.map((c) => c.categoryName), [categories]);
 
@@ -326,7 +328,7 @@ export default function CommunityBuilder() {
                 difficulty,
                 gameMode: (useBingo ? 'bingo' : 'list') as 'bingo' | 'list',
                 gridSize: bingoGrid ?? 3,
-                settings: { ...settings, endCondition: useBingo ? (settings.endCondition ?? 'timer') : 'timer' },
+                settings: { ...settings, endCondition: useBingo ? (settings.endCondition ?? 'timer') : 'timer', scaleVoting: useBingo ? false : (settings.scaleVoting ?? false) },
                 categoryHintTranslations: finalized.hintTranslations,
             };
             const res = editId ? await updatePreset(editId, payload) : await createPreset({ ...payload, authorName: displayNameFor(user) });
@@ -408,31 +410,21 @@ export default function CommunityBuilder() {
                             {/* Icon + category translations are generated automatically on publish */}
                             <p className="text-xs text-slate-400 bg-slate-800 rounded-xl p-3">{t('community.autoFinalizeNote')}</p>
 
-                            {/* Recommended round time (same slider as the lobby) */}
-                            <RangeSlider title={t('community.recommendedTime')} min={1} max={60} step={1} value={recommendedMinutes} displayValue={t('settings.minutes', { count: recommendedMinutes })} onChange={setRecommendedMinutes} onCommit={() => {}} />
-
-                            {/* Difficulty */}
+                            {/* Game mode — Classic List vs Bingo Grid (Bingo only when the count is a supported square). Ordered like the lobby. */}
                             <div>
-                                <label className="text-xs text-slate-400 font-bold uppercase mb-1 block">{t('community.difficulty')}</label>
+                                <label className="text-xs text-slate-400 font-bold uppercase mb-1 block">{t('settings.gameMode')}</label>
                                 <div className="flex gap-2">
-                                    {(['easy', 'medium', 'hard'] as const).map((d) => (
-                                        <button key={d} type="button" onClick={() => setDifficulty(d)} className={`flex-1 py-2 rounded-lg text-sm font-bold uppercase transition-colors ${difficulty === d ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
-                                            {d === 'easy' ? t('community.diffEasy') : d === 'medium' ? t('community.diffMedium') : t('community.diffHard')}
-                                        </button>
-                                    ))}
+                                    <button type="button" onClick={() => setBingoEnabled(false)} className={`flex-1 py-2 rounded-lg text-sm font-bold uppercase transition-colors ${!isBingo ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                                        {t('settings.classicList')}
+                                    </button>
+                                    <button type="button" onClick={() => canBingo && setBingoEnabled(true)} disabled={!canBingo} className={`flex-1 py-2 rounded-lg text-sm font-bold uppercase transition-colors ${isBingo ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'} disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-800`}>
+                                        {t('settings.bingoGrid')}
+                                    </button>
                                 </div>
-                            </div>
-
-                            {/* Bingo grid (only when category count is a supported perfect square) */}
-                            <div className="bg-slate-800 rounded-xl p-3">
-                                <label className={`flex items-center gap-2 text-sm font-medium ${canBingo ? 'text-white' : 'text-slate-500'}`}>
-                                    <input type="checkbox" checked={bingoEnabled && canBingo} disabled={!canBingo} onChange={(e) => setBingoEnabled(e.target.checked)} className={CHECKBOX_CLASS} />
-                                    {t('community.bingoToggle')}
-                                </label>
                                 <p className="text-xs text-slate-400 mt-1">{canBingo ? t('community.bingoAvailable', { grid: `${bingoGrid}×${bingoGrid}` }) : t('community.bingoNeedsSquare')}</p>
 
                                 {/* Draggable board preview — swap categories into the desired grid layout. */}
-                                {bingoEnabled && canBingo && bingoGrid && (
+                                {isBingo && bingoGrid && (
                                     <>
                                         <p className="text-xs text-slate-500 mt-3 mb-2">{t('community.bingoGridEditHint')}</p>
                                         <div className={`grid gap-2 bingo-grid-${bingoGrid}`}>
@@ -460,7 +452,7 @@ export default function CommunityBuilder() {
                             </div>
 
                             {/* Win condition — only relevant for a Bingo grid */}
-                            {bingoEnabled && canBingo && (
+                            {isBingo && (
                                 <div>
                                     <label className="text-xs text-slate-400 font-bold uppercase mb-1 block">{t('community.endCondition')}</label>
                                     <div className="flex gap-2">
@@ -472,6 +464,35 @@ export default function CommunityBuilder() {
                                     </div>
                                 </div>
                             )}
+
+                            {/* Voting mode — only for Classic List mode (mirrors the lobby) */}
+                            {FEATURES.scaleVoting && !isBingo && (
+                                <div>
+                                    <label className="text-xs text-slate-400 font-bold uppercase mb-1 block">{t('settings.votingMode')}</label>
+                                    <div className="flex gap-2">
+                                        {([false, true] as const).map((sv) => (
+                                            <button key={String(sv)} type="button" onClick={() => setSetting('scaleVoting', sv)} className={`flex-1 py-2 rounded-lg text-sm font-bold uppercase transition-colors ${(settings.scaleVoting ?? false) === sv ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                                                {sv ? t('settings.scaleVoting') : t('settings.yesNoVoting')}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Difficulty — above the recommended round time, like the lobby's bottom slider. */}
+                            <div>
+                                <label className="text-xs text-slate-400 font-bold uppercase mb-1 block">{t('community.difficulty')}</label>
+                                <div className="flex gap-2">
+                                    {(['easy', 'medium', 'hard'] as const).map((d) => (
+                                        <button key={d} type="button" onClick={() => setDifficulty(d)} className={`flex-1 py-2 rounded-lg text-sm font-bold uppercase transition-colors ${difficulty === d ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                                            {d === 'easy' ? t('community.diffEasy') : d === 'medium' ? t('community.diffMedium') : t('community.diffHard')}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Recommended round time (same slider as the lobby) */}
+                            <RangeSlider title={t('community.recommendedTime')} min={1} max={60} step={1} value={recommendedMinutes} displayValue={t('settings.minutes', { count: recommendedMinutes })} onChange={setRecommendedMinutes} onCommit={() => {}} />
 
                             {/* Advanced settings — collapsed by default */}
                             <div className="bg-slate-800 rounded-xl">
