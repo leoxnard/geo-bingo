@@ -447,6 +447,63 @@ $$;
 ALTER FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."register_hype"("p_submission_id" "uuid", "p_player_id" "text", "p_hype" boolean) RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    sub_game text;
+BEGIN
+    SELECT game_id INTO sub_game FROM submissions WHERE id = p_submission_id;
+    IF sub_game IS NULL THEN
+        RETURN; -- no such submission; nothing to hype
+    END IF;
+
+    -- The hyper must be a player in the same game as the submission.
+    IF NOT EXISTS (SELECT 1 FROM players WHERE id::text = p_player_id AND game_id = sub_game) THEN
+        RETURN; -- reject hypes from non-members / arbitrary keys
+    END IF;
+
+    UPDATE submissions
+    SET votes = jsonb_set(COALESCE(votes, '{}'::jsonb), array['hype:' || p_player_id], to_jsonb(p_hype))
+    WHERE id = p_submission_id;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."register_hype"("p_submission_id" "uuid", "p_player_id" "text", "p_hype" boolean) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."register_scale_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_value" integer) RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    sub_game text;
+    clamped  integer;
+BEGIN
+    SELECT game_id INTO sub_game FROM submissions WHERE id = p_submission_id;
+    IF sub_game IS NULL THEN
+        RETURN; -- no such submission; nothing to vote on
+    END IF;
+
+    -- The voter must be a player in the same game as the submission.
+    IF NOT EXISTS (SELECT 1 FROM players WHERE id::text = p_player_id AND game_id = sub_game) THEN
+        RETURN; -- reject votes from non-members / arbitrary voter keys
+    END IF;
+
+    clamped := LEAST(10, GREATEST(0, p_value));
+
+    UPDATE submissions
+    SET votes = jsonb_set(COALESCE(votes, '{}'::jsonb), array[p_player_id], to_jsonb(clamped))
+    WHERE id = p_submission_id;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."register_scale_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_value" integer) OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."rename_my_presets_author"("p_name" "text") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -623,7 +680,8 @@ DECLARE
         'category_source', 'generation_radius', 'generation_number',
         'category_details', 'language', 'categories_generated', 'ai_end_game',
         'ready_players', 'banned_players', 'difficulty',
-        'category_translations', 'category_hint_translations', 'preset_categories'
+        'category_translations', 'category_hint_translations', 'preset_categories',
+        'scale_voting'
     ];
     safe_patch jsonb;
 BEGIN
@@ -668,6 +726,7 @@ BEGIN
         category_translations      = COALESCE(safe_patch->'category_translations', category_translations),
         category_hint_translations = COALESCE(safe_patch->'category_hint_translations', category_hint_translations),
         preset_categories          = COALESCE(safe_patch->'preset_categories', preset_categories),
+        scale_voting          = COALESCE((safe_patch->>'scale_voting')::boolean, scale_voting),
         ready_players         = CASE WHEN safe_patch ? 'ready_players'
                                     THEN ARRAY(SELECT jsonb_array_elements_text(safe_patch->'ready_players'))
                                     ELSE ready_players END,
@@ -902,7 +961,8 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "difficulty" "text" DEFAULT 'default'::"text" NOT NULL,
     "category_translations" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
     "category_hint_translations" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
-    "preset_categories" "jsonb" DEFAULT '[]'::"jsonb" NOT NULL
+    "preset_categories" "jsonb" DEFAULT '[]'::"jsonb" NOT NULL,
+    "scale_voting" boolean DEFAULT false NOT NULL
 );
 
 
@@ -1172,6 +1232,16 @@ GRANT ALL ON FUNCTION "public"."register_host_secret"("p_game_id" "text", "p_pla
 GRANT ALL ON FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) TO "anon";
 GRANT ALL ON FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) TO "service_role";
+
+
+GRANT ALL ON FUNCTION "public"."register_hype"("p_submission_id" "uuid", "p_player_id" "text", "p_hype" boolean) TO "anon";
+GRANT ALL ON FUNCTION "public"."register_hype"("p_submission_id" "uuid", "p_player_id" "text", "p_hype" boolean) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."register_hype"("p_submission_id" "uuid", "p_player_id" "text", "p_hype" boolean) TO "service_role";
+
+
+GRANT ALL ON FUNCTION "public"."register_scale_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_value" integer) TO "anon";
+GRANT ALL ON FUNCTION "public"."register_scale_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_value" integer) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."register_scale_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_value" integer) TO "service_role";
 
 
 
