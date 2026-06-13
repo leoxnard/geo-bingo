@@ -400,12 +400,26 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                 // Prefer matching by capture time (same clock as the path) so an overwrite
                 // surfaces where it was re-taken; fall back to nearest-in-space without it.
                 if (typeof sub.captured_at === 'number' && rawPath.length > 0 && totalDist > 0) {
-                    let bestDelta = Infinity;
+                    // Snap to the last point recorded at or before capture — that's where the
+                    // player stood when they submitted. The path is chronological, so this is
+                    // a floor. Matching the *nearest* timestamp instead drifts one step ahead
+                    // when the player moved to the next pano right after submitting.
+                    let floorIdx = -1;
                     for (let i = 0; i < rawPath.length; i++) {
-                        const delta = Math.abs(rawPath[i].timestamp - sub.captured_at);
-                        if (delta < bestDelta) {
-                            bestDelta = delta;
-                            bestProgress = dists[i] / totalDist;
+                        if (rawPath[i].timestamp <= sub.captured_at) floorIdx = i;
+                        else break;
+                    }
+                    if (floorIdx >= 0) {
+                        bestProgress = dists[floorIdx] / totalDist;
+                    } else {
+                        // Capture predates the whole path — fall back to nearest in time.
+                        let bestDelta = Infinity;
+                        for (let i = 0; i < rawPath.length; i++) {
+                            const delta = Math.abs(rawPath[i].timestamp - sub.captured_at);
+                            if (delta < bestDelta) {
+                                bestDelta = delta;
+                                bestProgress = dists[i] / totalDist;
+                            }
                         }
                     }
                 } else {
