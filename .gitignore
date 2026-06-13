@@ -55,6 +55,8 @@ data/
 .agents/
 .hintrc
 .planning/
+graphify-out/
 
 AGENTS.md
+CLAUDE.md
 TODO.md
