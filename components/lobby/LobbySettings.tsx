@@ -77,11 +77,11 @@ export default function LobbySettings({ isHost, gameMode, teamMode, timeLimit, e
                 <>
                     <ToggleButton
                         title={t('settings.winCondition')}
-                        active={endCondition === 'first_bingo' ? 'left' : 'right'}
-                        labelLeft={t('settings.firstBingo')}
-                        labelRight={t('settings.fullTime')}
-                        iconLeft="square.grid.3x3.bingo"
-                        iconRight="timer"
+                        active={endCondition === 'first_bingo' ? 'right' : 'left'}
+                        labelLeft={t('settings.fullTime')}
+                        labelRight={t('settings.firstBingo')}
+                        iconLeft="timer"
+                        iconRight="square.grid.3x3.bingo"
                         onClick={(val: 'left' | 'right') =>
                             updateGameModeInfo({
                                 end_condition: val === 'left' ? 'first_bingo' : 'timer',
