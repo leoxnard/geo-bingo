@@ -166,7 +166,7 @@ export async function buildPresetSeedFromGame(client: SupabaseClient, gameId: st
     const submissionsByCategory: Record<string, CommunityCategory[]> = {};
     ((subs ?? []) as { category: string; lat: number | null; lng: number | null; heading: number | null; pitch: number | null; zoom: number | null }[]).forEach((s) => {
         if (s.lat == null || s.lng == null) return;
-        (submissionsByCategory[s.category] ??= []).push({ categoryName: s.category, lat: s.lat, lng: s.lng, heading: s.heading ?? 0, pitch: s.pitch ?? 0, zoom: s.zoom ?? 1 });
+        (submissionsByCategory[s.category] ??= []).push({ categoryName: s.category, lat: s.lat, lng: s.lng, heading: s.heading ?? 0, pitch: s.pitch ?? 0, zoom: s.zoom ?? 3 });
     });
 
     return {

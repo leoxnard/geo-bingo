@@ -77,7 +77,7 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
     const youAreHereRef = useRef<google.maps.Marker | null>(null);
     const youAreHereConeRef = useRef<google.maps.Marker | null>(null); // facing-direction cone
     const lastValidRef = useRef<google.maps.LatLng | null>(null);
-    const prevMiniZoomRef = useRef<number>(2);
+    const prevMiniZoomRef = useRef<number>(3);
     const prevMiniCenterRef = useRef<google.maps.LatLngLiteral | null>(null);
 
     const [pendingSpot, setPendingSpot] = useState<Viewpoint | null>(null);
@@ -119,7 +119,7 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
             lng: pos.lng(),
             heading: pov.heading ?? 0,
             pitch: pov.pitch ?? 0,
-            zoom: pano.getZoom() ?? 1,
+            zoom: pano.getZoom() ?? 3,
         };
     }, [getPano]);
 
@@ -297,7 +297,7 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
             const spot = spots.find((s) => s.categoryName === hoveredSpot);
             if (spot) {
                 // Remember where we were so we can return exactly here on hover end
-                prevMiniZoomRef.current = miniMapRef.current.getZoom() ?? 2;
+                prevMiniZoomRef.current = miniMapRef.current.getZoom() ?? 3;
                 const center = miniMapRef.current.getCenter();
                 prevMiniCenterRef.current = center ? { lat: center.lat(), lng: center.lng() } : null;
                 miniMapRef.current.panTo({ lat: spot.lat, lng: spot.lng });
@@ -333,7 +333,7 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
                 <div className="flex h-full w-full flex-col md:flex-row">
                     {/* Left: (mini)map with saved spots, you-are-here dot, droppable Pegman + search */}
                     <div className="relative h-1/2 w-full md:h-full md:w-1/2 border-b md:border-b-0 md:border-r border-slate-800">
-                        <GoogleMap mapContainerClassName="absolute inset-0" center={start} zoom={2} options={mapOptions()} onLoad={onMiniMapLoad} onClick={onMiniMapClick}>
+                        <GoogleMap mapContainerClassName="absolute inset-0" center={start} zoom={3} options={mapOptions()} onLoad={onMiniMapLoad} onClick={onMiniMapClick}>
                             {boundaryPolys
                                 .filter((b) => (b.points?.length ?? 0) >= 3)
                                 .map((b) => (
@@ -374,7 +374,7 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
 
                     {/* Right: navigable panorama (opens once a position is picked) */}
                     <div className="relative h-1/2 w-full md:h-full md:w-1/2">
-                        <GoogleMap mapContainerClassName="absolute inset-0" center={start} zoom={2} options={mapOptions()} onLoad={onExploreMapLoad}>
+                        <GoogleMap mapContainerClassName="absolute inset-0" center={start} zoom={3} options={mapOptions()} onLoad={onExploreMapLoad}>
                             <StreetViewPanorama options={panoOptions} />
                         </GoogleMap>
 
@@ -393,7 +393,7 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
                     </div>
                 </div>
             ) : (
-                <GoogleMap mapContainerClassName="absolute inset-0" center={start} zoom={2} options={mapOptions()} onLoad={onExploreMapLoad}>
+                <GoogleMap mapContainerClassName="absolute inset-0" center={start} zoom={3} options={mapOptions()} onLoad={onExploreMapLoad}>
                     <StreetViewPanorama options={panoOptions} />
                 </GoogleMap>
             )}

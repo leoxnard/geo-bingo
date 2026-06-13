@@ -150,6 +150,9 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     const rAFRef = useRef(0);
     const markersRef = useRef<Map<string, google.maps.Marker>>(new Map());
     const streetViewPanoramaRef = useRef<google.maps.StreetViewPanorama | null>(null);
+    // The map framing captured the moment the animation pauses on a category, so any
+    // manual zoom done while inspecting can be undone when the journey continues.
+    const prePauseViewRef = useRef<{ zoom: number; center: google.maps.LatLngLiteral } | null>(null);
 
     const dummyPath = useMemo(() => [], []);
     const dummyPos = useMemo(() => ({ lat: 20, lng: 0 }), []);
@@ -287,7 +290,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         if (pano && displaySub) {
             pano.setPosition({ lat: displaySub.lat, lng: displaySub.lng });
             pano.setPov({ heading: displaySub.heading, pitch: displaySub.pitch });
-            pano.setZoom(displaySub.zoom || 1);
+            pano.setZoom(displaySub.zoom || 3);
         }
     }, [displaySub, selectedSubmission, selectedFinalMarker]);
 
@@ -889,17 +892,35 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     }
 
     const currentMapOptions = useMemo(() => {
-        const interactive = isLineComplete;
+        const interactive = isLineComplete || (isPaused && !isLineComplete);
         return mapOptions({
             streetViewControl: false,
             disableDefaultUI: true,
             clickableIcons: false,
             gestureHandling: interactive ? 'greedy' : 'none',
+            scrollwheel: interactive,
+            disableDoubleClickZoom: !interactive,
+            draggable: interactive,
             keyboardShortcuts: interactive,
-            zoomControl: false,
+            zoomControl: interactive,
             styles: [],
         });
-    }, [isLineComplete]);
+    }, [isLineComplete, isPaused]);
+
+    useEffect(() => {
+        if (!mapInstance) return;
+        if (isPaused && !isLineComplete) {
+            const zoom = mapInstance.getZoom();
+            const center = mapInstance.getCenter();
+            if (typeof zoom === 'number' && center) {
+                prePauseViewRef.current = { zoom, center: { lat: center.lat(), lng: center.lng() } };
+            }
+        } else if (prePauseViewRef.current && !isLineComplete) {
+            mapInstance.setZoom(prePauseViewRef.current.zoom);
+            mapInstance.setCenter(prePauseViewRef.current.center);
+            prePauseViewRef.current = null;
+        }
+    }, [isPaused, isLineComplete, mapInstance]);
 
     const panoramaOptions = useMemo(() => {
         if (selectedSubmission) {
@@ -909,7 +930,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                     heading: selectedSubmission.heading,
                     pitch: selectedSubmission.pitch,
                 },
-                zoom: selectedSubmission.zoom || 1,
+                zoom: selectedSubmission.zoom || 3,
                 visible: true,
                 addressControl: false,
                 showRoadLabels: false,
@@ -927,7 +948,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                     lat: selectedFinalMarker.lat,
                     lng: selectedFinalMarker.lng,
                 },
-                zoom: 1,
+                zoom: 3,
                 visible: true,
                 addressControl: false,
                 showRoadLabels: false,
@@ -948,7 +969,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
             return {
                 position: { lat: displaySub.lat, lng: displaySub.lng },
                 pov: { heading: displaySub.heading, pitch: displaySub.pitch },
-                zoom: displaySub.zoom || 1,
+                zoom: displaySub.zoom || 3,
                 visible: true,
                 addressControl: false,
                 showRoadLabels: false,
@@ -1270,9 +1291,6 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                         style={{
                             gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
                             gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
-                            // Bingo boards are filled row-by-row (matching the in-game board),
-                            // so the voting recap must use row flow too or it shows transposed.
-                            // List mode packs categories into vertical columns.
                             gridAutoFlow: gameMode === 'bingo' ? 'row' : 'column',
                         }}
                     >

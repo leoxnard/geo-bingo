@@ -72,7 +72,7 @@ export default function ComparePromptsPage() {
         const pano = new google.maps.StreetViewPanorama(panoRef.current, {
             position: DEFAULT_START,
             pov: { heading: 0, pitch: 0 },
-            zoom: 1,
+            zoom: 3,
             visible: true,
             addressControl: true,
             fullscreenControl: true,
@@ -114,7 +114,7 @@ export default function ComparePromptsPage() {
         try {
             // Match the static image to what the user actually sees: same pano,
             // same heading/pitch, and an fov derived from the live zoom level.
-            const zoom = pano.getZoom() ?? 1;
+            const zoom = pano.getZoom() ?? 3;
             const fov = Math.min(120, Math.max(20, 180 / Math.pow(2, zoom)));
             const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
             const locationParam = panoId ? `pano=${encodeURIComponent(panoId)}` : `location=${position.lat()},${position.lng()}`;

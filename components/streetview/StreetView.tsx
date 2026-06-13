@@ -484,7 +484,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
             lng: position.lng(),
             heading: pov.heading,
             pitch: pov.pitch,
-            zoom: streetViewRef.current.getZoom() || 1,
+            zoom: streetViewRef.current.getZoom() || 3,
         };
 
         // optimistic update
@@ -652,7 +652,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                         const lngDiff = maxY - minY;
                         const maxDiff = Math.max(latDiff, lngDiff);
                         const calculatedZoom = maxDiff > 0 ? Math.floor(Math.log2(360 / maxDiff)) + 1 : initialWorldZoom;
-                        polyZoom = Math.min(Math.max(calculatedZoom, 1), 18);
+                        polyZoom = Math.min(Math.max(calculatedZoom, 3), 18);
                     }
                 }
             } catch (e) {

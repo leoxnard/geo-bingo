@@ -420,33 +420,6 @@ $$;
 ALTER FUNCTION "public"."register_host_secret"("p_game_id" "text", "p_player_id" "text", "p_token" "text") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) RETURNS "void"
-    LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO 'public'
-    AS $$
-DECLARE
-    sub_game text;
-BEGIN
-    SELECT game_id INTO sub_game FROM submissions WHERE id = p_submission_id;
-    IF sub_game IS NULL THEN
-        RETURN; -- no such submission; nothing to vote on
-    END IF;
-
-    -- The voter must be a player in the same game as the submission.
-    IF NOT EXISTS (SELECT 1 FROM players WHERE id::text = p_player_id AND game_id = sub_game) THEN
-        RETURN; -- reject votes from non-members / arbitrary voter keys
-    END IF;
-
-    UPDATE submissions
-    SET votes = jsonb_set(COALESCE(votes, '{}'::jsonb), array[p_player_id], to_jsonb(p_vote))
-    WHERE id = p_submission_id;
-END;
-$$;
-
-
-ALTER FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."register_hype"("p_submission_id" "uuid", "p_player_id" "text", "p_hype" boolean) RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -502,6 +475,33 @@ $$;
 
 
 ALTER FUNCTION "public"."register_scale_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_value" integer) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    sub_game text;
+BEGIN
+    SELECT game_id INTO sub_game FROM submissions WHERE id = p_submission_id;
+    IF sub_game IS NULL THEN
+        RETURN; -- no such submission; nothing to vote on
+    END IF;
+
+    -- The voter must be a player in the same game as the submission.
+    IF NOT EXISTS (SELECT 1 FROM players WHERE id::text = p_player_id AND game_id = sub_game) THEN
+        RETURN; -- reject votes from non-members / arbitrary voter keys
+    END IF;
+
+    UPDATE submissions
+    SET votes = jsonb_set(COALESCE(votes, '{}'::jsonb), array[p_player_id], to_jsonb(p_vote))
+    WHERE id = p_submission_id;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."rename_my_presets_author"("p_name" "text") RETURNS "jsonb"
@@ -1229,19 +1229,21 @@ GRANT ALL ON FUNCTION "public"."register_host_secret"("p_game_id" "text", "p_pla
 
 
 
-GRANT ALL ON FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) TO "anon";
-GRANT ALL ON FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) TO "authenticated";
-GRANT ALL ON FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) TO "service_role";
-
-
 GRANT ALL ON FUNCTION "public"."register_hype"("p_submission_id" "uuid", "p_player_id" "text", "p_hype" boolean) TO "anon";
 GRANT ALL ON FUNCTION "public"."register_hype"("p_submission_id" "uuid", "p_player_id" "text", "p_hype" boolean) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."register_hype"("p_submission_id" "uuid", "p_player_id" "text", "p_hype" boolean) TO "service_role";
 
 
+
 GRANT ALL ON FUNCTION "public"."register_scale_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_value" integer) TO "anon";
 GRANT ALL ON FUNCTION "public"."register_scale_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_value" integer) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."register_scale_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_value" integer) TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) TO "anon";
+GRANT ALL ON FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) TO "service_role";
 
 
 
