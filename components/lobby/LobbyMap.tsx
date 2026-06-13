@@ -35,15 +35,12 @@ interface LobbyMapProps {
     gameBoundary: string;
     generationRadius?: number;
     updateGameModeInfo: (updates: { starting_point?: string; gameBoundary?: string; category_source?: 'manual' | 'nearbyPlaces' | 'nearbyStreetView' }) => void;
-    /** Read-only reference markers (e.g. saved community-preset spots) rendered on top of the map. */
     extraMarkers?: { lat: number; lng: number; label?: string }[];
-    /** Name of the category being hovered - used to zoom map to that category's position. */
     hoveredCategory?: string | null;
 }
 
 export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary, generationRadius, updateGameModeInfo, extraMarkers, hoveredCategory }: LobbyMapProps) {
     const { t } = useT();
-    // Translate the preset GROUP headers (the keys stay English for grouping logic).
     const groupLabel = (key: string) => {
         switch (key) {
         case 'Continents':
@@ -66,25 +63,18 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
     const [hoveredLocation, setHoveredLocation] = useState<Point | null>(null);
     const [selectedBoundaryId, setSelectedBoundaryId] = useState<string | null>(null);
-    const prevZoomRef = useRef<number>(3);
+    const prevZoomRef = useRef<number>(1);
     const prevCenterRef = useRef<google.maps.LatLngLiteral | null>(null);
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [selectedPreset, setSelectedPreset] = useState<string>('');
     const [searchTerm, setSearchTerm] = useState('');
     const [optimisticGameBoundary, setOptimisticGameBoundary] = useState(gameBoundary);
     const optimisticGameBoundaryRef = useRef(gameBoundary);
-    // Boundary strings we've written, to recognise and ignore their echoes coming
-    // back through the gameBoundary prop (parent echoes each write twice).
     const pendingWritesRef = useRef<Set<string>>(new Set());
-    // Latest updateGameModeInfo (prop identity changes each parent render); kept in
-    // a ref so the debounced flush always calls the current one.
     const updateGameModeInfoRef = useRef(updateGameModeInfo);
     updateGameModeInfoRef.current = updateGameModeInfo;
-    // Debounce state for persisting boundary edits to the parent.
     const boundaryWriteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const pendingBoundaryWriteRef = useRef<string | null>(null);
-    // When we last edited boundaries locally. While recent, a differing prop value is
-    // treated as a lagging echo (not an external change) to avoid resurrecting edits.
     const lastLocalEditAtRef = useRef(0);
     const [worldDefault, setWorldDefault] = useState<'allow' | 'forbid'>(() => parseWorldDefault(gameBoundary));
     type BoundaryHistoryEntry = { boundaries: string; selectedId: string | null };
@@ -108,8 +98,6 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         streetViewControl: isHost,
         gestureHandling: 'greedy',
         draggableCursor: isHost ? 'crosshair' : 'default',
-        // Hosts place points by clicking; Google Maps otherwise delays each click
-        // ~300ms to detect a double-click (zoom), which swallows rapid point taps.
         disableDoubleClickZoom: isHost,
     };
 
@@ -140,8 +128,6 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         // Ignore our own value and echoes of our own writes (parent re-emits each twice).
         if (gameBoundary === optimisticGameBoundaryRef.current) return;
         if (pendingWritesRef.current.has(gameBoundary)) return;
-        // Differs and isn't a known echo: if we edited recently it's likely a lagging
-        // out-of-order echo, so only adopt once local editing has settled.
         if (Date.now() - lastLocalEditAtRef.current < 1500) return;
         optimisticGameBoundaryRef.current = gameBoundary;
         setOptimisticGameBoundary(gameBoundary);
@@ -154,15 +140,13 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         if (hoveredCategory && extraMarkers) {
             const marker = extraMarkers.find((m) => m.label === hoveredCategory);
             if (marker) {
-                // Remember where we were so we can return exactly here on hover end
-                prevZoomRef.current = mapInstance.getZoom() ?? 3;
+                prevZoomRef.current = mapInstance.getZoom() ?? 1;
                 const center = mapInstance.getCenter();
                 prevCenterRef.current = center ? { lat: center.lat(), lng: center.lng() } : null;
                 mapInstance.panTo({ lat: marker.lat, lng: marker.lng });
                 mapInstance.setZoom(12);
             }
         } else if (!hoveredCategory) {
-            // Restore previous zoom and location when hover ends
             mapInstance.setZoom(prevZoomRef.current);
             if (prevCenterRef.current) {
                 mapInstance.panTo(prevCenterRef.current);
@@ -671,7 +655,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                         <div className="text-slate-400">{t('map.loadingPresets')}</div>
                     ) : (
                         <div ref={containerRef} className="absolute inset-0 w-full h-full">
-                            <GoogleMap onLoad={setMapInstance} mapContainerStyle={{ width: '100%', height: '100%' }} center={DEFAULT_CENTER} zoom={2} onClick={handleMapClick} options={mapOptions(additionalMapOptions)}>
+                            <GoogleMap onLoad={setMapInstance} mapContainerStyle={{ width: '100%', height: '100%' }} center={DEFAULT_CENTER} zoom={1} onClick={handleMapClick} options={mapOptions(additionalMapOptions)}>
                                 {/* World-default tint: green when the rest of the world is allowed, red when forbidden. */}
                                 <RectangleF
                                     bounds={{ north: 85, south: -85, east: 180, west: -180 }}
