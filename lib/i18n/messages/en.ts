@@ -213,6 +213,7 @@ export const en = {
     'game.roundEndedFoundAll': '{player} found all categories — round ended!',
     'game.aiGeneratingCategories': 'Game starting — AI is generating categories...',
     'game.unknownPlayer': 'A player',
+    'game.namePromptHint': "Leave it blank and we'll pick a name for you.",
 
     // ---- podium / results ----
     'podium.results': 'Results',

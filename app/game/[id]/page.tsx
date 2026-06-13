@@ -18,6 +18,7 @@ import { useRouter } from 'next/navigation';
 import toast, { Toaster } from 'react-hot-toast';
 import { CiCircleAlert, CiCircleCheck } from 'react-icons/ci';
 
+import NamePrompt from '@/components/game/NamePrompt';
 import LobbyView from '@/components/lobby/LobbyView';
 import { buildHintMap } from '@/components/streetview/streetViewHelpers';
 import { shuffle } from '@/components/utils/Functions';
@@ -89,6 +90,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [readyPlayers, setReadyPlayers] = useState<string[]>([]);
     const [bannedPlayers, setBannedPlayers] = useState<string[]>([]);
     const [gameLoaded, setGameLoaded] = useState(false);
+    const [nameGate, setNameGate] = useState<'checking' | 'prompt' | 'ready'>('checking');
 
     const [timeLeft, setTimeLeft] = useState<number>(0);
 
@@ -352,6 +354,17 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     }, [locale, isHost, language]);
 
     useEffect(() => {
+        const storedName = localStorage.getItem('geoBingoPlayerName') || '';
+        setNameGate(storedName.trim() && storedName !== 'Unknown Player' ? 'ready' : 'prompt');
+    }, []);
+
+    const handleNameSubmit = useCallback((name: string) => {
+        localStorage.setItem('geoBingoPlayerName', name);
+        setNameGate('ready');
+    }, []);
+
+    useEffect(() => {
+        if (nameGate !== 'ready') return;
         checkAiKeysAvailable().then((status) => {
             setApiStatus(status);
             apiStatusRef.current = status;
@@ -742,7 +755,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             pendingUpdates.clear();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [gameId, router]);
+    }, [gameId, router, nameGate]);
 
     useEffect(() => {
         playersRef.current = players;
@@ -1028,7 +1041,15 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     },
                 }}
             />
-            {selectView()}
+            {nameGate === 'checking' ? (
+                <div className="min-h-dvh flex items-center justify-center bg-slate-900">
+                    <div className="h-10 w-10 rounded-full border-4 border-slate-700 border-t-indigo-500 animate-spin" aria-label="Loading" />
+                </div>
+            ) : nameGate === 'prompt' ? (
+                <NamePrompt onSubmit={handleNameSubmit} />
+            ) : (
+                selectView()
+            )}
         </>
     );
 }

@@ -212,6 +212,7 @@ export const es: Messages = {
     'game.roundEndedFoundAll': '¡{player} encontró todas las categorías — ronda terminada!',
     'game.aiGeneratingCategories': 'La partida comienza — la IA está generando categorías...',
     'game.unknownPlayer': 'Un jugador',
+    'game.namePromptHint': 'Déjalo en blanco y elegiremos un nombre por ti.',
 
     // ---- podium / results ----
     'podium.results': 'Resultados',

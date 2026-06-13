@@ -212,6 +212,7 @@ export const zh: Messages = {
     'game.roundEndedFoundAll': '{player} 找到了所有类别——回合结束！',
     'game.aiGeneratingCategories': '游戏开始——AI 正在生成类别...',
     'game.unknownPlayer': '某位玩家',
+    'game.namePromptHint': '留空的话，我们会为你随机取一个名字。',
 
     // ---- podium / results ----
     'podium.results': '结果',
