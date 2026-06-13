@@ -108,6 +108,38 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [hideMiniMap, setHideMiniMap] = useState(false);
     const [aiEndGame, setAiEndGame] = useState(true);
 
+    // (Re)register this client's host capability secret with the server. Used both
+    // when a player is promoted to host (a transfer DELETEs the previous secret) and
+    // as a self-heal when a host RPC unexpectedly reports NOT_HOST. The local token is
+    // the source of truth, so we reuse it when present and only mint one if missing.
+    const ensureHostSecret = useCallback(async (): Promise<string | null> => {
+        const selfId = typeof window !== 'undefined' ? sessionStorage.getItem('geoBingoSessionUUID') : null;
+        if (!selfId || gameHostIdRef.current !== selfId) return null;
+        const token = getHostToken(gameId) ?? newHostToken(gameId);
+        const { data, error } = await supabase.rpc('register_host_secret', { p_game_id: gameId, p_player_id: selfId, p_token: token });
+        if (error || (data && data.success === false)) {
+            console.error('Failed to register host secret:', error || data?.error);
+            return null;
+        }
+        return token;
+    }, [gameId]);
+
+    // Run a host-gated RPC, passing the current host token. If the server reports
+    // NOT_HOST while we still believe we're the host (e.g. our secret went missing
+    // after a host transfer), re-register the secret and retry once.
+    const withHostRetry = useCallback(
+        async (run: (token: string | null) => PromiseLike<{ data: { success?: boolean; error?: string } | null; error: unknown }>) => {
+            let result = await run(getHostToken(gameId));
+            const notHost = !result.error && result.data?.success === false && result.data?.error === 'NOT_HOST';
+            if (notHost) {
+                const token = await ensureHostSecret();
+                if (token) result = await run(token);
+            }
+            return result;
+        },
+        [gameId, ensureHostSecret],
+    );
+
     const updateGameModeInfo = (updates: {
         game_mode?: string;
         team_mode?: string;
@@ -220,7 +252,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             try {
                 // The RPC reports logical failures (NOT_HOST / NO_VALID_KEYS) in
                 // its returned payload, not as a PostgREST error, so check both.
-                const { data, error } = await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_patch: updates });
+                const { data, error } = await withHostRetry((token) => supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: token, p_patch: updates }));
                 if (error || (data && data.success === false)) {
                     console.error('Failed to update game settings:', error || data?.error);
                     toast.error(t('game.failedSaveSettings'));
@@ -582,7 +614,16 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                         if (newHostId === currentPlayerId) {
                             localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
                             if (justPromoted) {
-                                supabase.rpc('register_host_secret', { p_game_id: gameId, p_player_id: currentPlayerId, p_token: newHostToken(gameId) });
+                                // A host transfer DELETEs the previous secret, so the new host
+                                // must register its own before any host action works. Retry a
+                                // couple of times so a transient failure doesn't leave the new
+                                // host unable to act (the symptom is host RPCs returning NOT_HOST).
+                                void (async () => {
+                                    for (let attempt = 0; attempt < 3; attempt++) {
+                                        if (await ensureHostSecret()) return;
+                                        await new Promise((r) => setTimeout(r, 500));
+                                    }
+                                })();
                             }
                         } else {
                             localStorage.removeItem(`geoBingoHost_${gameId}`);
@@ -721,10 +762,10 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
     const updateStatus = useCallback(
         async (nextStatus: GameStatus) => {
-            const { data, error } = await supabase.rpc('set_game_status', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_status: nextStatus });
+            const { data, error } = await withHostRetry((token) => supabase.rpc('set_game_status', { p_game_id: gameId, p_host_id: token, p_status: nextStatus }));
             if (error || (data && data.success === false)) console.error('Error updating game status:', error || data?.error);
         },
-        [gameId],
+        [gameId, withHostRetry],
     );
 
     // --- TIMER LOGIC ---
@@ -773,7 +814,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (isHost) {
             setPlayers((prev) => prev.filter((p) => p.id !== idToKick));
 
-            const { data, error } = await supabase.rpc('delete_player', { p_id: idToKick, p_host_id: getHostToken(gameId) });
+            const { data, error } = await withHostRetry((token) => supabase.rpc('delete_player', { p_id: idToKick, p_host_id: token }));
 
             if (error || (data && data.success === false)) {
                 console.error('Error deleting player:', error || data?.error);
@@ -782,14 +823,14 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             // Also remove them from ready_players if they were ready
             if (readyPlayers.includes(idToKick)) {
                 const updatedReady = readyPlayers.filter((id) => id !== idToKick);
-                await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_patch: { ready_players: updatedReady } });
+                await withHostRetry((token) => supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: token, p_patch: { ready_players: updatedReady } }));
             }
         }
     };
 
     const makeHost = async (newHostId: string) => {
         if (isHost) {
-            const { data, error } = await supabase.rpc('transfer_host', { p_game_id: gameId, p_current_host_id: getHostToken(gameId), p_new_host_id: newHostId });
+            const { data, error } = await withHostRetry((token) => supabase.rpc('transfer_host', { p_game_id: gameId, p_current_host_id: token, p_new_host_id: newHostId }));
             if (error || (data && data.success === false)) {
                 console.error('Failed to transfer host:', error || data?.error);
                 return;
@@ -807,9 +848,9 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
             // Add to banned list in the DB
             const updatedBanned = [...bannedPlayers, idToKick];
-            await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_patch: { banned_players: updatedBanned } });
+            await withHostRetry((token) => supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: token, p_patch: { banned_players: updatedBanned } }));
 
-            const { data, error } = await supabase.rpc('delete_player', { p_id: idToKick, p_host_id: getHostToken(gameId) });
+            const { data, error } = await withHostRetry((token) => supabase.rpc('delete_player', { p_id: idToKick, p_host_id: token }));
 
             if (error || (data && data.success === false)) {
                 console.error('Error deleting player:', error || data?.error);
@@ -818,13 +859,13 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             // Also remove them from ready_players if they were ready
             if (readyPlayers.includes(idToKick)) {
                 const updatedReady = readyPlayers.filter((id) => id !== idToKick);
-                await supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_patch: { ready_players: updatedReady } });
+                await withHostRetry((token) => supabase.rpc('update_game_settings', { p_game_id: gameId, p_host_id: token, p_patch: { ready_players: updatedReady } }));
             }
         }
     };
 
     const handleFinishGame = async () => {
-        await supabase.rpc('set_game_status', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_status: 'finished' });
+        await withHostRetry((token) => supabase.rpc('set_game_status', { p_game_id: gameId, p_host_id: token, p_status: 'finished' }));
     };
 
     const handleVoteEndOptimistic = useCallback(() => {
