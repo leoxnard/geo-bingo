@@ -107,6 +107,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [hideMapSymbols, setHideMapSymbols] = useState(false);
     const [hideMiniMap, setHideMiniMap] = useState(false);
     const [aiEndGame, setAiEndGame] = useState(true);
+    const [scaleVoting, setScaleVoting] = useState(false);
 
     // (Re)register this client's host capability secret with the server. Used both
     // when a player is promoted to host (a transfer DELETEs the previous secret) and
@@ -155,6 +156,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         hide_minimap?: boolean;
         ai_end_game?: boolean;
         exclusive_mode?: boolean;
+        scale_voting?: boolean;
         category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
         generation_radius?: number;
         generation_number?: number;
@@ -218,6 +220,10 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (updates.exclusive_mode !== undefined) {
             setExclusiveMode(updates.exclusive_mode);
             fieldsToUpdate.push('exclusive_mode');
+        }
+        if (updates.scale_voting !== undefined) {
+            setScaleVoting(updates.scale_voting);
+            fieldsToUpdate.push('scale_voting');
         }
         if (updates.category_source !== undefined) {
             setCategorySource(updates.category_source);
@@ -393,7 +399,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 let seedGameMode: string | null = null;
                 let seedGridSize: number | null = null;
                 let seedTimeLimit: number | null = null;
-                let seedSettings: { hideMiniMap?: boolean; hideMapSymbols?: boolean; exclusiveMode?: boolean; aiEndGame?: boolean; endCondition?: string } = {};
+                let seedSettings: { hideMiniMap?: boolean; hideMapSymbols?: boolean; exclusiveMode?: boolean; aiEndGame?: boolean; endCondition?: string; scaleVoting?: boolean } = {};
                 let seedCategoryTranslations: Record<string, string[]> = {};
                 let seedCategoryHintTranslations: Record<string, string[]> = {};
                 let seedPresetPositions: { categoryName: string; lat: number; lng: number }[] = [];
@@ -438,6 +444,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     hide_map_symbols: seedSettings.hideMapSymbols ?? false,
                     ai_end_game: seedSettings.aiEndGame ?? false,
                     exclusive_mode: seedSettings.exclusiveMode ?? false,
+                    scale_voting: seedSettings.scaleVoting ?? false,
                     category_source: 'manual',
                     generation_radius: 10,
                     generation_number: 10,
@@ -472,6 +479,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     setHideMiniMap(newGameData.hide_minimap);
                     setAiEndGame(newGameData.ai_end_game);
                     setExclusiveMode(newGameData.exclusive_mode);
+                    setScaleVoting(newGameData.scale_voting);
                     setLanguage(newGameData.language as CategoryLanguage);
                     setCategoryTranslations(seedCategoryTranslations);
                     setCategoryHintTranslations(seedCategoryHintTranslations);
@@ -508,6 +516,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setHideMiniMap(gameData.hide_minimap || false);
                 setAiEndGame(gameData.ai_end_game ?? false);
                 setExclusiveMode(gameData.exclusive_mode || false);
+                setScaleVoting(gameData.scale_voting || false);
                 setCategorySource(gameData.category_source || 'manual');
                 setGenerationRadius(gameData.generation_radius || 10);
                 setGenerationNumber(gameData.generation_number || 10);
@@ -651,6 +660,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     if (payload.new.hide_minimap !== undefined && !pendingOptimisticUpdatesRef.current.has('hide_minimap')) setHideMiniMap(payload.new.hide_minimap);
                     if (payload.new.ai_end_game !== undefined && !pendingOptimisticUpdatesRef.current.has('ai_end_game')) setAiEndGame(payload.new.ai_end_game);
                     if (payload.new.exclusive_mode !== undefined && !pendingOptimisticUpdatesRef.current.has('exclusive_mode')) setExclusiveMode(payload.new.exclusive_mode);
+                    if (payload.new.scale_voting !== undefined && !pendingOptimisticUpdatesRef.current.has('scale_voting')) setScaleVoting(payload.new.scale_voting);
                     if (payload.new.category_source !== undefined && !pendingOptimisticUpdatesRef.current.has('category_source')) {
                         setCategorySource(payload.new.category_source);
                     }
@@ -903,6 +913,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const effectiveHideMapSymbols = FEATURES.hideMapSymbols ? hideMapSymbols : false;
     const effectiveHideMiniMap = FEATURES.hideMiniMap ? hideMiniMap : false;
     const effectiveAiEndGame = FEATURES.aiVerifyEndGame ? aiEndGame : false;
+    // Scale voting is a list-mode-only feature; a bingo game never rates 0–10.
+    const effectiveScaleVoting = FEATURES.scaleVoting && scaleVoting && gameMode === 'list';
 
     const selectView = () => {
         // --- VIEW 1: LOBBY ---
@@ -924,6 +936,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     suggestedCategories={suggestedCategories}
                     gameId={gameId}
                     players={players}
+                    scaleVoting={scaleVoting}
                     onlinePlayers={onlinePlayers}
                     playerId={playerId}
                     gameHostId={gameHostId}
@@ -982,7 +995,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
         // --- VIEW 3: VOTING ---
         if (status === 'voting') {
-            return <VotingView gameId={gameId} isHost={isHost} categories={categories} playerId={playerId} players={players} teamMode={teamMode} onFinishGame={handleFinishGame} isDeveloper={apiStatus.isDeveloper} hintByCategory={hintByCategory} />;
+            return <VotingView gameId={gameId} isHost={isHost} categories={categories} playerId={playerId} players={players} teamMode={teamMode} onFinishGame={handleFinishGame} isDeveloper={apiStatus.isDeveloper} hintByCategory={hintByCategory} scaleVoting={effectiveScaleVoting} />;
         }
 
         // --- VIEW 4: PODIUM (FINISHED) ---

@@ -24,6 +24,7 @@ import { GeoBingoLogo } from './utils/Elements';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES } from './utils/mapUtils';
 import { VotingViewProps, Submission, PathPoint } from './utils/types';
 import { useViewport } from './utils/useViewport';
+import { hasHyped, tallyVotes, tallyScale, HYPE_PREFIX } from './utils/votes';
 import { VotingPanel } from './voting/VotingPanel';
 
 const MAX_ANIMATION_DURATION = 8000;
@@ -104,7 +105,7 @@ const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => 
     return Math.sqrt(Math.pow(lat1 - lat2, 2) + Math.pow(dLng, 2));
 };
 
-export function VotingView({ gameId, isHost, playerId, players, teamMode, onFinishGame, isDeveloper = false, hintByCategory = {} }: VotingViewProps) {
+export function VotingView({ gameId, isHost, playerId, players, teamMode, onFinishGame, isDeveloper = false, hintByCategory = {}, scaleVoting = false }: VotingViewProps) {
     const { t } = useT();
     const { isNarrow } = useViewport();
     const isNarrowRef = useRef(isNarrow);
@@ -304,7 +305,9 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         let eligibleCount = 0;
         if (activeSubLatest) {
             const votesMap = activeSubLatest.votes || {};
-            const actualVotes = Object.keys(votesMap).filter((k) => k !== 'host_continued');
+            // Hype is an extra, optional cheer — it doesn't count as casting a yes/no
+            // vote, so it must not advance the round-completion tally.
+            const actualVotes = Object.keys(votesMap).filter((k) => k !== 'host_continued' && !k.startsWith(HYPE_PREFIX));
             cast = actualVotes.length;
 
             const eligibleVoters = playersWithPaths.filter((p) => (teamMode === 'teams' ? p.team !== roundTeam : !roundPlayerIds.has(p.id)));
@@ -565,6 +568,41 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
             p_submission_id: sub.id,
             p_player_id: playerId,
             p_vote: voteIsYes,
+        });
+
+        if (error) {
+            console.error(error);
+            toast.error(t('voting.errorVote'));
+        }
+    };
+
+    const handleHype = async (sub: Submission) => {
+        const hypeKey = `${HYPE_PREFIX}${playerId}`;
+        const nextHype = !(sub.votes?.[hypeKey] === true);
+        // Hyping implies a Yes vote — you can't cheer something you're voting down.
+        const newVotes = { ...sub.votes, [hypeKey]: nextHype, ...(nextHype ? { [playerId]: true } : {}) };
+        setSubmissions((prev) => prev.map((s) => (s.id === sub.id ? { ...s, votes: newVotes } : s)));
+
+        const calls = [supabase.rpc('register_hype', { p_submission_id: sub.id, p_player_id: playerId, p_hype: nextHype })];
+        if (nextHype) {
+            calls.push(supabase.rpc('register_vote', { p_submission_id: sub.id, p_player_id: playerId, p_vote: true }));
+        }
+        const results = await Promise.all(calls);
+        if (results.some((r) => r.error)) {
+            results.forEach((r) => r.error && console.error(r.error));
+            toast.error(t('voting.errorVote'));
+        }
+    };
+
+    const handleScaleVote = async (sub: Submission, value: number) => {
+        const clamped = Math.max(0, Math.min(10, Math.round(value)));
+        const newVotes = { ...sub.votes, [playerId]: clamped };
+        setSubmissions((prev) => prev.map((s) => (s.id === sub.id ? { ...s, votes: newVotes } : s)));
+
+        const { error } = await supabase.rpc('register_scale_vote', {
+            p_submission_id: sub.id,
+            p_player_id: playerId,
+            p_value: clamped,
         });
 
         if (error) {
@@ -945,8 +983,11 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         );
     }
 
-    const yesVotes = activeSubLatest ? Object.values(activeSubLatest.votes || {}).filter((v) => v === true).length : 0;
-    const noVotes = activeSubLatest ? Object.values(activeSubLatest.votes || {}).filter((v) => v === false).length : 0;
+    const activeTally = tallyVotes(activeSubLatest?.votes);
+    const yesVotes = activeSubLatest ? activeTally.yes : 0;
+    const noVotes = activeSubLatest ? activeTally.no : 0;
+    const hypeVotes = activeSubLatest ? activeTally.hype : 0;
+    const hasHypedActive = activeSubLatest ? hasHyped(activeSubLatest.votes, playerId) : false;
 
     const totalCategories = currentBoard?.length || 0;
     let columns = 1;
@@ -1165,7 +1206,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
                     <div className="w-full bg-slate-900/95 backdrop-blur-xl border-t border-indigo-500/50 p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-20">
                         {displaySub && !selectedSubmission && !selectedFinalMarker ? (
-                            <VotingPanel displaySub={displaySub} activeSubLatest={activeSubLatest} votingStats={votingStats} yesVotes={yesVotes} noVotes={noVotes} players={players} playerId={playerId} teamMode={teamMode} onVote={handleVote} />
+                            <VotingPanel displaySub={displaySub} activeSubLatest={activeSubLatest} votingStats={votingStats} yesVotes={yesVotes} noVotes={noVotes} hypeVotes={hypeVotes} hasHyped={hasHypedActive} players={players} playerId={playerId} teamMode={teamMode} scaleVoting={scaleVoting} onVote={handleVote} onHype={handleHype} onScaleVote={handleScaleVote} />
                         ) : selectedSubmission ? (
                             <div className="max-w-xl mx-auto">
                                 <h3 className="text-xl sm:text-2xl font-black text-white mb-1 text-center truncate">{selectedSubmission.category}</h3>
@@ -1173,8 +1214,18 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                                 <div className="mb-4 text-center">
                                     <div className="text-sm text-slate-400 mb-2">{t('voting.votingResults')}</div>
                                     <div className="flex gap-4 justify-center">
-                                        <div className="text-green-400 font-bold">{t('voting.yesLabel', { count: Object.values(selectedSubmission.votes || {}).filter((v) => v === true).length })}</div>
-                                        <div className="text-red-400 font-bold">{t('voting.noLabel', { count: Object.values(selectedSubmission.votes || {}).filter((v) => v === false).length })}</div>
+                                        {scaleVoting ? (
+                                            <>
+                                                <div className="text-indigo-300 font-bold">{t('voting.avgLabel', { value: tallyScale(selectedSubmission.votes).avg.toFixed(1) })}</div>
+                                                <div className="text-indigo-400 font-bold">{t('voting.scaleSumLabel', { sum: tallyScale(selectedSubmission.votes).sum })}</div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="text-green-400 font-bold">{t('voting.yesLabel', { count: tallyVotes(selectedSubmission.votes).yes })}</div>
+                                                <div className="text-red-400 font-bold">{t('voting.noLabel', { count: tallyVotes(selectedSubmission.votes).no })}</div>
+                                                {tallyVotes(selectedSubmission.votes).hype > 0 && <div className="text-amber-400 font-bold">{t('voting.hypeLabel', { count: tallyVotes(selectedSubmission.votes).hype })}</div>}
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                                 <button
@@ -1232,17 +1283,26 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
                             let yesPercent = 0;
                             let noPercent = 0;
+                            let scalePercent = 0;
+                            let scaleLabel: string | null = null;
                             let tileClass = 'bg-slate-900/60 border-slate-800 text-slate-600 opacity-60 [hyphens:auto] break-all';
 
                             if (sub) {
                                 if (isReached) {
-                                    const yes = Object.values(sub.votes || {}).filter((v) => v === true).length;
-                                    const no = Object.values(sub.votes || {}).filter((v) => v === false).length;
-                                    const total = yes + no;
+                                    if (scaleVoting) {
+                                        const { avg, count } = tallyScale(sub.votes);
+                                        if (count > 0) {
+                                            scalePercent = (avg / 10) * 100;
+                                            scaleLabel = avg.toFixed(1);
+                                        }
+                                    } else {
+                                        const { yes, no } = tallyVotes(sub.votes);
+                                        const total = yes + no;
 
-                                    if (total > 0) {
-                                        yesPercent = (yes / total) * 100;
-                                        noPercent = (no / total) * 100;
+                                        if (total > 0) {
+                                            yesPercent = (yes / total) * 100;
+                                            noPercent = (no / total) * 100;
+                                        }
                                     }
                                     tileClass = 'bg-slate-800 border-slate-600 text-white shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)]';
                                 } else {
@@ -1252,11 +1312,19 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
                             return (
                                 <div key={`${currentRoundIndex}-${idx}`} className={`relative rounded-xl overflow-hidden flex items-center justify-center border-2 transition-colors duration-500 ${tileClass}`}>
-                                    <div className="absolute left-0 top-0 bottom-0 bg-green-500/30 transition-all duration-700 ease-out" style={{ width: `${yesPercent}%` }}></div>
+                                    {scaleVoting ? (
+                                        <div className="absolute left-0 top-0 bottom-0 bg-indigo-500/30 transition-all duration-700 ease-out" style={{ width: `${scalePercent}%` }}></div>
+                                    ) : (
+                                        <>
+                                            <div className="absolute left-0 top-0 bottom-0 bg-green-500/30 transition-all duration-700 ease-out" style={{ width: `${yesPercent}%` }}></div>
+                                            <div className="absolute right-0 top-0 bottom-0 bg-red-500/30 transition-all duration-700 ease-out" style={{ width: `${noPercent}%` }}></div>
+                                        </>
+                                    )}
 
-                                    <div className="absolute right-0 top-0 bottom-0 bg-red-500/30 transition-all duration-700 ease-out" style={{ width: `${noPercent}%` }}></div>
-
-                                    <span className="relative z-10 text-center font-bold text-sm sm:text-base px-2 drop-shadow-md">{category}</span>
+                                    <span className="relative z-10 text-center font-bold text-sm sm:text-base px-2 drop-shadow-md">
+                                        {category}
+                                        {scaleLabel && <span className="ml-1.5 text-indigo-300 font-black">{scaleLabel}</span>}
+                                    </span>
                                     {hint && (
                                         <div className="absolute top-1 right-1 z-20 group cursor-help">
                                             <FaInfoCircle className="text-white/60 hover:text-white text-[10px]" />

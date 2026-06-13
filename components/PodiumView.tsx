@@ -22,6 +22,10 @@ import { getHostToken } from '../lib/hostToken';
 import { supabase } from '../lib/supabase';
 import { GeoBingoLogo } from './utils/Elements';
 import { ScoreEntity, PlayerStats, PodiumViewProps } from './utils/types';
+import { tallyVotes, tallyScale } from './utils/votes';
+
+// Each hype a submission receives is worth this many bonus points to its owner.
+const HYPE_POINT_VALUE = 0.5;
 
 export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps) {
     const { t } = useT();
@@ -30,6 +34,7 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
     const [loading, setLoading] = useState(true);
     const [gameMode, setGameMode] = useState<string>('list');
     const [endCondition, setEndCondition] = useState<string>('');
+    const [scaleVoting, setScaleVoting] = useState(false);
     const [animPhase, setAnimPhase] = useState(0);
     const [windowDim, setWindowDim] = useState({ width: 0, height: 0 });
 
@@ -57,13 +62,16 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
 
     useEffect(() => {
         const fetchResults = async () => {
-            const { data: game } = await supabase.from('games').select('game_mode, grid_size, end_condition').eq('id', gameId).single();
+            const { data: game } = await supabase.from('games').select('game_mode, grid_size, end_condition, scale_voting').eq('id', gameId).single();
             const { data: players } = await supabase.from('players').select('id, name, bingo_board, team').eq('game_id', gameId);
             const { data: submissions } = await supabase.from('submissions').select('*').eq('game_id', gameId);
 
             const fetchedGameMode = game?.game_mode || 'list';
             setGameMode(fetchedGameMode);
             setEndCondition(game?.end_condition || '');
+            // Scale voting is a list-mode-only mode; never treat a bingo game as scaled.
+            const isScaleVoting = !!game?.scale_voting && fetchedGameMode === 'list';
+            setScaleVoting(isScaleVoting);
             const gridSize = game?.grid_size || 3;
 
             if (players && submissions) {
@@ -114,18 +122,27 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
                     let score = 0;
                     let totalYes = 0;
                     let totalNo = 0;
+                    let totalHype = 0;
+                    let scaleTotal = 0;
+                    let scaleCount = 0;
+                    let ratedSubs = 0;
                     const validCategories: string[] = [];
                     const rejectedCategories: string[] = [];
 
-                    entitySubs.forEach((sub) => {
-                        const votes = sub.votes || {};
-                        let subYes = 0;
-                        let subNo = 0;
-
-                        Object.values(votes).forEach((v) => {
-                            if (v === true) subYes++;
-                            if (v === false) subNo++;
+                    // Scale voting: a player's score is the sum of every rating their
+                    // submissions received. No yes/no threshold, hype, or bingo lines.
+                    if (isScaleVoting) {
+                        entitySubs.forEach((sub) => {
+                            const { sum, count } = tallyScale(sub.votes);
+                            scaleTotal += sum;
+                            scaleCount += count;
+                            if (count > 0) ratedSubs++;
                         });
+                        score = scaleTotal;
+                    }
+
+                    entitySubs.forEach((sub) => {
+                        const { yes: subYes, no: subNo, hype: subHype } = tallyVotes(sub.votes);
 
                         totalYes += subYes;
                         totalNo += subNo;
@@ -135,6 +152,10 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
                             if (subYes > totalCast / 2) {
                                 score += 1;
                                 validCategories.push(sub.category);
+                                // Hype only counts on approved submissions — a rejected
+                                // category earns no bonus even if some players cheered it.
+                                totalHype += subHype;
+                                score += subHype * HYPE_POINT_VALUE;
                             } else {
                                 rejectedCategories.push(sub.category);
                             }
@@ -228,16 +249,21 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
 
                     const totalCommunityVotes = totalYes + totalNo;
                     const communityApproval = totalCommunityVotes > 0 ? Math.round((totalYes / totalCommunityVotes) * 100) : 0;
+                    const scaleAvg = scaleCount > 0 ? scaleTotal / scaleCount : 0;
 
                     return {
                         id: entity.id,
                         name: entity.name,
                         score,
-                        totalFound: validCategories.length,
+                        totalFound: isScaleVoting ? ratedSubs : validCategories.length,
                         bingos: bingoCount,
                         communityApproval,
                         totalYes,
                         totalNo,
+                        totalHype,
+                        scaleTotal,
+                        scaleCount,
+                        scaleAvg,
                         rank: 0,
                         gridStatus,
                         gridSize,
@@ -456,99 +482,133 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
                                         </div>
 
                                         {/* Stats Grid */}
-                                        <div className={`grid ${gameMode === 'bingo' ? 'grid-cols-3' : 'grid-cols-2'} gap-3`}>
-                                            {/* Bingos */}
-                                            {gameMode === 'bingo' && (
+                                        {scaleVoting ? (
+                                            <div className="grid grid-cols-3 gap-3">
+                                                {/* Total rating (= score) */}
                                                 <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
-                                                    <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">{t('podium.bingos')}</span>
+                                                    <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">{t('podium.totalRating')}</span>
                                                     <div className="flex-1 flex items-center justify-center w-full">
-                                                        <span className="text-xl font-medium text-yellow-400 leading-none">{player.bingos || 0}</span>
+                                                        <span className="text-xl font-medium text-indigo-400 leading-none">{player.scaleTotal || 0}</span>
                                                     </div>
                                                 </div>
-                                            )}
-                                            {/* Approved Words */}
-                                            <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
-                                                <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">{t('podium.approvedWords')}</span>
-                                                <div className="flex-1 flex items-center justify-center w-full">
-                                                    <span className="text-xl font-medium leading-none">{player.totalFound || 0}</span>
+                                                {/* Average rating */}
+                                                <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
+                                                    <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">{t('podium.avgRating')}</span>
+                                                    <div className="flex-1 flex items-center justify-center w-full">
+                                                        <span className={`text-xl font-medium leading-none ${player.scaleAvg >= 7 ? 'text-green-400' : player.scaleAvg >= 4 ? 'text-yellow-400' : 'text-red-400'}`}>{player.scaleAvg.toFixed(1)}</span>
+                                                    </div>
+                                                </div>
+                                                {/* Ratings received */}
+                                                <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
+                                                    <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">{t('podium.ratingsReceived')}</span>
+                                                    <div className="flex-1 flex items-center justify-center w-full">
+                                                        <span className="text-xl font-medium leading-none">{player.scaleCount || 0}</span>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            {/* Mini Bingo Board */}
-                                            {gameMode === 'bingo' ? (
-                                                <div className="relative group bg-slate-800 p-3 rounded-xl flex flex-col items-center justify-center">
-                                                    <span className="text-[10px] text-slate-400 uppercase font-bold mb-2 text-center">{t('podium.bingoBoard')}</span>
-                                                    <div
-                                                        className="grid gap-1"
-                                                        style={{
-                                                            gridTemplateColumns: `repeat(${player.gridSize || 3}, minmax(0, 1fr))`,
-                                                        }}
-                                                    >
-                                                        {player.gridStatus?.map((status: number, idx: number) => (
-                                                            <div key={idx} className={`w-2 h-2 rounded-sm ${status === 3 ? 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)] z-10' : status === 1 ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.4)]' : status === 2 ? 'bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.4)]' : 'bg-slate-700'}`} />
-                                                        ))}
+                                        ) : (
+                                            <div className={`grid ${gameMode === 'bingo' ? 'grid-cols-4' : 'grid-cols-3'} gap-3`}>
+                                                {/* Bingos */}
+                                                {gameMode === 'bingo' && (
+                                                    <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
+                                                        <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">{t('podium.bingos')}</span>
+                                                        <div className="flex-1 flex items-center justify-center w-full">
+                                                            <span className="text-xl font-medium text-yellow-400 leading-none">{player.bingos || 0}</span>
+                                                        </div>
                                                     </div>
-
-                                                    {/* --- HOVER OVERLAY --- */}
-                                                    <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 hidden group-hover:flex z-50 w-[280px] h-[280px] sm:w-[400px] sm:h-[400px] p-3 bg-slate-900 border border-indigo-500/50 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] pointer-events-none flex-col">
+                                                )}
+                                                {/* Approved Words */}
+                                                <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
+                                                    <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">{t('podium.approvedWords')}</span>
+                                                    <div className="flex-1 flex items-center justify-center w-full">
+                                                        <span className="text-xl font-medium leading-none">{player.totalFound || 0}</span>
+                                                    </div>
+                                                </div>
+                                                {/* Mini Bingo Board */}
+                                                {gameMode === 'bingo' ? (
+                                                    <div className="relative group bg-slate-800 p-3 rounded-xl flex flex-col items-center justify-center">
+                                                        <span className="text-[10px] text-slate-400 uppercase font-bold mb-2 text-center">{t('podium.bingoBoard')}</span>
                                                         <div
-                                                            className="grid gap-1.5 flex-1"
+                                                            className="grid gap-1"
                                                             style={{
-                                                                gridTemplateColumns: `repeat(${player.gridSize || 3}, 1fr)`,
-                                                                gridTemplateRows: `repeat(${player.gridSize || 3}, 1fr)`,
+                                                                gridTemplateColumns: `repeat(${player.gridSize || 3}, minmax(0, 1fr))`,
                                                             }}
                                                         >
-                                                            {player.bingoBoard?.map((word: string, idx: number) => {
-                                                                const status = player.gridStatus[idx];
-                                                                let styleClass = 'bg-slate-800 text-slate-400 border-slate-700';
-
-                                                                if (status === 3) styleClass = 'bg-yellow-900/40 text-yellow-400 border-yellow-500/50 shadow-[0_0_10px_rgba(250,204,21,0.2)] font-bold';
-                                                                else if (status === 1) styleClass = 'bg-green-900/30 text-green-400 border-green-500/40';
-                                                                else if (status === 2) styleClass = 'bg-red-900/20 text-red-500 border-red-500/30 opacity-60';
-
-                                                                return (
-                                                                    <div key={idx} className={`text-[9px] sm:text-[11px] flex items-center justify-center text-center p-1.5 rounded-lg border overflow-hidden hyphens-auto break-all leading-tight h-full w-full ${styleClass}`}>
-                                                                        <span className="line-clamp-4">{word}</span>
-                                                                    </div>
-                                                                );
-                                                            })}
+                                                            {player.gridStatus?.map((status: number, idx: number) => (
+                                                                <div key={idx} className={`w-2 h-2 rounded-sm ${status === 3 ? 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)] z-10' : status === 1 ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.4)]' : status === 2 ? 'bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.4)]' : 'bg-slate-700'}`} />
+                                                            ))}
                                                         </div>
 
-                                                        {/* Pfeil-Icon unten */}
-                                                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-slate-900 border-b border-r border-indigo-500/50 rotate-45"></div>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
-                                                    <span className="text-[10px] text-slate-400 uppercase font-bold mb-1 text-center">{t('podium.approveRate')}</span>
-                                                    <span className={`text-xl font-medium ${player.communityApproval >= 75 ? 'text-green-400' : player.communityApproval >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>{player.communityApproval}%</span>
-                                                </div>
-                                            )}
+                                                        {/* --- HOVER OVERLAY --- */}
+                                                        <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 hidden group-hover:flex z-50 w-[280px] h-[280px] sm:w-[400px] sm:h-[400px] p-3 bg-slate-900 border border-indigo-500/50 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] pointer-events-none flex-col">
+                                                            <div
+                                                                className="grid gap-1.5 flex-1"
+                                                                style={{
+                                                                    gridTemplateColumns: `repeat(${player.gridSize || 3}, 1fr)`,
+                                                                    gridTemplateRows: `repeat(${player.gridSize || 3}, 1fr)`,
+                                                                }}
+                                                            >
+                                                                {player.bingoBoard?.map((word: string, idx: number) => {
+                                                                    const status = player.gridStatus[idx];
+                                                                    let styleClass = 'bg-slate-800 text-slate-400 border-slate-700';
 
-                                            <div className={`bg-slate-800 p-3 rounded-xl flex flex-col ${gameMode === 'bingo' ? 'col-span-3' : 'col-span-2'}`}>
-                                                <span className="text-xs text-slate-400 uppercase font-bold mb-2">{t('podium.totalVotesReceived')}</span>
-                                                <div className="flex items-center gap-4">
-                                                    <div className="flex-1 h-3 bg-slate-700 rounded-full overflow-hidden flex">
-                                                        <div
-                                                            className="bg-green-500 h-full"
-                                                            style={{
-                                                                width: `${player.totalYes + player.totalNo > 0 ? (player.totalYes / (player.totalYes + player.totalNo)) * 100 : 0}%`,
-                                                            }}
-                                                        ></div>
-                                                        <div
-                                                            className="bg-red-500 h-full"
-                                                            style={{
-                                                                width: `${player.totalYes + player.totalNo > 0 ? (player.totalNo / (player.totalYes + player.totalNo)) * 100 : 0}%`,
-                                                            }}
-                                                        ></div>
+                                                                    if (status === 3) styleClass = 'bg-yellow-900/40 text-yellow-400 border-yellow-500/50 shadow-[0_0_10px_rgba(250,204,21,0.2)] font-bold';
+                                                                    else if (status === 1) styleClass = 'bg-green-900/30 text-green-400 border-green-500/40';
+                                                                    else if (status === 2) styleClass = 'bg-red-900/20 text-red-500 border-red-500/30 opacity-60';
+
+                                                                    return (
+                                                                        <div key={idx} className={`text-[9px] sm:text-[11px] flex items-center justify-center text-center p-1.5 rounded-lg border overflow-hidden hyphens-auto break-all leading-tight h-full w-full ${styleClass}`}>
+                                                                            <span className="line-clamp-4">{word}</span>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+
+                                                            {/* Pfeil-Icon unten */}
+                                                            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-slate-900 border-b border-r border-indigo-500/50 rotate-45"></div>
+                                                        </div>
                                                     </div>
-                                                    <div className="flex gap-3 text-sm font-bold">
-                                                        <span className="text-green-500">{t('podium.yesCount', { count: player.totalYes })}</span>
-                                                        <span className="text-slate-500">|</span>
-                                                        <span className="text-red-500">{t('podium.noCount', { count: player.totalNo })}</span>
+                                                ) : (
+                                                    <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
+                                                        <span className="text-[10px] text-slate-400 uppercase font-bold mb-1 text-center">{t('podium.approveRate')}</span>
+                                                        <span className={`text-xl font-medium ${player.communityApproval >= 75 ? 'text-green-400' : player.communityApproval >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>{player.communityApproval}%</span>
+                                                    </div>
+                                                )}
+
+                                                {/* Hype */}
+                                                <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
+                                                    <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">{t('podium.hype')}</span>
+                                                    <div className="flex-1 flex items-center justify-center w-full">
+                                                        <span className="text-xl font-medium text-amber-400 leading-none">{player.totalHype || 0}</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className={`bg-slate-800 p-3 rounded-xl flex flex-col ${gameMode === 'bingo' ? 'col-span-4' : 'col-span-3'}`}>
+                                                    <span className="text-xs text-slate-400 uppercase font-bold mb-2">{t('podium.totalVotesReceived')}</span>
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="flex-1 h-3 bg-slate-700 rounded-full overflow-hidden flex">
+                                                            <div
+                                                                className="bg-green-500 h-full"
+                                                                style={{
+                                                                    width: `${player.totalYes + player.totalNo > 0 ? (player.totalYes / (player.totalYes + player.totalNo)) * 100 : 0}%`,
+                                                                }}
+                                                            ></div>
+                                                            <div
+                                                                className="bg-red-500 h-full"
+                                                                style={{
+                                                                    width: `${player.totalYes + player.totalNo > 0 ? (player.totalNo / (player.totalYes + player.totalNo)) * 100 : 0}%`,
+                                                                }}
+                                                            ></div>
+                                                        </div>
+                                                        <div className="flex gap-3 text-sm font-bold">
+                                                            <span className="text-green-500">{t('podium.yesCount', { count: player.totalYes })}</span>
+                                                            <span className="text-slate-500">|</span>
+                                                            <span className="text-red-500">{t('podium.noCount', { count: player.totalNo })}</span>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>

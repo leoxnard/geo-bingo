@@ -18,6 +18,9 @@ export const FEATURES = {
     /** Win condition toggle for bingo games (first bingo ↔ full time). */
     winCondition: true,
 
+    /** Scale voting (rate 0–10 instead of yes/no/hype). List mode only. Off → only yes/no voting. */
+    scaleVoting: true,
+
     /** Exclusive categories (first claimer locks a category). Off → always non-exclusive. */
     exclusiveCategories: false,
 

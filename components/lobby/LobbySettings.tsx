@@ -25,10 +25,11 @@ interface LobbySettingsProps {
     timeLimit: number;
     endCondition: 'first_bingo' | 'timer';
     exclusiveMode: boolean;
-    updateGameModeInfo: (updates: { game_mode?: string; team_mode?: string; time_limit?: number; grid_size?: number; end_condition?: 'first_bingo' | 'timer'; exclusive_mode?: boolean }) => void;
+    scaleVoting: boolean;
+    updateGameModeInfo: (updates: { game_mode?: string; team_mode?: string; time_limit?: number; grid_size?: number; end_condition?: 'first_bingo' | 'timer'; exclusive_mode?: boolean; scale_voting?: boolean }) => void;
 }
 
-export default function LobbySettings({ isHost, gameMode, teamMode, timeLimit, endCondition, exclusiveMode, updateGameModeInfo }: LobbySettingsProps) {
+export default function LobbySettings({ isHost, gameMode, teamMode, timeLimit, endCondition, exclusiveMode, scaleVoting, updateGameModeInfo }: LobbySettingsProps) {
     const { t } = useT();
     const [localTimeLimit, setLocalTimeLimit] = useState(timeLimit / 60);
 
@@ -92,6 +93,23 @@ export default function LobbySettings({ isHost, gameMode, teamMode, timeLimit, e
                         description={endCondition === 'first_bingo' ? t('settings.winConditionDescFirst') : t('settings.winConditionDescTimer')}
                     />
                 </>
+            )}
+
+            {/* Scale Voting (list mode only) — rate 0–10 instead of yes/no/hype. */}
+            {FEATURES.scaleVoting && gameMode === 'list' && (
+                <ToggleButton
+                    title={t('settings.votingMode')}
+                    active={scaleVoting === false ? 'left' : 'right'}
+                    labelLeft={t('settings.yesNoVoting')}
+                    labelRight={t('settings.scaleVoting')}
+                    iconLeft="hand.thumbsdown.hand.thumbsup"
+                    iconRight="lines.measurement.horizontal.aligned.bottom"
+                    onClick={(val: 'left' | 'right') => updateGameModeInfo({ scale_voting: val === 'right' })}
+                    disabled={!isHost}
+                    isHost={isHost}
+                    position="middle"
+                    description={scaleVoting === false ? t('settings.votingModeDescYesNo') : t('settings.votingModeDescScale')}
+                />
             )}
 
             {/* Time Slider */}

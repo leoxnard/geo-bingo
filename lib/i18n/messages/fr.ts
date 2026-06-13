@@ -50,6 +50,11 @@ export const fr: Messages = {
     'settings.winConditionDescTimer': 'La partie continue jusqu’à la fin du temps, avec des points bonus pour chaque bingo.',
     'settings.timeLimit': 'Limite de temps',
     'settings.minutes': '{count} minutes',
+    'settings.votingMode': 'Mode de vote',
+    'settings.yesNoVoting': 'Oui / Non',
+    'settings.scaleVoting': 'Échelle 0–10',
+    'settings.votingModeDescYesNo': 'Les joueurs approuvent ou rejettent chaque soumission et peuvent ajouter du Hype.',
+    'settings.votingModeDescScale': 'Les joueurs notent chaque soumission de 0 à 10. Le score d’un joueur est la somme de toutes les notes reçues. Pas de Hype.',
 
     // ---- lobby sidebar ----
     'sidebar.inviteFriends': 'Inviter des amis',
@@ -219,11 +224,15 @@ export const fr: Messages = {
     'podium.matchStatistics': 'Statistiques de la partie',
     'podium.bingos': 'Bingos',
     'podium.approvedWords': 'Mots approuvés',
+    'podium.totalRating': 'Note totale',
+    'podium.avgRating': 'Note moy.',
+    'podium.ratingsReceived': 'Notes',
     'podium.bingoBoard': 'Grille de bingo',
     'podium.approveRate': 'Taux d’approbation',
     'podium.totalVotesReceived': 'Total des votes reçus',
     'podium.yesCount': '{count} oui',
     'podium.noCount': '{count} non',
+    'podium.hype': 'Hype',
     'podium.backToLobby': 'Retour au salon',
 
     // ---- voting (journey replay) ----
@@ -243,6 +252,9 @@ export const fr: Messages = {
     'voting.votingResults': 'Résultats du vote',
     'voting.yesLabel': 'Oui : {count}',
     'voting.noLabel': 'Non : {count}',
+    'voting.hypeLabel': 'Hype : {count}',
+    'voting.avgLabel': 'Moy. : {value}',
+    'voting.scaleSumLabel': 'Total : {sum}',
     'voting.backToBoard': 'Retour à la grille',
     'voting.targetLocation': 'Emplacement cible',
     'voting.errorVote': 'Erreur lors de l’envoi du vote.',
@@ -255,6 +267,11 @@ export const fr: Messages = {
     'votingPanel.yourSubmission': 'Ta soumission',
     'votingPanel.teamSubmission': 'Soumission de l’équipe',
     'votingPanel.votes': '{count} votes',
+    'votingPanel.hype': 'Hype',
+    'votingPanel.hypeVotes': '{count} hype',
+    'votingPanel.submitRating': 'Envoyer la note',
+    'votingPanel.updateRating': 'Modifier la note',
+    'votingPanel.scaleSum': 'Σ {sum}',
 
     // ---- street view HUD ----
     'sv.verifying': 'Vérification...',

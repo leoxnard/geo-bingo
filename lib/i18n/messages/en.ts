@@ -51,6 +51,11 @@ export const en = {
     'settings.winConditionDescTimer': 'Game continues until the timer runs out, extra points for each Bingo.',
     'settings.timeLimit': 'Time Limit',
     'settings.minutes': '{count} Minutes',
+    'settings.votingMode': 'Voting Mode',
+    'settings.yesNoVoting': 'Yes / No',
+    'settings.scaleVoting': 'Scale 0–10',
+    'settings.votingModeDescYesNo': 'Players approve or reject each submission, and can add Hype.',
+    'settings.votingModeDescScale': "Players rate each submission from 0 to 10. A player's score is the sum of all ratings received. No Hype.",
 
     // ---- lobby sidebar ----
     'sidebar.inviteFriends': 'Invite Friends',
@@ -220,11 +225,15 @@ export const en = {
     'podium.matchStatistics': 'Match Statistics',
     'podium.bingos': 'Bingos',
     'podium.approvedWords': 'Approved words',
+    'podium.totalRating': 'Total rating',
+    'podium.avgRating': 'Avg rating',
+    'podium.ratingsReceived': 'Ratings',
     'podium.bingoBoard': 'Bingo-Board',
     'podium.approveRate': 'Approve-Rate',
     'podium.totalVotesReceived': 'Total Votes Received',
     'podium.yesCount': '{count} Yes',
     'podium.noCount': '{count} No',
+    'podium.hype': 'Hype',
     'podium.backToLobby': 'Back to Lobby',
 
     // ---- voting (journey replay) ----
@@ -244,6 +253,9 @@ export const en = {
     'voting.votingResults': 'Voting Results',
     'voting.yesLabel': 'Yes: {count}',
     'voting.noLabel': 'No: {count}',
+    'voting.hypeLabel': 'Hype: {count}',
+    'voting.avgLabel': 'Avg: {value}',
+    'voting.scaleSumLabel': 'Total: {sum}',
     'voting.backToBoard': 'Back to Board',
     'voting.targetLocation': 'Target Location',
     'voting.errorVote': 'Error submitting vote.',
@@ -256,6 +268,11 @@ export const en = {
     'votingPanel.yourSubmission': 'Your Submission',
     'votingPanel.teamSubmission': 'Team Submission',
     'votingPanel.votes': '{count} Votes',
+    'votingPanel.hype': 'Hype',
+    'votingPanel.hypeVotes': '{count} Hype',
+    'votingPanel.submitRating': 'Submit Rating',
+    'votingPanel.updateRating': 'Update Rating',
+    'votingPanel.scaleSum': 'Σ {sum}',
 
     // ---- street view HUD ----
     'sv.verifying': 'Verifying...',

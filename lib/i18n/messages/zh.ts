@@ -50,6 +50,11 @@ export const zh: Messages = {
     'settings.winConditionDescTimer': '游戏持续到时间用完，每个宾果可获得额外分数。',
     'settings.timeLimit': '时间限制',
     'settings.minutes': '{count} 分钟',
+    'settings.votingMode': '投票模式',
+    'settings.yesNoVoting': '赞成 / 反对',
+    'settings.scaleVoting': '0–10 评分',
+    'settings.votingModeDescYesNo': '玩家对每个提交赞成或反对，并可添加助威。',
+    'settings.votingModeDescScale': '玩家为每个提交打 0 到 10 分。玩家的得分是所获全部评分的总和。无助威。',
 
     // ---- lobby sidebar ----
     'sidebar.inviteFriends': '邀请好友',
@@ -219,11 +224,15 @@ export const zh: Messages = {
     'podium.matchStatistics': '比赛统计',
     'podium.bingos': '宾果数',
     'podium.approvedWords': '通过的词',
+    'podium.totalRating': '总评分',
+    'podium.avgRating': '平均评分',
+    'podium.ratingsReceived': '评分数',
     'podium.bingoBoard': '宾果板',
     'podium.approveRate': '通过率',
     'podium.totalVotesReceived': '收到的总票数',
     'podium.yesCount': '{count} 赞成',
     'podium.noCount': '{count} 反对',
+    'podium.hype': '助威',
     'podium.backToLobby': '返回房间',
 
     // ---- voting (journey replay) ----
@@ -243,6 +252,9 @@ export const zh: Messages = {
     'voting.votingResults': '投票结果',
     'voting.yesLabel': '赞成：{count}',
     'voting.noLabel': '反对：{count}',
+    'voting.hypeLabel': '助威：{count}',
+    'voting.avgLabel': '平均：{value}',
+    'voting.scaleSumLabel': '总计：{sum}',
     'voting.backToBoard': '返回游戏板',
     'voting.targetLocation': '目标位置',
     'voting.errorVote': '提交投票时出错。',
@@ -255,6 +267,11 @@ export const zh: Messages = {
     'votingPanel.yourSubmission': '你的提交',
     'votingPanel.teamSubmission': '团队提交',
     'votingPanel.votes': '{count} 票',
+    'votingPanel.hype': '助威',
+    'votingPanel.hypeVotes': '{count} 助威',
+    'votingPanel.submitRating': '提交评分',
+    'votingPanel.updateRating': '更新评分',
+    'votingPanel.scaleSum': 'Σ {sum}',
 
     // ---- street view HUD ----
     'sv.verifying': '验证中...',

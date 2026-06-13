@@ -26,7 +26,9 @@ export interface Submission {
     heading: number;
     pitch: number;
     zoom: number;
-    votes: Record<string, boolean>;
+    // yes/no votes are booleans; scale-voting ratings (0–10) are numbers; hype keys
+    // (`hype:<id>`) are booleans. All keyed off the voter id.
+    votes: Record<string, boolean | number>;
     ai_verdict?: boolean | null;
     ai_verified_hash?: string | null;
     ai_reason?: string | null;
@@ -64,6 +66,11 @@ export interface PlayerStats {
     totalFound: number;
     totalNo: number;
     totalYes: number;
+    totalHype: number;
+    // Scale-voting aggregates (0–10 ratings received across this entity's submissions).
+    scaleTotal: number;
+    scaleCount: number;
+    scaleAvg: number;
     bingoBoard?: string[];
 }
 
@@ -97,6 +104,7 @@ export interface PresetSettings {
     exclusiveMode?: boolean;
     aiEndGame?: boolean;
     endCondition?: 'timer' | 'first_bingo';
+    scaleVoting?: boolean;
 }
 
 export interface CommunityPreset {
@@ -206,6 +214,8 @@ export interface VotingViewProps {
     teamMode: 'ffa' | 'teams';
     onFinishGame: () => Promise<void> | void;
     isDeveloper?: boolean;
+    // Rate submissions 0–10 instead of yes/no/hype (list mode only).
+    scaleVoting?: boolean;
     // Category name -> resolved hint for the active locale (preset hints).
     hintByCategory?: Record<string, string>;
 }
