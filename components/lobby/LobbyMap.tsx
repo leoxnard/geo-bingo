@@ -67,6 +67,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     const [hoveredLocation, setHoveredLocation] = useState<Point | null>(null);
     const [selectedBoundaryId, setSelectedBoundaryId] = useState<string | null>(null);
     const prevZoomRef = useRef<number>(2);
+    const prevCenterRef = useRef<google.maps.LatLngLiteral | null>(null);
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [selectedPreset, setSelectedPreset] = useState<string>('');
     const [searchTerm, setSearchTerm] = useState('');
@@ -153,13 +154,19 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         if (hoveredCategory && extraMarkers) {
             const marker = extraMarkers.find((m) => m.label === hoveredCategory);
             if (marker) {
+                // Remember where we were so we can return exactly here on hover end
                 prevZoomRef.current = mapInstance.getZoom() ?? 2;
+                const center = mapInstance.getCenter();
+                prevCenterRef.current = center ? { lat: center.lat(), lng: center.lng() } : null;
                 mapInstance.panTo({ lat: marker.lat, lng: marker.lng });
                 mapInstance.setZoom(12);
             }
         } else if (!hoveredCategory) {
-            // Restore previous zoom when hover ends
+            // Restore previous zoom and location when hover ends
             mapInstance.setZoom(prevZoomRef.current);
+            if (prevCenterRef.current) {
+                mapInstance.panTo(prevCenterRef.current);
+            }
         }
     }, [hoveredCategory, extraMarkers, mapInstance]);
 

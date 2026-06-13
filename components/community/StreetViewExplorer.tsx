@@ -78,6 +78,7 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
     const youAreHereConeRef = useRef<google.maps.Marker | null>(null); // facing-direction cone
     const lastValidRef = useRef<google.maps.LatLng | null>(null);
     const prevMiniZoomRef = useRef<number>(2);
+    const prevMiniCenterRef = useRef<google.maps.LatLngLiteral | null>(null);
 
     const [pendingSpot, setPendingSpot] = useState<Viewpoint | null>(null);
     const [categoryName, setCategoryName] = useState('');
@@ -295,12 +296,18 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
         if (hoveredSpot) {
             const spot = spots.find((s) => s.categoryName === hoveredSpot);
             if (spot) {
+                // Remember where we were so we can return exactly here on hover end
                 prevMiniZoomRef.current = miniMapRef.current.getZoom() ?? 2;
+                const center = miniMapRef.current.getCenter();
+                prevMiniCenterRef.current = center ? { lat: center.lat(), lng: center.lng() } : null;
                 miniMapRef.current.panTo({ lat: spot.lat, lng: spot.lng });
                 miniMapRef.current.setZoom(10);
             }
         } else {
             miniMapRef.current.setZoom(prevMiniZoomRef.current);
+            if (prevMiniCenterRef.current) {
+                miniMapRef.current.panTo(prevMiniCenterRef.current);
+            }
         }
     }, [hoveredSpot, spots, mode]);
 
