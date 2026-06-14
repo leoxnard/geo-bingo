@@ -152,15 +152,31 @@ export const insertPoint = (newPoint: { lat: number; lng: number }, points: { la
     return newPoints;
 };
 
+// Web Mercator latitude projection. Boundary polygons are rendered with
+// geodesic:false, so Google draws each edge as a STRAIGHT LINE in Web Mercator
+// screen space — that is the line the host sees and the line players must not
+// cross. Mercator's Y axis is non-linear in latitude (y = ln(tan(π/4 + lat/2))),
+// so a straight on-screen edge is a *curve* in raw lat/lng. Ray-casting on raw
+// lat/lng therefore tests a different line than the one drawn, and the gap grows
+// with an edge's latitude span (tens of km for far-apart vertices). Projecting
+// latitude through this transform makes the test boundary identical to the
+// visible one. Longitude needs no transform: Mercator's X is a constant scale of
+// lng, and a constant per-axis scale never changes inside/outside.
+const mercatorY = (lat: number) => {
+    const clamped = Math.max(-85.05112878, Math.min(85.05112878, lat));
+    return Math.log(Math.tan(Math.PI / 4 + (clamped * Math.PI) / 360));
+};
+
 export function isPointInPolygon(point: { lat: number; lng: number }, polygon: { lat: number; lng: number }[]) {
+    const py = mercatorY(point.lat);
     let isInside = false;
     for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
         const xi = polygon[i].lng;
-        const yi = polygon[i].lat;
+        const yi = mercatorY(polygon[i].lat);
         const xj = polygon[j].lng;
-        const yj = polygon[j].lat;
+        const yj = mercatorY(polygon[j].lat);
 
-        const intersect = yi > point.lat !== yj > point.lat && point.lng < ((xj - xi) * (point.lat - yi)) / (yj - yi) + xi;
+        const intersect = yi > py !== yj > py && point.lng < ((xj - xi) * (py - yi)) / (yj - yi) + xi;
 
         if (intersect) {
             isInside = !isInside;
