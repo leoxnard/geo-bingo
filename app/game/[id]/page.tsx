@@ -25,7 +25,7 @@ import { shuffle } from '@/components/utils/Functions';
 import { Player } from '@/components/utils/types';
 import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
-import { categoryLanguageForLocale, CategoryLanguage, normalizeLocale } from '@/lib/i18n/locales';
+import { categoryLanguageForLocale, CategoryLanguage, defaultCategoryLanguage, normalizeLocale, storeCategoryLanguage } from '@/lib/i18n/locales';
 
 import { getHostToken, newHostToken, clearHostToken } from '../../../lib/hostToken';
 import { adjectives, animals } from '../../../lib/names';
@@ -220,6 +220,9 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         const curLocale = normalizeLocale(language);
         if (newLocale === curLocale) return;
 
+        // Remember this choice so future new games default to it (not the UI locale).
+        storeCategoryLanguage(newLang);
+
         const cats = categories;
         const sugg = suggestedCategories;
         const nonEmptyCats = cats.filter((c) => c.trim());
@@ -395,7 +398,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     category_source: 'manual',
                     generation_radius: 10,
                     generation_number: 10,
-                    language: categoryLanguageForLocale(locale),
+                    language: defaultCategoryLanguage(locale),
                     categories_generated: false,
                 };
                 const optionalCols: Record<string, unknown> = {};

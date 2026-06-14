@@ -71,6 +71,36 @@ export function categoryLanguageForLocale(locale: Locale): CategoryLanguage {
     return LOCALES[locale].aiName;
 }
 
+/** localStorage key remembering the host's last-chosen board category language. */
+export const CATEGORY_LANGUAGE_STORAGE_KEY = 'geoBingoCategoryLanguage';
+
+const CATEGORY_LANGUAGES = LOCALE_CODES.map((code) => LOCALES[code].aiName) as CategoryLanguage[];
+
+/** True if the given string is a valid category language. */
+export function isCategoryLanguage(value: unknown): value is CategoryLanguage {
+    return typeof value === 'string' && (CATEGORY_LANGUAGES as string[]).includes(value);
+}
+
+/**
+ * The category language a new game should default to: the host's last-chosen
+ * board language (persisted in localStorage), falling back to the one derived
+ * from the current UI locale when nothing has been chosen before.
+ */
+export function defaultCategoryLanguage(locale: Locale): CategoryLanguage {
+    if (typeof window !== 'undefined') {
+        const stored = window.localStorage.getItem(CATEGORY_LANGUAGE_STORAGE_KEY);
+        if (isCategoryLanguage(stored)) return stored;
+    }
+    return categoryLanguageForLocale(locale);
+}
+
+/** Persist the host's chosen board category language for future new games. */
+export function storeCategoryLanguage(lang: CategoryLanguage): void {
+    if (typeof window !== 'undefined') {
+        window.localStorage.setItem(CATEGORY_LANGUAGE_STORAGE_KEY, lang);
+    }
+}
+
 /**
  * Pick the best supported locale from an Accept-Language header (the user's
  * device/browser language), e.g. "en-US,en;q=0.9,de;q=0.8". Matches on the
