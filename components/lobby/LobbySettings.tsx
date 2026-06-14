@@ -75,24 +75,22 @@ export default function LobbySettings({ isHost, gameMode, teamMode, timeLimit, e
 
             {/* End Condition Selection */}
             {FEATURES.winCondition && gameMode === 'bingo' && (
-                <>
-                    <ToggleButton
-                        title={t('settings.winCondition')}
-                        active={endCondition === 'first_bingo' ? 'right' : 'left'}
-                        labelLeft={t('settings.fullTime')}
-                        labelRight={t('settings.firstBingo')}
-                        iconLeft="timer"
-                        iconRight="square.grid.3x3.bingo"
-                        onClick={(val: 'left' | 'right') =>
-                            updateGameModeInfo({
-                                end_condition: val === 'left' ? 'first_bingo' : 'timer',
-                            })
-                        }
-                        disabled={!isHost}
-                        isHost={isHost}
-                        description={endCondition === 'first_bingo' ? t('settings.winConditionDescFirst') : t('settings.winConditionDescTimer')}
-                    />
-                </>
+                <ToggleButton
+                    title={t('settings.winCondition')}
+                    active={endCondition === 'first_bingo' ? 'right' : 'left'}
+                    labelLeft={t('settings.fullTime')}
+                    labelRight={t('settings.firstBingo')}
+                    iconLeft="timer"
+                    iconRight="square.grid.3x3.bingo"
+                    onClick={(val: 'left' | 'right') =>
+                        updateGameModeInfo({
+                            end_condition: val === 'right' ? 'first_bingo' : 'timer',
+                        })
+                    }
+                    disabled={!isHost}
+                    isHost={isHost}
+                    description={endCondition === 'first_bingo' ? t('settings.winConditionDescFirst') : t('settings.winConditionDescTimer')}
+                />
             )}
 
             {/* Scale Voting (list mode only) — rate 0–10 instead of yes/no/hype. */}

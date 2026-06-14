@@ -291,6 +291,8 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
     // value never leaves the lobby stuck on a hidden source.
     const effectiveSource: CategorySource = ENABLED_SOURCES.includes(categorySource) ? categorySource : 'manual';
     const showSourceSwitcher = aiEnabled && ENABLED_SOURCES.length > 1;
+    // Count only non-empty slots — empty/cleared entries should not inflate the counter.
+    const filledCategoryCount = localCategories.filter((c) => c && c.trim()).length;
     const isGeneratedSource = effectiveSource === 'ai' || effectiveSource === 'nearbyPlaces' || effectiveSource === 'nearbyStreetView';
 
     const handleGenerate = async () => {
@@ -750,7 +752,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                     <h3 className={`text-xl font-bold mb-4 text-slate-300 flex justify-between items-center transition-all ${effectiveSource === 'manual' && showSourceSwitcher ? 'pt-4 border-t border-slate-700' : ''}`}>
                         <span>{t('cat.title')}</span>
                         <div className="flex items-center">
-                            <span className={`text-sm font-normal ${localCategories.length === 0 || (gameMode === 'bingo' && localCategories.length < gridSize * gridSize) ? 'text-red-400' : 'text-slate-400'} bg-slate-900 px-3 py-1 rounded-full`}>{gameMode === 'bingo' ? `${Math.min(localCategories.length, gridSize * gridSize)} / ${gridSize * gridSize}` : t('cat.wordsCount', { count: localCategories.length })}</span>
+                            <span className={`text-sm font-normal ${filledCategoryCount === 0 || (gameMode === 'bingo' && filledCategoryCount < gridSize * gridSize) ? 'text-red-400' : 'text-slate-400'} bg-slate-900 px-3 py-1 rounded-full`}>{gameMode === 'bingo' ? `${Math.min(filledCategoryCount, gridSize * gridSize)} / ${gridSize * gridSize}` : t('cat.wordsCount', { count: filledCategoryCount })}</span>
                             {isHost && (
                                 <button type="button" onClick={clearCategories} className="text-xs font-bold text-slate-400 bg-slate-800 hover:bg-slate-700 hover:text-white px-3 py-1 rounded-full ml-2 transition-colors">
                                     {t('cat.clear')}

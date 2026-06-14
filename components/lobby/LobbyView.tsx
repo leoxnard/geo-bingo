@@ -243,7 +243,7 @@ export default function LobbyView(props: LobbyViewProps) {
 
             <div className="flex flex-col lg:flex-row gap-4 sm:gap-6 w-full max-w-5xl">
                 <div className="flex-1 gap-4 sm:gap-6 flex flex-col">
-                    <LobbySettings key={`settings-${props.gameId}-${props.lastUpdated}`} isHost={props.isHost} gameMode={props.gameMode} teamMode={props.teamMode} gridSize={props.gridSize} timeLimit={props.timeLimit} endCondition={props.endCondition} exclusiveMode={props.exclusiveMode} scaleVoting={props.scaleVoting} updateGameModeInfo={props.updateGameModeInfo} />
+                    <LobbySettings isHost={props.isHost} gameMode={props.gameMode} teamMode={props.teamMode} gridSize={props.gridSize} timeLimit={props.timeLimit} endCondition={props.endCondition} exclusiveMode={props.exclusiveMode} scaleVoting={props.scaleVoting} updateGameModeInfo={props.updateGameModeInfo} />
 
                     <LobbyMap isHost={props.isHost} isLoaded={isLoaded} startingPoint={props.startingPoint} gameBoundary={props.gameBoundary} generationRadius={props.categorySource !== 'manual' ? props.generationRadius : undefined} updateGameModeInfo={props.updateGameModeInfo} />
 
