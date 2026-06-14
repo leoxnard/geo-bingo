@@ -216,7 +216,6 @@ export const de: Messages = {
 
     // ---- podium / results ----
     'podium.results': 'Ergebnisse',
-    'podium.calculating': 'Berechne Endpunkte...',
     'podium.bingo': 'BINGO!',
     'podium.points': '{score} Pkt',
     'podium.tie': '🏆 Epischer Gleichstand auf Platz eins!',

@@ -312,7 +312,6 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
                             <h1 className="text-4xl font-black uppercase tracking-widest text-indigo-400">{t('podium.results')}</h1>
                         </div>
                     </div>
-                    <div className="text-white text-center py-20 text-xl animate-pulse">{t('podium.calculating')}</div>
                 </div>
             </div>
         );

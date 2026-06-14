@@ -216,7 +216,6 @@ export const es: Messages = {
 
     // ---- podium / results ----
     'podium.results': 'Resultados',
-    'podium.calculating': 'Calculando puntuaciones finales...',
     'podium.bingo': '¡BINGO!',
     'podium.points': '{score} pts',
     'podium.tie': '🏆 ¡Épico empate en el primer puesto!',

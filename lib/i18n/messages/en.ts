@@ -217,7 +217,6 @@ export const en = {
 
     // ---- podium / results ----
     'podium.results': 'Results',
-    'podium.calculating': 'Calculating Final Scores...',
     'podium.bingo': 'BINGO!',
     'podium.points': '{score} Pts',
     'podium.tie': '🏆 Epic first place tie!',

@@ -216,7 +216,6 @@ export const zh: Messages = {
 
     // ---- podium / results ----
     'podium.results': '结果',
-    'podium.calculating': '正在计算最终得分...',
     'podium.bingo': '宾果！',
     'podium.points': '{score} 分',
     'podium.tie': '🏆 史诗级的第一名平局！',

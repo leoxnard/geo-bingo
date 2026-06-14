@@ -1037,7 +1037,6 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                                 strokeColor: pd.color,
                                 strokeOpacity: 0.8,
                                 strokeWeight: 6,
-                                geodesic: true,
                                 zIndex: 10000,
                             }}
                         />
