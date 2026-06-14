@@ -168,92 +168,31 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     }) => {
         if (!isHost) return;
 
-        const fieldsToUpdate: string[] = [];
-
-        // Optimistic update: update UI immediately
-        if (updates.game_mode) {
-            setGameMode(updates.game_mode as 'list' | 'bingo');
-            fieldsToUpdate.push('game_mode');
-        }
-        if (updates.team_mode) {
-            setTeamMode(updates.team_mode as 'ffa' | 'teams');
-            fieldsToUpdate.push('team_mode');
-        }
-        if (updates.categories) {
-            setCategories(updates.categories);
-            fieldsToUpdate.push('categories');
-        }
-        if (updates.suggested_categories !== undefined) {
-            setSuggestedCategories(updates.suggested_categories);
-            fieldsToUpdate.push('suggested_categories');
-        }
-        if (updates.time_limit) {
-            setTimeLimit(updates.time_limit);
-            fieldsToUpdate.push('time_limit');
-        }
-        if (updates.grid_size) {
-            setGridSize(updates.grid_size);
-            fieldsToUpdate.push('grid_size');
-        }
-        if (updates.starting_point) {
-            setStartingPoint(updates.starting_point);
-            fieldsToUpdate.push('starting_point');
-        }
-        if (updates.gameBoundary) {
-            setGameBoundary(updates.gameBoundary);
-            fieldsToUpdate.push('gameBoundary');
-        }
-        if (updates.end_condition) {
-            setEndCondition(updates.end_condition as 'first_bingo' | 'timer');
-            fieldsToUpdate.push('end_condition');
-        }
-        if (updates.hide_map_symbols !== undefined) {
-            setHideMapSymbols(updates.hide_map_symbols);
-            fieldsToUpdate.push('hide_map_symbols');
-        }
-        if (updates.hide_minimap !== undefined) {
-            setHideMiniMap(updates.hide_minimap);
-            fieldsToUpdate.push('hide_minimap');
-        }
-        if (updates.ai_end_game !== undefined) {
-            setAiEndGame(updates.ai_end_game);
-            fieldsToUpdate.push('ai_end_game');
-        }
-        if (updates.exclusive_mode !== undefined) {
-            setExclusiveMode(updates.exclusive_mode);
-            fieldsToUpdate.push('exclusive_mode');
-        }
-        if (updates.scale_voting !== undefined) {
-            setScaleVoting(updates.scale_voting);
-            fieldsToUpdate.push('scale_voting');
-        }
-        if (updates.category_source !== undefined) {
-            setCategorySource(updates.category_source);
-            fieldsToUpdate.push('category_source');
-        }
-        if (updates.generation_radius !== undefined) {
-            setGenerationRadius(updates.generation_radius);
-            fieldsToUpdate.push('generation_radius');
-        }
-        if (updates.generation_number !== undefined) {
-            setGenerationNumber(updates.generation_number);
-            fieldsToUpdate.push('generation_number');
-        }
-        if (updates.language !== undefined) {
-            setLanguage(updates.language);
-            fieldsToUpdate.push('language');
-        }
-        if (updates.difficulty !== undefined) {
-            setDifficulty(updates.difficulty);
-            fieldsToUpdate.push('difficulty');
-        }
-        if (updates.categories_generated !== undefined) {
-            setCategoriesGenerated(updates.categories_generated);
-            fieldsToUpdate.push('categories_generated');
-        }
-
-        // Add to pending optimistic updates to prevent subscription from overwriting
-        fieldsToUpdate.forEach((field) => pendingOptimisticUpdatesRef.current.add(field));
+        // Optimistic update: update UI immediately. The host is the sole writer of
+        // settings (all fields go through the host-only update_game_settings RPC),
+        // so the host's local state is authoritative and never reconciled against
+        // its own Realtime echo (see the games subscription, which only applies
+        // settings for non-hosts). That makes this the single source of truth.
+        if (updates.game_mode) setGameMode(updates.game_mode as 'list' | 'bingo');
+        if (updates.team_mode) setTeamMode(updates.team_mode as 'ffa' | 'teams');
+        if (updates.categories) setCategories(updates.categories);
+        if (updates.suggested_categories !== undefined) setSuggestedCategories(updates.suggested_categories);
+        if (updates.time_limit) setTimeLimit(updates.time_limit);
+        if (updates.grid_size) setGridSize(updates.grid_size);
+        if (updates.starting_point) setStartingPoint(updates.starting_point);
+        if (updates.gameBoundary) setGameBoundary(updates.gameBoundary);
+        if (updates.end_condition) setEndCondition(updates.end_condition as 'first_bingo' | 'timer');
+        if (updates.hide_map_symbols !== undefined) setHideMapSymbols(updates.hide_map_symbols);
+        if (updates.hide_minimap !== undefined) setHideMiniMap(updates.hide_minimap);
+        if (updates.ai_end_game !== undefined) setAiEndGame(updates.ai_end_game);
+        if (updates.exclusive_mode !== undefined) setExclusiveMode(updates.exclusive_mode);
+        if (updates.scale_voting !== undefined) setScaleVoting(updates.scale_voting);
+        if (updates.category_source !== undefined) setCategorySource(updates.category_source);
+        if (updates.generation_radius !== undefined) setGenerationRadius(updates.generation_radius);
+        if (updates.generation_number !== undefined) setGenerationNumber(updates.generation_number);
+        if (updates.language !== undefined) setLanguage(updates.language);
+        if (updates.difficulty !== undefined) setDifficulty(updates.difficulty);
+        if (updates.categories_generated !== undefined) setCategoriesGenerated(updates.categories_generated);
 
         // Background DB update: fire-and-forget without awaiting
         (async () => {
@@ -268,11 +207,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             } catch (err) {
                 console.error('Failed to update game settings:', err);
                 toast.error(t('game.failedSaveSettings'));
-            } finally {
-                // Clear pending updates after a delay to allow subscription to process
-                setTimeout(() => {
-                    fieldsToUpdate.forEach((field) => pendingOptimisticUpdatesRef.current.delete(field));
-                }, 500);
             }
         })();
     };
@@ -658,32 +592,39 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                         console.log('[GameRoom] Subscription status update:', payload.new.status, 'at', new Date().toISOString());
                         setStatus(payload.new.status);
                     }
-                    if (payload.new.categories !== undefined && !pendingOptimisticUpdatesRef.current.has('categories')) setCategories(payload.new.categories);
-                    if (payload.new.suggested_categories !== undefined && !pendingOptimisticUpdatesRef.current.has('suggested_categories')) setSuggestedCategories(payload.new.suggested_categories);
                     if (payload.new.ready_players !== undefined) setReadyPlayers(payload.new.ready_players);
                     if (payload.new.banned_players !== undefined) setBannedPlayers(payload.new.banned_players);
-                    if (payload.new.time_limit !== undefined && !pendingOptimisticUpdatesRef.current.has('time_limit')) setTimeLimit(payload.new.time_limit);
-                    if (payload.new.game_mode !== undefined && !pendingOptimisticUpdatesRef.current.has('game_mode')) setGameMode(payload.new.game_mode);
-                    if (payload.new.team_mode !== undefined && !pendingOptimisticUpdatesRef.current.has('team_mode')) setTeamMode(payload.new.team_mode);
-                    if (payload.new.grid_size !== undefined && !pendingOptimisticUpdatesRef.current.has('grid_size')) setGridSize(payload.new.grid_size);
-                    if (payload.new.starting_point !== undefined && !pendingOptimisticUpdatesRef.current.has('starting_point')) setStartingPoint(payload.new.starting_point);
-                    if (payload.new.gameBoundary !== undefined && !pendingOptimisticUpdatesRef.current.has('gameBoundary')) setGameBoundary(payload.new.gameBoundary);
-                    if (payload.new.end_condition !== undefined && !pendingOptimisticUpdatesRef.current.has('end_condition')) setEndCondition(payload.new.end_condition);
-                    if (payload.new.hide_map_symbols !== undefined && !pendingOptimisticUpdatesRef.current.has('hide_map_symbols')) setHideMapSymbols(payload.new.hide_map_symbols);
-                    if (payload.new.hide_minimap !== undefined && !pendingOptimisticUpdatesRef.current.has('hide_minimap')) setHideMiniMap(payload.new.hide_minimap);
-                    if (payload.new.ai_end_game !== undefined && !pendingOptimisticUpdatesRef.current.has('ai_end_game')) setAiEndGame(payload.new.ai_end_game);
-                    if (payload.new.exclusive_mode !== undefined && !pendingOptimisticUpdatesRef.current.has('exclusive_mode')) setExclusiveMode(payload.new.exclusive_mode);
-                    if (payload.new.scale_voting !== undefined && !pendingOptimisticUpdatesRef.current.has('scale_voting')) setScaleVoting(payload.new.scale_voting);
-                    if (payload.new.category_source !== undefined && !pendingOptimisticUpdatesRef.current.has('category_source')) {
-                        setCategorySource(payload.new.category_source);
+
+                    // Settings are written exclusively by the host (via the host-only
+                    // update_game_settings RPC), so the host's local state is the source
+                    // of truth and must NOT be overwritten by its own Realtime echo —
+                    // doing so caused stale echoes to revert fast/rapid edits. Only push
+                    // these fields to non-host players.
+                    const isHostNow = gameHostIdRef.current === currentPlayerId;
+                    if (!isHostNow) {
+                        if (payload.new.categories !== undefined) setCategories(payload.new.categories);
+                        if (payload.new.suggested_categories !== undefined) setSuggestedCategories(payload.new.suggested_categories);
+                        if (payload.new.time_limit !== undefined) setTimeLimit(payload.new.time_limit);
+                        if (payload.new.game_mode !== undefined) setGameMode(payload.new.game_mode);
+                        if (payload.new.team_mode !== undefined) setTeamMode(payload.new.team_mode);
+                        if (payload.new.grid_size !== undefined) setGridSize(payload.new.grid_size);
+                        if (payload.new.starting_point !== undefined) setStartingPoint(payload.new.starting_point);
+                        if (payload.new.gameBoundary !== undefined) setGameBoundary(payload.new.gameBoundary);
+                        if (payload.new.end_condition !== undefined) setEndCondition(payload.new.end_condition);
+                        if (payload.new.hide_map_symbols !== undefined) setHideMapSymbols(payload.new.hide_map_symbols);
+                        if (payload.new.hide_minimap !== undefined) setHideMiniMap(payload.new.hide_minimap);
+                        if (payload.new.ai_end_game !== undefined) setAiEndGame(payload.new.ai_end_game);
+                        if (payload.new.exclusive_mode !== undefined) setExclusiveMode(payload.new.exclusive_mode);
+                        if (payload.new.scale_voting !== undefined) setScaleVoting(payload.new.scale_voting);
+                        if (payload.new.category_source !== undefined) setCategorySource(payload.new.category_source);
+                        if (payload.new.generation_radius !== undefined) setGenerationRadius(payload.new.generation_radius);
+                        if (payload.new.generation_number !== undefined) setGenerationNumber(payload.new.generation_number);
+                        if (payload.new.language !== undefined) setLanguage(payload.new.language);
+                        if (payload.new.difficulty !== undefined) setDifficulty(payload.new.difficulty);
+                        if (payload.new.categories_generated !== undefined) setCategoriesGenerated(payload.new.categories_generated);
+                        if (payload.new.category_hint_translations !== undefined) setCategoryHintTranslations(payload.new.category_hint_translations);
+                        if (payload.new.category_translations !== undefined) setCategoryTranslations(payload.new.category_translations);
                     }
-                    if (payload.new.generation_radius !== undefined && !pendingOptimisticUpdatesRef.current.has('generation_radius')) setGenerationRadius(payload.new.generation_radius);
-                    if (payload.new.generation_number !== undefined && !pendingOptimisticUpdatesRef.current.has('generation_number')) setGenerationNumber(payload.new.generation_number);
-                    if (payload.new.language !== undefined && !pendingOptimisticUpdatesRef.current.has('language')) setLanguage(payload.new.language);
-                    if (payload.new.difficulty !== undefined && !pendingOptimisticUpdatesRef.current.has('difficulty')) setDifficulty(payload.new.difficulty);
-                    if (payload.new.categories_generated !== undefined && !pendingOptimisticUpdatesRef.current.has('categories_generated')) setCategoriesGenerated(payload.new.categories_generated);
-                    if (payload.new.category_hint_translations !== undefined && !pendingOptimisticUpdatesRef.current.has('category_hint_translations')) setCategoryHintTranslations(payload.new.category_hint_translations);
-                    if (payload.new.category_translations !== undefined && !pendingOptimisticUpdatesRef.current.has('category_translations')) setCategoryTranslations(payload.new.category_translations);
                 },
             )
             .subscribe();
