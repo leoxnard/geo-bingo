@@ -21,6 +21,7 @@ import { CiCircleAlert, CiCircleCheck } from 'react-icons/ci';
 import NamePrompt from '@/components/game/NamePrompt';
 import LobbyView from '@/components/lobby/LobbyView';
 import { buildHintMap } from '@/components/streetview/streetViewHelpers';
+import { ErrorBoundary } from '@/components/utils/ErrorBoundary';
 import { shuffle } from '@/components/utils/Functions';
 import { Player } from '@/components/utils/types';
 import { FEATURES } from '@/lib/featureFlags';
@@ -992,7 +993,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             ) : nameGate === 'prompt' ? (
                 <NamePrompt onSubmit={handleNameSubmit} />
             ) : (
-                selectView()
+                <ErrorBoundary key={status}>{selectView()}</ErrorBoundary>
             )}
         </>
     );
