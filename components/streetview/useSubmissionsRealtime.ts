@@ -48,7 +48,6 @@ export function useSubmissionsRealtime({ gameId, playerId, players, teamMode }: 
                     filter: `game_id=eq.${gameId}`,
                 },
                 (payload) => {
-                    console.log('New submission received via realtime:', payload);
                     const newSub = payload.new as Submission;
                     setAllSubmissions((prev) => {
                         if (prev.find((s) => s.id === newSub.id)) return prev;
