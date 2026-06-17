@@ -51,8 +51,20 @@ async function fetchImageAsBase64(url: string): Promise<{ mime: string; data: st
 
 // Coarse reverse-geocode cache, keyed by ~1 km rounded coordinates so nearby
 // submissions reuse one lookup. Values: a short "Region, Country" string, or
-// null when the lookup failed / returned nothing.
+// null when the lookup failed / returned nothing. Bounded with FIFO eviction so
+// a long-lived tab playing many games can't grow it without limit (a single
+// play area only ever needs a handful of entries).
+const LOCATION_CACHE_MAX = 500;
 const locationCache = new Map<string, string | null>();
+
+function cacheLocation(key: string, label: string | null) {
+    // Map preserves insertion order, so the first key is the oldest.
+    if (locationCache.size >= LOCATION_CACHE_MAX) {
+        const oldest = locationCache.keys().next().value;
+        if (oldest !== undefined) locationCache.delete(oldest);
+    }
+    locationCache.set(key, label);
+}
 
 // Best-effort coarse location (e.g. "Bavaria, Germany") for a submission. Used
 // only as a soft hint to the verifier — never blocks verification on failure.
@@ -75,7 +87,7 @@ async function reverseGeocodeCoarse(lat: number, lng: number, mapsKey: string): 
     } catch {
         label = null; // network/parse failure — proceed without location context
     }
-    locationCache.set(key, label);
+    cacheLocation(key, label);
     return label;
 }
 
