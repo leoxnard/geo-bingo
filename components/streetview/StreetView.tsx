@@ -290,13 +290,13 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
         if (timeLeft === 61) {
             const alertSound = new Audio('/sounds/ticking.wav');
             alertSound.volume = 0.4;
-            alertSound.play().catch((e) => console.log('Audio playback failed', e));
+            alertSound.play().catch((e) => console.warn('Audio playback failed', e));
         }
 
         if (timeLeft === 11) {
             const tickSound = new Audio('/sounds/countdown.wav');
             tickSound.volume = 0.3;
-            tickSound.play().catch((e) => console.log('Audio playback failed', e));
+            tickSound.play().catch((e) => console.warn('Audio playback failed', e));
         }
     }, [timeLeft]);
 
