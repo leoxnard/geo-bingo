@@ -6,6 +6,7 @@ Geo BingBong is a multiplayer geolocation game that brings the fun of Bingo into
 
 - **Real-Time Multiplayer:** Built with [Supabase](https://supabase.com) Realtime to instantly sync player states, submissions, and voting.
 - **Interactive Street View:** Utilizes the Google Maps JavaScript API and Street View Static API so players can explore and capture the perfect angle of their findings.
+- **Daily Challenge:** A single global challenge every day — find a category in Street View as fast as you can and race a worldwide leaderboard. Signed-in players are ranked by time; anonymous players can still play but aren't recorded. After success or forfeit, the answer location is revealed (for challenges with a known viewpoint). A downvote system removes invalid finds once they reach 90 % of completers.
 - **Community Presets:** Browse and use community-created game presets, or create your own to share. Each preset includes custom categories with viewpoints, recommended time limits, difficulty, game mode (list/bingo), grid size, optional starting point, boundary restrictions, and advanced settings (hide minimap/map symbols, exclusive mode, AI end-game).
 - **Preset Voting:** Upvote your favorite community presets (with automatic model-fallback regenerate option for authors) to help others find the best content. Authors can also edit or delete their own presets.
 - **Game Modes:** Choose between classic List mode or Bingo Mode (dynamic 3×3, 4×4, or 5×5 grid sizes).
@@ -23,9 +24,9 @@ Geo BingBong is a multiplayer geolocation game that brings the fun of Bingo into
 
 ## Tech Stack
 
-- **Framework:** [Next.js](https://nextjs.org/) 16.2 (App Router, Turbopack)
-- **Backend & Database:** [Supabase](https://supabase.com/) (PostgreSQL & Realtime Channels)
-- **AI:** [Gemini API](https://ai.google.dev/gemini) for generating dynamic categories and verifying submissions (with automatic model fallback for rate limit resilience)
+- **Framework:** [Next.js](https://nextjs.org/) 16.2 (App Router, webpack)
+- **Backend & Database:** [Supabase](https://supabase.com/) (PostgreSQL, Realtime Channels, pg_cron)
+- **AI:** [Gemini API](https://ai.google.dev/gemini) for generating dynamic categories, verifying submissions, and translating challenge labels (with automatic model fallback for rate limit resilience)
 - **Maps:** `@react-google-maps/api` & Google Maps APIs (JavaScript API, Street View Static API, Places API)
 - **Styling:** [Tailwind CSS](https://tailwindcss.com/) v4
 - **Deployment:** [Vercel](https://vercel.com/) (Analytics & Speed Insights included)
@@ -60,6 +61,7 @@ Create a `.env.local` file in the root directory and add the following keys. You
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+
 # Server-side only (no NEXT_PUBLIC_ prefix) — proxied via /api/gemini so the key
 # never reaches the browser. Restrict the Maps key by HTTP referrer in Google Cloud.
 #
@@ -70,6 +72,15 @@ NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
 GEMINI_API_KEY=your_gemini_api_key
 # GEMINI_API_KEY_FREE=your_free_tier_key   # used for AI category generation
 # GEMINI_API_KEY_PAID=your_paid_tier_key   # used for submission verification
+
+# Optional — used by /api/translate to translate daily challenge category names via
+# DeepL as a fallback when Gemini translation is unavailable.
+# DEEPL_API_KEY=your_deepl_api_key
+
+# Optional — gates Vercel preview deployments behind HTTP basic auth.
+# Has no effect in local dev or production.
+# BASIC_AUTH_USER=your_preview_username
+# BASIC_AUTH_PASSWORD=your_preview_password
 ```
 
 ### 4. Set up the database
@@ -79,6 +90,14 @@ GEMINI_API_KEY=your_gemini_api_key
 The files in [`supabase/migrations/`](supabase/migrations/) are the **incremental** function/policy changes that have already been folded into `schema.sql`; they do **not** contain the `CREATE TABLE` statements, so they can't bootstrap an empty database on their own. Use them only to apply a specific later change to a project that already has the tables.
 
 After any schema change, regenerate the dump with `npm run generate:schema` (requires Docker).
+
+**Daily Challenge admin access:** The daily challenge curation UI at `/admin/daily` is gated to e-mail addresses listed in the `daily_admins` table. The migration seeds it with the project owner's address; add further admins with:
+
+```sql
+INSERT INTO daily_admins (email) VALUES ('you@example.com');
+```
+
+The daily challenge scheduler runs automatically via pg_cron every day at 00:00 UTC — no manual trigger is needed.
 
 ### 5. Run the Development Server
 
@@ -94,12 +113,22 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 Visit the dedicated [How to Play](/how-to-play) page for a complete walkthrough with screenshots and to browse community-made game configurations.
 
-Quick summary:
+**Multiplayer quick summary:**
 
 1. **Create or Join a Match:** A host creates a game room, picks a map area (or browses `/community` for community presets), and generates custom categories.
 2. **The Hunt:** Players get dropped into Street View. Whenever you spot a category (e.g., "A red car", "A funny sign"), point your camera at it and capture!
 3. **Voting:** Once the hunt ends, players review everyone's submissions and vote if they actually captured the prompt.
 4. **Results:** The points are tallied, and the winner is crowned!
+
+**Daily Challenge quick summary (`/daily`):**
+
+1. Visit `/daily` to see today's category and the global leaderboard.
+2. Jump into Street View and find the category as fast as you can. Your timer starts immediately.
+3. Hit **"I found it"** — Gemini verifies the capture. On success your time is posted to the leaderboard.
+4. Hit **"Give up"** at any time to forfeit and reveal the answer location.
+5. Once you've submitted, you can see other players' finds and downvote invalid ones.
+
+Sign in to be ranked; anonymous players can play but won't appear on the leaderboard.
 
 ## License
 
