@@ -46,6 +46,9 @@ interface Viewpoint {
 // ref, so the move happens in the parent's click handler, not a prop effect).
 export interface StreetViewExplorerHandle {
     openViewpoint: (vp: Viewpoint) => void;
+    // Read the panorama's current position + POV (used by the Daily Challenge play
+    // view to capture a "find" without going through the save-spot modal).
+    readViewpoint: () => Viewpoint | null;
 }
 
 interface StreetViewExplorerProps {
@@ -65,11 +68,21 @@ interface StreetViewExplorerProps {
     initialPosition?: { lat: number; lng: number };
     /** Hovered category name from the category list (for minimap zoom effect). */
     hoveredSpot?: string | null;
+    /** Daily Challenge manual-select: show a start-point picker in the save modal
+     *  (the chosen point is returned on the saved category as startLat/startLng). */
+    allowStartPoint?: boolean;
+    /** Daily Challenge manual-select: render the capture panorama as a centred
+     *  square so the live framing matches the square still that gets saved. */
+    panoAspectSquare?: boolean;
+    /** Daily Challenge manual-select: report the captured viewpoint up instead of
+     *  opening the internal name/start modal — the parent drives the next step
+     *  (naming + start point + boundaries). When set, no overlay is shown. */
+    onCaptureSpot?: (vp: Viewpoint) => void;
 }
 
 const DEFAULT_POSITION = { lat: 20, lng: 0 };
 
-const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplorerProps>(function StreetViewExplorer({ isLoaded, mode = 'capture', onSave, onViewpointChange, spots = [], existingNames = [], gameBoundary = '[]', initialPosition, hoveredSpot }, ref) {
+const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplorerProps>(function StreetViewExplorer({ isLoaded, mode = 'capture', onSave, onViewpointChange, spots = [], existingNames = [], gameBoundary = '[]', initialPosition, hoveredSpot, allowStartPoint = false, panoAspectSquare = false, onCaptureSpot }, ref) {
     const { t } = useT();
     const exploreMapRef = useRef<google.maps.Map | null>(null); // map that owns the navigable panorama
     const panoRef = useRef<google.maps.StreetViewPanorama | null>(null);
@@ -81,6 +94,7 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
     const prevMiniCenterRef = useRef<google.maps.LatLngLiteral | null>(null);
 
     const [pendingSpot, setPendingSpot] = useState<Viewpoint | null>(null);
+    const [pendingStart, setPendingStart] = useState<{ lat: number; lng: number } | null>(null);
     const [categoryName, setCategoryName] = useState('');
     const [categoryHint, setCategoryHint] = useState('');
     const [search, setSearch] = useState('');
@@ -164,7 +178,7 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
     );
 
     // Let the builder jump the panorama to a saved spot (thumbnail click).
-    useImperativeHandle(ref, () => ({ openViewpoint }), [openViewpoint]);
+    useImperativeHandle(ref, () => ({ openViewpoint, readViewpoint }), [openViewpoint, readViewpoint]);
 
     // The navigable panorama (right side in capture; the only map in simulate).
     const onExploreMapLoad = useCallback(
@@ -286,6 +300,11 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
     const handleSaveClick = () => {
         const vp = readViewpoint();
         if (!vp) return;
+        // Daily admin: skip the overlay and hand the viewpoint to the parent.
+        if (onCaptureSpot) {
+            onCaptureSpot(vp);
+            return;
+        }
         setPendingSpot(vp);
         setCategoryName('');
     };
@@ -319,8 +338,9 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
             return;
         }
         const hint = categoryHint.trim();
-        onSave({ categoryName: name, hint: hint || undefined, ...pendingSpot });
+        onSave({ categoryName: name, hint: hint || undefined, ...pendingSpot, ...(pendingStart ? { startLat: pendingStart.lat, startLng: pendingStart.lng } : {}) });
         setPendingSpot(null);
+        setPendingStart(null);
         setCategoryName('');
         setCategoryHint('');
     };
@@ -373,10 +393,15 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
                     </div>
 
                     {/* Right: navigable panorama (opens once a position is picked) */}
-                    <div className="relative h-1/2 w-full md:h-full md:w-1/2">
-                        <GoogleMap mapContainerClassName="absolute inset-0" center={start} zoom={3} options={mapOptions()} onLoad={onExploreMapLoad}>
-                            <StreetViewPanorama options={panoOptions} />
-                        </GoogleMap>
+                    <div className="relative flex h-1/2 w-full items-center justify-center bg-slate-900 md:h-full md:w-1/2" style={panoAspectSquare ? { containerType: 'size' } : undefined}>
+                        {/* In square mode the panorama is the largest centred square that fits
+                            (min of the panel's width/height), so the live view matches the
+                            square still that "Save spot" captures. */}
+                        <div className={panoAspectSquare ? 'relative' : 'absolute inset-0'} style={panoAspectSquare ? { width: 'min(100cqw, 100cqh)', height: 'min(100cqw, 100cqh)' } : undefined}>
+                            <GoogleMap mapContainerClassName="absolute inset-0" center={start} zoom={3} options={mapOptions()} onLoad={onExploreMapLoad}>
+                                <StreetViewPanorama options={panoOptions} />
+                            </GoogleMap>
+                        </div>
 
                         {!opened && (
                             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-slate-900/85 text-center px-6 pointer-events-none">
@@ -385,7 +410,7 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
                             </div>
                         )}
 
-                        {opened && (
+                        {opened && (onSave || onCaptureSpot) && (
                             <button type="button" onClick={handleSaveClick} className="absolute bottom-5 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-6 rounded-full shadow-xl uppercase">
                                 <FaCamera /> {t('community.saveSpot')}
                             </button>
@@ -401,16 +426,38 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
             {/* Name-this-spot modal */}
             {pendingSpot && (
                 <div className="absolute inset-0 z-20 bg-black/60 flex items-center justify-center p-4">
-                    <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 w-full max-w-md flex flex-col gap-4">
+                    <div className={`bg-slate-800 border border-slate-700 rounded-2xl p-5 w-full ${allowStartPoint ? 'max-w-2xl' : 'max-w-md'} max-h-[90vh] overflow-y-auto flex flex-col gap-4`}>
                         <h3 className="font-bold text-white">{t('community.nameSpotTitle')}</h3>
                         <img src={getStreetViewImageUrl(pendingSpot, 400)} alt="" className="w-full rounded-xl aspect-square object-cover" />
                         <input autoFocus type="text" placeholder={t('community.categoryNamePlaceholder')} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-600 focus:border-indigo-500 text-white outline-none" value={categoryName} onChange={(e) => setCategoryName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && confirmSave()} />
                         <input type="text" placeholder={t('community.categoryHintPlaceholder')} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-600 focus:border-indigo-500 text-white outline-none" value={categoryHint} onChange={(e) => setCategoryHint(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && confirmSave()} />
+
+                        {allowStartPoint && (
+                            <div className="flex flex-col gap-2">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-sm font-bold text-slate-200">{t('community.startPoint')}</p>
+                                    {pendingStart && (
+                                        <button type="button" onClick={() => setPendingStart(null)} className="text-xs font-medium text-slate-400 hover:text-white">
+                                            {t('community.clearStart')}
+                                        </button>
+                                    )}
+                                </div>
+                                <p className="text-xs text-slate-500">{t('community.startHelp')}</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="relative aspect-square overflow-hidden rounded-xl border border-slate-600">
+                                        <StartPointPicker value={pendingStart} onChange={setPendingStart} />
+                                    </div>
+                                    <div className="relative aspect-square overflow-hidden rounded-xl border border-slate-600 bg-slate-900">{pendingStart ? <img src={getStreetViewImageUrl({ lat: pendingStart.lat, lng: pendingStart.lng, heading: 0, pitch: 0, zoom: 1 }, 300)} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center px-2 text-center text-xs text-slate-500">{t('community.startPreviewEmpty')}</div>}</div>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="flex gap-2 justify-end">
                             <button
                                 type="button"
                                 onClick={() => {
                                     setPendingSpot(null);
+                                    setPendingStart(null);
                                     setCategoryHint('');
                                 }}
                                 className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold uppercase text-sm"
@@ -427,5 +474,33 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
         </div>
     );
 });
+
+// A compact map for picking a Daily-Challenge start point: drop the Pegman or
+// click/drag the marker. Reports the chosen point (or null to clear) upward; the
+// parent renders the Street View preview next to it.
+function StartPointPicker({ value, onChange }: { value: { lat: number; lng: number } | null; onChange: (p: { lat: number; lng: number } | null) => void }) {
+    const onLoad = useCallback(
+        (map: google.maps.Map) => {
+            const sv = map.getStreetView();
+            sv.addListener('visible_changed', () => {
+                if (!sv.getVisible()) return;
+                // We only want where the Pegman landed — grab it, then close the
+                // panorama (this picker never walks around).
+                setTimeout(() => {
+                    const pos = sv.getPosition();
+                    if (pos) onChange({ lat: pos.lat(), lng: pos.lng() });
+                    sv.setVisible(false);
+                }, 0);
+            });
+        },
+        [onChange],
+    );
+
+    return (
+        <GoogleMap mapContainerClassName="absolute inset-0" center={value ?? DEFAULT_POSITION} zoom={value ? 14 : 2} options={mapOptions({ streetViewControl: true })} onLoad={onLoad} onClick={(e) => e.latLng && onChange({ lat: e.latLng.lat(), lng: e.latLng.lng() })}>
+            {value && <MarkerF position={value} draggable onDragEnd={(e) => e.latLng && onChange({ lat: e.latLng.lat(), lng: e.latLng.lng() })} />}
+        </GoogleMap>
+    );
+}
 
 export default StreetViewExplorer;

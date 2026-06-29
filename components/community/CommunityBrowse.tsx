@@ -16,16 +16,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { FaArrowLeft, FaPen, FaPlus, FaSignOutAlt, FaUserCircle } from 'react-icons/fa';
+import { FaArrowLeft, FaPlus } from 'react-icons/fa';
 
+import AccountButton from '@/components/account/AccountButton';
 import type { CommunityPreset } from '@/components/utils/types';
-import { getMyVotes, getPreset, listPresets, votePreset, deletePreset, renameAuthor, type PresetSort } from '@/lib/community';
+import { getMyVotes, getPreset, listPresets, votePreset, deletePreset, type PresetSort } from '@/lib/community';
 import { useT } from '@/lib/i18n/I18nProvider';
-import { supabase } from '@/lib/supabase';
 
-import AuthGate from './AuthGate';
 import PresetCard from './PresetCard';
-import { displayNameFor, useUser } from './useUser';
+import { useUser } from './useUser';
 
 const SORTS: { key: PresetSort; labelKey: string }[] = [
     { key: 'top', labelKey: 'community.sortTop' },
@@ -34,7 +33,7 @@ const SORTS: { key: PresetSort; labelKey: string }[] = [
 
 export default function CommunityBrowse() {
     const { t } = useT();
-    const { user, loading: userLoading } = useUser();
+    const { user } = useUser();
 
     // Share-link deep link: /community?preset=<id> pins that preset to the top
     // (fetching it if absent), highlights it and scrolls it into view once.
@@ -45,12 +44,6 @@ export default function CommunityBrowse() {
     const [myVotes, setMyVotes] = useState<Record<string, number>>({});
     const [sort, setSort] = useState<PresetSort>('top');
     const [loading, setLoading] = useState(true);
-
-    // Auth + account-name controls.
-    const [showAuth, setShowAuth] = useState(false);
-    const [renaming, setRenaming] = useState(false);
-    const [renameValue, setRenameValue] = useState('');
-    const [savingName, setSavingName] = useState(false);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -114,32 +107,6 @@ export default function CommunityBrowse() {
         }
     };
 
-    const signOut = async () => {
-        await supabase.auth.signOut();
-    };
-
-    const openRename = () => {
-        setRenameValue(displayNameFor(user));
-        setRenaming(true);
-    };
-
-    const saveRename = async () => {
-        const next = renameValue.trim();
-        if (!next) return;
-        setSavingName(true);
-        try {
-            await renameAuthor(next);
-            setRenaming(false);
-            toast.success(t('community.nameUpdated'));
-            // Re-pull so every card of theirs shows the new author name.
-            load();
-        } catch {
-            toast.error(t('community.nameUpdateError'));
-        } finally {
-            setSavingName(false);
-        }
-    };
-
     return (
         <main className="min-h-dvh bg-slate-900 text-white">
             <div className="max-w-6xl mx-auto px-4 py-8 flex flex-col gap-6">
@@ -155,24 +122,7 @@ export default function CommunityBrowse() {
                     </div>
 
                     <div className="flex items-center gap-3">
-                        {/* Auth control */}
-                        {!userLoading &&
-                            (user ? (
-                                <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 rounded-xl pl-3 pr-1.5 py-1.5">
-                                    <FaUserCircle className="text-slate-400 shrink-0" />
-                                    <span className="text-sm text-slate-200 max-w-[9rem] truncate">{displayNameFor(user)}</span>
-                                    <button type="button" onClick={openRename} aria-label={t('community.renameName')} className="text-slate-500 hover:text-indigo-400 p-1.5">
-                                        <FaPen size={12} />
-                                    </button>
-                                    <button type="button" onClick={signOut} aria-label={t('community.signOut')} title={t('community.signOut')} className="text-slate-500 hover:text-red-400 p-1.5">
-                                        <FaSignOutAlt size={14} />
-                                    </button>
-                                </div>
-                            ) : (
-                                <button type="button" onClick={() => setShowAuth(true)} className="bg-slate-800 border border-slate-700 hover:border-slate-500 text-white font-bold py-2.5 px-5 rounded-xl uppercase text-sm transition-colors">
-                                    {t('community.signIn')}
-                                </button>
-                            ))}
+                        <AccountButton onRenamed={load} />
 
                         <Link href="/community/create" className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 px-5 rounded-xl uppercase transition-colors">
                             <FaPlus size={12} /> {t('community.createCta')}
@@ -216,43 +166,6 @@ export default function CommunityBrowse() {
                     </div>
                 )}
             </div>
-
-            {/* Sign-in modal */}
-            {showAuth && (
-                <div className="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-4" onClick={() => setShowAuth(false)}>
-                    <div className="relative" onClick={(e) => e.stopPropagation()}>
-                        <AuthGate>
-                            <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 flex flex-col gap-3 max-w-md">
-                                <p className="text-slate-200">{t('community.signedIn')}</p>
-                                <button type="button" onClick={() => setShowAuth(false)} className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl uppercase transition-all">
-                                    {t('community.done')}
-                                </button>
-                            </div>
-                        </AuthGate>
-                    </div>
-                </div>
-            )}
-
-            {/* Account-wide rename modal */}
-            {renaming && (
-                <div className="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-4" onClick={() => setRenaming(false)}>
-                    <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 w-full max-w-md flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
-                        <div>
-                            <h3 className="font-bold text-white">{t('community.renameName')}</h3>
-                            <p className="text-xs text-slate-400 mt-1">{t('community.renameNameHelp')}</p>
-                        </div>
-                        <input autoFocus type="text" value={renameValue} maxLength={40} onChange={(e) => setRenameValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveRename()} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-600 focus:border-indigo-500 text-white outline-none" />
-                        <div className="flex gap-2 justify-end">
-                            <button type="button" onClick={() => setRenaming(false)} className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold uppercase text-sm">
-                                {t('common.cancel')}
-                            </button>
-                            <button type="button" onClick={saveRename} disabled={!renameValue.trim() || savingName} className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase text-sm disabled:opacity-50">
-                                {savingName ? t('common.loading') : t('community.rename')}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </main>
     );
 }
