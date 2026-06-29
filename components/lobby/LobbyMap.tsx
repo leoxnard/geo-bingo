@@ -38,7 +38,7 @@ interface LobbyMapProps {
     extraMarkers?: { lat: number; lng: number; label?: string }[];
     hoveredCategory?: string | null;
     centerOn?: { lat: number; lng: number; zoom?: number };
-    hideDescription: boolean;
+    hideDescription?: boolean;
 }
 
 export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary, generationRadius, updateGameModeInfo, extraMarkers, hoveredCategory, centerOn, hideDescription = false }: LobbyMapProps) {
