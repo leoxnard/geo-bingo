@@ -37,9 +37,11 @@ interface LobbyMapProps {
     updateGameModeInfo: (updates: { starting_point?: string; gameBoundary?: string; category_source?: 'manual' | 'nearbyPlaces' | 'nearbyStreetView' }) => void;
     extraMarkers?: { lat: number; lng: number; label?: string }[];
     hoveredCategory?: string | null;
+    centerOn?: { lat: number; lng: number; zoom?: number };
+    hideDescription: boolean;
 }
 
-export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary, generationRadius, updateGameModeInfo, extraMarkers, hoveredCategory }: LobbyMapProps) {
+export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary, generationRadius, updateGameModeInfo, extraMarkers, hoveredCategory, centerOn, hideDescription = false }: LobbyMapProps) {
     const { t } = useT();
     const groupLabel = (key: string) => {
         switch (key) {
@@ -94,12 +96,15 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
 
     const actualStart = startingPoint || 'open-world';
 
-    const additionalMapOptions = {
-        streetViewControl: isHost,
-        gestureHandling: 'greedy',
-        draggableCursor: isHost ? 'crosshair' : 'default',
-        disableDoubleClickZoom: isHost,
-    };
+    const additionalMapOptions = useMemo(
+        () => ({
+            streetViewControl: isHost,
+            gestureHandling: 'greedy',
+            draggableCursor: isHost ? 'crosshair' : 'default',
+            disableDoubleClickZoom: isHost,
+        }),
+        [isHost],
+    );
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -135,24 +140,35 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     }, [gameBoundary]);
 
     // Zoom to hovered category (slightly zoomed in to see the point)
+    const wasHoveringRef = useRef(false);
     useEffect(() => {
         if (!mapInstance) return;
         if (hoveredCategory && extraMarkers) {
             const marker = extraMarkers.find((m) => m.label === hoveredCategory);
             if (marker) {
+                wasHoveringRef.current = true;
                 prevZoomRef.current = mapInstance.getZoom() ?? 1;
                 const center = mapInstance.getCenter();
                 prevCenterRef.current = center ? { lat: center.lat(), lng: center.lng() } : null;
                 mapInstance.panTo({ lat: marker.lat, lng: marker.lng });
                 mapInstance.setZoom(12);
             }
-        } else if (!hoveredCategory) {
+        } else if (!hoveredCategory && wasHoveringRef.current) {
+            wasHoveringRef.current = false;
             mapInstance.setZoom(prevZoomRef.current);
             if (prevCenterRef.current) {
                 mapInstance.panTo(prevCenterRef.current);
             }
         }
     }, [hoveredCategory, extraMarkers, mapInstance]);
+
+    // Pan + zoom to a fixed point on first load (e.g. the captured Street View spot).
+    useEffect(() => {
+        if (!mapInstance || !centerOn) return;
+        mapInstance.panTo({ lat: centerOn.lat, lng: centerOn.lng });
+        mapInstance.setZoom(centerOn.zoom ?? 14);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mapInstance]);
 
     const parseBoundaryString = (boundaryString: string): BoundaryPolygon[] => {
         if (!boundaryString || boundaryString === '[]') return [];
@@ -636,18 +652,20 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     return (
         <div className="bg-slate-800 p-4 sm:p-6 rounded-xl flex-1 border border-slate-700 h-fit">
             {/* use icon public/map.boundary.howto.svg as description */}
-            <div className="grid grid-cols-2 gap-4 mb-4">
-                <div className="flex flex-col items-center">
-                    <p className="text-xl font-bold text-slate-200 mb-2">{t('map.boundaryTitle')}</p>
-                    <MaskIcon name="map.boundary.howto" className="h-24 w-48 text-slate-400" />
-                    <p className="text-xs text-slate-400 mt-2">{t('map.boundaryDescription')}</p>
+            {!hideDescription && (
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="flex flex-col items-center">
+                        <p className="text-xl font-bold text-slate-200 mb-2">{t('map.boundaryTitle')}</p>
+                        <MaskIcon name="map.boundary.howto" className="h-24 w-48 text-slate-400" />
+                        <p className="text-xs text-slate-400 mt-2">{t('map.boundaryDescription')}</p>
+                    </div>
+                    <div className="flex flex-col items-center">
+                        <p className="text-xl font-bold text-slate-200 mb-2">{t('map.startingPointTitle')}</p>
+                        <MaskIcon name="map.startingpoint.howto" className="h-24 w-48 text-slate-400" />
+                        <p className="text-xs text-slate-400 mt-2">{t('map.pegmanDescription')}</p>
+                    </div>
                 </div>
-                <div className="flex flex-col items-center">
-                    <p className="text-xl font-bold text-slate-200 mb-2">{t('map.startingPointTitle')}</p>
-                    <MaskIcon name="map.startingpoint.howto" className="h-24 w-48 text-slate-400" />
-                    <p className="text-xs text-slate-400 mt-2">{t('map.pegmanDescription')}</p>
-                </div>
-            </div>
+            )}
 
             <div className="mt-4 flex flex-col gap-2">
                 <div className="h-[320px] min-h-[320px] sm:h-[400px] sm:min-h-[400px] w-full rounded-lg overflow-hidden border border-slate-700 relative bg-slate-800/50 flex flex-col items-center justify-center">
@@ -655,7 +673,16 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                         <div className="text-slate-400">{t('map.loadingPresets')}</div>
                     ) : (
                         <div ref={containerRef} className="absolute inset-0 w-full h-full">
-                            <GoogleMap onLoad={setMapInstance} mapContainerStyle={{ width: '100%', height: '100%' }} center={DEFAULT_CENTER} zoom={1} onClick={handleMapClick} options={mapOptions(additionalMapOptions)}>
+                            <GoogleMap
+                                onLoad={(m) => {
+                                    m.setCenter(DEFAULT_CENTER);
+                                    m.setZoom(1);
+                                    setMapInstance(m);
+                                }}
+                                mapContainerStyle={{ width: '100%', height: '100%' }}
+                                onClick={handleMapClick}
+                                options={mapOptions(additionalMapOptions)}
+                            >
                                 {/* World-default tint: green when the rest of the world is allowed, red when forbidden. */}
                                 <RectangleF
                                     bounds={{ north: 85, south: -85, east: 180, west: -180 }}
