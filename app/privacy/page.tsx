@@ -36,6 +36,15 @@ export default function PrivacyPolicy() {
                             <strong>Game State:</strong> Interactions during a game (like bingo board state, voting, game settings) are synchronized and temporarily stored in our database to allow multiplayer functionality.
                         </li>
                         <li>
+                            <strong>Account &amp; Email Address (optional):</strong> You can optionally create an account by signing in with your email address via a one-time magic link (Supabase Auth). Your email is used solely for authentication — we do not send marketing emails. Creating an account enables additional features: appearing on the Daily Challenge leaderboard, saving community presets you create, and tracking your personal stats (challenges completed and won).
+                        </li>
+                        <li>
+                            <strong>Daily Challenge Attempts (account holders only):</strong> If you are signed in and complete or forfeit a Daily Challenge, your result (time, whether you found it or gave up, the Street View viewpoint you captured) is stored permanently in our database and displayed on the public leaderboard. Anonymous players can play but their results are not recorded.
+                        </li>
+                        <li>
+                            <strong>Community Presets:</strong> If you create a community preset while signed in, your account ID is linked to that preset as its author, enabling you to edit or delete it later.
+                        </li>
+                        <li>
                             <strong>IP Addresses & Server Logs:</strong> Standard server logs are automatically created by our hosting provider (Vercel) for security and technical stability. These include your IP address, browser type, and time of access.
                         </li>
                     </ul>
@@ -43,7 +52,7 @@ export default function PrivacyPolicy() {
 
                 <section>
                     <h2 className="text-2xl font-semibold text-slate-100 mb-2">3. Local Storage & Cookies</h2>
-                    <p>We do not use tracking or advertising cookies. We only use functional browser storage (LocalStorage and SessionStorage) to remember your player name and current game session. You can clear this data at any time by clearing your browser data.</p>
+                    <p>We do not use tracking or advertising cookies. We use functional browser storage (LocalStorage and SessionStorage) to remember your player name, current game session, and — if you are signed in — your authentication session token (a JWT issued by Supabase Auth). You can clear this data at any time by signing out and clearing your browser data.</p>
                 </section>
 
                 <section>
@@ -67,7 +76,15 @@ export default function PrivacyPolicy() {
 
                 <section>
                     <h2 className="text-2xl font-semibold text-slate-100 mb-2">5. Your Rights</h2>
-                    <p>Under the General Data Protection Regulation (GDPR), you have the right to request access to, correction of, or deletion of your personal data. Since we do not require accounts and most data is tied to temporary Session IDs or user-defined nicknames, we might not always be able to specifically identify "your" data without additional context. However, you can contact us at any time using the email address provided above.</p>
+                    <p className="mb-2">Under the General Data Protection Regulation (GDPR), you have the right to request access to, correction of, or deletion of your personal data.</p>
+                    <ul className="list-disc pl-6 space-y-2">
+                        <li>
+                            <strong>Account holders:</strong> You can delete your account and all associated data (Daily Challenge results, community presets, stats) by contacting us at the email address above. We will process your request promptly.
+                        </li>
+                        <li>
+                            <strong>Anonymous players:</strong> Most data is tied to temporary Session IDs or user-defined nicknames and cannot be reliably linked to a specific individual. If you believe data exists that can be attributed to you, please contact us with as much context as possible.
+                        </li>
+                    </ul>
                 </section>
 
                 <div className="w-full h-px bg-slate-700 my-6"></div>
