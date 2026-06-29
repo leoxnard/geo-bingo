@@ -8,7 +8,11 @@ Handles polygon insertion, boundary management, and map initialization.
 ================================================================================
 */
 
-export const GOOGLE_MAPS_LIBRARIES: ('places' | 'geometry' | 'drawing' | 'visualization' | 'marker')[] = ['places', 'geometry'];
+// 'visualization' is retained for loader stability: the Maps loader is a session
+// singleton that throws if re-initialized with a different libraries list, and
+// existing clients already loaded it with this set. Loading it is harmless — only
+// the removed HeatmapLayer *component* was deprecated (v3.65), which we no longer use.
+export const GOOGLE_MAPS_LIBRARIES: ('places' | 'geometry' | 'drawing' | 'visualization' | 'marker')[] = ['places', 'geometry', 'visualization'];
 
 export const mapOptions = (additionalOptions: { [key: string]: unknown | google.maps.MapOptions } = {}): google.maps.MapOptions => ({
     streetViewControl: true,

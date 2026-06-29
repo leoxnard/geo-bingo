@@ -23,6 +23,435 @@ COMMENT ON SCHEMA "public" IS 'standard public schema';
 
 
 
+CREATE OR REPLACE FUNCTION "public"."admin_add_candidate"("p_category" "text", "p_source" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_start_lat" double precision DEFAULT NULL::double precision, "p_start_lng" double precision DEFAULT NULL::double precision, "p_boundary" "text" DEFAULT NULL::"text", "p_translations" "jsonb" DEFAULT NULL::"jsonb") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+    IF NOT public.am_i_daily_admin() THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_ADMIN');
+    END IF;
+    IF p_category IS NULL OR trim(p_category) = '' THEN
+        RETURN jsonb_build_object('success', false, 'error', 'EMPTY_CATEGORY');
+    END IF;
+    IF p_source NOT IN ('ai', 'manual') THEN
+        RETURN jsonb_build_object('success', false, 'error', 'BAD_SOURCE');
+    END IF;
+    IF (p_lat IS NULL OR p_lng IS NULL) AND (p_start_lat IS NULL OR p_start_lng IS NULL) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'MISSING_VIEW');
+    END IF;
+
+    INSERT INTO daily_challenge_candidates
+        (category, category_norm, source, lat, lng, heading, pitch, zoom, start_lat, start_lng, boundary, category_translations, status, reviewed_at, reviewed_by)
+    VALUES
+        (trim(p_category), lower(trim(p_category)), p_source, p_lat, p_lng,
+         coalesce(p_heading, 0), coalesce(p_pitch, 0), coalesce(p_zoom, 1),
+         p_start_lat, p_start_lng,
+         p_boundary, p_translations, 'approved', now(), auth.uid())
+    ON CONFLICT (category_norm) DO NOTHING;
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'DUPLICATE');
+    END IF;
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."admin_add_candidate"("p_category" "text", "p_source" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_start_lat" double precision, "p_start_lng" double precision, "p_boundary" "text", "p_translations" "jsonb") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."admin_add_database_candidates"("p_items" "jsonb") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    added int;
+BEGIN
+    IF NOT public.am_i_daily_admin() THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_ADMIN');
+    END IF;
+    IF p_items IS NULL OR jsonb_typeof(p_items) <> 'array' THEN
+        RETURN jsonb_build_object('success', false, 'error', 'BAD_ITEMS');
+    END IF;
+
+    WITH cleaned AS (
+        SELECT DISTINCT ON (lower(trim(elem->>'name')))
+            trim(elem->>'name') AS cat,
+            lower(trim(elem->>'name')) AS norm,
+            CASE WHEN jsonb_typeof(elem->'translations') = 'object' THEN elem->'translations' ELSE NULL END AS tr
+        FROM jsonb_array_elements(p_items) AS t(elem)
+        WHERE trim(coalesce(elem->>'name', '')) <> ''
+    ),
+    ins AS (
+        INSERT INTO daily_challenge_candidates
+            (category, category_norm, source, is_fallback, status, category_translations, reviewed_at, reviewed_by)
+        SELECT cat, norm, 'database', true, 'approved', tr, now(), auth.uid()
+        FROM cleaned
+        ON CONFLICT (category_norm) DO NOTHING
+        RETURNING 1
+    )
+    SELECT count(*) INTO added FROM ins;
+
+    RETURN jsonb_build_object('success', true, 'added', added);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."admin_add_database_candidates"("p_items" "jsonb") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."admin_delete_daily_candidate"("p_id" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+    IF NOT public.am_i_daily_admin() THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_ADMIN');
+    END IF;
+
+    DELETE FROM daily_challenge_candidates WHERE id = p_id AND status <> 'used';
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_FOUND_OR_USED');
+    END IF;
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."admin_delete_daily_candidate"("p_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."admin_delete_daily_challenge"("p_date" "date") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    ch   daily_challenges%ROWTYPE;
+    cand daily_challenge_candidates%ROWTYPE;
+BEGIN
+    IF NOT public.am_i_daily_admin() THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_ADMIN');
+    END IF;
+
+    SELECT * INTO ch FROM daily_challenges WHERE challenge_date = p_date;
+    IF ch.id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NO_CHALLENGE');
+    END IF;
+
+    IF ch.candidate_id IS NOT NULL THEN
+        UPDATE daily_challenge_candidates SET status = 'approved' WHERE id = ch.candidate_id;
+    END IF;
+
+    DELETE FROM daily_attempts WHERE challenge_id = ch.id;
+    DELETE FROM daily_challenges WHERE id = ch.id;
+
+    SELECT * INTO cand FROM daily_challenge_candidates
+    WHERE status = 'approved'
+      AND category_norm NOT IN (
+          SELECT lower(trim(category)) FROM daily_challenges
+      )
+    ORDER BY is_fallback, sort_order NULLS LAST, reviewed_at NULLS LAST, created_at
+    LIMIT 1;
+
+    IF cand.id IS NOT NULL THEN
+        UPDATE daily_challenge_candidates SET status = 'used' WHERE id = cand.id;
+        INSERT INTO daily_challenges (
+            challenge_date, candidate_id, category, category_translations,
+            source, lat, lng, heading, pitch, zoom, boundary, start_lat, start_lng
+        ) VALUES (
+            p_date, cand.id, cand.category, cand.category_translations,
+            cand.source, cand.lat, cand.lng, cand.heading, cand.pitch, cand.zoom,
+            cand.boundary, cand.start_lat, cand.start_lng
+        );
+        RETURN jsonb_build_object('success', true, 'category', cand.category);
+    END IF;
+
+    RETURN jsonb_build_object('success', true, 'category', null);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."admin_delete_daily_challenge"("p_date" "date") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."admin_edit_daily_candidate"("p_id" "uuid", "p_category" "text", "p_translations" "jsonb" DEFAULT NULL::"jsonb") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    nm   text;
+    norm text;
+BEGIN
+    IF NOT public.am_i_daily_admin() THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_ADMIN');
+    END IF;
+
+    nm := NULLIF(trim(coalesce(p_category, '')), '');
+    IF nm IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'EMPTY_CATEGORY');
+    END IF;
+    norm := lower(nm);
+
+    IF EXISTS (SELECT 1 FROM daily_challenge_candidates WHERE category_norm = norm AND id <> p_id) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'DUPLICATE');
+    END IF;
+
+    UPDATE daily_challenge_candidates
+    SET category              = nm,
+        category_norm         = norm,
+        category_translations = COALESCE(p_translations, category_translations)
+    WHERE id = p_id;
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_FOUND');
+    END IF;
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."admin_edit_daily_candidate"("p_id" "uuid", "p_category" "text", "p_translations" "jsonb") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."admin_edit_daily_challenge"("p_date" "date", "p_category" "text", "p_translations" "jsonb" DEFAULT NULL::"jsonb", "p_clear_attempts" boolean DEFAULT false) RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    ch      daily_challenges%ROWTYPE;
+    nm      text;
+    cleared int := 0;
+BEGIN
+    IF NOT public.am_i_daily_admin() THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_ADMIN');
+    END IF;
+
+    nm := NULLIF(trim(coalesce(p_category, '')), '');
+    IF nm IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'EMPTY_CATEGORY');
+    END IF;
+
+    SELECT * INTO ch FROM daily_challenges WHERE challenge_date = p_date;
+    IF ch.id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NO_CHALLENGE');
+    END IF;
+
+    UPDATE daily_challenges
+    SET category              = nm,
+        category_translations = COALESCE(p_translations, category_translations)
+    WHERE id = ch.id;
+
+    IF p_clear_attempts THEN
+        WITH del AS (DELETE FROM daily_attempts WHERE challenge_id = ch.id RETURNING 1)
+        SELECT count(*) INTO cleared FROM del;
+    END IF;
+
+    RETURN jsonb_build_object('success', true, 'cleared', cleared);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."admin_edit_daily_challenge"("p_date" "date", "p_category" "text", "p_translations" "jsonb", "p_clear_attempts" boolean) OWNER TO "postgres";
+
+SET default_tablespace = '';
+
+SET default_table_access_method = "heap";
+
+
+CREATE TABLE IF NOT EXISTS "public"."daily_challenge_candidates" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "category" "text" NOT NULL,
+    "category_norm" "text" NOT NULL,
+    "source" "text" NOT NULL,
+    "source_ref" "text",
+    "lat" double precision,
+    "lng" double precision,
+    "heading" double precision,
+    "pitch" double precision,
+    "zoom" double precision,
+    "boundary" "text",
+    "start_lat" double precision,
+    "start_lng" double precision,
+    "is_fallback" boolean DEFAULT false NOT NULL,
+    "status" "text" DEFAULT 'pending'::"text" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "reviewed_at" timestamp with time zone,
+    "reviewed_by" "uuid",
+    "sort_order" double precision,
+    "category_translations" "jsonb"
+);
+
+
+ALTER TABLE "public"."daily_challenge_candidates" OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."admin_list_daily_candidates"("p_status" "text" DEFAULT NULL::"text") RETURNS SETOF "public"."daily_challenge_candidates"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+    IF NOT public.am_i_daily_admin() THEN
+        RETURN;  -- non-admins get nothing
+    END IF;
+    RETURN QUERY
+        SELECT * FROM daily_challenge_candidates
+        WHERE p_status IS NULL OR status = p_status
+        ORDER BY is_fallback, sort_order NULLS LAST, reviewed_at NULLS LAST, created_at
+        LIMIT 500;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."admin_list_daily_candidates"("p_status" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."admin_list_daily_challenges"("p_limit" integer DEFAULT 30) RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+    IF NOT public.am_i_daily_admin() THEN
+        RETURN '[]'::jsonb;
+    END IF;
+    RETURN coalesce((
+        SELECT jsonb_agg(jsonb_build_object(
+            'challenge_date', dc.challenge_date,
+            'category', dc.category,
+            'category_translations', dc.category_translations,
+            'source', dc.source,
+            'has_location', (dc.lat IS NOT NULL),
+            'lat', dc.lat, 'lng', dc.lng,
+            'heading', dc.heading, 'pitch', dc.pitch, 'zoom', dc.zoom,
+            'attempts', (SELECT count(*) FROM daily_attempts a WHERE a.challenge_id = dc.id)
+        ) ORDER BY dc.challenge_date DESC)
+        FROM (
+            SELECT * FROM daily_challenges ORDER BY challenge_date DESC LIMIT GREATEST(p_limit, 1)
+        ) dc
+    ), '[]'::jsonb);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."admin_list_daily_challenges"("p_limit" integer) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."admin_reorder_daily_candidates"("p_ids" "uuid"[]) RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+    IF NOT public.am_i_daily_admin() THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_ADMIN');
+    END IF;
+
+    UPDATE daily_challenge_candidates c
+    SET sort_order = o.ord
+    FROM (
+        SELECT id, ordinality::double precision AS ord
+        FROM unnest(p_ids) WITH ORDINALITY AS u(id, ordinality)
+    ) o
+    WHERE c.id = o.id;
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."admin_reorder_daily_candidates"("p_ids" "uuid"[]) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."admin_replace_daily_challenge"("p_date" "date") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    ch   daily_challenges%ROWTYPE;
+    cand daily_challenge_candidates%ROWTYPE;
+BEGIN
+    IF NOT public.am_i_daily_admin() THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_ADMIN');
+    END IF;
+
+    SELECT * INTO ch FROM daily_challenges WHERE challenge_date = p_date;
+    IF ch.id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NO_CHALLENGE');
+    END IF;
+
+    SELECT * INTO cand FROM daily_challenge_candidates
+    WHERE status = 'approved'
+      AND category_norm NOT IN (
+          SELECT lower(trim(category)) FROM daily_challenges WHERE id <> ch.id
+      )
+    ORDER BY is_fallback, sort_order NULLS LAST, reviewed_at NULLS LAST, created_at
+    LIMIT 1;
+
+    IF cand.id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NO_CANDIDATE');
+    END IF;
+
+    IF ch.candidate_id IS NOT NULL THEN
+        UPDATE daily_challenge_candidates SET status = 'approved' WHERE id = ch.candidate_id;
+    END IF;
+    UPDATE daily_challenge_candidates SET status = 'used' WHERE id = cand.id;
+
+    UPDATE daily_challenges SET
+        candidate_id          = cand.id,
+        category              = cand.category,
+        source                = cand.source,
+        lat                   = cand.lat,
+        lng                   = cand.lng,
+        heading               = cand.heading,
+        pitch                 = cand.pitch,
+        zoom                  = cand.zoom,
+        boundary              = cand.boundary,
+        start_lat             = cand.start_lat,
+        start_lng             = cand.start_lng,
+        category_translations = cand.category_translations,
+        created_at            = now()
+    WHERE id = ch.id;
+
+    DELETE FROM daily_attempts WHERE challenge_id = ch.id;
+
+    RETURN jsonb_build_object('success', true, 'category', cand.category);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."admin_replace_daily_challenge"("p_date" "date") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."admin_run_daily_scheduler"() RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+    IF NOT public.am_i_daily_admin() THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_ADMIN');
+    END IF;
+    RETURN public.ensure_daily_challenge();
+END;
+$$;
+
+
+ALTER FUNCTION "public"."admin_run_daily_scheduler"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."am_i_daily_admin"() RETURNS boolean
+    LANGUAGE "sql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM daily_admins
+        WHERE lower(email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+    );
+$$;
+
+
+ALTER FUNCTION "public"."am_i_daily_admin"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint DEFAULT NULL::bigint) RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -214,6 +643,20 @@ $$;
 ALTER FUNCTION "public"."create_community_preset"("p_name" "text", "p_description" "text", "p_author_name" "text", "p_categories" "jsonb", "p_boundaries" "jsonb", "p_starting_point" "text", "p_recommended_time" integer, "p_difficulty" "text", "p_game_mode" "text", "p_grid_size" integer, "p_settings" "jsonb", "p_icon" "text", "p_category_translations" "jsonb", "p_title_translations" "jsonb", "p_description_translations" "jsonb", "p_category_hint_translations" "jsonb") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."daily_caller_name"() RETURNS "text"
+    LANGUAGE "sql" STABLE
+    AS $$
+    SELECT coalesce(
+        NULLIF(trim(coalesce(auth.jwt() -> 'user_metadata' ->> 'display_name', '')), ''),
+        NULLIF(split_part(coalesce(auth.jwt() ->> 'email', ''), '@', 1), ''),
+        'Anonymous'
+    );
+$$;
+
+
+ALTER FUNCTION "public"."daily_caller_name"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."delete_community_preset"("p_preset_id" "uuid") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -279,6 +722,347 @@ $$;
 
 
 ALTER FUNCTION "public"."delete_submission"("p_id" "uuid", "p_player_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."downvote_daily_find"("p_attempt_id" "uuid", "p_device_id" "text") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    cid uuid;
+    author uuid;
+    has_vote boolean;
+    dvotes int;
+    completers int;
+    flag boolean;
+BEGIN
+    IF p_device_id IS NULL OR p_device_id = '' THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NO_DEVICE');
+    END IF;
+
+    SELECT challenge_id, account_id, (downvoters ? p_device_id)
+    INTO cid, author, has_vote
+    FROM daily_attempts WHERE id = p_attempt_id FOR UPDATE;
+
+    IF cid IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_FOUND');
+    END IF;
+
+    IF has_vote THEN
+        UPDATE daily_attempts SET downvoters = downvoters - p_device_id WHERE id = p_attempt_id;
+    ELSE
+        UPDATE daily_attempts
+        SET downvoters = jsonb_set(coalesce(downvoters, '{}'::jsonb), array[p_device_id], 'true'::jsonb)
+        WHERE id = p_attempt_id;
+    END IF;
+
+    SELECT count(*) INTO dvotes
+    FROM jsonb_object_keys((SELECT downvoters FROM daily_attempts WHERE id = p_attempt_id));
+
+    SELECT count(*) INTO completers
+    FROM daily_attempts
+    WHERE challenge_id = cid AND duration_ms IS NOT NULL AND account_id <> author;
+
+    flag := (dvotes >= 3 AND dvotes >= ceil(0.9 * GREATEST(completers, 1)));
+
+    UPDATE daily_attempts SET downvotes = dvotes, removed = flag WHERE id = p_attempt_id;
+
+    RETURN jsonb_build_object('success', true, 'downvotes', dvotes, 'removed', flag, 'my_downvote', NOT has_vote);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."downvote_daily_find"("p_attempt_id" "uuid", "p_device_id" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."ensure_daily_challenge"() RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    today date := (now() AT TIME ZONE 'utc')::date;
+    cand  daily_challenge_candidates%ROWTYPE;
+BEGIN
+    IF EXISTS (SELECT 1 FROM daily_challenges WHERE challenge_date = today) THEN
+        RETURN jsonb_build_object('success', true, 'created', false);
+    END IF;
+
+    SELECT * INTO cand FROM daily_challenge_candidates
+    WHERE status = 'approved' AND is_fallback = false
+      AND category_norm NOT IN (SELECT lower(trim(category)) FROM daily_challenges)
+    ORDER BY sort_order NULLS LAST, reviewed_at NULLS LAST, created_at
+    LIMIT 1;
+
+    IF cand.id IS NULL THEN
+        SELECT * INTO cand FROM daily_challenge_candidates
+        WHERE status = 'approved' AND is_fallback = true
+          AND category_norm NOT IN (SELECT lower(trim(category)) FROM daily_challenges)
+        ORDER BY sort_order NULLS LAST, created_at
+        LIMIT 1;
+    END IF;
+
+    IF cand.id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NO_CANDIDATE');
+    END IF;
+
+    INSERT INTO daily_challenges
+        (challenge_date, candidate_id, category, source, lat, lng, heading, pitch, zoom, boundary, start_lat, start_lng, category_translations)
+    VALUES
+        (today, cand.id, cand.category, cand.source, cand.lat, cand.lng, cand.heading, cand.pitch, cand.zoom,
+         cand.boundary, cand.start_lat, cand.start_lng, cand.category_translations);
+
+    UPDATE daily_challenge_candidates SET status = 'used' WHERE id = cand.id;
+
+    RETURN jsonb_build_object('success', true, 'created', true, 'category', cand.category);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."ensure_daily_challenge"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."forfeit_daily_attempt"("p_date" "date", "p_device_id" "text" DEFAULT ''::"text") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    uid uuid := auth.uid();
+    cid uuid;
+BEGIN
+    IF uid IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_AUTHENTICATED');
+    END IF;
+    SELECT id INTO cid FROM daily_challenges WHERE challenge_date = p_date;
+    IF cid IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NO_CHALLENGE');
+    END IF;
+
+    INSERT INTO daily_attempts (challenge_id, account_id, device_id, player_name, forfeited)
+    VALUES (cid, uid, p_device_id, public.daily_caller_name(), true)
+    ON CONFLICT (challenge_id, account_id) DO NOTHING;
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."forfeit_daily_attempt"("p_date" "date", "p_device_id" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_daily_challenge"("p_date" "date") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    c daily_challenges%ROWTYPE;
+BEGIN
+    SELECT * INTO c FROM daily_challenges WHERE challenge_date = p_date;
+    IF c.id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NO_CHALLENGE');
+    END IF;
+    RETURN jsonb_build_object('success', true, 'data', jsonb_build_object(
+        'id', c.id,
+        'challenge_date', c.challenge_date,
+        'category', c.category,
+        'category_translations', c.category_translations,
+        'source', c.source,
+        'has_location', (c.lat IS NOT NULL),
+        'boundary', c.boundary,
+        'start_lat', c.start_lat,
+        'start_lng', c.start_lng,
+        'created_at', c.created_at
+    ));
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_daily_challenge"("p_date" "date") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_daily_finds"("p_date" "date", "p_device_id" "text" DEFAULT ''::"text") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    uid uuid := auth.uid();
+    cid uuid;
+BEGIN
+    SELECT id INTO cid FROM daily_challenges WHERE challenge_date = p_date;
+    IF cid IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NO_CHALLENGE');
+    END IF;
+
+    IF uid IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM daily_attempts WHERE challenge_id = cid AND account_id = uid
+    ) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_SUBMITTED');
+    END IF;
+
+    RETURN jsonb_build_object('success', true, 'data', coalesce((
+        SELECT jsonb_agg(jsonb_build_object(
+            'id', a.id,
+            'name', coalesce(
+                nullif(trim(u.raw_user_meta_data->>'display_name'), ''),
+                nullif(split_part(u.email, '@', 1), ''),
+                a.player_name,
+                'Anonymous'
+            ),
+            'duration_ms', a.duration_ms,
+            'lat', a.found_lat, 'lng', a.found_lng,
+            'heading', a.found_heading, 'pitch', a.found_pitch, 'zoom', a.found_zoom,
+            'downvotes', a.downvotes,
+            'my_downvote', (a.downvoters ? p_device_id)
+        ) ORDER BY a.duration_ms ASC NULLS LAST)
+        FROM daily_attempts a
+        LEFT JOIN auth.users u ON u.id = a.account_id
+        WHERE a.challenge_id = cid AND NOT a.removed AND a.duration_ms IS NOT NULL
+    ), '[]'::jsonb));
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_daily_finds"("p_date" "date", "p_device_id" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_daily_leaderboard"("p_date" "date") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    uid uuid := auth.uid();
+BEGIN
+    RETURN coalesce((
+        SELECT jsonb_agg(jsonb_build_object(
+            'rank', rn, 'name', disp_name, 'duration_ms', duration_ms,
+            'created_at', created_at, 'mine', is_mine
+        ) ORDER BY rn)
+        FROM (
+            SELECT
+                coalesce(
+                    nullif(trim(u.raw_user_meta_data->>'display_name'), ''),
+                    nullif(split_part(u.email, '@', 1), ''),
+                    a.player_name,
+                    'Anonymous'
+                ) AS disp_name,
+                a.duration_ms, a.created_at,
+                (uid IS NOT NULL AND a.account_id = uid) AS is_mine,
+                row_number() OVER (ORDER BY a.duration_ms ASC, a.created_at ASC) AS rn
+            FROM daily_attempts a
+            JOIN daily_challenges dc ON dc.id = a.challenge_id
+            LEFT JOIN auth.users u ON u.id = a.account_id
+            WHERE dc.challenge_date = p_date AND NOT a.removed AND a.duration_ms IS NOT NULL
+        ) ranked
+        WHERE rn <= 100
+    ), '[]'::jsonb);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_daily_leaderboard"("p_date" "date") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_my_daily_stats"() RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    uid uuid := auth.uid();
+    completed int;
+    won int;
+BEGIN
+    IF uid IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_AUTHENTICATED');
+    END IF;
+
+    SELECT count(*) INTO completed
+    FROM daily_attempts a
+    WHERE a.account_id = uid AND NOT a.removed AND a.duration_ms IS NOT NULL;
+
+    SELECT count(*) INTO won
+    FROM daily_attempts a
+    WHERE a.account_id = uid AND NOT a.removed AND a.duration_ms IS NOT NULL
+      AND a.duration_ms = (
+          SELECT min(b.duration_ms) FROM daily_attempts b
+          WHERE b.challenge_id = a.challenge_id AND NOT b.removed AND b.duration_ms IS NOT NULL
+      );
+
+    RETURN jsonb_build_object('success', true, 'completed', completed, 'won', won);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_my_daily_stats"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_recent_daily_challenges"() RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    uid uuid := auth.uid();
+BEGIN
+    RETURN coalesce((
+        SELECT jsonb_agg(r ORDER BY (r->>'challenge_date') DESC)
+        FROM (
+            SELECT jsonb_build_object(
+                'id', dc.id,
+                'challenge_date', dc.challenge_date,
+                'category', dc.category,
+                'category_translations', dc.category_translations,
+                'source', dc.source,
+                'has_location', (dc.lat IS NOT NULL),
+                'players', (SELECT count(*) FROM daily_attempts a
+                            WHERE a.challenge_id = dc.id AND NOT a.removed AND a.duration_ms IS NOT NULL),
+                'top_time', (SELECT min(a.duration_ms) FROM daily_attempts a
+                            WHERE a.challenge_id = dc.id AND NOT a.removed AND a.duration_ms IS NOT NULL),
+                'my_time', (SELECT a.duration_ms FROM daily_attempts a
+                            WHERE a.challenge_id = dc.id AND a.account_id = uid AND NOT a.removed),
+                'my_forfeited', (SELECT a.forfeited FROM daily_attempts a
+                            WHERE a.challenge_id = dc.id AND a.account_id = uid)
+            ) AS r
+            FROM daily_challenges dc
+            WHERE dc.challenge_date > ((now() AT TIME ZONE 'utc')::date - 7)
+        ) t
+    ), '[]'::jsonb);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_recent_daily_challenges"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."harvest_daily_candidates"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+    BEGIN
+        INSERT INTO daily_challenge_candidates
+            (category, category_norm, source, source_ref, lat, lng, heading, pitch, zoom, boundary)
+        SELECT DISTINCT ON (lower(trim(s.category)))
+            s.category,
+            lower(trim(s.category)),
+            'game',
+            NEW.id,
+            s.lat, s.lng, s.heading, s.pitch, s.zoom,
+            NEW."gameBoundary"
+        FROM submissions s
+        WHERE s.game_id = NEW.id
+          AND s.lat IS NOT NULL AND s.lng IS NOT NULL
+          AND s.ai_verdict = true
+          AND public.votes_all_yes(s.votes)
+        ORDER BY lower(trim(s.category))
+        ON CONFLICT (category_norm) DO NOTHING;
+    EXCEPTION WHEN OTHERS THEN
+        -- harvesting is best-effort; swallow any error so the game flow is unaffected
+        NULL;
+    END;
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."harvest_daily_candidates"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."is_valid_host"("p_game_id" "text", "p_token" "text") RETURNS boolean
@@ -519,6 +1303,7 @@ BEGIN
     safe_name := NULLIF(trim(coalesce(p_name, '')), '');
 
     UPDATE community_presets SET author_name = safe_name WHERE author_id = caller;
+    UPDATE daily_attempts   SET player_name = safe_name WHERE account_id = caller;
 
     RETURN jsonb_build_object('success', true);
 END;
@@ -526,6 +1311,63 @@ $$;
 
 
 ALTER FUNCTION "public"."rename_my_presets_author"("p_name" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."reveal_daily_location"("p_date" "date") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    c daily_challenges%ROWTYPE;
+BEGIN
+    SELECT * INTO c FROM daily_challenges WHERE challenge_date = p_date;
+    IF c.id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NO_CHALLENGE');
+    END IF;
+    IF c.lat IS NULL THEN
+        RETURN jsonb_build_object('success', true, 'has_location', false);
+    END IF;
+    RETURN jsonb_build_object('success', true, 'has_location', true, 'data', jsonb_build_object(
+        'lat', c.lat, 'lng', c.lng, 'heading', c.heading, 'pitch', c.pitch, 'zoom', c.zoom
+    ));
+END;
+$$;
+
+
+ALTER FUNCTION "public"."reveal_daily_location"("p_date" "date") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."review_daily_candidate"("p_id" "uuid", "p_decision" "text", "p_translations" "jsonb" DEFAULT NULL::"jsonb") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+    IF NOT public.am_i_daily_admin() THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_ADMIN');
+    END IF;
+    IF p_decision NOT IN ('approved', 'rejected', 'pending') THEN
+        RETURN jsonb_build_object('success', false, 'error', 'BAD_DECISION');
+    END IF;
+
+    UPDATE daily_challenge_candidates
+    SET status = p_decision,
+        reviewed_at = now(),
+        reviewed_by = auth.uid(),
+        category_translations = CASE
+            WHEN p_decision = 'approved' AND p_translations IS NOT NULL THEN p_translations
+            ELSE category_translations
+        END
+    WHERE id = p_id AND status <> 'used';
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_FOUND_OR_USED');
+    END IF;
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."review_daily_candidate"("p_id" "uuid", "p_decision" "text", "p_translations" "jsonb") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."set_game_status"("p_game_id" "text", "p_host_id" "text", "p_status" "text") RETURNS "jsonb"
@@ -568,6 +1410,58 @@ $$;
 
 
 ALTER FUNCTION "public"."set_submission_ai_verdict"("p_id" "uuid", "p_player_id" "uuid", "p_verdict" boolean, "p_hash" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."submit_daily_attempt"("p_date" "date", "p_device_id" "text", "p_duration_ms" bigint, "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_ai_reason" "text" DEFAULT NULL::"text") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    uid uuid := auth.uid();
+    cid uuid;
+    cdate date;
+BEGIN
+    IF uid IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_AUTHENTICATED');
+    END IF;
+    SELECT id, challenge_date INTO cid, cdate FROM daily_challenges WHERE challenge_date = p_date;
+    IF cid IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NO_CHALLENGE');
+    END IF;
+    IF cdate < ((now() AT TIME ZONE 'utc')::date - 7) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'CHALLENGE_EXPIRED');
+    END IF;
+    IF p_duration_ms IS NULL OR p_duration_ms <= 0 THEN
+        RETURN jsonb_build_object('success', false, 'error', 'BAD_DURATION');
+    END IF;
+
+    INSERT INTO daily_attempts
+        (challenge_id, account_id, device_id, player_name, duration_ms, forfeited,
+         found_lat, found_lng, found_heading, found_pitch, found_zoom, ai_reason)
+    VALUES
+        (cid, uid, p_device_id, public.daily_caller_name(), p_duration_ms, false,
+         p_lat, p_lng, p_heading, p_pitch, p_zoom, p_ai_reason)
+    ON CONFLICT (challenge_id, account_id) DO UPDATE SET
+        duration_ms   = EXCLUDED.duration_ms,
+        forfeited     = false,
+        found_lat     = EXCLUDED.found_lat,
+        found_lng     = EXCLUDED.found_lng,
+        found_heading = EXCLUDED.found_heading,
+        found_pitch   = EXCLUDED.found_pitch,
+        found_zoom    = EXCLUDED.found_zoom,
+        ai_reason     = EXCLUDED.ai_reason,
+        created_at    = now()
+    WHERE daily_attempts.duration_ms IS NULL;  -- only overwrite a forfeit, never a real time
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'ALREADY_SUBMITTED');
+    END IF;
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."submit_daily_attempt"("p_date" "date", "p_device_id" "text", "p_duration_ms" bigint, "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_ai_reason" "text") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."transfer_host"("p_game_id" "text", "p_current_host_id" "text", "p_new_host_id" "text") RETURNS "jsonb"
@@ -873,9 +1767,17 @@ $$;
 
 ALTER FUNCTION "public"."vote_community_preset"("p_preset_id" "uuid", "p_device_id" "text", "p_value" smallint) OWNER TO "postgres";
 
-SET default_tablespace = '';
 
-SET default_table_access_method = "heap";
+CREATE OR REPLACE FUNCTION "public"."votes_all_yes"("p_votes" "jsonb") RETURNS boolean
+    LANGUAGE "sql" IMMUTABLE
+    AS $$
+    SELECT count(*) FILTER (WHERE key NOT LIKE 'hype:%' AND jsonb_typeof(value) = 'boolean') >= 2
+       AND count(*) FILTER (WHERE key NOT LIKE 'hype:%' AND value = to_jsonb(false)) = 0
+    FROM jsonb_each(coalesce(p_votes, '{}'::jsonb));
+$$;
+
+
+ALTER FUNCTION "public"."votes_all_yes"("p_votes" "jsonb") OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."community_preset_votes" (
@@ -920,6 +1822,60 @@ CREATE TABLE IF NOT EXISTS "public"."community_presets" (
 
 
 ALTER TABLE "public"."community_presets" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."daily_admins" (
+    "email" "text" NOT NULL
+);
+
+
+ALTER TABLE "public"."daily_admins" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."daily_attempts" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "challenge_id" "uuid" NOT NULL,
+    "account_id" "uuid" NOT NULL,
+    "device_id" "text",
+    "player_name" "text",
+    "duration_ms" bigint,
+    "forfeited" boolean DEFAULT false NOT NULL,
+    "found_lat" double precision,
+    "found_lng" double precision,
+    "found_heading" double precision,
+    "found_pitch" double precision,
+    "found_zoom" double precision,
+    "ai_reason" "text",
+    "downvotes" integer DEFAULT 0 NOT NULL,
+    "downvoters" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "removed" boolean DEFAULT false NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."daily_attempts" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."daily_challenges" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "challenge_date" "date" NOT NULL,
+    "candidate_id" "uuid",
+    "category" "text" NOT NULL,
+    "source" "text" NOT NULL,
+    "lat" double precision,
+    "lng" double precision,
+    "heading" double precision,
+    "pitch" double precision,
+    "zoom" double precision,
+    "boundary" "text",
+    "start_lat" double precision,
+    "start_lng" double precision,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "category_translations" "jsonb"
+);
+
+
+ALTER TABLE "public"."daily_challenges" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."game_host_secrets" (
@@ -1013,6 +1969,36 @@ ALTER TABLE ONLY "public"."community_presets"
 
 
 
+ALTER TABLE ONLY "public"."daily_admins"
+    ADD CONSTRAINT "daily_admins_pkey" PRIMARY KEY ("email");
+
+
+
+ALTER TABLE ONLY "public"."daily_attempts"
+    ADD CONSTRAINT "daily_attempts_challenge_id_account_id_key" UNIQUE ("challenge_id", "account_id");
+
+
+
+ALTER TABLE ONLY "public"."daily_attempts"
+    ADD CONSTRAINT "daily_attempts_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."daily_challenge_candidates"
+    ADD CONSTRAINT "daily_challenge_candidates_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."daily_challenges"
+    ADD CONSTRAINT "daily_challenges_challenge_date_key" UNIQUE ("challenge_date");
+
+
+
+ALTER TABLE ONLY "public"."daily_challenges"
+    ADD CONSTRAINT "daily_challenges_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."game_host_secrets"
     ADD CONSTRAINT "game_host_secrets_pkey" PRIMARY KEY ("game_id");
 
@@ -1050,6 +2036,26 @@ CREATE INDEX "community_presets_score_idx" ON "public"."community_presets" USING
 
 
 
+CREATE INDEX "daily_attempts_account_idx" ON "public"."daily_attempts" USING "btree" ("account_id");
+
+
+
+CREATE INDEX "daily_attempts_challenge_idx" ON "public"."daily_attempts" USING "btree" ("challenge_id", "removed", "duration_ms");
+
+
+
+CREATE UNIQUE INDEX "daily_candidates_norm_uniq" ON "public"."daily_challenge_candidates" USING "btree" ("category_norm");
+
+
+
+CREATE INDEX "daily_candidates_status_idx" ON "public"."daily_challenge_candidates" USING "btree" ("status", "is_fallback", "created_at");
+
+
+
+CREATE INDEX "daily_challenges_date_idx" ON "public"."daily_challenges" USING "btree" ("challenge_date" DESC);
+
+
+
 CREATE INDEX "players_game_id_idx" ON "public"."players" USING "btree" ("game_id");
 
 
@@ -1059,6 +2065,10 @@ CREATE UNIQUE INDEX "submissions_game_player_category_uniq" ON "public"."submiss
 
 
 CREATE INDEX "submissions_player_id_idx" ON "public"."submissions" USING "btree" ("player_id");
+
+
+
+CREATE OR REPLACE TRIGGER "harvest_daily_candidates_trg" AFTER UPDATE OF "status" ON "public"."games" FOR EACH ROW WHEN ((("new"."status" = 'finished'::"text") AND ("old"."status" IS DISTINCT FROM 'finished'::"text"))) EXECUTE FUNCTION "public"."harvest_daily_candidates"();
 
 
 
@@ -1073,6 +2083,21 @@ ALTER TABLE ONLY "public"."community_preset_votes"
 
 ALTER TABLE ONLY "public"."community_presets"
     ADD CONSTRAINT "community_presets_author_id_fkey" FOREIGN KEY ("author_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."daily_attempts"
+    ADD CONSTRAINT "daily_attempts_account_id_fkey" FOREIGN KEY ("account_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."daily_attempts"
+    ADD CONSTRAINT "daily_attempts_challenge_id_fkey" FOREIGN KEY ("challenge_id") REFERENCES "public"."daily_challenges"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."daily_challenges"
+    ADD CONSTRAINT "daily_challenges_candidate_id_fkey" FOREIGN KEY ("candidate_id") REFERENCES "public"."daily_challenge_candidates"("id") ON DELETE SET NULL;
 
 
 
@@ -1132,6 +2157,18 @@ ALTER TABLE "public"."community_preset_votes" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."community_presets" ENABLE ROW LEVEL SECURITY;
 
 
+ALTER TABLE "public"."daily_admins" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."daily_attempts" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."daily_challenge_candidates" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."daily_challenges" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."game_host_secrets" ENABLE ROW LEVEL SECURITY;
 
 
@@ -1148,6 +2185,84 @@ GRANT USAGE ON SCHEMA "public" TO "postgres";
 GRANT USAGE ON SCHEMA "public" TO "anon";
 GRANT USAGE ON SCHEMA "public" TO "authenticated";
 GRANT USAGE ON SCHEMA "public" TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."admin_add_candidate"("p_category" "text", "p_source" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_start_lat" double precision, "p_start_lng" double precision, "p_boundary" "text", "p_translations" "jsonb") TO "anon";
+GRANT ALL ON FUNCTION "public"."admin_add_candidate"("p_category" "text", "p_source" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_start_lat" double precision, "p_start_lng" double precision, "p_boundary" "text", "p_translations" "jsonb") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."admin_add_candidate"("p_category" "text", "p_source" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_start_lat" double precision, "p_start_lng" double precision, "p_boundary" "text", "p_translations" "jsonb") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."admin_add_database_candidates"("p_items" "jsonb") TO "anon";
+GRANT ALL ON FUNCTION "public"."admin_add_database_candidates"("p_items" "jsonb") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."admin_add_database_candidates"("p_items" "jsonb") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."admin_delete_daily_candidate"("p_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."admin_delete_daily_candidate"("p_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."admin_delete_daily_candidate"("p_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."admin_delete_daily_challenge"("p_date" "date") TO "anon";
+GRANT ALL ON FUNCTION "public"."admin_delete_daily_challenge"("p_date" "date") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."admin_delete_daily_challenge"("p_date" "date") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."admin_edit_daily_candidate"("p_id" "uuid", "p_category" "text", "p_translations" "jsonb") TO "anon";
+GRANT ALL ON FUNCTION "public"."admin_edit_daily_candidate"("p_id" "uuid", "p_category" "text", "p_translations" "jsonb") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."admin_edit_daily_candidate"("p_id" "uuid", "p_category" "text", "p_translations" "jsonb") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."admin_edit_daily_challenge"("p_date" "date", "p_category" "text", "p_translations" "jsonb", "p_clear_attempts" boolean) TO "anon";
+GRANT ALL ON FUNCTION "public"."admin_edit_daily_challenge"("p_date" "date", "p_category" "text", "p_translations" "jsonb", "p_clear_attempts" boolean) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."admin_edit_daily_challenge"("p_date" "date", "p_category" "text", "p_translations" "jsonb", "p_clear_attempts" boolean) TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."daily_challenge_candidates" TO "anon";
+GRANT ALL ON TABLE "public"."daily_challenge_candidates" TO "authenticated";
+GRANT ALL ON TABLE "public"."daily_challenge_candidates" TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."admin_list_daily_candidates"("p_status" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."admin_list_daily_candidates"("p_status" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."admin_list_daily_candidates"("p_status" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."admin_list_daily_challenges"("p_limit" integer) TO "anon";
+GRANT ALL ON FUNCTION "public"."admin_list_daily_challenges"("p_limit" integer) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."admin_list_daily_challenges"("p_limit" integer) TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."admin_reorder_daily_candidates"("p_ids" "uuid"[]) TO "anon";
+GRANT ALL ON FUNCTION "public"."admin_reorder_daily_candidates"("p_ids" "uuid"[]) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."admin_reorder_daily_candidates"("p_ids" "uuid"[]) TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."admin_replace_daily_challenge"("p_date" "date") TO "anon";
+GRANT ALL ON FUNCTION "public"."admin_replace_daily_challenge"("p_date" "date") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."admin_replace_daily_challenge"("p_date" "date") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."admin_run_daily_scheduler"() TO "anon";
+GRANT ALL ON FUNCTION "public"."admin_run_daily_scheduler"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."admin_run_daily_scheduler"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."am_i_daily_admin"() TO "anon";
+GRANT ALL ON FUNCTION "public"."am_i_daily_admin"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."am_i_daily_admin"() TO "service_role";
 
 
 
@@ -1180,6 +2295,12 @@ GRANT ALL ON FUNCTION "public"."create_community_preset"("p_name" "text", "p_des
 
 
 
+GRANT ALL ON FUNCTION "public"."daily_caller_name"() TO "anon";
+GRANT ALL ON FUNCTION "public"."daily_caller_name"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."daily_caller_name"() TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."delete_community_preset"("p_preset_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."delete_community_preset"("p_preset_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."delete_community_preset"("p_preset_id" "uuid") TO "service_role";
@@ -1195,6 +2316,59 @@ GRANT ALL ON FUNCTION "public"."delete_player"("p_id" "uuid", "p_host_id" "text"
 GRANT ALL ON FUNCTION "public"."delete_submission"("p_id" "uuid", "p_player_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."delete_submission"("p_id" "uuid", "p_player_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."delete_submission"("p_id" "uuid", "p_player_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."downvote_daily_find"("p_attempt_id" "uuid", "p_device_id" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."downvote_daily_find"("p_attempt_id" "uuid", "p_device_id" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."downvote_daily_find"("p_attempt_id" "uuid", "p_device_id" "text") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."ensure_daily_challenge"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."ensure_daily_challenge"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."forfeit_daily_attempt"("p_date" "date", "p_device_id" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."forfeit_daily_attempt"("p_date" "date", "p_device_id" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."forfeit_daily_attempt"("p_date" "date", "p_device_id" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_daily_challenge"("p_date" "date") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_daily_challenge"("p_date" "date") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_daily_challenge"("p_date" "date") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_daily_finds"("p_date" "date", "p_device_id" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_daily_finds"("p_date" "date", "p_device_id" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_daily_finds"("p_date" "date", "p_device_id" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_daily_leaderboard"("p_date" "date") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_daily_leaderboard"("p_date" "date") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_daily_leaderboard"("p_date" "date") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_my_daily_stats"() TO "anon";
+GRANT ALL ON FUNCTION "public"."get_my_daily_stats"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_my_daily_stats"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_recent_daily_challenges"() TO "anon";
+GRANT ALL ON FUNCTION "public"."get_recent_daily_challenges"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_recent_daily_challenges"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."harvest_daily_candidates"() TO "anon";
+GRANT ALL ON FUNCTION "public"."harvest_daily_candidates"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."harvest_daily_candidates"() TO "service_role";
 
 
 
@@ -1253,6 +2427,18 @@ GRANT ALL ON FUNCTION "public"."rename_my_presets_author"("p_name" "text") TO "s
 
 
 
+GRANT ALL ON FUNCTION "public"."reveal_daily_location"("p_date" "date") TO "anon";
+GRANT ALL ON FUNCTION "public"."reveal_daily_location"("p_date" "date") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."reveal_daily_location"("p_date" "date") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."review_daily_candidate"("p_id" "uuid", "p_decision" "text", "p_translations" "jsonb") TO "anon";
+GRANT ALL ON FUNCTION "public"."review_daily_candidate"("p_id" "uuid", "p_decision" "text", "p_translations" "jsonb") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."review_daily_candidate"("p_id" "uuid", "p_decision" "text", "p_translations" "jsonb") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."set_game_status"("p_game_id" "text", "p_host_id" "text", "p_status" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."set_game_status"("p_game_id" "text", "p_host_id" "text", "p_status" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_game_status"("p_game_id" "text", "p_host_id" "text", "p_status" "text") TO "service_role";
@@ -1262,6 +2448,12 @@ GRANT ALL ON FUNCTION "public"."set_game_status"("p_game_id" "text", "p_host_id"
 GRANT ALL ON FUNCTION "public"."set_submission_ai_verdict"("p_id" "uuid", "p_player_id" "uuid", "p_verdict" boolean, "p_hash" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."set_submission_ai_verdict"("p_id" "uuid", "p_player_id" "uuid", "p_verdict" boolean, "p_hash" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_submission_ai_verdict"("p_id" "uuid", "p_player_id" "uuid", "p_verdict" boolean, "p_hash" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."submit_daily_attempt"("p_date" "date", "p_device_id" "text", "p_duration_ms" bigint, "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_ai_reason" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."submit_daily_attempt"("p_date" "date", "p_device_id" "text", "p_duration_ms" bigint, "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_ai_reason" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."submit_daily_attempt"("p_date" "date", "p_device_id" "text", "p_duration_ms" bigint, "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_ai_reason" "text") TO "service_role";
 
 
 
@@ -1301,6 +2493,12 @@ GRANT ALL ON FUNCTION "public"."vote_community_preset"("p_preset_id" "uuid", "p_
 
 
 
+GRANT ALL ON FUNCTION "public"."votes_all_yes"("p_votes" "jsonb") TO "anon";
+GRANT ALL ON FUNCTION "public"."votes_all_yes"("p_votes" "jsonb") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."votes_all_yes"("p_votes" "jsonb") TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."community_preset_votes" TO "anon";
 GRANT ALL ON TABLE "public"."community_preset_votes" TO "authenticated";
 GRANT ALL ON TABLE "public"."community_preset_votes" TO "service_role";
@@ -1310,6 +2508,24 @@ GRANT ALL ON TABLE "public"."community_preset_votes" TO "service_role";
 GRANT ALL ON TABLE "public"."community_presets" TO "anon";
 GRANT ALL ON TABLE "public"."community_presets" TO "authenticated";
 GRANT ALL ON TABLE "public"."community_presets" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."daily_admins" TO "anon";
+GRANT ALL ON TABLE "public"."daily_admins" TO "authenticated";
+GRANT ALL ON TABLE "public"."daily_admins" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."daily_attempts" TO "anon";
+GRANT ALL ON TABLE "public"."daily_attempts" TO "authenticated";
+GRANT ALL ON TABLE "public"."daily_attempts" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."daily_challenges" TO "anon";
+GRANT ALL ON TABLE "public"."daily_challenges" TO "authenticated";
+GRANT ALL ON TABLE "public"."daily_challenges" TO "service_role";
 
 
 

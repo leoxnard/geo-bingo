@@ -95,6 +95,9 @@ export interface CommunityCategory {
     pitch: number;
     zoom: number;
     hint?: string;
+    // Optional admin-picked start point (Daily Challenge manual select only).
+    startLat?: number;
+    startLng?: number;
 }
 
 // Optional gameplay toggles carried by a preset (applied to the game on import).
@@ -154,6 +157,113 @@ export interface PresetSeed {
     // Every submission from the played game, grouped by category name, so the
     // builder can let the author pick which find to use per category.
     submissionsByCategory?: Record<string, CommunityCategory[]>;
+}
+
+// ---- daily challenge ----
+
+export type DailySource = 'game' | 'ai' | 'manual' | 'database';
+
+// A camera angle (viewpoint) with no surrounding game/submission context.
+export interface DailyViewpoint {
+    lat: number;
+    lng: number;
+    heading: number;
+    pitch: number;
+    zoom: number;
+}
+
+// The active challenge as served to a player — deliberately WITHOUT the hidden
+// answer coordinates (those come only from revealDailyLocation after success/forfeit).
+export interface DailyChallenge {
+    id: string;
+    challenge_date: string; // 'YYYY-MM-DD' (UTC)
+    category: string;
+    category_translations: Record<string, string> | null; // per-locale category text
+    source: DailySource;
+    has_location: boolean;
+    boundary: string | null; // gameBoundary-style polygon JSON (gates play movement)
+    start_lat: number | null;
+    start_lng: number | null;
+    created_at: string;
+}
+
+// One row of the last-7-days hub list, with the caller's per-day status.
+export interface DailyRecentChallenge {
+    id: string;
+    challenge_date: string;
+    category: string;
+    category_translations: Record<string, string> | null;
+    source: DailySource;
+    has_location: boolean;
+    players: number;
+    top_time: number | null;
+    my_time: number | null;
+    my_forfeited: boolean | null;
+}
+
+export interface DailyLeaderboardEntry {
+    rank: number;
+    name: string;
+    duration_ms: number;
+    created_at: string;
+    mine: boolean;
+}
+
+// A find in the post-submit feed (others' Street View captures), downvotable.
+export interface DailyFind {
+    id: string;
+    name: string;
+    duration_ms: number;
+    lat: number;
+    lng: number;
+    heading: number;
+    pitch: number;
+    zoom: number;
+    downvotes: number;
+    my_downvote: boolean;
+}
+
+export interface DailyStats {
+    completed: number;
+    won: number;
+}
+
+// An admin-pool candidate (raw table row, returned by the admin list RPC).
+export interface DailyCandidate {
+    id: string;
+    category: string;
+    category_norm: string;
+    source: DailySource;
+    source_ref: string | null;
+    lat: number | null;
+    lng: number | null;
+    heading: number | null;
+    pitch: number | null;
+    zoom: number | null;
+    boundary: string | null;
+    is_fallback: boolean;
+    status: 'pending' | 'approved' | 'rejected' | 'used';
+    sort_order: number | null;
+    category_translations: Record<string, string> | null;
+    created_at: string;
+    reviewed_at: string | null;
+}
+
+// A materialised challenge as seen by the admin editor (current + previous days).
+// Admin-gated, so it carries the answer viewpoint for a thumbnail + the count of
+// recorded plays (so the admin can decide whether to wipe them on an edit).
+export interface DailyAdminChallenge {
+    challenge_date: string;
+    category: string;
+    category_translations: Record<string, string> | null;
+    source: DailySource;
+    has_location: boolean;
+    lat: number | null;
+    lng: number | null;
+    heading: number | null;
+    pitch: number | null;
+    zoom: number | null;
+    attempts: number;
 }
 
 export interface LobbyViewProps {

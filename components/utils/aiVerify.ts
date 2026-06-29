@@ -91,18 +91,32 @@ async function reverseGeocodeCoarse(lat: number, lng: number, mapsKey: string): 
     return label;
 }
 
-async function verifyOneAgainstGemini(sub: Submission, mapsKey: string): Promise<{ passed: boolean; reason: string }> {
-    const fov = sub.zoom ? 180 / Math.pow(2, sub.zoom) : 90;
-    let safeHeading = sub.heading % 360;
-    if (safeHeading < 0) safeHeading += 360;
-    const imageUrl = `https://maps.googleapis.com/maps/api/streetview?size=640x640&location=${sub.lat},${sub.lng}&heading=${safeHeading}&pitch=${sub.pitch}&fov=${fov}&key=${mapsKey}`;
+// A single camera view to verify: a plain viewpoint + the claimed category. A
+// game Submission already satisfies this shape, and the Daily Challenge passes a
+// freshly-captured view that was never persisted as a submission.
+export interface ViewToVerify {
+    category: string;
+    lat: number;
+    lng: number;
+    heading: number;
+    pitch: number;
+    zoom: number;
+}
 
-    const [{ mime, data }, location] = await Promise.all([fetchImageAsBase64(imageUrl), reverseGeocodeCoarse(sub.lat, sub.lng, mapsKey)]);
+// Verify one Street View camera angle against its claimed category. Shared by the
+// in-game voting auto-verify (verifySubmissions) and the Daily Challenge play view.
+export async function verifySingleView(view: ViewToVerify, mapsKey: string): Promise<{ passed: boolean; reason: string }> {
+    const fov = view.zoom ? 180 / Math.pow(2, view.zoom) : 90;
+    let safeHeading = view.heading % 360;
+    if (safeHeading < 0) safeHeading += 360;
+    const imageUrl = `https://maps.googleapis.com/maps/api/streetview?size=640x640&location=${view.lat},${view.lng}&heading=${safeHeading}&pitch=${view.pitch}&fov=${fov}&key=${mapsKey}`;
+
+    const [{ mime, data }, location] = await Promise.all([fetchImageAsBase64(imageUrl), reverseGeocodeCoarse(view.lat, view.lng, mapsKey)]);
 
     const locationLine = location ? `\nFor context, this Street View location is in: ${location}. Use this only as a soft plausibility hint (e.g. for region-specific categories) — judge primarily by what is actually visible, and do not approve something that isn't clearly shown just because the location fits.\n` : '';
 
     const prompt = `You are a STRICT verifier for a Google Street View Bingo game.
-The player claims this image shows: "${sub.category}".
+The player claims this image shows: "${view.category}".
 ${locationLine}
 Your job is to approve ONLY when the category is clearly and unambiguously visible as the obvious subject of the image. It is okay if its in distance or a little small.
 
@@ -134,7 +148,7 @@ Reply with your verdict as the FIRST word — exactly YES or NO — then " - " a
         if (!res.ok) {
             const errBody = await res.json().catch(() => ({}));
             const msg = errBody?.error?.message || res.statusText;
-            console.warn(`[aiVerify] ${model} HTTP ${res.status} for "${sub.category}":`, msg);
+            console.warn(`[aiVerify] ${model} HTTP ${res.status} for "${view.category}":`, msg);
             throw new Error(`Gemini ${model}: ${msg}`);
         }
         const json = await res.json();
@@ -143,8 +157,8 @@ Reply with your verdict as the FIRST word — exactly YES or NO — then " - " a
         const upper = text.trim().toUpperCase();
 
         if (!upper) {
-            console.warn(`[aiVerify] ${model} returned empty text for "${sub.category}" (finish: ${finishReason})`);
-            throw new Error(`Gemini ${model} returned empty text (finishReason=${finishReason}) for "${sub.category}"`);
+            console.warn(`[aiVerify] ${model} returned empty text for "${view.category}" (finish: ${finishReason})`);
+            throw new Error(`Gemini ${model} returned empty text (finishReason=${finishReason}) for "${view.category}"`);
         }
         const firstToken = upper.match(/^[A-Z]+/)?.[0];
         if (firstToken === 'YES' || firstToken === 'NO') {
@@ -154,8 +168,8 @@ Reply with your verdict as the FIRST word — exactly YES or NO — then " - " a
                 .trim();
             return { passed: firstToken === 'YES', reason };
         }
-        console.warn(`[aiVerify] ${model} unrecognized reply for "${sub.category}": "${text}"`);
-        throw new Error(`Gemini ${model} unrecognized reply for "${sub.category}": ${text}`);
+        console.warn(`[aiVerify] ${model} unrecognized reply for "${view.category}": "${text}"`);
+        throw new Error(`Gemini ${model} unrecognized reply for "${view.category}": ${text}`);
     }, 'paid');
 }
 
@@ -183,7 +197,7 @@ export async function verifySubmissions(submissions: Submission[], mapsKey: stri
             const sub = submissions[i];
             const hash = hashes[i];
             try {
-                const { passed, reason } = await verifyOneAgainstGemini(sub, mapsKey);
+                const { passed, reason } = await verifySingleView(sub, mapsKey);
                 results[i] = { submissionId: sub.id, category: sub.category, passed, hash, fromCache: false, reason };
             } catch (err) {
                 results[i] = { submissionId: sub.id, category: sub.category, passed: false, hash, fromCache: false, error: err instanceof Error ? err.message : 'Unknown error' };

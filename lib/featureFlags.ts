@@ -62,4 +62,13 @@ export const FEATURES = {
 
     /** Let non-host players suggest categories (and show the suggestions panel). */
     categorySuggestions: true,
+
+    // ── Daily Challenge ──────────────────────────────────────────────────────
+
+    /**
+     * Daily Challenge: one global category per day, a stopwatch race, a global
+     * leaderboard and persistent account stats. Off → the home button, the /daily
+     * and /admin/daily routes, and game-submission harvesting all disappear.
+     */
+    dailyChallenge: true,
 } as const;
