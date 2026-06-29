@@ -352,6 +352,8 @@ export const de: Messages = {
     'landing.feature5Text': 'Nutze die KI, um ein erstes Bingo zu validieren oder eine vollständige Liste von Kategorien zu bestätigen und das Spiel zu beenden.',
     'landing.feature6Title': 'Kostenlos, ohne Anmeldung',
     'landing.feature6Text': 'Läuft in jedem Browser auf Desktop oder Handy. Kein Download, kein Konto, komplett kostenlos.',
+    'landing.featureDailyTitle': 'Tagesaufgabe',
+    'landing.featureDailyText': 'Jeden Tag eine neue globale Aufgabe. Finde eine Kategorie in Street View so schnell du kannst und messe dich mit Spielern weltweit. Melde dich an, um gerankt zu werden.',
     'landing.ctaPlay': 'Jetzt spielen',
     'landing.backHome': 'Zurück zur Startseite',
     'landing.screenshot': 'Screenshot',

@@ -352,6 +352,8 @@ export const zh: Messages = {
     'landing.feature5Text': '让 AI 验证第一个宾果，或一整列类别，从而自动结束游戏。',
     'landing.feature6Title': '免费，无需注册',
     'landing.feature6Text': '可在桌面或移动端的任意浏览器中运行。无需下载、无需账号，完全免费。',
+    'landing.featureDailyTitle': '每日挑战',
+    'landing.featureDailyText': '每天一个全球挑战。尽快在街景中找到指定类别，与全球玩家竞速排名。登录后可上榜。',
     'landing.ctaPlay': '开始游戏',
     'landing.backHome': '返回首页',
     'landing.screenshot': '截图',

@@ -353,6 +353,8 @@ export const en = {
     'landing.feature5Text': 'Let AI validate a first bingo, or a full list of categories, to end the game automatically.',
     'landing.feature6Title': 'Free, no sign-up',
     'landing.feature6Text': 'Runs in any browser on desktop or mobile. No download, no account, completely free.',
+    'landing.featureDailyTitle': 'Daily Challenge',
+    'landing.featureDailyText': 'A new global challenge every day. Find one category in Street View as fast as you can and race a worldwide leaderboard. Sign in to be ranked.',
     'landing.ctaPlay': 'Start playing',
     'landing.backHome': 'Back to home',
     'landing.screenshot': 'Screenshot',

@@ -17,7 +17,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { FaThumbsUp } from 'react-icons/fa';
-import { FiArrowLeft, FiArrowRight, FiCheckCircle, FiFlag, FiGift, FiGrid, FiTag, FiUsers } from 'react-icons/fi';
+import { FiArrowLeft, FiArrowRight, FiCalendar, FiCheckCircle, FiFlag, FiGift, FiGrid, FiTag, FiUsers } from 'react-icons/fi';
 
 import { getServerLocale } from '@/lib/i18n/getServerLocale';
 import { Locale } from '@/lib/i18n/locales';
@@ -56,6 +56,7 @@ export default async function HowToPlayPage() {
         { icon: FiCheckCircle, title: t('landing.feature5Title'), text: t('landing.feature5Text') },
         { icon: FiGift, title: t('landing.feature6Title'), text: t('landing.feature6Text') },
         { icon: FaThumbsUp, title: t('community.title'), text: t('community.subtitle') },
+        { icon: FiCalendar, title: t('landing.featureDailyTitle'), text: t('landing.featureDailyText') },
     ];
 
     return (

@@ -352,6 +352,8 @@ export const fr: Messages = {
     'landing.feature5Text': 'Laisse l’IA valider un premier bingo, ou une liste complète de catégories, pour terminer la partie automatiquement.',
     'landing.feature6Title': 'Gratuit, sans inscription',
     'landing.feature6Text': 'Fonctionne dans tout navigateur, sur ordinateur ou mobile. Sans téléchargement, sans compte, entièrement gratuit.',
+    'landing.featureDailyTitle': 'Défi du jour',
+    'landing.featureDailyText': 'Un nouveau défi mondial chaque jour. Trouve une catégorie dans Street View aussi vite que possible et affronte des joueurs du monde entier. Connecte-toi pour être classé.',
     'landing.ctaPlay': 'Commencer à jouer',
     'landing.backHome': 'Retour à l’accueil',
     'landing.screenshot': 'Capture d’écran',
