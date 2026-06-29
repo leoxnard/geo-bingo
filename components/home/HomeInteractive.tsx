@@ -16,8 +16,10 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
+import AccountButton from '@/components/account/AccountButton';
 import { GeoBingoLogo } from '@/components/utils/Elements';
 import { useViewport } from '@/components/utils/useViewport';
+import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
 import LanguageSwitcher from '@/lib/i18n/LanguageSwitcher';
 
@@ -94,7 +96,14 @@ export default function HomeInteractive() {
                 </form>
             </div>
 
+            {FEATURES.dailyChallenge && (
+                <Link href="/daily" className="mt-6 inline-flex items-center gap-2 rounded-full bg-amber-500 px-6 py-3 text-sm font-bold uppercase tracking-wide text-slate-900 shadow-lg transition-colors hover:bg-amber-400">
+                    {t('daily.play')}
+                </Link>
+            )}
+
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                <AccountButton />
                 <Link href="/community" className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800/60 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:border-indigo-500 hover:text-white">
                     {t('home.community')}
                 </Link>
