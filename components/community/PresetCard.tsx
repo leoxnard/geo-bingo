@@ -174,14 +174,14 @@ export default function PresetCard({ preset, myVote, isOwner, onVote, onDelete, 
                 </div>
 
                 <div className="flex items-center gap-2 pt-2 border-t border-slate-700">
-                    <button type="button" onClick={sharePreset} aria-label={t('community.share')} title={t('community.share')} className="flex items-center px-2.5 py-2 rounded-lg text-sm bg-slate-900 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    <button type="button" onClick={sharePreset} aria-label={t('community.share')} title={t('community.share')} className="flex items-center px-2.5 py-2 rounded-lg text-sm text-slate-300 hover:text-white transition-colors">
                         <FaLink size={12} />
                     </button>
-                    <button type="button" onClick={() => onVote(1)} aria-label={t('community.upvote')} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-bold transition-colors ${myVote === 1 ? 'bg-green-600 text-white' : 'bg-slate-900 text-slate-300 hover:bg-slate-700'}`}>
-                        <FaThumbsUp size={12} /> {preset.upvotes}
+                    <button type="button" onClick={() => onVote(1)} aria-label={t('community.upvote')} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm text-slate-300 hover:text-white transition-colors`}>
+                        <FaThumbsUp size={12} color={myVote === 1 ? '#43A047' : ''} /> {preset.upvotes}
                     </button>
-                    <button type="button" onClick={() => onVote(-1)} aria-label={t('community.downvote')} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-bold transition-colors ${myVote === -1 ? 'bg-red-600 text-white' : 'bg-slate-900 text-slate-300 hover:bg-slate-700'}`}>
-                        <FaThumbsDown size={12} /> {preset.downvotes}
+                    <button type="button" onClick={() => onVote(-1)} aria-label={t('community.downvote')} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm text-slate-300 hover:text-white transition-colors`}>
+                        <FaThumbsDown size={12} color={myVote === -1 ? '#E53935' : ''} /> {preset.downvotes}
                     </button>
                     <button type="button" onClick={importPreset} className="ml-auto bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-1.5 px-4 rounded-lg text-sm uppercase transition-colors">
                         {t('community.import')}
