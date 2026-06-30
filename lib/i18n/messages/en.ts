@@ -510,7 +510,7 @@ export const en = {
     'daily.verifyError': 'Could not verify — try again.',
     'daily.guestBanner': 'Playing as guest — sign in to rank',
     'daily.anonNote': "You played as a guest, so your time wasn't saved. Sign in to rank next time.",
-    'daily.answerLocation': 'The category was here',
+    'daily.answerLocation': 'Official Solution',
     'daily.leaderboard': 'Leaderboard',
     'daily.noEntries': 'No one has finished yet. Be the first!',
     'daily.finds': 'Player finds',

@@ -702,6 +702,8 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                             key={`extra-${i}`}
                                             position={{ lat: m.lat, lng: m.lng }}
                                             title={m.label}
+                                            onMouseOver={() => setHoveredLocation({ lat: m.lat, lng: m.lng })}
+                                            onMouseOut={() => setHoveredLocation(null)}
                                             options={{
                                                 icon: {
                                                     path: google.maps.SymbolPath.CIRCLE,

@@ -11,9 +11,9 @@ its captured Street View still and can be downvoted; a find that crosses the
 ================================================================================
 */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { GoogleMap, InfoWindowF, MarkerF } from '@react-google-maps/api';
+import { GoogleMap, MarkerF } from '@react-google-maps/api';
 import toast from 'react-hot-toast';
 import { FaThumbsDown } from 'react-icons/fa';
 
@@ -95,6 +95,8 @@ function DailyFindsMap({ finds, answer, isLoaded }: { finds: DailyFind[]; answer
     const { t } = useT();
     const [hovered, setHovered] = useState<DailyFind | null>(null);
     const [answerHover, setAnswerHover] = useState(false);
+    const mousePos = useRef<{ x: number; y: number } | null>(null);
+    const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
 
     const points = finds.filter((f) => Number.isFinite(f.lat) && Number.isFinite(f.lng));
 
@@ -113,54 +115,85 @@ function DailyFindsMap({ finds, answer, isLoaded }: { finds: DailyFind[]; answer
 
     if (!isLoaded || (points.length === 0 && !answer)) return null;
 
-    // Heatmap-style glow: a soft radial-gradient blob per find (the native
-    // HeatmapLayer was removed from the Maps JS API in v3.65). Overlapping blobs
-    // accumulate, so clusters read "hotter" — the same effect, with stable API.
     const glowIcon: google.maps.Icon = {
         url: `data:image/svg+xml;utf-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72"><defs><radialGradient id="g" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="rgba(244,63,94,0.55)"/><stop offset="55%" stop-color="rgba(244,63,94,0.22)"/><stop offset="100%" stop-color="rgba(244,63,94,0)"/></radialGradient></defs><circle cx="36" cy="36" r="36" fill="url(#g)"/></svg>')}`,
         scaledSize: new google.maps.Size(72, 72),
         anchor: new google.maps.Point(36, 36),
     };
 
-    // Gold star marking the example/answer viewpoint, distinct from the red finds.
-    const starIcon: google.maps.Symbol = {
-        path: 'M 0,-11 L 3.2,-3.4 L 11,-3.4 L 4.5,1.7 L 7,9.5 L 0,4.8 L -7,9.5 L -4.5,1.7 L -11,-3.4 L -3.2,-3.4 Z',
-        fillColor: '#fbbf24',
-        fillOpacity: 1,
-        strokeColor: '#ffffff',
-        strokeWeight: 1.5,
-        scale: 1.1,
+    const glowIconAnswer: google.maps.Icon = {
+        url: `data:image/svg+xml;utf-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72"><defs><radialGradient id="g" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="rgba(255,202,40,0.55)"/><stop offset="55%" stop-color="rgba(255,202,40,0.22)"/><stop offset="100%" stop-color="rgba(255,202,40,0)"/></radialGradient></defs><circle cx="36" cy="36" r="36" fill="url(#g)"/></svg>')}`,
+        scaledSize: new google.maps.Size(72, 72),
+        anchor: new google.maps.Point(36, 36),
     };
 
+    const showTooltip = hovered !== null || answerHover;
+
     return (
-        <div className="relative mb-4 h-56 overflow-hidden rounded-xl">
-            <GoogleMap mapContainerClassName="absolute inset-0" options={mapOptions({ streetViewControl: false })} onLoad={onLoad}>
-                {points.map((f) => (
-                    <MarkerF key={`glow-${f.id}`} position={{ lat: f.lat, lng: f.lng }} options={{ icon: glowIcon, clickable: false, zIndex: 1 }} />
-                ))}
-                {points.map((f) => (
-                    <MarkerF key={f.id} position={{ lat: f.lat, lng: f.lng }} zIndex={2} onMouseOver={() => setHovered(f)} onMouseOut={() => setHovered((h) => (h?.id === f.id ? null : h))} options={{ icon: { path: google.maps.SymbolPath.CIRCLE, scale: 6, fillColor: '#f43f5e', fillOpacity: 0.9, strokeColor: '#ffffff', strokeWeight: 1 } }} />
-                ))}
-                {answer && <MarkerF position={{ lat: answer.lat, lng: answer.lng }} zIndex={3} onMouseOver={() => setAnswerHover(true)} onMouseOut={() => setAnswerHover(false)} options={{ icon: starIcon, title: t('daily.answerLocation') }} />}
-                {hovered && (
-                    <InfoWindowF position={{ lat: hovered.lat, lng: hovered.lng }} options={{ disableAutoPan: true, pixelOffset: new google.maps.Size(0, -8) }}>
-                        <div className="w-36">
-                            <img src={getStreetViewImageUrl(hovered, 200)} alt={hovered.name} className="mb-1 aspect-square w-full rounded object-cover" />
-                            <p className="truncate text-xs font-bold text-slate-900">{hovered.name}</p>
-                            <p className="font-mono text-[11px] text-indigo-700">{formatDuration(hovered.duration_ms)}</p>
-                        </div>
-                    </InfoWindowF>
-                )}
-                {answer && answerHover && (
-                    <InfoWindowF position={{ lat: answer.lat, lng: answer.lng }} options={{ disableAutoPan: true, pixelOffset: new google.maps.Size(0, -10) }}>
-                        <div className="w-36">
-                            <img src={getStreetViewImageUrl(answer, 200)} alt="" className="mb-1 aspect-square w-full rounded object-cover" />
-                            <p className="text-xs font-bold text-amber-600">{t('daily.answerLocation')}</p>
-                        </div>
-                    </InfoWindowF>
-                )}
-            </GoogleMap>
-            <span className="absolute bottom-2 left-2 z-10 rounded-md bg-slate-900/80 px-2 py-1 text-[11px] font-medium text-slate-300 shadow">{t('daily.findsHeatmap')}</span>
+        <div className="relative mb-4">
+            <div
+                className="h-80 overflow-hidden rounded-xl"
+                onMouseMove={(e) => {
+                    mousePos.current = { x: e.clientX, y: e.clientY };
+                    if (showTooltip) setTooltipPos({ x: e.clientX, y: e.clientY });
+                }}
+                onMouseLeave={() => setTooltipPos(null)}
+            >
+                <GoogleMap mapContainerClassName="absolute inset-0" options={mapOptions({ streetViewControl: false })} onLoad={onLoad}>
+                    {points.map((f) => (
+                        <MarkerF key={`glow-${f.id}`} position={{ lat: f.lat, lng: f.lng }} options={{ icon: glowIcon, clickable: false, zIndex: 1 }} />
+                    ))}
+                    {points.map((f) => (
+                        <MarkerF
+                            key={f.id}
+                            position={{ lat: f.lat, lng: f.lng }}
+                            zIndex={2}
+                            onMouseOver={() => {
+                                setHovered(f);
+                                setTooltipPos(mousePos.current);
+                            }}
+                            onMouseOut={() => {
+                                setHovered((h) => (h?.id === f.id ? null : h));
+                                setTooltipPos(null);
+                            }}
+                            options={{ icon: { path: google.maps.SymbolPath.CIRCLE, scale: 6, fillColor: '#f43f5e', fillOpacity: 0.9, strokeColor: '#ffffff', strokeWeight: 1 } }}
+                        />
+                    ))}
+                    {answer && (
+                        <>
+                            <MarkerF key={'glow-answer'} position={{ lat: answer.lat, lng: answer.lng }} options={{ icon: glowIconAnswer, clickable: false, zIndex: 1 }} />
+                            <MarkerF
+                                position={{ lat: answer.lat, lng: answer.lng }}
+                                zIndex={3}
+                                onMouseOver={() => {
+                                    setAnswerHover(true);
+                                    setTooltipPos(mousePos.current);
+                                }}
+                                onMouseOut={() => {
+                                    setAnswerHover(false);
+                                    setTooltipPos(null);
+                                }}
+                                options={{ icon: { path: google.maps.SymbolPath.CIRCLE, scale: 6, fillColor: '#FFCA28', fillOpacity: 0.9, strokeColor: '#ffffff', strokeWeight: 1 }, title: t('daily.answerLocation') }}
+                            />
+                        </>
+                    )}
+                </GoogleMap>
+                <span className="absolute bottom-2 left-2 z-10 rounded-md bg-slate-900/80 px-2 py-1 text-[11px] font-medium text-slate-300 shadow">{t('daily.findsHeatmap')}</span>
+            </div>
+
+            {tooltipPos && hovered && (
+                <div className="pointer-events-none fixed z-50 w-36 rounded-lg bg-slate-900/95 p-1 shadow-xl" style={{ left: tooltipPos.x - 70, top: tooltipPos.y - 190 }}>
+                    <img src={getStreetViewImageUrl(hovered, 200)} alt={hovered.name} className="mb-1 aspect-square w-full rounded object-cover" />
+                    <p className="truncate px-1 text-xs font-bold text-white">{hovered.name}</p>
+                    <p className="px-1 font-mono text-[11px] text-indigo-300">{formatDuration(hovered.duration_ms)}</p>
+                </div>
+            )}
+            {tooltipPos && answerHover && answer && (
+                <div className="pointer-events-none fixed z-50 w-36 rounded-lg bg-slate-900/95 p-1 shadow-xl" style={{ left: tooltipPos.x - 70, top: tooltipPos.y - 170 }}>
+                    <img src={getStreetViewImageUrl(answer, 200)} alt="" className="mb-1 aspect-square w-full rounded object-cover" />
+                    <p className="px-1 text-xs font-bold text-amber-400">{t('daily.answerLocation')}</p>
+                </div>
+            )}
         </div>
     );
 }

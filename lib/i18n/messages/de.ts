@@ -509,7 +509,7 @@ export const de: Messages = {
     'daily.verifyError': 'Konnte nicht prüfen – versuch es nochmal.',
     'daily.guestBanner': 'Als Gast – anmelden zum Ranken',
     'daily.anonNote': 'Du hast als Gast gespielt, deine Zeit wurde nicht gespeichert. Melde dich an, um beim nächsten Mal zu ranken.',
-    'daily.answerLocation': 'Die Kategorie war hier',
+    'daily.answerLocation': 'Musterlösung',
     'daily.leaderboard': 'Bestenliste',
     'daily.noEntries': 'Noch niemand fertig. Sei der Erste!',
     'daily.finds': 'Funde der Spieler',

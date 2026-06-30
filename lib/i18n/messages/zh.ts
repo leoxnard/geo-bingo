@@ -509,7 +509,7 @@ export const zh: Messages = {
     'daily.verifyError': '无法核实——请重试。',
     'daily.guestBanner': '以访客身份——登录以上榜',
     'daily.anonNote': '你以访客身份游玩，时间未保存。下次登录即可上榜。',
-    'daily.answerLocation': '该类别就在这里',
+    'daily.answerLocation': '官方答案',
     'daily.leaderboard': '排行榜',
     'daily.noEntries': '还没有人完成。来当第一个吧！',
     'daily.finds': '玩家的发现',

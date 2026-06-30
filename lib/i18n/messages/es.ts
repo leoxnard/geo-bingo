@@ -509,7 +509,7 @@ export const es: Messages = {
     'daily.verifyError': 'No se pudo verificar: inténtalo de nuevo.',
     'daily.guestBanner': 'Como invitado: inicia sesión para clasificar',
     'daily.anonNote': 'Jugaste como invitado, así que tu tiempo no se guardó. Inicia sesión para clasificar la próxima vez.',
-    'daily.answerLocation': 'La categoría estaba aquí',
+    'daily.answerLocation': 'Solución oficial',
     'daily.leaderboard': 'Clasificación',
     'daily.noEntries': 'Nadie ha terminado aún. ¡Sé el primero!',
     'daily.finds': 'Hallazgos de jugadores',

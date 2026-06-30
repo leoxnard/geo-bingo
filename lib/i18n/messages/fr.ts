@@ -509,7 +509,7 @@ export const fr: Messages = {
     'daily.verifyError': 'Vérification impossible — réessaie.',
     'daily.guestBanner': 'En invité — connecte-toi pour être classé',
     'daily.anonNote': 'Tu as joué en invité, ton temps n’a pas été enregistré. Connecte-toi pour être classé la prochaine fois.',
-    'daily.answerLocation': 'La catégorie était ici',
+    'daily.answerLocation': 'Solution officielle',
     'daily.leaderboard': 'Classement',
     'daily.noEntries': 'Personne n’a encore terminé. Sois le premier !',
     'daily.finds': 'Trouvailles des joueurs',

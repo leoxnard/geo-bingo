@@ -185,6 +185,12 @@ export interface DailyChallenge {
     start_lat: number | null;
     start_lng: number | null;
     created_at: string;
+    // Server-side attempt state — null for guests or if no attempt exists yet.
+    my_attempt: {
+        started_at: string | null; // ISO timestamp set when play begins
+        duration_ms: number | null; // set on successful submission
+        forfeited: boolean;
+    } | null;
 }
 
 // One row of the last-7-days hub list, with the caller's per-day status.

@@ -190,6 +190,25 @@ export interface DailyRpcResult {
     error?: string;
 }
 
+export interface StartAttemptResult {
+    success: boolean;
+    error?: string;
+    started_at?: string;
+    // returned when error === 'ALREADY_COMPLETED'
+    forfeited?: boolean;
+    duration_ms?: number;
+}
+
+export async function startDailyAttempt(date: string, force = false): Promise<StartAttemptResult> {
+    const { data, error } = await supabase.rpc('start_daily_attempt', {
+        p_date: date,
+        p_device_id: getDeviceId(),
+        p_force: force,
+    });
+    if (error) throw error;
+    return data as StartAttemptResult;
+}
+
 export async function submitDailyAttempt(date: string, durationMs: number, view: DailyViewpoint, aiReason: string | null): Promise<DailyRpcResult> {
     const { data, error } = await supabase.rpc('submit_daily_attempt', {
         p_date: date,

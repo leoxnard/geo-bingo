@@ -30,7 +30,7 @@ import { verifySingleView } from '@/components/utils/aiVerify';
 import { ExitButton } from '@/components/utils/Elements';
 import { GOOGLE_MAPS_LIBRARIES, isLocationAllowed, mapOptions } from '@/components/utils/mapUtils';
 import type { DailyChallenge, DailyViewpoint } from '@/components/utils/types';
-import { amIDailyAdmin, forfeitDailyAttempt, formatDuration, getDailyChallenge, resolveDailyCategory, revealDailyLocation, submitDailyAttempt, todayUtc } from '@/lib/daily';
+import { amIDailyAdmin, forfeitDailyAttempt, formatDuration, getDailyChallenge, resolveDailyCategory, revealDailyLocation, startDailyAttempt, submitDailyAttempt, todayUtc } from '@/lib/daily';
 import { useT } from '@/lib/i18n/I18nProvider';
 
 import DailyFindFeed from './DailyFindFeed';
@@ -44,7 +44,6 @@ export default function DailyChallengeView({ date }: { date: string }) {
     const { t, locale } = useT();
     const { user, loading: userLoading } = useUser();
     const resolvedDate = useMemo(() => (date === 'today' ? todayUtc() : date), [date]);
-    const completedKey = `geoBingoDaily:${resolvedDate}`;
 
     const { isLoaded } = useJsApiLoader({ id: 'google-map-script', googleMapsApiKey: MAPS_KEY, libraries: GOOGLE_MAPS_LIBRARIES });
 
@@ -103,66 +102,81 @@ export default function DailyChallengeView({ date }: { date: string }) {
         }
     }, [challenge, resolvedDate]);
 
-    // Begin a fresh run. Open-world starts on the world map (no spawn); a pinned
-    // challenge snaps the admin start to the nearest outdoor panorama first. Bumping
-    // runId remounts the map so the panorama + timer reset cleanly.
-    const beginPlaying = useCallback(() => {
-        if (!challenge || !isLoaded) return;
-        const pinned = challenge.start_lat != null && challenge.start_lng != null;
-        if (!pinned) {
-            startPosRef.current = null;
-            setLastReason(null);
-            setRunId((n) => n + 1);
-            setPhase('playing');
-            return;
-        }
-        const rawStart = { lat: challenge.start_lat as number, lng: challenge.start_lng as number };
-        const svc = new google.maps.StreetViewService();
-        svc.getPanorama({ location: rawStart }, (data, status) => {
-            startPosRef.current = status === google.maps.StreetViewStatus.OK && data?.location?.latLng ? { lat: data.location.latLng.lat(), lng: data.location.latLng.lng() } : rawStart;
-            setLastReason(null);
-            setRunId((n) => n + 1);
-            setPhase('playing');
-        });
-    }, [challenge, isLoaded]);
+    // Begin a run. For authenticated users, registers started_at on the server
+    // (crash recovery + anti-cheat). force=true resets a completed attempt (admin).
+    // Open-world starts on the world map; pinned snaps to the nearest panorama.
+    const beginPlaying = useCallback(
+        async (force = false) => {
+            if (!challenge || !isLoaded) return;
 
-    // 2. Restore a prior completion (so revisiting shows your result), otherwise begin.
-    //    Only signed-in players have a recorded result to restore — guests are never
-    //    recorded, so they always start fresh (and may replay as often as they like).
+            if (user) {
+                const res = await startDailyAttempt(resolvedDate, force).catch(() => null);
+                if (res?.started_at && !startRef.current) {
+                    // Seed the timer from server start so a resumed session shows the right elapsed time
+                    startRef.current = new Date(res.started_at).getTime();
+                }
+            }
+
+            const pinned = challenge.start_lat != null && challenge.start_lng != null;
+            if (!pinned) {
+                startPosRef.current = null;
+                setLastReason(null);
+                setRunId((n) => n + 1);
+                setPhase('playing');
+                return;
+            }
+            const rawStart = { lat: challenge.start_lat as number, lng: challenge.start_lng as number };
+            const svc = new google.maps.StreetViewService();
+            svc.getPanorama({ location: rawStart }, (data, status) => {
+                startPosRef.current = status === google.maps.StreetViewStatus.OK && data?.location?.latLng ? { lat: data.location.latLng.lat(), lng: data.location.latLng.lng() } : rawStart;
+                setLastReason(null);
+                setRunId((n) => n + 1);
+                setPhase('playing');
+            });
+        },
+        [challenge, isLoaded, resolvedDate, user],
+    );
+
+    // 2. Restore state from the server. Authenticated users get my_attempt back
+    //    from getDailyChallenge, so there's no localStorage dependency and a crash
+    //    mid-run is automatically recovered (in-progress → resume timer from started_at).
     useEffect(() => {
         if (!challenge || !isLoaded || userLoading) return;
 
-        const stored = user && typeof window !== 'undefined' ? localStorage.getItem(completedKey) : null;
-        if (stored) {
-            try {
-                const parsed = JSON.parse(stored) as { ms?: number; outcome?: 'found' | 'forfeit' };
-                setOutcome(parsed.outcome ?? 'found');
-                setFinalMs(parsed.ms ?? null);
-            } catch {
+        const my = challenge.my_attempt;
+        if (my) {
+            if (my.duration_ms != null) {
                 setOutcome('found');
+                setFinalMs(my.duration_ms);
+                setPhase('done');
+                loadReveal();
+                return;
             }
-            setPhase('done');
-            loadReveal();
-            return;
+            if (my.forfeited) {
+                setOutcome('forfeit');
+                setPhase('done');
+                loadReveal();
+                return;
+            }
+            // In-progress: seed the timer so it continues from where it left off
+            if (my.started_at) {
+                startRef.current = new Date(my.started_at).getTime();
+            }
         }
+
         beginPlaying();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [challenge, isLoaded, userLoading, user, completedKey]);
+    }, [challenge, isLoaded, userLoading, user]);
 
-    // Replay (admin only): drop the local "already played" memory and start fresh.
-    // The recorded leaderboard time still stands (one scored attempt per account).
+    // Replay (admin only): force-resets the server attempt and restarts the timer.
     const playAgain = () => {
-        try {
-            localStorage.removeItem(completedKey);
-        } catch {
-            /* ignore */
-        }
         setOutcome(null);
         setFinalMs(null);
         setAnswer(null);
         setLastReason(null);
+        startRef.current = 0;
         setPhase('loading');
-        beginPlaying();
+        beginPlaying(true);
     };
 
     // 3. Stopwatch tick while playing.
@@ -176,7 +190,8 @@ export default function DailyChallengeView({ date }: { date: string }) {
 
     const onMapLoad = (map: google.maps.Map) => {
         mapRef.current = map;
-        startRef.current = Date.now();
+        // Only set start time if not already seeded from a server-side resumed session
+        if (!startRef.current) startRef.current = Date.now();
     };
 
     const onPanoLoad = (pano: google.maps.StreetViewPanorama) => {
@@ -234,14 +249,6 @@ export default function DailyChallengeView({ date }: { date: string }) {
             setFinalMs(elapsed);
             setOutcome('found');
             await submitDailyAttempt(resolvedDate, elapsed, vp, reason).catch(() => null);
-            // Only signed-in players have a result worth remembering; guests stay ephemeral.
-            if (user) {
-                try {
-                    localStorage.setItem(completedKey, JSON.stringify({ ms: elapsed, outcome: 'found' }));
-                } catch {
-                    /* ignore storage failures */
-                }
-            }
             setPhase('done');
             setLeaderboardRefresh((n) => n + 1);
             await loadReveal();
@@ -255,13 +262,6 @@ export default function DailyChallengeView({ date }: { date: string }) {
         setConfirmingGiveUp(false);
         setOutcome('forfeit');
         await forfeitDailyAttempt(resolvedDate).catch(() => null);
-        if (user) {
-            try {
-                localStorage.setItem(completedKey, JSON.stringify({ outcome: 'forfeit' }));
-            } catch {
-                /* ignore */
-            }
-        }
         setPhase('done');
         await loadReveal();
     };
@@ -309,7 +309,7 @@ export default function DailyChallengeView({ date }: { date: string }) {
                         {!user && <p className="mt-3 text-xs text-amber-300">{t('daily.anonNote')}</p>}
                         {(isAdmin || !user) && (
                             <button type="button" onClick={playAgain} className="mt-4 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold uppercase text-white hover:bg-indigo-500">
-                                {t('daily.replay')}
+                                admin: {t('daily.replay')}
                             </button>
                         )}
                     </div>
