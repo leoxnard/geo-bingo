@@ -19,7 +19,7 @@ import { FaPen, FaUserCircle } from 'react-icons/fa';
 
 import AuthGate from '@/components/community/AuthGate';
 import { useUser, displayNameFor } from '@/components/community/useUser';
-import { renameAuthor } from '@/lib/community';
+import { deleteAccount, renameAuthor } from '@/lib/community';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { supabase } from '@/lib/supabase';
 
@@ -28,6 +28,7 @@ export default function AccountButton({ className = '', onRenamed }: { className
     const { user, loading } = useUser();
     const [open, setOpen] = useState(false);
     const [renaming, setRenaming] = useState(false);
+    const [deleting, setDeleting] = useState(false);
     const [name, setName] = useState('');
     const [busy, setBusy] = useState(false);
 
@@ -36,11 +37,25 @@ export default function AccountButton({ className = '', onRenamed }: { className
     const close = () => {
         setOpen(false);
         setRenaming(false);
+        setDeleting(false);
     };
 
     const signOut = async () => {
         await supabase.auth.signOut();
         close();
+    };
+
+    const confirmDelete = async () => {
+        setBusy(true);
+        try {
+            await deleteAccount();
+            toast.success(t('community.accountDeleted'));
+            close();
+        } catch {
+            toast.error(t('community.deleteAccountError'));
+        } finally {
+            setBusy(false);
+        }
     };
 
     const openRename = () => {
@@ -91,6 +106,21 @@ export default function AccountButton({ className = '', onRenamed }: { className
                                             </button>
                                         </div>
                                     </>
+                                ) : deleting ? (
+                                    <>
+                                        <div>
+                                            <h2 className="text-xl font-bold text-red-400">{t('community.deleteAccountTitle')}</h2>
+                                            <p className="mt-1 text-sm text-slate-400">{t('community.deleteAccountWarning')}</p>
+                                        </div>
+                                        <div className="flex justify-end gap-2">
+                                            <button type="button" onClick={() => setDeleting(false)} disabled={busy} className="rounded-xl bg-slate-700 px-4 py-2 text-sm font-bold uppercase text-white hover:bg-slate-600 disabled:opacity-50">
+                                                {t('common.cancel')}
+                                            </button>
+                                            <button type="button" onClick={confirmDelete} disabled={busy} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-bold uppercase text-white hover:bg-red-500 disabled:opacity-50">
+                                                {busy ? t('common.loading') : t('community.deleteAccountCta')}
+                                            </button>
+                                        </div>
+                                    </>
                                 ) : (
                                     <>
                                         <div>
@@ -108,6 +138,9 @@ export default function AccountButton({ className = '', onRenamed }: { className
                                                 {t('community.signOut')}
                                             </button>
                                         </div>
+                                        <button type="button" onClick={() => setDeleting(true)} className="mt-1 self-center text-xs font-medium text-red-400/80 transition-colors hover:text-red-300">
+                                            {t('community.deleteAccount')}
+                                        </button>
                                     </>
                                 )}
                             </div>

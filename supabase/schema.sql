@@ -681,6 +681,30 @@ $$;
 ALTER FUNCTION "public"."delete_community_preset"("p_preset_id" "uuid") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."delete_my_account"() RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    caller uuid := auth.uid();
+BEGIN
+    IF caller IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_AUTHENTICATED');
+    END IF;
+
+    DELETE FROM community_presets WHERE author_id = caller;  -- votes cascade
+    DELETE FROM daily_attempts    WHERE account_id = caller;
+
+    DELETE FROM auth.users WHERE id = caller;
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."delete_my_account"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."delete_player"("p_id" "uuid", "p_host_id" "text") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -2304,6 +2328,12 @@ GRANT ALL ON FUNCTION "public"."daily_caller_name"() TO "service_role";
 GRANT ALL ON FUNCTION "public"."delete_community_preset"("p_preset_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."delete_community_preset"("p_preset_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."delete_community_preset"("p_preset_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."delete_my_account"() TO "anon";
+GRANT ALL ON FUNCTION "public"."delete_my_account"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."delete_my_account"() TO "service_role";
 
 
 

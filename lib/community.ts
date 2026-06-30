@@ -144,6 +144,19 @@ export async function updatePreset(id: string, input: Omit<CreatePresetInput, 'a
     return data as CreateResult;
 }
 
+/**
+ * Permanently delete the signed-in account and everything it owns (community
+ * presets + their votes, daily-challenge attempts) along with the auth identity
+ * itself, then clear the local session. Irreversible.
+ */
+export async function deleteAccount(): Promise<void> {
+    const { data, error } = await supabase.rpc('delete_my_account');
+    if (error) throw error;
+    const result = (data ?? {}) as { success: boolean; error?: string };
+    if (!result.success) throw new Error(result.error || 'DELETE_FAILED');
+    await supabase.auth.signOut();
+}
+
 /** Set the caller's account-wide display name (auth metadata + every owned preset's author_name). */
 export async function renameAuthor(name: string): Promise<void> {
     const trimmed = name.trim();
