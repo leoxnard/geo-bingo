@@ -30,6 +30,12 @@ export const en = {
     'home.legalNotice': 'Legal Notice',
     'home.privacyPolicy': 'Privacy Policy',
 
+    // ---- options menu ----
+    'options.title': 'Options',
+    'options.account': 'Account',
+    'options.language': 'Language',
+    'options.volume': 'Volume',
+
     // ---- lobby settings ----
     'settings.teamMode': 'Team Mode',
     'settings.noTeams': 'No Teams',
@@ -488,6 +494,12 @@ export const en = {
     'community.renameNameHelp': 'This name is shown under all your presets.',
     'community.nameUpdated': 'Name updated.',
     'community.nameUpdateError': 'Could not update your name.',
+    'community.deleteAccount': 'Delete account',
+    'community.deleteAccountTitle': 'Delete your account?',
+    'community.deleteAccountWarning': 'This permanently deletes your account and everything tied to it — your community presets and daily-challenge results. This cannot be undone.',
+    'community.deleteAccountCta': 'Delete permanently',
+    'community.accountDeleted': 'Your account and all its data have been deleted.',
+    'community.deleteAccountError': 'Could not delete your account. Please try again.',
 
     // ---- daily challenge ----
     'daily.title': 'Daily Challenge',

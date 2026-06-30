@@ -18,8 +18,8 @@ import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.
 import Image from 'next/image';
 import toast from 'react-hot-toast';
 
-import LanguageSwitcher from '@/lib/i18n/LanguageSwitcher';
 import { CategoryLanguage, normalizeLocale } from '@/lib/i18n/locales';
+import OptionsButton from '@/lib/settings/OptionsButton';
 
 import LobbyCategories from './LobbyCategories';
 import LobbyCommunityPresets from './LobbyCommunityPresets';
@@ -235,7 +235,7 @@ export default function LobbyView(props: LobbyViewProps) {
 
     return (
         <div className="min-h-screen flex flex-col items-center px-4 pb-6 pt-14 sm:pt-8 sm:pb-8 lg:p-10 bg-slate-900 text-white relative">
-            <LanguageSwitcher />
+            <OptionsButton />
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 mb-8 sm:mb-12 hidden sm:flex">
                 <Image src="/mappin.and.ellipse.png" alt="Logo" width={60} height={60} className="w-auto h-auto" />
                 <h1 className="text-6xl font-bold text-indigo-400 tracking-tighter">Geo BingBong</h1>

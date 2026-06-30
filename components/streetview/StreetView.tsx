@@ -20,6 +20,7 @@ import { useJsApiLoader } from '@react-google-maps/api';
 import toast from 'react-hot-toast';
 
 import { useT } from '@/lib/i18n/I18nProvider';
+import { useSettings } from '@/lib/settings/SettingsProvider';
 
 import RoundControls from './RoundControls';
 import { initialWorldZoom, ROOMY_GAP, ROOMY_MIN, safeStartCenter } from './streetViewHelpers';
@@ -36,6 +37,11 @@ import { useViewport } from '../utils/useViewport';
 
 export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list', teamMode = 'ffa', gridSize = 3, startingPoint = 'open-world', gameBoundary = '[]', endCondition = 'timer', timeLeft, readyPlayers, players, hideMapSymbols = false, hideMiniMap = false, exclusiveMode = false, allowHints = true, aiEndGame = true, onVoteEnd, notifyGameEvent, hintByCategory = {} }: StreetViewProps) {
     const { t } = useT();
+    const { settings } = useSettings();
+    // Latest master volume, read inside the timer-sound effect without making it
+    // a dependency (we don't want a volume change to retrigger the sounds).
+    const volumeRef = useRef(settings.volume);
+    volumeRef.current = settings.volume;
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
         googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
@@ -287,15 +293,17 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
     // sound effects for timer
     useEffect(() => {
+        if (volumeRef.current <= 0) return;
+
         if (timeLeft === 61) {
             const alertSound = new Audio('/sounds/ticking.wav');
-            alertSound.volume = 0.4;
+            alertSound.volume = 0.4 * volumeRef.current;
             alertSound.play().catch((e) => console.warn('Audio playback failed', e));
         }
 
         if (timeLeft === 11) {
             const tickSound = new Audio('/sounds/countdown.wav');
-            tickSound.volume = 0.3;
+            tickSound.volume = 0.3 * volumeRef.current;
             tickSound.play().catch((e) => console.warn('Audio playback failed', e));
         }
     }, [timeLeft]);

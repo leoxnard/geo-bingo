@@ -4,8 +4,8 @@
 ================================================================================
 HOME — INTERACTIVE HERO
 ================================================================================
-The interactive top of the landing page: name input, create/join game, language
-switcher, animated logo and a link to the how-to-play page. Split out of
+The interactive top of the landing page: name input, create/join game, options
+menu (account, language, audio), animated logo and a link to the how-to-play page. Split out of
 app/page.tsx so the page itself can stay a server component. The full how-to-play
 / features content lives on its own server-rendered route at /how-to-play.
 ================================================================================
@@ -16,12 +16,11 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-import AccountButton from '@/components/account/AccountButton';
 import { GeoBingoLogo } from '@/components/utils/Elements';
 import { useViewport } from '@/components/utils/useViewport';
 import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
-import LanguageSwitcher from '@/lib/i18n/LanguageSwitcher';
+import OptionsButton from '@/lib/settings/OptionsButton';
 
 import { adjectives, badAdjectives, animals } from '../../lib/names';
 
@@ -65,7 +64,7 @@ export default function HomeInteractive() {
 
     return (
         <section id="play" className="relative flex flex-1 flex-col items-center justify-start sm:justify-center px-4 py-8 sm:px-8 sm:py-10 lg:px-24">
-            <LanguageSwitcher />
+            <OptionsButton />
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 mb-6 sm:mb-8 hover">
                 <GeoBingoLogo size={isNarrow ? 50 : 80} className="animate-pulse" />
                 <h1 className="text-3xl sm:text-6xl font-bold text-indigo-400 tracking-tighter text-center sm:text-left">Geo BingBong</h1>
@@ -103,7 +102,6 @@ export default function HomeInteractive() {
             )}
 
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                <AccountButton />
                 <Link href="/community" className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800/60 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:border-indigo-500 hover:text-white">
                     {t('home.community')}
                 </Link>

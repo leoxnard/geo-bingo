@@ -29,6 +29,12 @@ export const zh: Messages = {
     'home.legalNotice': '法律声明',
     'home.privacyPolicy': '隐私政策',
 
+    // ---- options menu ----
+    'options.title': '选项',
+    'options.account': '账户',
+    'options.language': '语言',
+    'options.volume': '音量',
+
     // ---- lobby settings ----
     'settings.teamMode': '团队模式',
     'settings.noTeams': '无团队',
@@ -482,6 +488,12 @@ export const zh: Messages = {
     'community.renameNameHelp': '该名字会显示在你所有的预设下方。',
     'community.nameUpdated': '名字已更新。',
     'community.nameUpdateError': '无法更新你的名字。',
+    'community.deleteAccount': '删除账户',
+    'community.deleteAccountTitle': '删除你的账户？',
+    'community.deleteAccountWarning': '这将永久删除你的账户以及与之关联的所有数据——你的社区预设和每日挑战记录。此操作无法撤销。',
+    'community.deleteAccountCta': '永久删除',
+    'community.accountDeleted': '你的账户及其所有数据已被删除。',
+    'community.deleteAccountError': '无法删除你的账户，请重试。',
     'community.categoryHintPlaceholder': '提示（可选）—— 例如：“红色的颜色，黑色的轮子”',
     'community.startPoint': '起点（可选）',
     'community.startHelp': '放下小人或点击/拖动标记来设置玩家出生点。留空则为开放世界。',

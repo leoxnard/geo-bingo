@@ -29,6 +29,12 @@ export const es: Messages = {
     'home.legalNotice': 'Aviso legal',
     'home.privacyPolicy': 'Política de privacidad',
 
+    // ---- options menu ----
+    'options.title': 'Opciones',
+    'options.account': 'Cuenta',
+    'options.language': 'Idioma',
+    'options.volume': 'Volumen',
+
     // ---- lobby settings ----
     'settings.teamMode': 'Modo por equipos',
     'settings.noTeams': 'Sin equipos',
@@ -482,6 +488,12 @@ export const es: Messages = {
     'community.renameNameHelp': 'Este nombre se muestra bajo todas tus plantillas.',
     'community.nameUpdated': 'Nombre actualizado.',
     'community.nameUpdateError': 'No se pudo actualizar tu nombre.',
+    'community.deleteAccount': 'Eliminar cuenta',
+    'community.deleteAccountTitle': '¿Eliminar tu cuenta?',
+    'community.deleteAccountWarning': 'Esto elimina permanentemente tu cuenta y todo lo asociado a ella: tus plantillas de la comunidad y tus resultados del reto diario. Esta acción no se puede deshacer.',
+    'community.deleteAccountCta': 'Eliminar permanentemente',
+    'community.accountDeleted': 'Tu cuenta y todos sus datos se han eliminado.',
+    'community.deleteAccountError': 'No se pudo eliminar tu cuenta. Inténtalo de nuevo.',
     'community.categoryHintPlaceholder': 'Pista (opcional) – ej. “Color rojo, ruedas negras”',
     'community.startPoint': 'Punto de inicio (opcional)',
     'community.startHelp': 'Suelta el Pegman o haz clic/arrastra el marcador para fijar dónde aparecen los jugadores. Déjalo vacío para mundo abierto.',

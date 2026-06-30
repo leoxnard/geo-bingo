@@ -29,6 +29,12 @@ export const de: Messages = {
     'home.legalNotice': 'Impressum',
     'home.privacyPolicy': 'Datenschutz',
 
+    // ---- options menu ----
+    'options.title': 'Optionen',
+    'options.account': 'Konto',
+    'options.language': 'Sprache',
+    'options.volume': 'Lautstärke',
+
     // ---- lobby settings ----
     'settings.teamMode': 'Team-Modus',
     'settings.noTeams': 'Keine Teams',
@@ -482,6 +488,12 @@ export const de: Messages = {
     'community.renameNameHelp': 'Dieser Name wird unter all deinen Vorlagen angezeigt.',
     'community.nameUpdated': 'Name aktualisiert.',
     'community.nameUpdateError': 'Name konnte nicht aktualisiert werden.',
+    'community.deleteAccount': 'Konto löschen',
+    'community.deleteAccountTitle': 'Konto löschen?',
+    'community.deleteAccountWarning': 'Damit werden dein Konto und alle damit verknüpften Daten – deine Community-Vorlagen und Daily-Challenge-Ergebnisse – dauerhaft gelöscht. Das kann nicht rückgängig gemacht werden.',
+    'community.deleteAccountCta': 'Endgültig löschen',
+    'community.accountDeleted': 'Dein Konto und alle Daten wurden gelöscht.',
+    'community.deleteAccountError': 'Konto konnte nicht gelöscht werden. Bitte versuche es erneut.',
     'community.categoryHintPlaceholder': 'Hinweis (optional) – z. B. „Schwarze Farbe, offene Räder“',
     'community.startPoint': 'Startpunkt (optional)',
     'community.startHelp': 'Pegman absetzen oder den Marker anklicken/ziehen, um den Startpunkt der Spieler festzulegen. Leer lassen für Open World.',

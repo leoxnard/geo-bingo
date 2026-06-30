@@ -17,12 +17,12 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { FaArrowLeft, FaCheck, FaCrown, FaEye, FaFire, FaFlag, FaMapMarkedAlt, FaPlay, FaRedo, FaTrophy } from 'react-icons/fa';
 
-import AccountButton from '@/components/account/AccountButton';
 import AuthGate from '@/components/community/AuthGate';
 import { useUser } from '@/components/community/useUser';
 import type { DailyRecentChallenge } from '@/components/utils/types';
 import { formatDuration, getRecentDailyChallenges, resolveDailyCategory, todayUtc } from '@/lib/daily';
 import { useT } from '@/lib/i18n/I18nProvider';
+import OptionsButton from '@/lib/settings/OptionsButton';
 
 import DailyLeaderboard from './DailyLeaderboard';
 import DailyStats from './DailyStats';
@@ -77,13 +77,13 @@ export default function DailyHub() {
     const streak = recent && user ? streakOf(recent, todayStr) : 0;
 
     return (
-        <main className="min-h-dvh bg-slate-900 px-4 py-8 text-white">
+        <main className="relative min-h-dvh bg-slate-900 px-4 py-8 text-white">
+            <OptionsButton />
             <div className="mx-auto flex w-full max-w-2xl flex-col gap-5">
                 <div className="flex items-center justify-between gap-3">
                     <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-slate-400 hover:text-white">
                         <FaArrowLeft size={12} /> {t('daily.backHome')}
                     </Link>
-                    <AccountButton />
                 </div>
 
                 {/* Spotlight — the selected day (today by default) */}

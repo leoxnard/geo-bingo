@@ -29,6 +29,12 @@ export const fr: Messages = {
     'home.legalNotice': 'Mentions légales',
     'home.privacyPolicy': 'Confidentialité',
 
+    // ---- options menu ----
+    'options.title': 'Options',
+    'options.account': 'Compte',
+    'options.language': 'Langue',
+    'options.volume': 'Volume',
+
     // ---- lobby settings ----
     'settings.teamMode': 'Mode équipe',
     'settings.noTeams': 'Sans équipes',
@@ -487,6 +493,12 @@ export const fr: Messages = {
     'community.renameNameHelp': 'Ce nom s’affiche sous tous tes modèles.',
     'community.nameUpdated': 'Nom mis à jour.',
     'community.nameUpdateError': 'Impossible de mettre à jour ton nom.',
+    'community.deleteAccount': 'Supprimer le compte',
+    'community.deleteAccountTitle': 'Supprimer ton compte ?',
+    'community.deleteAccountWarning': 'Cela supprime définitivement ton compte et tout ce qui y est lié — tes préréglages communautaires et tes résultats du défi quotidien. Cette action est irréversible.',
+    'community.deleteAccountCta': 'Supprimer définitivement',
+    'community.accountDeleted': 'Ton compte et toutes ses données ont été supprimés.',
+    'community.deleteAccountError': 'Impossible de supprimer ton compte. Réessaie.',
 
     // ---- daily challenge ----
     'daily.title': 'Défi quotidien',

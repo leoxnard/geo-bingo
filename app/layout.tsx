@@ -16,6 +16,7 @@ import './globals.css';
 
 import { getServerLocale } from '@/lib/i18n/getServerLocale';
 import { I18nProvider } from '@/lib/i18n/I18nProvider';
+import { SettingsProvider } from '@/lib/settings/SettingsProvider';
 
 const geistSans = Geist({
     variable: '--font-geist-sans',
@@ -87,7 +88,9 @@ export default async function RootLayout({
     return (
         <html lang={locale} className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
             <body className="min-h-full flex flex-col">
-                <I18nProvider initialLocale={locale}>{children}</I18nProvider>
+                <I18nProvider initialLocale={locale}>
+                    <SettingsProvider>{children}</SettingsProvider>
+                </I18nProvider>
                 <Analytics />
                 <SpeedInsights />
             </body>
