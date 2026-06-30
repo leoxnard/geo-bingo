@@ -31,6 +31,7 @@ import type { BoundaryPolygon, CommunityCategory, PresetSeed, PresetSettings } f
 import { createPreset, getPreset, updatePreset } from '@/lib/community';
 import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
+import OptionsButton from '@/lib/settings/OptionsButton';
 
 import AuthGate from './AuthGate';
 import { finalizePreset } from './finalizePreset';
@@ -350,7 +351,7 @@ export default function CommunityBuilder() {
     return (
         <main className="h-dvh flex flex-col bg-slate-900 text-white">
             {/* Header / stepper */}
-            <header className="flex items-center gap-3 px-4 py-3 border-b border-slate-800 shrink-0">
+            <header className="flex items-center gap-3 py-3 pl-4 pr-16 border-b border-slate-800 shrink-0">
                 <button type="button" onClick={() => (step === 0 ? router.push('/community') : setStep((s) => s - 1))} className="text-slate-400 hover:text-white p-1" aria-label={t('community.back')}>
                     <FaArrowLeft />
                 </button>
@@ -363,6 +364,7 @@ export default function CommunityBuilder() {
                         <span key={i} className={`h-2 w-2 rounded-full ${i <= step ? 'bg-indigo-500' : 'bg-slate-700'}`} />
                     ))}
                 </div>
+                <OptionsButton />
             </header>
 
             {/* Step body */}

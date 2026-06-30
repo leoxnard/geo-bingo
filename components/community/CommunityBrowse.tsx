@@ -18,10 +18,10 @@ import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { FaArrowLeft, FaPlus } from 'react-icons/fa';
 
-import AccountButton from '@/components/account/AccountButton';
 import type { CommunityPreset } from '@/components/utils/types';
 import { getMyVotes, getPreset, listPresets, votePreset, deletePreset, type PresetSort } from '@/lib/community';
 import { useT } from '@/lib/i18n/I18nProvider';
+import OptionsButton from '@/lib/settings/OptionsButton';
 
 import PresetCard from './PresetCard';
 import { useUser } from './useUser';
@@ -109,8 +109,9 @@ export default function CommunityBrowse() {
 
     return (
         <main className="min-h-dvh bg-slate-900 text-white">
+            <OptionsButton onRenamed={load} />
             <div className="max-w-6xl mx-auto px-4 py-8 flex flex-col gap-6">
-                <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex flex-wrap items-center justify-between gap-4 pr-12">
                     <div className="flex items-center gap-3">
                         <Link href="/" className="text-slate-400 hover:text-white" aria-label={t('landing.backHome')}>
                             <FaArrowLeft />
@@ -122,8 +123,6 @@ export default function CommunityBrowse() {
                     </div>
 
                     <div className="flex items-center gap-3">
-                        <AccountButton onRenamed={load} />
-
                         <Link href="/community/create" className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 px-5 rounded-xl uppercase transition-colors">
                             <FaPlus size={12} /> {t('community.createCta')}
                         </Link>
