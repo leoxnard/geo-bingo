@@ -1846,6 +1846,7 @@ BEGIN
     END IF;
     UPDATE games
     SET status = p_status,
+        phase_started_at = CASE WHEN p_status = 'playing' AND status IS DISTINCT FROM 'playing' THEN now() ELSE phase_started_at END,
         finished_at = CASE WHEN p_status = 'finished' THEN now() ELSE finished_at END
     WHERE id = p_game_id;
     RETURN jsonb_build_object('success', true);
@@ -2463,7 +2464,8 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "category_hint_translations" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
     "preset_categories" "jsonb" DEFAULT '[]'::"jsonb" NOT NULL,
     "scale_voting" boolean DEFAULT false NOT NULL,
-    "finished_at" timestamp with time zone
+    "finished_at" timestamp with time zone,
+    "phase_started_at" timestamp with time zone
 );
 
 

@@ -46,6 +46,37 @@ const PodiumView = dynamic(() => import('@/components/PodiumView'), { ssr: false
 
 type GameStatus = 'lobby' | 'playing' | 'voting' | 'finished';
 
+type GameRow = {
+    banned_players?: string[];
+    host_id?: string;
+    updated_at?: string;
+    status?: GameStatus;
+    phase_started_at?: string | null;
+    ready_players?: string[];
+    categories?: string[];
+    suggested_categories?: string[];
+    time_limit?: number;
+    game_mode?: 'list' | 'bingo';
+    team_mode?: 'ffa' | 'teams';
+    grid_size?: number;
+    starting_point?: string;
+    gameBoundary?: string;
+    end_condition?: 'timer' | 'first_bingo';
+    hide_map_symbols?: boolean;
+    hide_minimap?: boolean;
+    ai_end_game?: boolean;
+    exclusive_mode?: boolean;
+    scale_voting?: boolean;
+    category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
+    generation_radius?: number;
+    generation_number?: number;
+    language?: CategoryLanguage;
+    difficulty?: 'default' | 'easy' | 'hard';
+    categories_generated?: boolean;
+    category_translations?: Record<string, string[]>;
+    category_hint_translations?: Record<string, string[]>;
+};
+
 export default function GameRoom({ params }: { params: Promise<{ id: string }> }) {
     const unwrappedParams = use(params);
     const gameId = unwrappedParams.id.toLowerCase();
@@ -93,6 +124,10 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [nameGate, setNameGate] = useState<'checking' | 'prompt' | 'ready'>('checking');
 
     const [timeLeft, setTimeLeft] = useState<number>(0);
+    // Server-stamped start of the current 'playing' phase (games.phase_started_at).
+    // Null for games started before the column existed — the timer then falls back
+    // to the legacy first-observation + localStorage deadline.
+    const [phaseStartedAt, setPhaseStartedAt] = useState<string | null>(null);
 
     const timeUpTriggeredRef = useRef(false);
     const pendingOptimisticUpdatesRef = useRef<Set<string>>(new Set());
@@ -449,6 +484,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 console.log('[GameRoom] Loading existing game, status:', gameData.status);
                 setLastUpdated(gameData.updated_at);
                 setStatus(gameData.status || 'lobby');
+                setPhaseStartedAt(gameData.phase_started_at ?? null);
                 setCategories(gameData.categories || ['', '', '', '', '', '', '', '', '', '']);
                 setSuggestedCategories(gameData.suggested_categories || []);
                 setReadyPlayers(gameData.ready_players || []);
@@ -551,7 +587,89 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             initializeRoom();
         }
 
+        const applyGameRow = (row: GameRow) => {
+            if (row.banned_players?.includes(currentPlayerId)) {
+                router.push('/');
+                return;
+            }
+
+            if (row.host_id !== undefined) {
+                const newHostId = row.host_id;
+                const justPromoted = newHostId === currentPlayerId && gameHostIdRef.current !== currentPlayerId;
+                gameHostIdRef.current = newHostId;
+                setGameHostId(newHostId);
+                setIsHost(newHostId === currentPlayerId);
+                if (newHostId === currentPlayerId) {
+                    localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
+                    if (justPromoted) {
+                        // A host transfer DELETEs the previous secret, so the new host
+                        // must register its own before any host action works. Retry a
+                        // couple of times so a transient failure doesn't leave the new
+                        // host unable to act (the symptom is host RPCs returning NOT_HOST).
+                        void (async () => {
+                            for (let attempt = 0; attempt < 3; attempt++) {
+                                if (await ensureHostSecret()) return;
+                                await new Promise((r) => setTimeout(r, 500));
+                            }
+                        })();
+                    }
+                } else {
+                    localStorage.removeItem(`geoBingoHost_${gameId}`);
+                    clearHostToken(gameId);
+                }
+            }
+
+            if (row.updated_at !== undefined) setLastUpdated(row.updated_at);
+            if (row.status !== undefined) {
+                console.log('[GameRoom] Subscription status update:', row.status, 'at', new Date().toISOString());
+                setStatus(row.status);
+            }
+            if (row.phase_started_at !== undefined) setPhaseStartedAt(row.phase_started_at);
+            if (row.ready_players !== undefined) setReadyPlayers(row.ready_players);
+            if (row.banned_players !== undefined) setBannedPlayers(row.banned_players);
+
+            // Settings are written exclusively by the host (via the host-only
+            // update_game_settings RPC), so the host's local state is the source
+            // of truth and must NOT be overwritten by its own Realtime echo —
+            // doing so caused stale echoes to revert fast/rapid edits. Only push
+            // these fields to non-host players.
+            const isHostNow = gameHostIdRef.current === currentPlayerId;
+            if (!isHostNow) {
+                if (row.categories !== undefined) setCategories(row.categories);
+                if (row.suggested_categories !== undefined) setSuggestedCategories(row.suggested_categories);
+                if (row.time_limit !== undefined) setTimeLimit(row.time_limit);
+                if (row.game_mode !== undefined) setGameMode(row.game_mode);
+                if (row.team_mode !== undefined) setTeamMode(row.team_mode);
+                if (row.grid_size !== undefined) setGridSize(row.grid_size);
+                if (row.starting_point !== undefined) setStartingPoint(row.starting_point);
+                if (row.gameBoundary !== undefined) setGameBoundary(row.gameBoundary);
+                if (row.end_condition !== undefined) setEndCondition(row.end_condition);
+                if (row.hide_map_symbols !== undefined) setHideMapSymbols(row.hide_map_symbols);
+                if (row.hide_minimap !== undefined) setHideMiniMap(row.hide_minimap);
+                if (row.ai_end_game !== undefined) setAiEndGame(row.ai_end_game);
+                if (row.exclusive_mode !== undefined) setExclusiveMode(row.exclusive_mode);
+                if (row.scale_voting !== undefined) setScaleVoting(row.scale_voting);
+                if (row.category_source !== undefined) setCategorySource(row.category_source);
+                if (row.generation_radius !== undefined) setGenerationRadius(row.generation_radius);
+                if (row.generation_number !== undefined) setGenerationNumber(row.generation_number);
+                if (row.language !== undefined) setLanguage(row.language);
+                if (row.difficulty !== undefined) setDifficulty(row.difficulty);
+                if (row.categories_generated !== undefined) setCategoriesGenerated(row.categories_generated);
+                if (row.category_hint_translations !== undefined) setCategoryHintTranslations(row.category_hint_translations);
+                if (row.category_translations !== undefined) setCategoryTranslations(row.category_translations);
+            }
+        };
+
+        // Postgres changes missed while the websocket was down are NOT replayed
+        // after Supabase reconnects, so a full refetch on resubscribe-after-drop
+        // is the only way to catch up.
+        const refetchGame = async () => {
+            const { data } = await supabase.from('games').select('*').eq('id', gameId).single();
+            if (data) applyGameRow(data);
+        };
+
         // Realtime Listeners
+        let gameChannelDropped = false;
         const gameChannel = supabase
             .channel(`game-updates-${gameId}`)
             .on(
@@ -562,80 +680,20 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     table: 'games',
                     filter: `id=eq.${gameId}`,
                 },
-                (payload) => {
-                    if (payload.new.banned_players?.includes(currentPlayerId)) {
-                        router.push('/');
-                        return;
-                    }
-
-                    if (payload.new.host_id !== undefined) {
-                        const newHostId = payload.new.host_id;
-                        const justPromoted = newHostId === currentPlayerId && gameHostIdRef.current !== currentPlayerId;
-                        gameHostIdRef.current = newHostId;
-                        setGameHostId(newHostId);
-                        setIsHost(newHostId === currentPlayerId);
-                        if (newHostId === currentPlayerId) {
-                            localStorage.setItem(`geoBingoHost_${gameId}`, 'true');
-                            if (justPromoted) {
-                                // A host transfer DELETEs the previous secret, so the new host
-                                // must register its own before any host action works. Retry a
-                                // couple of times so a transient failure doesn't leave the new
-                                // host unable to act (the symptom is host RPCs returning NOT_HOST).
-                                void (async () => {
-                                    for (let attempt = 0; attempt < 3; attempt++) {
-                                        if (await ensureHostSecret()) return;
-                                        await new Promise((r) => setTimeout(r, 500));
-                                    }
-                                })();
-                            }
-                        } else {
-                            localStorage.removeItem(`geoBingoHost_${gameId}`);
-                            clearHostToken(gameId);
-                        }
-                    }
-
-                    if (payload.new.updated_at !== undefined) setLastUpdated(payload.new.updated_at);
-                    if (payload.new.status !== undefined) {
-                        console.log('[GameRoom] Subscription status update:', payload.new.status, 'at', new Date().toISOString());
-                        setStatus(payload.new.status);
-                    }
-                    if (payload.new.ready_players !== undefined) setReadyPlayers(payload.new.ready_players);
-                    if (payload.new.banned_players !== undefined) setBannedPlayers(payload.new.banned_players);
-
-                    // Settings are written exclusively by the host (via the host-only
-                    // update_game_settings RPC), so the host's local state is the source
-                    // of truth and must NOT be overwritten by its own Realtime echo —
-                    // doing so caused stale echoes to revert fast/rapid edits. Only push
-                    // these fields to non-host players.
-                    const isHostNow = gameHostIdRef.current === currentPlayerId;
-                    if (!isHostNow) {
-                        if (payload.new.categories !== undefined) setCategories(payload.new.categories);
-                        if (payload.new.suggested_categories !== undefined) setSuggestedCategories(payload.new.suggested_categories);
-                        if (payload.new.time_limit !== undefined) setTimeLimit(payload.new.time_limit);
-                        if (payload.new.game_mode !== undefined) setGameMode(payload.new.game_mode);
-                        if (payload.new.team_mode !== undefined) setTeamMode(payload.new.team_mode);
-                        if (payload.new.grid_size !== undefined) setGridSize(payload.new.grid_size);
-                        if (payload.new.starting_point !== undefined) setStartingPoint(payload.new.starting_point);
-                        if (payload.new.gameBoundary !== undefined) setGameBoundary(payload.new.gameBoundary);
-                        if (payload.new.end_condition !== undefined) setEndCondition(payload.new.end_condition);
-                        if (payload.new.hide_map_symbols !== undefined) setHideMapSymbols(payload.new.hide_map_symbols);
-                        if (payload.new.hide_minimap !== undefined) setHideMiniMap(payload.new.hide_minimap);
-                        if (payload.new.ai_end_game !== undefined) setAiEndGame(payload.new.ai_end_game);
-                        if (payload.new.exclusive_mode !== undefined) setExclusiveMode(payload.new.exclusive_mode);
-                        if (payload.new.scale_voting !== undefined) setScaleVoting(payload.new.scale_voting);
-                        if (payload.new.category_source !== undefined) setCategorySource(payload.new.category_source);
-                        if (payload.new.generation_radius !== undefined) setGenerationRadius(payload.new.generation_radius);
-                        if (payload.new.generation_number !== undefined) setGenerationNumber(payload.new.generation_number);
-                        if (payload.new.language !== undefined) setLanguage(payload.new.language);
-                        if (payload.new.difficulty !== undefined) setDifficulty(payload.new.difficulty);
-                        if (payload.new.categories_generated !== undefined) setCategoriesGenerated(payload.new.categories_generated);
-                        if (payload.new.category_hint_translations !== undefined) setCategoryHintTranslations(payload.new.category_hint_translations);
-                        if (payload.new.category_translations !== undefined) setCategoryTranslations(payload.new.category_translations);
-                    }
-                },
+                (payload) => applyGameRow(payload.new),
             )
-            .subscribe();
+            .subscribe((channelStatus) => {
+                if (channelStatus === 'SUBSCRIBED') {
+                    if (gameChannelDropped) {
+                        gameChannelDropped = false;
+                        void refetchGame();
+                    }
+                } else if (channelStatus === 'CHANNEL_ERROR' || channelStatus === 'TIMED_OUT' || channelStatus === 'CLOSED') {
+                    gameChannelDropped = true;
+                }
+            });
 
+        let playerChannelDropped = false;
         const playerChannel = supabase
             .channel(`player-updates-${gameId}`)
             .on(
@@ -655,7 +713,16 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     }
                 },
             )
-            .subscribe();
+            .subscribe((channelStatus) => {
+                if (channelStatus === 'SUBSCRIBED') {
+                    if (playerChannelDropped) {
+                        playerChannelDropped = false;
+                        void fetchPlayers();
+                    }
+                } else if (channelStatus === 'CHANNEL_ERROR' || channelStatus === 'TIMED_OUT' || channelStatus === 'CLOSED') {
+                    playerChannelDropped = true;
+                }
+            });
 
         const gameEventsChannel = supabase
             .channel(`game-events-${gameId}`)
@@ -755,16 +822,24 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             return;
         }
 
-        // Playing phase: restore existing deadline across reloads or create a new one.
+        // Playing phase: the deadline is server-authoritative — phase_started_at is
+        // stamped by set_game_status in the same UPDATE that flips the game to
+        // 'playing', so every client (including mid-round joiners and refreshers)
+        // derives the same deadline. Games started before the column existed fall
+        // back to the legacy per-client localStorage deadline.
+        const serverStartMs = phaseStartedAt ? Date.parse(phaseStartedAt) : NaN;
         const tick = () => {
             const now = Date.now();
-            const rawStored = localStorage.getItem(timerStorageKey);
-            const hasValidStored = rawStored !== null && !isNaN(Number(rawStored));
-
-            const endTs = hasValidStored ? Number(rawStored) : now + timeLimit * 1000;
-
-            if (!hasValidStored) {
-                localStorage.setItem(timerStorageKey, String(endTs));
+            let endTs: number;
+            if (!isNaN(serverStartMs)) {
+                endTs = serverStartMs + timeLimit * 1000;
+            } else {
+                const rawStored = localStorage.getItem(timerStorageKey);
+                const hasValidStored = rawStored !== null && !isNaN(Number(rawStored));
+                endTs = hasValidStored ? Number(rawStored) : now + timeLimit * 1000;
+                if (!hasValidStored) {
+                    localStorage.setItem(timerStorageKey, String(endTs));
+                }
             }
 
             const left = Math.max(0, Math.ceil((endTs - now) / 1000));
@@ -779,7 +854,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         tick();
         const timerId = setInterval(tick, 1000);
         return () => clearInterval(timerId);
-    }, [status, timeLimit, isHost, gameId, updateStatus, gameLoaded]);
+    }, [status, timeLimit, isHost, gameId, updateStatus, gameLoaded, phaseStartedAt]);
 
     const kickPlayer = async (idToKick: string) => {
         if (isHost) {
