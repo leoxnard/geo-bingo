@@ -19,6 +19,7 @@ import Link from 'next/link';
 import { FaThumbsUp } from 'react-icons/fa';
 import { FiArrowLeft, FiArrowRight, FiCalendar, FiCheckCircle, FiFlag, FiGift, FiGrid, FiTag, FiUsers } from 'react-icons/fi';
 
+import GlassAmbience from '@/components/utils/GlassAmbience';
 import { getServerLocale } from '@/lib/i18n/getServerLocale';
 import { Locale } from '@/lib/i18n/locales';
 import { translate } from '@/lib/i18n/translate';
@@ -60,31 +61,32 @@ export default async function HowToPlayPage() {
     ];
 
     return (
-        <main className="min-h-dvh bg-slate-900 text-white">
+        <main className="relative min-h-dvh overflow-hidden bg-slate-950 text-white">
+            <GlassAmbience />
             {/* Top bar */}
-            <header className="mx-auto flex max-w-5xl items-center justify-between px-4 py-5 sm:px-8">
-                <Link href="/" className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-sm font-medium text-slate-300 transition-colors hover:border-slate-500 hover:text-white">
+            <header className="relative mx-auto flex max-w-5xl items-center justify-between px-4 py-5 sm:px-8">
+                <Link href="/" className="glass press inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-300 transition-colors hover:text-white">
                     <FiArrowLeft aria-hidden /> {t('landing.backHome')}
                 </Link>
                 <div className="flex items-center gap-2">
                     <Image src="/mappin.and.ellipse.png" alt="" width={28} height={28} className="h-auto w-auto" />
-                    <span className="text-lg font-bold tracking-tighter text-indigo-400">Geo BingBong</span>
+                    <span className="bg-gradient-to-r from-indigo-300 via-fuchsia-300 to-cyan-300 bg-clip-text text-lg font-bold tracking-tighter text-transparent">Geo BingBong</span>
                 </div>
             </header>
 
             {/* Hero */}
-            <section className="mx-auto max-w-3xl px-4 pb-12 pt-10 text-center sm:px-8 sm:pb-16 sm:pt-16">
-                <p className="mb-3 text-sm font-bold uppercase tracking-[0.2em] text-indigo-400">{t('landing.aboutTitle')}</p>
+            <section className="relative mx-auto max-w-3xl px-4 pb-12 pt-10 text-center sm:px-8 sm:pb-16 sm:pt-16">
+                <p className="mb-3 text-sm font-bold uppercase tracking-[0.2em] text-indigo-300">{t('landing.aboutTitle')}</p>
                 <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">{t('landing.howTitle')}</h1>
                 <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">{t('landing.aboutText')}</p>
             </section>
 
             {/* Steps — alternating text / screenshot rows */}
-            <section className="mx-auto flex max-w-5xl flex-col gap-12 px-4 py-8 sm:gap-20 sm:px-8 sm:py-12">
+            <section className="relative mx-auto flex max-w-5xl flex-col gap-12 px-4 py-8 sm:gap-20 sm:px-8 sm:py-12">
                 {steps.map((step, i) => (
                     <div key={i} className={`flex flex-col items-center gap-6 sm:gap-10 md:flex-row ${i % 2 === 1 ? 'md:flex-row-reverse' : ''}`}>
                         <div className="flex-1">
-                            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600/15 text-xl font-bold text-indigo-400 ring-1 ring-inset ring-indigo-500/30">{String(i + 1).padStart(2, '0')}</div>
+                            <div className="glass mb-4 flex h-12 w-12 items-center justify-center rounded-2xl text-xl font-bold text-indigo-300">{String(i + 1).padStart(2, '0')}</div>
                             <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{step.title}</h2>
                             <p className="mt-3 text-base leading-relaxed text-slate-400">{step.text}</p>
                         </div>
@@ -96,15 +98,15 @@ export default async function HowToPlayPage() {
             </section>
 
             {/* Features */}
-            <section className="border-t border-slate-800">
+            <section className="relative border-t border-white/10">
                 <div className="mx-auto max-w-5xl px-4 py-16 sm:px-8 sm:py-20">
                     <h2 className="mb-10 text-center text-2xl font-bold tracking-tight sm:text-3xl">{t('landing.featuresTitle')}</h2>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         {features.map((feature, i) => {
                             const Icon = feature.icon;
                             return (
-                                <div key={i} className="flex gap-4 rounded-2xl border border-slate-700 bg-slate-800/60 p-6">
-                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-600/15 text-indigo-400 ring-1 ring-inset ring-indigo-500/30">
+                                <div key={i} className="glass card-lift flex gap-4 rounded-2xl p-6">
+                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-300 ring-1 ring-inset ring-indigo-400/30">
                                         <Icon size={22} aria-hidden />
                                     </div>
                                     <div>
@@ -119,10 +121,10 @@ export default async function HowToPlayPage() {
             </section>
 
             {/* CTA */}
-            <section className="border-t border-slate-800">
+            <section className="relative border-t border-white/10">
                 <div className="mx-auto flex max-w-5xl flex-col items-center gap-5 px-4 py-16 text-center sm:px-8">
                     <p className="max-w-xl text-lg font-medium text-slate-300">{t('home.tagline')}</p>
-                    <Link href="/" className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-8 py-4 font-bold uppercase tracking-wide text-white transition-all hover:bg-indigo-500">
+                    <Link href="/" className="btn-sheen press inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 px-8 py-4 font-bold uppercase tracking-wide text-white shadow-[0_16px_32px_-10px_rgba(99,102,241,0.65),inset_0_1px_0_rgba(255,255,255,0.3)]">
                         {t('landing.backHome')} <FiArrowRight aria-hidden />
                     </Link>
                 </div>

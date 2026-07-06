@@ -48,7 +48,7 @@ export default function BingoBoard({ gridSize, myBoard, mySubmissions, otherSubm
                         key={cat}
                         title={isBlocked ? t('sv.claimedByTeam') : foundSub?.ai_verdict === false ? t('sv.aiCouldNotVerify') : foundSub?.ai_verdict === true ? `${t('sv.aiVerified')} ✓` : undefined}
                         onClick={() => handleBingoTileClick(cat)}
-                        className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-center items-center text-center pb-2 sm:pb-12 ${foundSub ? 'text-white border-slate-600 shadow-md' : isBlocked ? 'bg-slate-900/80 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700'} ${foundSub?.ai_verdict === false ? '!border-red-500' : foundSub?.ai_verdict === true ? '!border-green-500' : ''}`}
+                        className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-center items-center text-center pb-2 sm:pb-12 ${foundSub ? 'text-white border-white/25 shadow-md' : isBlocked ? 'glass-inset !border-red-500 opacity-60' : 'glass hover:brightness-125'} ${foundSub?.ai_verdict === false ? '!border-red-500' : foundSub?.ai_verdict === true ? '!border-green-500' : ''}`}
                     >
                         {/* Background Layer */}
                         <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
@@ -63,7 +63,7 @@ export default function BingoBoard({ gridSize, myBoard, mySubmissions, otherSubm
                                 <button type="button" aria-label={t('sv.tip')} className="block p-0.5 -m-0.5">
                                     <FaInfoCircle className={`transition-colors text-[11px] sm:text-sm drop-shadow-md ${foundSub ? 'text-white/70 hover:text-white' : 'text-slate-400/70 hover:text-white'}`} />
                                 </button>
-                                <div className="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-1 sm:mb-2 hidden group-hover:block group-focus-within:block w-max max-w-[150px] sm:max-w-[200px] bg-slate-800 text-white text-[10px] sm:text-xs p-2 rounded-lg shadow-xl border border-slate-600 z-[100] whitespace-normal text-left sm:text-center cursor-default">
+                                <div className="glass-dark absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-1 sm:mb-2 hidden group-hover:block group-focus-within:block w-max max-w-[150px] sm:max-w-[200px] text-white text-[10px] sm:text-xs p-2 rounded-lg z-[100] whitespace-normal text-left sm:text-center cursor-default">
                                     <span className="font-bold text-indigo-300">{t('sv.tip')}</span> {hint}
                                 </div>
                             </div>

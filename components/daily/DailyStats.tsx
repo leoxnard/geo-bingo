@@ -33,11 +33,11 @@ export default function DailyStats({ refreshKey = 0 }: { refreshKey?: number }) 
 
     return (
         <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-4 text-center">
+            <div className="glass rounded-xl p-4 text-center">
                 <div className="text-3xl font-bold text-indigo-300">{stats.completed}</div>
                 <div className="text-xs font-medium uppercase tracking-wide text-slate-400">{t('daily.completed')}</div>
             </div>
-            <div className="rounded-xl border border-slate-700 bg-slate-800 p-4 text-center">
+            <div className="glass rounded-xl p-4 text-center">
                 <div className="text-3xl font-bold text-amber-300">{stats.won}</div>
                 <div className="text-xs font-medium uppercase tracking-wide text-slate-400">{t('daily.won')}</div>
             </div>

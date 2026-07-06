@@ -45,7 +45,7 @@ interface FullscreenButtonProps {
 export const FullscreenButton = ({ isFullscreen, containerRef, setIsFullscreen }: FullscreenButtonProps) => {
     const { t } = useT();
     return (
-        <button type="button" onClick={() => toggleFullscreen(containerRef, setIsFullscreen)} className="absolute top-2 right-2 z-5 hidden sm:flex w-12 h-12 bg-slate-800/30 hover:bg-slate-700/80 text-white items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-slate-500 font-bold transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm" title={isFullscreen ? t('elements.exitFullscreen') : t('elements.enterFullscreen')}>
+        <button type="button" onClick={() => toggleFullscreen(containerRef, setIsFullscreen)} className="glass-dark absolute top-2 right-2 z-5 hidden sm:flex w-12 h-12 hover:brightness-125 text-white items-center justify-center rounded-md font-bold transition-transform hover:scale-105 active:scale-95" title={isFullscreen ? t('elements.exitFullscreen') : t('elements.enterFullscreen')}>
             {isFullscreen ? (
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
@@ -67,7 +67,7 @@ interface ExitButtonProps {
 export const ExitButton = ({ onExit, style }: ExitButtonProps) => {
     const { t } = useT();
     return (
-        <button type="button" onClick={onExit} style={style} className="hidden sm:flex w-12 h-12 bg-red-500/30 hover:bg-red-500/80 text-white items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-red-400 font-bold transition-transform duration-300 hover:scale-105 active:scale-95 backdrop-blur-sm" title={t('elements.exitStreetView')}>
+        <button type="button" onClick={onExit} style={style} className="hidden sm:flex w-12 h-12 bg-gradient-to-br from-rose-500/85 to-red-600/85 border border-red-300/60 shadow-[0_12px_24px_-8px_rgba(244,63,94,0.6),inset_0_1px_0_rgba(255,255,255,0.35)] hover:brightness-110 text-white items-center justify-center rounded-md font-bold transition-transform duration-300 hover:scale-105 active:scale-95" title={t('elements.exitStreetView')}>
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
                 <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -165,7 +165,7 @@ export const MaskIcon = ({ name, className = '' }: { name: string; className?: s
 
 export const ToggleButton = ({ classname, active, labelLeft, labelRight, iconLeft, iconRight, onClick, disabled, title, isHost, position = 'middle', description }: { classname?: string; active: 'left' | 'right'; labelLeft: string; labelRight: string; iconLeft?: string; iconRight?: string; onClick: (val: 'left' | 'right') => void; disabled?: boolean; title: string; isHost?: boolean; position?: 'top' | 'middle' | 'bottom'; description?: string }) => (
     <div
-        className={`py-3 border-t border-slate-700
+        className={`py-3 border-t border-white/10
         ${position === 'top' ? 'pt-0 border-t-0' : ''}
         ${position === 'bottom' ? 'pb-0' : ''}
         ${classname}`}
@@ -175,14 +175,14 @@ export const ToggleButton = ({ classname, active, labelLeft, labelRight, iconLef
         </label>
 
         {/* Button-Container */}
-        <button className="relative w-full flex bg-slate-900 rounded-lg p-1 transition-all focus:outline-none disabled:opacity-50" onClick={() => onClick(active === 'left' ? 'right' : 'left')} disabled={disabled} title={title}>
+        <button className="glass-inset relative w-full flex rounded-xl p-1 transition-all focus:outline-none disabled:opacity-50" onClick={() => onClick(active === 'left' ? 'right' : 'left')} disabled={disabled} title={title}>
             {/* Slider */}
             <div
                 className={`
                     absolute top-1 bottom-1 left-1 w-[calc(50%-4px)]
-                    rounded-md shadow-lg transition-transform duration-300 ease-in-out
+                    rounded-lg transition-transform duration-300 ease-in-out
                     ${active === 'right' ? 'translate-x-full' : 'translate-x-0'}
-                    ${isHost ? 'bg-indigo-600' : 'bg-slate-700'}
+                    ${isHost ? 'bg-gradient-to-r from-indigo-500 to-violet-500 shadow-[0_8px_16px_-6px_rgba(99,102,241,0.6),inset_0_1px_0_rgba(255,255,255,0.3)]' : 'bg-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]'}
                 `}
             />
 
@@ -247,7 +247,7 @@ export const MultiToggleButton = <T extends string | number>({ classname = '', o
 
     return (
         <div
-            className={`py-3 border-t border-slate-700
+            className={`py-3 border-t border-white/10
             ${position === 'top' ? 'pt-0 border-t-0' : ''}
             ${position === 'bottom' ? 'pb-0' : ''}
             ${classname}`}
@@ -257,14 +257,14 @@ export const MultiToggleButton = <T extends string | number>({ classname = '', o
             </label>
 
             {/* --- BUTTON CONTAINER --- */}
-            <div className={`bg-slate-900 rounded-lg p-1 w-full ${disabled ? 'opacity-50 pointer-events-none' : ''}`} title={title}>
+            <div className={`glass-inset rounded-xl p-1 w-full ${disabled ? 'opacity-50 pointer-events-none' : ''}`} title={title}>
                 <div className={`relative w-full ${isGrid ? 'grid' : 'flex'}`} style={isGrid ? { gridTemplateColumns: `repeat(${cols}, 1fr)` } : undefined}>
                     {/* --- SLIDER BACKGROUND --- */}
                     <div
                         className={`
-                            absolute rounded-md shadow-lg pointer-events-none z-0
+                            absolute rounded-lg pointer-events-none z-0
                             transition-all duration-300 ease-in-out
-                            ${isHost ? 'bg-indigo-600' : 'bg-slate-700'}
+                            ${isHost ? 'bg-gradient-to-r from-indigo-500 to-violet-500 shadow-[0_8px_16px_-6px_rgba(99,102,241,0.6),inset_0_1px_0_rgba(255,255,255,0.3)]' : 'bg-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]'}
                         `}
                         style={{
                             width: `${widthPct}%`,
@@ -315,7 +315,7 @@ export const MultiToggleButton = <T extends string | number>({ classname = '', o
 
 export const RangeSlider = ({ classname, title, min, max, minLabel = String(min), maxLabel = String(max), step = 1, value, displayValue, disabled, onChange, onCommit, position = 'middle', description }: { classname?: string; title: string; min: number; max: number; minLabel?: string; maxLabel?: string; step?: number; value: number; displayValue?: string; disabled?: boolean; onChange: (val: number) => void; onCommit: () => void; position?: 'top' | 'middle' | 'bottom'; description?: string }) => (
     <div
-        className={`py-3 border-t border-slate-700 
+        className={`py-3 border-t border-white/10 
         ${position === 'top' ? 'pt-0 border-t-0' : ''}
         ${position === 'bottom' ? 'pb-0' : ''}
         ${classname}`}
@@ -341,9 +341,9 @@ export const RangeSlider = ({ classname, title, min, max, minLabel = String(min)
 export const Selection = ({ classname, title, options, value, onChange, disabled, position = 'middle', description }: { classname?: string; title: string; options: { label: string; value: string }[]; value: string; onChange: (val: string) => void; disabled?: boolean; position?: 'top' | 'middle' | 'bottom' | 'clean'; description?: string }) => (
     <div
         className={`
-        ${position === 'middle' ? 'py-3 border-t border-slate-700' : ''}
-        ${position === 'top' ? 'pb-3 border-t border-slate-700 border-t-0' : ''}
-        ${position === 'bottom' ? 'pt-3 border-t border-slate-700' : ''}
+        ${position === 'middle' ? 'py-3 border-t border-white/10' : ''}
+        ${position === 'top' ? 'pb-3 border-t border-white/10 border-t-0' : ''}
+        ${position === 'bottom' ? 'pt-3 border-t border-white/10' : ''}
         ${classname}`}
     >
         <div className="flex items-center justify-between gap-4">

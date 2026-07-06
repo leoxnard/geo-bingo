@@ -700,7 +700,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
     };
 
     return (
-        <div className="bg-slate-800 p-6 rounded-xl flex-1 border border-slate-700 h-fit">
+        <div className="glass p-6 rounded-2xl flex-1 h-fit">
             {showSourceSwitcher && (
                 <MultiToggleButton
                     title={t('cat.sourceTitle')}

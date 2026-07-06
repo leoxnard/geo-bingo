@@ -1,10 +1,13 @@
 import Link from 'next/link';
 
+import GlassAmbience from '@/components/utils/GlassAmbience';
+
 export default function PrivacyPolicy() {
     return (
-        <main className="flex min-h-screen flex-col items-center p-8 md:p-24 bg-slate-900 text-slate-300 leading-relaxed">
-            <div className="bg-slate-800 p-8 md:p-12 rounded-2xl shadow-2xl border border-slate-700 w-full max-w-3xl flex flex-col gap-6 mt-4">
-                <h1 className="text-4xl font-bold text-indigo-400 tracking-tighter mb-4">Privacy Policy</h1>
+        <main className="relative flex min-h-screen flex-col items-center overflow-hidden bg-slate-950 p-8 md:p-24 text-slate-300 leading-relaxed">
+            <GlassAmbience drifters={false} />
+            <div className="glass relative mt-4 flex w-full max-w-3xl flex-col gap-6 rounded-3xl p-8 md:p-12">
+                <h1 className="bg-gradient-to-r from-indigo-300 via-fuchsia-300 to-cyan-300 bg-clip-text pb-[0.12em] text-4xl font-extrabold tracking-tighter text-transparent mb-4">Privacy Policy</h1>
 
                 <section>
                     <h2 className="text-2xl font-semibold text-slate-100 mb-2">1. Data Controller</h2>
@@ -87,13 +90,13 @@ export default function PrivacyPolicy() {
                     </ul>
                 </section>
 
-                <div className="w-full h-px bg-slate-700 my-6"></div>
+                <div className="my-6 h-px w-full bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
 
-                <div className="flex items-center justify-center gap-6">
-                    <Link href="/" className="text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-widest text-sm font-bold">
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                    <Link href="/" className="glass press rounded-full px-4 py-2 text-sm font-bold uppercase tracking-widest text-slate-300 transition-colors hover:text-white">
                         Back to Home
                     </Link>
-                    <Link href="/impressum" className="text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-widest text-sm font-bold">
+                    <Link href="/impressum" className="glass press rounded-full px-4 py-2 text-sm font-bold uppercase tracking-widest text-slate-300 transition-colors hover:text-white">
                         Legal Notice
                     </Link>
                 </div>

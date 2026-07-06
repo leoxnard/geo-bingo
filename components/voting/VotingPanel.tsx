@@ -126,12 +126,12 @@ export function VotingPanel({ displaySub, activeSubLatest, votingStats, yesVotes
 
             <div className="flex gap-4">
                 {votingStats.isComplete ? (
-                    <div className="flex-1 py-4 text-center text-green-400 font-bold uppercase border border-green-700 rounded-xl bg-green-900/30">
+                    <div className="glass-inset flex-1 py-4 text-center text-green-400 font-bold uppercase !border-green-500/40 rounded-xl">
                         {t('votingPanel.complete')} <br />
                         <span className="text-sm text-green-300/80 normal-case mt-1 inline-block">{scaleVoting ? `(Ø ${scaleTally.avg.toFixed(1)} · ${t('votingPanel.scaleSum', { sum: scaleTally.sum })})` : `(${yesVotes} Y / ${noVotes} N${hypeVotes > 0 ? ` / ${hypeVotes} H` : ''})`}</span>
                     </div>
                 ) : isMySubmission || isMyTeamSubmission ? (
-                    <div className="flex-1 py-4 text-center text-slate-400 font-bold uppercase border border-slate-700 rounded-xl bg-slate-900/50">
+                    <div className="glass-inset flex-1 py-4 text-center text-slate-400 font-bold uppercase rounded-xl">
                         {isMySubmission ? t('votingPanel.yourSubmission') : t('votingPanel.teamSubmission')} <br />
                         <span className="text-sm text-slate-500 normal-case mt-1 inline-block">{scaleVoting ? `Ø ${scaleTally.avg.toFixed(1)} · ${t('votingPanel.scaleSum', { sum: scaleTally.sum })}` : `Y: ${yesVotes} | N: ${noVotes}${hypeVotes > 0 ? ` | H: ${hypeVotes}` : ''}`}</span>
                     </div>
@@ -154,7 +154,7 @@ export function VotingPanel({ displaySub, activeSubLatest, votingStats, yesVotes
                             <span>{SCALE_MIN}</span>
                             <span>{SCALE_MAX}</span>
                         </div>
-                        <button type="button" onClick={() => activeSubLatest && onScaleVote(activeSubLatest, sliderValue)} className="w-full py-4 rounded-xl font-black uppercase text-lg border bg-indigo-600 border-indigo-400 text-white hover:bg-indigo-500 transition-all shadow-[0_0_15px_rgba(79,70,229,0.4)]">
+                        <button type="button" onClick={() => activeSubLatest && onScaleVote(activeSubLatest, sliderValue)} className="btn-sheen press w-full py-4 rounded-xl font-black uppercase text-lg bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 text-white shadow-[0_14px_28px_-10px_rgba(99,102,241,0.65),inset_0_1px_0_rgba(255,255,255,0.3)]">
                             {existingScale !== null ? t('votingPanel.updateRating') : t('votingPanel.submitRating')}
                         </button>
                     </div>
@@ -162,20 +162,28 @@ export function VotingPanel({ displaySub, activeSubLatest, votingStats, yesVotes
                     <div className="flex-1 flex flex-col gap-3">
                         <div className="flex gap-4">
                             <div className="flex-1 flex flex-col gap-2">
-                                <button type="button" onClick={() => activeSubLatest && onVote(activeSubLatest, true)} className={`w-full py-4 rounded-xl font-black uppercase text-lg border transition-all ${activeSubLatest?.votes?.[playerId] === true ? 'bg-green-600 border-green-400 text-white shadow-[0_0_15px_rgba(34,197,94,0.5)]' : 'bg-slate-800 border-slate-600 text-slate-300 hover:border-green-500 hover:text-green-500 hover:bg-green-900/30'}`}>
+                                <button
+                                    type="button"
+                                    onClick={() => activeSubLatest && onVote(activeSubLatest, true)}
+                                    className={`w-full py-4 rounded-xl font-black uppercase text-lg border transition-all ${activeSubLatest?.votes?.[playerId] === true ? 'press bg-gradient-to-r from-emerald-500 to-green-500 border-transparent text-white shadow-[0_14px_28px_-10px_rgba(16,185,129,0.6),inset_0_1px_0_rgba(255,255,255,0.3)]' : 'glass press border-transparent text-slate-300 hover:!border-green-400/60 hover:text-green-400'}`}
+                                >
                                     {t('common.yes')}
                                 </button>
                                 <div className="text-center text-green-400 font-bold text-sm tracking-wide">{t('votingPanel.votes', { count: yesVotes })}</div>
                             </div>
                             <div className="flex-1 flex flex-col gap-2">
-                                <button type="button" onClick={() => activeSubLatest && onVote(activeSubLatest, false)} className={`w-full py-4 rounded-xl font-black uppercase text-lg border transition-all ${activeSubLatest?.votes?.[playerId] === false ? 'bg-red-600 border-red-400 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'bg-slate-800 border-slate-600 text-slate-300 hover:border-red-500 hover:text-red-500 hover:bg-red-900/30'}`}>
+                                <button
+                                    type="button"
+                                    onClick={() => activeSubLatest && onVote(activeSubLatest, false)}
+                                    className={`w-full py-4 rounded-xl font-black uppercase text-lg border transition-all ${activeSubLatest?.votes?.[playerId] === false ? 'press bg-gradient-to-r from-rose-500 to-red-500 border-transparent text-white shadow-[0_14px_28px_-10px_rgba(244,63,94,0.6),inset_0_1px_0_rgba(255,255,255,0.3)]' : 'glass press border-transparent text-slate-300 hover:!border-red-400/60 hover:text-red-400'}`}
+                                >
                                     {t('common.no')}
                                 </button>
                                 <div className="text-center text-red-400 font-bold text-sm tracking-wide">{t('votingPanel.votes', { count: noVotes })}</div>
                             </div>
                         </div>
                         <div className="flex items-center justify-center gap-3">
-                            <button type="button" onClick={() => activeSubLatest && onHype(activeSubLatest)} className={`px-5 py-2 rounded-lg font-bold uppercase text-sm border transition-all ${hasHyped ? 'bg-amber-500 border-amber-300 text-white shadow-[0_0_12px_rgba(245,158,11,0.5)]' : 'bg-slate-800 border-slate-600 text-amber-400 hover:border-amber-500 hover:bg-amber-900/30'}`}>
+                            <button type="button" onClick={() => activeSubLatest && onHype(activeSubLatest)} className={`px-5 py-2 rounded-lg font-bold uppercase text-sm border transition-all ${hasHyped ? 'press bg-gradient-to-r from-amber-400 to-orange-400 border-transparent text-slate-900 shadow-[0_12px_24px_-8px_rgba(251,191,36,0.6),inset_0_1px_0_rgba(255,255,255,0.45)]' : 'glass press border-transparent text-amber-300 hover:!border-amber-400/60'}`}>
                                 {t('votingPanel.hype')}
                             </button>
                         </div>

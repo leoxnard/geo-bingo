@@ -88,14 +88,14 @@ export default function InviteFriendsButton({ gameId }: { gameId: string }) {
 
     return (
         <div ref={ref} className="relative">
-            <button type="button" onClick={() => setOpen((v) => !v)} aria-haspopup="dialog" aria-expanded={open} title={t('invites.inviteFriendTitle')} className="rounded-md bg-slate-700 p-2 text-slate-400 transition-all hover:bg-slate-600 hover:text-slate-200">
+            <button type="button" onClick={() => setOpen((v) => !v)} aria-haspopup="dialog" aria-expanded={open} title={t('invites.inviteFriendTitle')} className="glass press rounded-md p-2 text-slate-400 hover:text-slate-200">
                 <FaUserFriends />
             </button>
 
-            <div role="dialog" aria-label={t('invites.pickFriend')} hidden={!open} className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-slate-600 bg-slate-800 p-3 text-left shadow-xl">
+            <div role="dialog" aria-label={t('invites.pickFriend')} hidden={!open} className="glass-dark absolute right-0 z-20 mt-2 w-64 rounded-xl p-3 text-left">
                 <p className="mb-2 px-1 text-xs font-bold uppercase tracking-wide text-slate-400">{t('invites.pickFriend')}</p>
                 {!user ? (
-                    <Link href="/account" className="block rounded-lg bg-slate-900/60 px-3 py-2 text-center text-xs font-medium text-indigo-300 transition-colors hover:text-indigo-200">
+                    <Link href="/account" className="block glass-inset rounded-lg px-3 py-2 text-center text-xs font-medium text-indigo-300 transition-colors hover:text-indigo-200">
                         {t('invites.signInToInvite')}
                     </Link>
                 ) : friends === null ? (
@@ -108,10 +108,10 @@ export default function InviteFriendsButton({ gameId }: { gameId: string }) {
                             const here = inLobby.has(f.id);
                             const done = invited.has(f.id);
                             return (
-                                <li key={f.id} className="flex items-center gap-2 rounded-lg bg-slate-900/60 p-1.5">
+                                <li key={f.id} className="flex items-center gap-2 glass-inset rounded-lg p-1.5">
                                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-xs font-bold uppercase text-indigo-300">{f.name.charAt(0)}</div>
                                     <span className="min-w-0 flex-1 truncate text-sm text-white">{f.name}</span>
-                                    <button type="button" onClick={() => invite(f)} disabled={here || done || busyId === f.id} className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-bold uppercase transition-colors ${here ? 'bg-slate-700/60 text-slate-400' : done ? 'bg-emerald-600/20 text-emerald-400' : 'bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50'}`}>
+                                    <button type="button" onClick={() => invite(f)} disabled={here || done || busyId === f.id} className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-bold uppercase transition-colors ${here ? 'bg-white/10 text-slate-400' : done ? 'bg-emerald-600/20 text-emerald-400' : 'press bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-[0_8px_16px_-6px_rgba(99,102,241,0.6),inset_0_1px_0_rgba(255,255,255,0.3)] disabled:opacity-50'}`}>
                                         {here ? t('invites.inLobby') : done ? t('invites.invited') : busyId === f.id ? '…' : t('invites.invite')}
                                     </button>
                                 </li>

@@ -682,7 +682,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
         return 2;
     }, [polyZoom, startingPoint]);
 
-    if (!isLoaded) return <div className="h-screen flex items-center justify-center text-indigo-400">Loading Maps...</div>;
+    if (!isLoaded) return <div className="h-screen flex items-center justify-center bg-slate-950 text-indigo-300">Loading Maps...</div>;
 
     const getSidebarWidthClass = () => {
         if (gameMode !== 'bingo') return 'w-96';
@@ -725,7 +725,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
     const minimapCenter = lastValidPositionRef.current || mapCenter;
 
     return (
-        <div className="overflow-hidden p-4 bg-slate-900 flex flex-col">
+        <div className="overflow-hidden p-4 bg-slate-950 flex flex-col">
             {/* Header (portrait only) */}
             {isPortrait && <RoundControls variant="portrait" isNarrow={isNarrow} timeLeft={timeLeft} aiEndGame={aiEndGame} isBingoFirstWithAi={isBingoFirstWithAi} handleAiVerifyAndEnd={handleAiVerifyAndEnd} allCategoriesFilled={allCategoriesFilled} isVerifying={isVerifying} handleVoteEndRound={handleVoteEndRound} hasVotedToEnd={hasVotedToEnd} aiVerificationSuccess={aiVerificationSuccess} readyPlayers={readyPlayers} votesNeeded={votesNeeded} />}
 

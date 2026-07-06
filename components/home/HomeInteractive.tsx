@@ -65,47 +65,70 @@ export default function HomeInteractive() {
     return (
         <section id="play" className="relative flex flex-1 flex-col items-center justify-start sm:justify-center px-4 py-8 sm:px-8 sm:py-10 lg:px-24">
             <OptionsButton />
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 mb-6 sm:mb-8 hover">
-                <GeoBingoLogo size={isNarrow ? 50 : 80} className="animate-pulse" />
-                <h1 className="text-3xl sm:text-6xl font-bold text-indigo-400 tracking-tighter text-center sm:text-left">Geo BingBong</h1>
+
+            {/* Floating glass bingo chips — the playful signature. Desktop only. */}
+            <div aria-hidden className="pointer-events-none absolute inset-0 hidden select-none lg:block">
+                <div className="glass animate-chip-float absolute top-[16%] left-[12%] flex h-16 w-16 items-center justify-center rounded-2xl text-2xl [--chip-tilt:-8deg]" style={{ animationDelay: '-1s' }}>
+                    🗼
+                </div>
+                <div className="animate-chip-float absolute top-[30%] left-[19%] flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-fuchsia-500/80 to-indigo-600/80 text-xl shadow-[0_16px_32px_-8px_rgba(217,70,239,0.5),inset_0_1px_0_rgba(255,255,255,0.35)] [--chip-tilt:6deg]" style={{ animationDelay: '-3.5s' }}>
+                    ✓
+                </div>
+                <div className="glass animate-chip-float absolute top-[58%] left-[10%] flex h-14 w-14 items-center justify-center rounded-2xl text-xl [--chip-tilt:5deg]" style={{ animationDelay: '-5s' }}>
+                    🐕
+                </div>
+                <div className="glass animate-chip-float absolute top-[20%] right-[13%] flex h-14 w-14 items-center justify-center rounded-2xl text-xl [--chip-tilt:7deg]" style={{ animationDelay: '-2s' }}>
+                    🚲
+                </div>
+                <div className="animate-chip-float absolute top-[38%] right-[9%] flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400/80 to-indigo-500/80 text-2xl shadow-[0_16px_32px_-8px_rgba(34,211,238,0.5),inset_0_1px_0_rgba(255,255,255,0.35)] [--chip-tilt:-6deg]" style={{ animationDelay: '-4.5s' }}>
+                    ✓
+                </div>
+                <div className="glass animate-chip-float absolute top-[62%] right-[15%] flex h-14 w-14 items-center justify-center rounded-2xl text-xl [--chip-tilt:-4deg]" style={{ animationDelay: '-6s' }}>
+                    ⛲
+                </div>
             </div>
 
-            <div className="animate-fade-in-up bg-slate-800 p-4 md:p-8 rounded-2xl shadow-2xl border border-slate-700 w-full max-w-md flex flex-col gap-3 md:gap-6">
+            <div className="animate-fade-in-up mb-6 flex flex-col items-center justify-center gap-4 sm:mb-8 sm:flex-row sm:gap-6">
+                <GeoBingoLogo size={isNarrow ? 50 : 80} className="animate-pulse" />
+                <h1 className="bg-gradient-to-r from-indigo-300 via-fuchsia-300 to-cyan-300 bg-clip-text pb-[0.12em] text-center text-4xl font-extrabold tracking-tighter text-transparent sm:text-left sm:text-6xl">Geo BingBong</h1>
+            </div>
+
+            <div className="glass animate-fade-in-up flex w-full max-w-md flex-col gap-3 rounded-3xl p-4 md:gap-6 md:p-8" style={{ animationDelay: '0.08s' }}>
                 {/* PLAYER NAME INPUT */}
                 <div>
-                    <button type="button" className="text-sm text-slate-400 font-bold uppercase mb-2 block" onClick={() => setShowBadNames(!showBadNames)}>
+                    <button type="button" className="mb-2 block text-sm font-bold tracking-wide text-slate-300 uppercase transition-colors hover:text-fuchsia-300" onClick={() => setShowBadNames(!showBadNames)}>
                         {showBadNames ? t('home.yourBadassName') : t('home.yourName')}
                     </button>
-                    <input type="text" placeholder={t('home.namePlaceholder')} className="w-full p-4 rounded-xl bg-slate-900 border border-slate-600 focus:outline-none focus:border-indigo-500 text-white font-medium text-lg" value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
+                    <input type="text" placeholder={t('home.namePlaceholder')} className="glass-inset w-full rounded-xl p-4 text-lg font-medium text-white placeholder:text-slate-500 transition-shadow focus:shadow-[inset_0_2px_6px_rgba(2,6,23,0.45),0_0_0_2px_rgba(129,140,248,0.7)] focus:outline-none" value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
                 </div>
 
-                <div className="w-full h-px bg-slate-700 md:my-2"></div>
+                <div className="h-px w-full bg-gradient-to-r from-transparent via-white/20 to-transparent md:my-2"></div>
 
-                <button type="button" onClick={createGame} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-xl transition-all tracking-wide uppercase">
+                <button type="button" onClick={createGame} className="btn-sheen press w-full rounded-xl bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 py-4 font-bold tracking-wide text-white uppercase shadow-[0_16px_32px_-10px_rgba(99,102,241,0.65),inset_0_1px_0_rgba(255,255,255,0.3)]">
                     {t('home.createGame')}
                 </button>
 
-                <div className="text-center text-slate-500 text-sm font-medium uppercase tracking-widest">{t('home.or')}</div>
+                <div className="text-center text-sm font-medium tracking-widest text-slate-400 uppercase">{t('home.or')}</div>
 
                 <form onSubmit={joinGame} className="flex flex-col gap-3">
-                    <input type="text" placeholder={t('home.lobbyIdPlaceholder')} className="p-4 rounded-xl bg-slate-700 border border-slate-600 focus:outline-none focus:border-indigo-500 text-white font-medium" value={lobbyId} onChange={(e) => setLobbyId(e.target.value)} />
-                    <button type="submit" className="w-full bg-slate-600 hover:bg-slate-500 text-white font-bold py-3 rounded-xl transition-all uppercase tracking-wide">
+                    <input type="text" placeholder={t('home.lobbyIdPlaceholder')} className="glass-inset rounded-xl p-4 font-medium text-white placeholder:text-slate-500 transition-shadow focus:shadow-[inset_0_2px_6px_rgba(2,6,23,0.45),0_0_0_2px_rgba(34,211,238,0.6)] focus:outline-none" value={lobbyId} onChange={(e) => setLobbyId(e.target.value)} />
+                    <button type="submit" className="glass btn-sheen press w-full rounded-xl py-3 font-bold tracking-wide text-white uppercase">
                         {t('home.joinGame')}
                     </button>
                 </form>
             </div>
 
             {FEATURES.dailyChallenge && (
-                <Link href="/daily" className="mt-6 inline-flex items-center gap-2 rounded-full bg-amber-500 px-6 py-3 text-sm font-bold uppercase tracking-wide text-slate-900 shadow-lg transition-colors hover:bg-amber-400">
+                <Link href="/daily" className="btn-sheen press mt-6 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-amber-400 to-orange-400 px-6 py-3 text-sm font-bold tracking-wide text-slate-900 uppercase shadow-[0_14px_28px_-10px_rgba(251,191,36,0.6),inset_0_1px_0_rgba(255,255,255,0.45)]">
                     {t('daily.play')}
                 </Link>
             )}
 
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                <Link href="/community" className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800/60 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:border-indigo-500 hover:text-white">
+                <Link href="/community" className="glass press inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-slate-200 transition-colors hover:text-white">
                     {t('home.community')}
                 </Link>
-                <Link href="/how-to-play" className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800/60 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:border-indigo-500 hover:text-white">
+                <Link href="/how-to-play" className="glass press inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-slate-200 transition-colors hover:text-white">
                     {t('home.howToPlay')}
                 </Link>
             </div>

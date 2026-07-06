@@ -36,7 +36,7 @@ import { checkAiKeysAvailable } from '../actions';
 // sees) ships in the initial bundle. StreetView/VotingView/PodiumView load
 // lazily when the game actually transitions, cutting the initial load time.
 const phaseLoading = () => (
-    <div className="min-h-dvh flex items-center justify-center bg-slate-900">
+    <div className="min-h-dvh flex items-center justify-center bg-slate-950">
         <div className="h-10 w-10 rounded-full border-4 border-slate-700 border-t-indigo-500 animate-spin" aria-label="Loading" />
     </div>
 );
@@ -968,7 +968,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     return (
         <>
             {nameGate === 'checking' ? (
-                <div className="min-h-dvh flex items-center justify-center bg-slate-900">
+                <div className="min-h-dvh flex items-center justify-center bg-slate-950">
                     <div className="h-10 w-10 rounded-full border-4 border-slate-700 border-t-indigo-500 animate-spin" aria-label="Loading" />
                 </div>
             ) : nameGate === 'prompt' ? (

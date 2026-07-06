@@ -39,7 +39,7 @@ export default function DailyLeaderboard({ date, refreshKey = 0 }: { date: strin
             {entries.map((e) => {
                 const mine = e.mine;
                 return (
-                    <li key={`${e.rank}-${e.name}-${e.created_at}`} className={`flex items-center gap-3 rounded-lg px-3 py-2 ${mine ? 'bg-indigo-600/20 border border-indigo-500/50' : 'bg-slate-800/60'}`}>
+                    <li key={`${e.rank}-${e.name}-${e.created_at}`} className={`flex items-center gap-3 rounded-lg px-3 py-2 ${mine ? 'glass-inset ring-1 ring-indigo-400/50' : 'glass-inset'}`}>
                         <span className="w-7 text-center text-sm font-bold text-slate-300">{medal(e.rank)}</span>
                         <span className="flex-1 truncate font-medium text-white">{e.name}</span>
                         <span className="font-mono text-sm tabular-nums text-indigo-300">{formatDuration(e.duration_ms)}</span>

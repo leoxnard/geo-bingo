@@ -60,12 +60,12 @@ export default function StreetViewSidebar(props: StreetViewSidebarProps) {
     const { isMobileLandscape, isPortrait, sidebarWidthClass, gameMode } = props;
 
     return (
-        <div className={`${isMobileLandscape ? 'basis-[42%] max-w-[42%]' : isPortrait ? 'w-full' : sidebarWidthClass} flex flex-col gap-4 bg-slate-800 ${isPortrait ? '' : 'sm:p-6'} rounded-2xl shadow-xl h-full min-h-0 border border-2 border-slate-700 overflow-hidden transition-all`}>
+        <div className={`${isMobileLandscape ? 'basis-[42%] max-w-[42%]' : isPortrait ? 'w-full' : sidebarWidthClass} glass flex flex-col gap-4 ${isPortrait ? '' : 'sm:p-6'} rounded-2xl h-full min-h-0 overflow-hidden transition-all`}>
             {!isPortrait && <RoundControls variant="sidebar" timeLeft={props.timeLeft} aiEndGame={props.aiEndGame} isBingoFirstWithAi={props.isBingoFirstWithAi} handleAiVerifyAndEnd={props.handleAiVerifyAndEnd} allCategoriesFilled={props.allCategoriesFilled} isVerifying={props.isVerifying} handleVoteEndRound={props.handleVoteEndRound} hasVotedToEnd={props.hasVotedToEnd} aiVerificationSuccess={props.aiVerificationSuccess} readyPlayers={props.readyPlayers} votesNeeded={props.votesNeeded} />}
 
             <div className={`justify-between items-center mb-2 ${isPortrait ? 'hidden' : 'hidden sm:flex'}`}>
-                <h2 className="text-indigo-400 font-bold text-xl tracking-wide uppercase">{gameMode === 'bingo' ? t('sv.bingoBoard') : t('sv.checklist')}</h2>
-                <span className="bg-slate-700 text-slate-300 font-bold px-3 py-1 rounded-full text-sm">
+                <h2 className="bg-gradient-to-r from-indigo-300 to-fuchsia-300 bg-clip-text font-bold text-xl tracking-wide uppercase text-transparent">{gameMode === 'bingo' ? t('sv.bingoBoard') : t('sv.checklist')}</h2>
+                <span className="glass-inset text-slate-300 font-bold px-3 py-1 rounded-full text-sm">
                     {props.mySubmissions.length} / {props.myBoard.length}
                 </span>
             </div>

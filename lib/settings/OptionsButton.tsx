@@ -62,13 +62,13 @@ export default function OptionsButton({ className = 'fixed top-3 right-3 z-[1000
 
                 {/* Kept mounted while closed (just hidden) so the async account row is
                     already loaded by the time the menu is first opened. */}
-                <div role="dialog" aria-label={t('options.title')} hidden={!open} className="absolute right-0 mt-2 w-64 rounded-xl border border-slate-600 bg-slate-800 p-4 shadow-xl">
+                <div role="dialog" aria-label={t('options.title')} hidden={!open} className="glass-dark absolute right-0 mt-2 w-64 rounded-xl p-4">
                     {/* Account — links to the full profile page (stats + name edit +
                     account deletion). Falls back to the inline overlay only when
                     player profiles are switched off. */}
                     <div className="mb-4">
                         {FEATURES.playerProfiles ? (
-                            <Link href="/account" onClick={() => setOpen(false)} className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-700 bg-slate-800/60 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:border-indigo-500 hover:text-white">
+                            <Link href="/account" onClick={() => setOpen(false)} className="glass press inline-flex w-full items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:text-white">
                                 <FaUserCircle /> {user ? displayNameFor(user) : t('community.signIn')}
                             </Link>
                         ) : (
@@ -83,7 +83,7 @@ export default function OptionsButton({ className = 'fixed top-3 right-3 z-[1000
                             const item = LOCALES[code];
                             const selected = code === locale;
                             return (
-                                <button key={code} type="button" aria-pressed={selected} onClick={() => setLocale(code)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-slate-700 ${selected ? 'bg-slate-700/60 text-white' : 'text-slate-300'}`}>
+                                <button key={code} type="button" aria-pressed={selected} onClick={() => setLocale(code)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-white/10 ${selected ? 'bg-white/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]' : 'text-slate-300'}`}>
                                     <span className="text-base leading-none">{item.flag}</span>
                                     <span>{item.label}</span>
                                 </button>

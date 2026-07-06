@@ -145,20 +145,20 @@ export default function FriendsList({ accountId, refreshKey = 0 }: { accountId: 
             )}
 
             {/* Add a friend — copy the invite link, or request by username */}
-            <div className="flex flex-col gap-3 rounded-2xl border border-indigo-500/30 bg-gradient-to-br from-indigo-600/15 to-slate-800 p-4">
+            <div className="flex flex-col gap-3 glass rounded-2xl p-4">
                 <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                         <p className="text-sm font-bold text-white">{t('friends.invite')}</p>
                         <p className="text-xs text-slate-400">{t('friends.inviteHint')}</p>
                     </div>
-                    <button type="button" onClick={copyInvite} className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-indigo-500">
+                    <button type="button" onClick={copyInvite} className="inline-flex shrink-0 items-center gap-2 press rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-2 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-indigo-500">
                         <FaLink size={12} /> {t('friends.copyLink')}
                     </button>
                 </div>
 
                 <form onSubmit={sendByUsername} className="flex gap-2 border-t border-white/10 pt-3">
-                    <input value={username} onChange={(e) => setUsername(e.target.value)} maxLength={30} placeholder={t('friends.usernamePlaceholder')} className="min-w-0 flex-1 rounded-xl border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500" />
-                    <button type="submit" disabled={!username.trim() || sending} className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-indigo-500 disabled:opacity-50">
+                    <input value={username} onChange={(e) => setUsername(e.target.value)} maxLength={30} placeholder={t('friends.usernamePlaceholder')} className="min-w-0 flex-1 rounded-xl glass-inset px-3 py-2 text-sm text-white outline-none focus:!border-indigo-400" />
+                    <button type="submit" disabled={!username.trim() || sending} className="inline-flex shrink-0 items-center gap-2 press rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-2 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-indigo-500 disabled:opacity-50">
                         <FaUserPlus size={12} /> {sending ? t('common.loading') : t('friends.sendRequest')}
                     </button>
                 </form>
@@ -166,13 +166,13 @@ export default function FriendsList({ accountId, refreshKey = 0 }: { accountId: 
 
             {/* Friend list */}
             {friends === null ? (
-                <div className="h-16 animate-pulse rounded-2xl border border-slate-800 bg-slate-800/60" />
+                <div className="h-16 animate-pulse rounded-2xl glass" />
             ) : friends.length === 0 ? (
-                <p className="rounded-2xl border border-slate-800 bg-slate-800/40 p-4 text-sm text-slate-400">{t('friends.none')}</p>
+                <p className="rounded-2xl glass-inset p-4 text-sm text-slate-400">{t('friends.none')}</p>
             ) : (
                 <ul className="flex flex-col gap-2">
                     {friends.map((f) => (
-                        <li key={f.id} className="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-800/50 p-3">
+                        <li key={f.id} className="flex items-center gap-3 rounded-2xl glass-inset p-3">
                             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-sm font-bold uppercase text-indigo-300">{f.name.charAt(0)}</div>
                             <div className="min-w-0 flex-1">
                                 <p className="truncate font-bold text-white">{f.name}</p>

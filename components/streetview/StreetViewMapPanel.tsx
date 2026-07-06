@@ -84,7 +84,7 @@ export default function StreetViewMapPanel(props: StreetViewMapPanelProps) {
         );
 
     return (
-        <div ref={containerRef} className={`${isMobileLandscape ? 'basis-[58%] min-h-0 h-full' : isPortrait ? 'flex-[1.2] min-h-[48svh] h-full' : 'flex-1 h-full'} border-2 border-slate-700 rounded-2xl overflow-hidden shadow-2xl relative bg-slate-800 absolute-safari-fix`}>
+        <div ref={containerRef} className={`${isMobileLandscape ? 'basis-[58%] min-h-0 h-full' : isPortrait ? 'flex-[1.2] min-h-[48svh] h-full' : 'flex-1 h-full'} border border-white/15 rounded-2xl overflow-hidden shadow-2xl relative bg-slate-900 absolute-safari-fix`}>
             <GoogleMap key={gameId} mapContainerClassName="google-map-container absolute inset-0" center={mapCenter} zoom={mapZoom} options={mapOptions(additionalMapOptions)} onLoad={(map) => setMainMapInstance(map)} onUnmount={() => setMainMapInstance(null)}>
                 {renderBoundaries('main')}
 
@@ -115,7 +115,7 @@ export default function StreetViewMapPanel(props: StreetViewMapPanelProps) {
             {!isMobileLandscape && <FullscreenButton isFullscreen={isFullscreen} containerRef={containerRef} setIsFullscreen={setIsFullscreen} />}
 
             {isFullscreen && (
-                <div ref={panelRef} className={`absolute z-10 top-0 left-0 bottom-0 h-full bg-slate-900/40 backdrop-blur-xs border-r border-white/10 transition-transform duration-300 ease-out ${fsPanelOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                <div ref={panelRef} className={`absolute z-10 top-0 left-0 bottom-0 h-full glass-dark border-r border-white/10 transition-transform duration-300 ease-out ${fsPanelOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                     <ul className={`h-full grid grid-cols-1 auto-rows-min p-1 gap-1.5 overflow-y-auto place-content-center justify-items-stretch ${fsPanelOpen ? '' : 'pointer-events-none'}`}>
                         {myBoard.map((cat) => {
                             const foundSub = mySubmissions.find((s) => s.category === cat);
@@ -139,7 +139,7 @@ export default function StreetViewMapPanel(props: StreetViewMapPanelProps) {
                                         if (!isDisabled) handleSubmit(cat);
                                     }}
                                     style={{ minHeight: ROOMY_MIN, maxHeight: ROOMY_MAX }}
-                                    className={`relative p-1 whitespace-nowrap flex items-center justify-center w-full max-w-full rounded-xl border transition-colors ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'} ${foundSub?.ai_verdict === false ? ' !border-red-500' : foundSub?.ai_verdict === true ? ' !border-green-500' : ''} ${!foundSub && !isBlocked && inStreetView ? 'cursor-pointer' : ''} ${isDisabled ? 'opacity-70' : ''}`}
+                                    className={`relative p-1 whitespace-nowrap flex items-center justify-center w-full max-w-full rounded-xl border transition-colors ${foundSub ? 'shadow-md border-white/25' : isBlocked ? 'glass-inset !border-red-500 opacity-60' : 'glass hover:brightness-125'} ${foundSub?.ai_verdict === false ? ' !border-red-500' : foundSub?.ai_verdict === true ? ' !border-green-500' : ''} ${!foundSub && !isBlocked && inStreetView ? 'cursor-pointer' : ''} ${isDisabled ? 'opacity-70' : ''}`}
                                 >
                                     <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
                                         {foundSub && <img src={streetViewImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />}
@@ -157,7 +157,7 @@ export default function StreetViewMapPanel(props: StreetViewMapPanelProps) {
                             );
                         })}
                     </ul>
-                    <button type="button" onClick={() => setFsPanelOpen((open) => !open)} className="absolute top-1/2 left-full -translate-y-1/2 -ml-px w-5 h-14 rounded-r-lg bg-slate-900/40 backdrop-blur-sm border border-l-0 border-white/10 text-white shadow-md flex items-center justify-center" title={fsPanelOpen ? t('sv.hideCategories') : t('sv.showCategories')}>
+                    <button type="button" onClick={() => setFsPanelOpen((open) => !open)} className="absolute top-1/2 left-full -translate-y-1/2 -ml-px w-5 h-14 rounded-r-lg glass-dark border-l-0 text-white shadow-md flex items-center justify-center" title={fsPanelOpen ? t('sv.hideCategories') : t('sv.showCategories')}>
                         <FaChevronLeft className={`transition-transform duration-300 ${fsPanelOpen ? '' : 'rotate-180'}`} size={11} />
                     </button>
                 </div>
@@ -172,7 +172,7 @@ export default function StreetViewMapPanel(props: StreetViewMapPanelProps) {
             {startingPoint !== 'open-world' && (
                 // Panel-open offset lives on the wrapper so the button's own hover:scale doesn't fight it.
                 <div style={{ transform: isFullscreen && fsPanelOpen ? `translateX(${measuredPanelWidth}px)` : undefined }} className="absolute top-2 left-2 z-5 transition-transform duration-300 ease-out hidden sm:block">
-                    <button type="button" onClick={() => streetViewRef.current?.setPosition(new google.maps.LatLng(startingPoint ? JSON.parse(startingPoint) : safeStartCenter))} className="flex w-12 h-12 bg-slate-800/30 hover:bg-slate-700/80 text-white text-[30px] items-center justify-center rounded-md shadow-[0_0_15px_rgba(0,0,0,0.4)] border border-slate-500 font-bold transition-transform hover:scale-105 active:scale-95 backdrop-blur-sm" title={t('sv.returnToStart')}>
+                    <button type="button" onClick={() => streetViewRef.current?.setPosition(new google.maps.LatLng(startingPoint ? JSON.parse(startingPoint) : safeStartCenter))} className="glass-dark flex w-12 h-12 hover:brightness-125 text-white text-[30px] items-center justify-center rounded-md font-bold transition-transform hover:scale-105 active:scale-95" title={t('sv.returnToStart')}>
                         <GoMoveToStart />
                     </button>
                 </div>

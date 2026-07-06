@@ -25,6 +25,7 @@ import { FaArrowLeft, FaCrown, FaGamepad, FaMapMarkedAlt, FaPen, FaPercentage, F
 import AuthGate from '@/components/community/AuthGate';
 import { useUser, displayNameFor } from '@/components/community/useUser';
 import DailyStats from '@/components/daily/DailyStats';
+import GlassAmbience from '@/components/utils/GlassAmbience';
 import type { AccountStats, GameHistoryEntry } from '@/components/utils/types';
 import { getMyAccountStats, getMyGameHistory } from '@/lib/account';
 import { deleteAccount, renameAuthor } from '@/lib/community';
@@ -144,17 +145,18 @@ export default function AccountProfile() {
     const winRate = stats && stats.multiplayer_played > 0 ? `${Math.round((stats.multiplayer_won / stats.multiplayer_played) * 100)}%` : '—';
 
     return (
-        <main className="relative min-h-dvh bg-slate-900 px-4 py-8 text-white">
+        <main className="relative min-h-dvh overflow-hidden bg-slate-950 px-4 py-8 text-white">
+            <GlassAmbience />
             <OptionsButton />
-            <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
-                <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-slate-400 hover:text-white">
+            <div className="relative mx-auto flex w-full max-w-2xl flex-col gap-6">
+                <Link href="/" className="glass press inline-flex w-fit items-center gap-2 rounded-full px-3.5 py-1.5 text-sm font-medium text-slate-300 hover:text-white">
                     <FaArrowLeft size={12} /> {t('account.backHome')}
                 </Link>
 
                 {loading ? (
-                    <div className="h-40 animate-pulse rounded-3xl border border-slate-800 bg-slate-800/60" />
+                    <div className="h-40 animate-pulse rounded-3xl glass" />
                 ) : !user ? (
-                    <div className="rounded-3xl border border-slate-700 bg-slate-800 p-6">
+                    <div className="rounded-3xl glass p-6">
                         <h1 className="text-2xl font-black text-indigo-300">{t('account.signInTitle')}</h1>
                         <p className="mb-4 mt-1 text-sm text-slate-400">{t('account.signInPrompt')}</p>
                         {addFriendId && <p className="mb-4 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-4 py-3 text-sm font-medium text-indigo-200">{t('friends.pendingInvite')}</p>}
@@ -165,7 +167,7 @@ export default function AccountProfile() {
                 ) : (
                     <>
                         {/* Identity + account management (name edit, sign out, delete) */}
-                        <header className="flex flex-col gap-4 rounded-3xl border border-indigo-500/30 bg-gradient-to-br from-indigo-600/20 via-slate-800/80 to-slate-800 p-6">
+                        <header className="flex flex-col gap-4 glass rounded-3xl p-6">
                             <div className="flex items-center gap-4">
                                 <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-indigo-500/25 text-2xl font-black uppercase text-indigo-200">{displayNameFor(user).charAt(0)}</div>
                                 <div className="min-w-0 flex-1">
@@ -177,12 +179,12 @@ export default function AccountProfile() {
                             {renaming ? (
                                 <div className="flex flex-col gap-2">
                                     <p className="text-xs text-slate-400">{t('account.usernameHelp')}</p>
-                                    <input autoFocus type="text" maxLength={40} value={nameInput} onChange={(e) => setNameInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveRename()} className="w-full rounded-xl border border-slate-600 bg-slate-900 p-3 text-white outline-none focus:border-indigo-500" />
+                                    <input autoFocus type="text" maxLength={40} value={nameInput} onChange={(e) => setNameInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveRename()} className="w-full rounded-xl glass-inset p-3 text-white outline-none focus:!border-indigo-400" />
                                     <div className="flex justify-end gap-2">
                                         <button type="button" onClick={() => setRenaming(false)} disabled={busy} className="rounded-xl bg-slate-700 px-4 py-2 text-sm font-bold uppercase text-white hover:bg-slate-600 disabled:opacity-50">
                                             {t('common.cancel')}
                                         </button>
-                                        <button type="button" onClick={saveRename} disabled={!nameInput.trim() || busy} className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold uppercase text-white hover:bg-indigo-500 disabled:opacity-50">
+                                        <button type="button" onClick={saveRename} disabled={!nameInput.trim() || busy} className="press rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-2 text-sm font-bold uppercase text-white hover:bg-indigo-500 disabled:opacity-50">
                                             {busy ? t('common.loading') : t('community.rename')}
                                         </button>
                                     </div>
@@ -202,10 +204,10 @@ export default function AccountProfile() {
                                 </div>
                             ) : (
                                 <div className="flex flex-wrap items-center gap-2">
-                                    <button type="button" onClick={openRename} className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-900/60 px-4 py-2 text-sm font-bold text-white transition-colors hover:border-indigo-500">
+                                    <button type="button" onClick={openRename} className="inline-flex items-center gap-2 rounded-xl glass px-4 py-2 text-sm font-bold text-white transition-colors hover:border-indigo-500">
                                         <FaPen size={12} /> {t('account.changeUsername')}
                                     </button>
-                                    <button type="button" onClick={signOut} className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-900/60 px-4 py-2 text-sm font-bold text-white transition-colors hover:border-slate-400">
+                                    <button type="button" onClick={signOut} className="inline-flex items-center gap-2 rounded-xl glass px-4 py-2 text-sm font-bold text-white transition-colors hover:border-slate-400">
                                         <FaSignOutAlt size={12} /> {t('community.signOut')}
                                     </button>
                                     <button type="button" onClick={() => setDeleting(true)} className="ml-auto text-xs font-medium text-red-400/80 transition-colors hover:text-red-300">
@@ -237,9 +239,9 @@ export default function AccountProfile() {
                                 <FaTrophy className="text-amber-400" size={13} /> {t('account.recentGames')}
                             </h2>
                             {history === null ? (
-                                <div className="h-20 animate-pulse rounded-2xl border border-slate-800 bg-slate-800/60" />
+                                <div className="h-20 animate-pulse rounded-2xl glass" />
                             ) : history.length === 0 ? (
-                                <p className="rounded-2xl border border-slate-800 bg-slate-800/40 p-4 text-sm text-slate-400">{t('account.noGames')}</p>
+                                <p className="rounded-2xl glass-inset p-4 text-sm text-slate-400">{t('account.noGames')}</p>
                             ) : (
                                 <ul className="flex flex-col gap-2">
                                     {history.map((g) => (
@@ -267,7 +269,7 @@ const TONE: Record<string, string> = {
 
 function StatCard({ icon, value, label, tone }: { icon: React.ReactNode; value: number | string; label: string; tone: keyof typeof TONE }) {
     return (
-        <div className="flex flex-col items-center gap-1 rounded-2xl border border-slate-700 bg-slate-800 p-4 text-center">
+        <div className="flex flex-col items-center gap-1 rounded-2xl glass p-4 text-center">
             <span className={`text-lg ${TONE[tone]}`}>{icon}</span>
             <span className="text-2xl font-black text-white">{value}</span>
             <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</span>
@@ -282,7 +284,7 @@ function GameRow({ g }: { g: GameHistoryEntry }) {
     const solo = (g.player_count ?? 1) < 2;
 
     return (
-        <li className="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-800/50 p-3">
+        <li className="flex items-center gap-3 rounded-2xl glass-inset p-3">
             <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-black ${g.won ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-700/60 text-slate-300'}`}>{g.won ? <FaCrown size={13} /> : `#${g.placement ?? '?'}`}</div>
             <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-bold text-white">

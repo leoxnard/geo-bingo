@@ -650,7 +650,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     };
 
     return (
-        <div className="bg-slate-800 p-4 sm:p-6 rounded-xl flex-1 border border-slate-700 h-fit">
+        <div className="glass p-4 sm:p-6 rounded-2xl flex-1 h-fit">
             {/* use icon public/map.boundary.howto.svg as description */}
             {!hideDescription && (
                 <div className="grid grid-cols-2 gap-4 mb-4">
@@ -872,7 +872,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
 
                     {/* World-default toggle: only shown when the drawn areas mix zone types. When all areas share a type, the default is forced to the opposite and the toggle is hidden. Overlaid on the map's top-left corner. */}
                     {isHost && hasMixedZones && (
-                        <div className="absolute top-3 left-3 z-[5] flex items-center gap-2 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-slate-700 px-3 py-2 text-sm shadow-lg">
+                        <div className="absolute top-3 left-3 z-[5] flex items-center gap-2 glass-dark rounded-lg px-3 py-2 text-sm shadow-lg">
                             <div className="flex flex-col">
                                 <span className="text-slate-400 text-xs">{t('map.worldDefaultLabel')}</span>
                                 <span className={`text-xs font-semibold ${worldDefault === 'allow' ? 'text-green-400' : 'text-red-400'}`}>{worldDefault === 'allow' ? t('map.allow') : t('map.forbid')}</span>

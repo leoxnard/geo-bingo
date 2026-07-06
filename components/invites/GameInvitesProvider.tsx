@@ -106,7 +106,7 @@ function ActiveProvider({ children }: { children: React.ReactNode }) {
                                 toast.dismiss(tt.id);
                                 join(invite);
                             }}
-                            className="shrink-0 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-white transition-colors hover:bg-indigo-500"
+                            className="press shrink-0 rounded-lg bg-gradient-to-r from-indigo-500 to-violet-500 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-white shadow-[0_8px_16px_-6px_rgba(99,102,241,0.6),inset_0_1px_0_rgba(255,255,255,0.3)]"
                         >
                             {t('invites.join')}
                         </button>

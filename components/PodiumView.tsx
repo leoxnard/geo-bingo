@@ -24,6 +24,7 @@ import { useSounds } from '@/lib/sound/SoundProvider';
 import { getHostToken } from '../lib/hostToken';
 import { supabase } from '../lib/supabase';
 import { GeoBingoLogo } from './utils/Elements';
+import GlassAmbience from './utils/GlassAmbience';
 import { GameFind, ScoreEntity, PlayerStats, PodiumViewProps } from './utils/types';
 import { tallyVotes, tallyScale } from './utils/votes';
 
@@ -369,12 +370,13 @@ export default function PodiumView({ gameId, isHost, teamMode, playerId }: Podiu
 
     if (loading)
         return (
-            <div className="min-h-screen flex flex-col items-center p-4 bg-slate-900 text-white">
+            <div className="relative min-h-screen flex flex-col items-center p-4 bg-slate-950 text-white overflow-hidden">
+                <GlassAmbience />
                 <div className="w-full max-w-6xl mx-auto flex flex-col items-center text-white relative z-10">
                     <div className="w-full flex md:mb-4">
                         <div className="flex items-center gap-4">
                             <GeoBingoLogo size={50} className="hidden sm:block" />
-                            <h1 className="text-4xl font-black uppercase tracking-widest text-indigo-400">{t('podium.results')}</h1>
+                            <h1 className="bg-gradient-to-r from-indigo-300 via-fuchsia-300 to-cyan-300 bg-clip-text text-4xl font-black uppercase tracking-widest text-transparent">{t('podium.results')}</h1>
                         </div>
                     </div>
                 </div>
@@ -408,7 +410,8 @@ export default function PodiumView({ gameId, isHost, teamMode, playerId }: Podiu
     const prefersReducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     return (
-        <div className="min-h-screen flex flex-col items-center p-4 bg-slate-900 text-white">
+        <div className="relative min-h-screen flex flex-col items-center p-4 bg-slate-950 text-white overflow-hidden">
+            <GlassAmbience />
             {animPhase >= 4 && !prefersReducedMotion && (
                 <div className="absolute inset-0 pointer-events-none z-[100] overflow-hidden">
                     <Confetti width={windowDim.width} height={windowDim.height} recycle={false} numberOfPieces={500} gravity={0.15} />
@@ -447,7 +450,7 @@ export default function PodiumView({ gameId, isHost, teamMode, playerId }: Podiu
                 <div className="w-full flex md:mb-4">
                     <div className="flex items-center gap-4">
                         <GeoBingoLogo size={50} className="hidden sm:block" />
-                        <h1 className="text-4xl font-black uppercase tracking-widest text-indigo-400">{t('podium.results')}</h1>
+                        <h1 className="bg-gradient-to-r from-indigo-300 via-fuchsia-300 to-cyan-300 bg-clip-text text-4xl font-black uppercase tracking-widest text-transparent">{t('podium.results')}</h1>
                     </div>
                 </div>
 
@@ -466,7 +469,7 @@ export default function PodiumView({ gameId, isHost, teamMode, playerId }: Podiu
                                                 </span>
                                             ))}
                                         </div>
-                                        <span className="text-slate-400 mb-4 font-bold bg-slate-800 px-4 py-1 rounded-full">{renderScoreBadge(rank2[0])}</span>
+                                        <span className="glass text-slate-300 mb-4 font-bold px-4 py-1 rounded-full">{renderScoreBadge(rank2[0])}</span>
                                     </div>
                                 )}
                             </div>
@@ -528,44 +531,44 @@ export default function PodiumView({ gameId, isHost, teamMode, playerId }: Podiu
                 {animPhase >= 5 && (
                     <div className="w-full animate-fade-in">
                         <div className="my-3 md:my-6 w-full flex justify-center">
-                            <span className="bg-slate-800 border border-slate-700 text-slate-300 px-6 py-2 rounded-full text-sm font-bold shadow-lg uppercase tracking-wide text-center">{getWinningMessage()}</span>
+                            <span className="glass text-slate-200 px-6 py-2 rounded-full text-sm font-bold uppercase tracking-wide text-center">{getWinningMessage()}</span>
                         </div>
 
                         {/* DETAILED STATISTICS */}
-                        <div className="w-full bg-slate-800 rounded-3xl border border-slate-700 p-3 md:p-6 shadow-2xl">
-                            <h3 className="text-2xl font-black text-white mb-4 md:mb-8 uppercase tracking-widest border-b border-slate-700 pb-2 md:pb-4 text-center">{t('podium.matchStatistics')}</h3>
+                        <div className="glass w-full rounded-3xl p-3 md:p-6">
+                            <h3 className="text-2xl font-black text-white mb-4 md:mb-8 uppercase tracking-widest border-b border-white/10 pb-2 md:pb-4 text-center">{t('podium.matchStatistics')}</h3>
 
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-6">
                                 {stats.map((player) => (
-                                    <div key={player.id} className="bg-slate-900 p-3 md:p-6 rounded-2xl border border-slate-700 flex flex-col gap-4">
+                                    <div key={player.id} className="glass-inset p-3 md:p-6 rounded-2xl flex flex-col gap-4">
                                         {/* Header: Rank & Name */}
-                                        <div className="flex justify-between items-center border-b border-slate-800 pb-2 md:pb-4">
+                                        <div className="flex justify-between items-center border-b border-white/10 pb-2 md:pb-4">
                                             <div className="flex items-center gap-3">
                                                 <span className="text-2xl font-black text-slate-600">#{player.rank}</span>
-                                                <span className="font-bold text-xl text-indigo-400">{player.name}</span>
+                                                <span className="font-bold text-xl text-indigo-300">{player.name}</span>
                                             </div>
-                                            <span className="bg-indigo-600 px-4 py-1 rounded-lg text-lg font-bold text-white shadow-lg">{t('podium.points', { score: player.score })}</span>
+                                            <span className="bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-1 rounded-lg text-lg font-bold text-white shadow-[0_10px_20px_-8px_rgba(99,102,241,0.6),inset_0_1px_0_rgba(255,255,255,0.3)]">{t('podium.points', { score: player.score })}</span>
                                         </div>
 
                                         {/* Stats Grid */}
                                         {scaleVoting ? (
                                             <div className="grid grid-cols-3 gap-3">
                                                 {/* Total rating (= score) */}
-                                                <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
+                                                <div className="bg-white/5 p-3 rounded-xl flex flex-col items-center h-full">
                                                     <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">{t('podium.totalRating')}</span>
                                                     <div className="flex-1 flex items-center justify-center w-full">
                                                         <span className="text-xl font-medium text-indigo-400 leading-none">{player.scaleTotal || 0}</span>
                                                     </div>
                                                 </div>
                                                 {/* Average rating */}
-                                                <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
+                                                <div className="bg-white/5 p-3 rounded-xl flex flex-col items-center h-full">
                                                     <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">{t('podium.avgRating')}</span>
                                                     <div className="flex-1 flex items-center justify-center w-full">
                                                         <span className={`text-xl font-medium leading-none ${player.scaleAvg >= 7 ? 'text-green-400' : player.scaleAvg >= 4 ? 'text-yellow-400' : 'text-red-400'}`}>{player.scaleAvg.toFixed(1)}</span>
                                                     </div>
                                                 </div>
                                                 {/* Ratings received */}
-                                                <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
+                                                <div className="bg-white/5 p-3 rounded-xl flex flex-col items-center h-full">
                                                     <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">{t('podium.ratingsReceived')}</span>
                                                     <div className="flex-1 flex items-center justify-center w-full">
                                                         <span className="text-xl font-medium leading-none">{player.scaleCount || 0}</span>
@@ -576,7 +579,7 @@ export default function PodiumView({ gameId, isHost, teamMode, playerId }: Podiu
                                             <div className={`grid ${gameMode === 'bingo' ? 'grid-cols-4' : 'grid-cols-3'} gap-3`}>
                                                 {/* Bingos */}
                                                 {gameMode === 'bingo' && (
-                                                    <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
+                                                    <div className="bg-white/5 p-3 rounded-xl flex flex-col items-center h-full">
                                                         <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">{t('podium.bingos')}</span>
                                                         <div className="flex-1 flex items-center justify-center w-full">
                                                             <span className="text-xl font-medium text-yellow-400 leading-none">{player.bingos || 0}</span>
@@ -584,7 +587,7 @@ export default function PodiumView({ gameId, isHost, teamMode, playerId }: Podiu
                                                     </div>
                                                 )}
                                                 {/* Approved Words */}
-                                                <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
+                                                <div className="bg-white/5 p-3 rounded-xl flex flex-col items-center h-full">
                                                     <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">{t('podium.approvedWords')}</span>
                                                     <div className="flex-1 flex items-center justify-center w-full">
                                                         <span className="text-xl font-medium leading-none">{player.totalFound || 0}</span>
@@ -592,7 +595,7 @@ export default function PodiumView({ gameId, isHost, teamMode, playerId }: Podiu
                                                 </div>
                                                 {/* Mini Bingo Board */}
                                                 {gameMode === 'bingo' ? (
-                                                    <div className="relative group bg-slate-800 p-3 rounded-xl flex flex-col items-center justify-center">
+                                                    <div className="relative group bg-white/5 p-3 rounded-xl flex flex-col items-center justify-center">
                                                         <span className="text-[10px] text-slate-400 uppercase font-bold mb-2 text-center">{t('podium.bingoBoard')}</span>
                                                         <div
                                                             className="grid gap-1"
@@ -606,7 +609,7 @@ export default function PodiumView({ gameId, isHost, teamMode, playerId }: Podiu
                                                         </div>
 
                                                         {/* --- HOVER OVERLAY --- */}
-                                                        <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 hidden group-hover:flex z-50 w-[280px] h-[280px] sm:w-[400px] sm:h-[400px] p-3 bg-slate-900 border border-indigo-500/50 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] pointer-events-none flex-col">
+                                                        <div className="glass-dark absolute bottom-full mb-3 left-1/2 -translate-x-1/2 hidden group-hover:flex z-50 w-[280px] h-[280px] sm:w-[400px] sm:h-[400px] p-3 !border-indigo-400/50 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] pointer-events-none flex-col">
                                                             <div
                                                                 className="grid gap-1.5 flex-1"
                                                                 style={{
@@ -635,24 +638,24 @@ export default function PodiumView({ gameId, isHost, teamMode, playerId }: Podiu
                                                         </div>
                                                     </div>
                                                 ) : (
-                                                    <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
+                                                    <div className="bg-white/5 p-3 rounded-xl flex flex-col items-center h-full">
                                                         <span className="text-[10px] text-slate-400 uppercase font-bold mb-1 text-center">{t('podium.approveRate')}</span>
                                                         <span className={`text-xl font-medium ${player.communityApproval >= 75 ? 'text-green-400' : player.communityApproval >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>{player.communityApproval}%</span>
                                                     </div>
                                                 )}
 
                                                 {/* Hype */}
-                                                <div className="bg-slate-800 p-3 rounded-xl flex flex-col items-center h-full">
+                                                <div className="bg-white/5 p-3 rounded-xl flex flex-col items-center h-full">
                                                     <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">{t('podium.hype')}</span>
                                                     <div className="flex-1 flex items-center justify-center w-full">
                                                         <span className="text-xl font-medium text-amber-400 leading-none">{player.totalHype || 0}</span>
                                                     </div>
                                                 </div>
 
-                                                <div className={`bg-slate-800 p-3 rounded-xl flex flex-col ${gameMode === 'bingo' ? 'col-span-4' : 'col-span-3'}`}>
+                                                <div className={`bg-white/5 p-3 rounded-xl flex flex-col ${gameMode === 'bingo' ? 'col-span-4' : 'col-span-3'}`}>
                                                     <span className="text-xs text-slate-400 uppercase font-bold mb-2">{t('podium.totalVotesReceived')}</span>
                                                     <div className="flex items-center gap-4">
-                                                        <div className="flex-1 h-3 bg-slate-700 rounded-full overflow-hidden flex">
+                                                        <div className="flex-1 h-3 bg-white/10 rounded-full overflow-hidden flex">
                                                             <div
                                                                 className="bg-green-500 h-full"
                                                                 style={{
@@ -703,7 +706,7 @@ export default function PodiumView({ gameId, isHost, teamMode, playerId }: Podiu
                                     else window.location.href = '/community/create'; // blocked anyway → same tab
                                 });
                             }}
-                            className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-8 rounded-lg transition-all uppercase text-sm tracking-wide shadow-lg"
+                            className="glass press text-white font-bold py-3 px-8 rounded-lg uppercase text-sm tracking-wide"
                         >
                             {t('community.createFromGame')}
                         </button>
@@ -718,7 +721,7 @@ export default function PodiumView({ gameId, isHost, teamMode, playerId }: Podiu
                                     const { data, error } = await supabase.rpc('set_game_status', { p_game_id: gameId, p_host_id: hostToken, p_status: 'lobby' });
                                     if (error || (data && data.success === false)) console.error('Error returning to lobby:', error || data?.error);
                                 }}
-                                className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-8 rounded-lg transition-all uppercase text-sm tracking-wide shadow-lg"
+                                className="btn-sheen press bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 text-white font-bold py-3 px-8 rounded-lg uppercase text-sm tracking-wide shadow-[0_14px_28px_-10px_rgba(99,102,241,0.65),inset_0_1px_0_rgba(255,255,255,0.3)]"
                             >
                                 {t('podium.backToLobby')}
                             </button>
@@ -726,7 +729,7 @@ export default function PodiumView({ gameId, isHost, teamMode, playerId }: Podiu
 
                         {/* Non-hosts can't restart the lobby, so give them a way out instead. */}
                         {!isHost && (
-                            <button type="button" onClick={() => router.push('/')} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-8 rounded-lg transition-all uppercase text-sm tracking-wide shadow-lg">
+                            <button type="button" onClick={() => router.push('/')} className="glass press text-white font-bold py-3 px-8 rounded-lg uppercase text-sm tracking-wide">
                                 {t('sidebar.leaveLobby')}
                             </button>
                         )}

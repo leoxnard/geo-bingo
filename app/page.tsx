@@ -13,6 +13,7 @@ paint. The how-to-play / features content lives on its own indexable page at
 import type { Metadata } from 'next';
 
 import HomeInteractive from '@/components/home/HomeInteractive';
+import GlassAmbience from '@/components/utils/GlassAmbience';
 import { getServerLocale } from '@/lib/i18n/getServerLocale';
 import { translate } from '@/lib/i18n/translate';
 
@@ -24,7 +25,9 @@ export default async function Home() {
     const locale = await getServerLocale();
 
     return (
-        <main className="flex min-h-dvh flex-col bg-slate-900 text-white">
+        <main className="relative flex min-h-dvh flex-col overflow-hidden bg-slate-950 text-white">
+            <GlassAmbience />
+
             <HomeInteractive />
 
             <footer className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 px-4 py-6 text-sm font-medium text-slate-500">

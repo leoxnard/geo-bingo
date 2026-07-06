@@ -22,7 +22,7 @@ export default function CommunityPage() {
     return (
         // Suspense boundary required because CommunityBrowse reads the
         // ?preset= share-link param via useSearchParams.
-        <Suspense fallback={<main className="min-h-dvh bg-slate-900" />}>
+        <Suspense fallback={<main className="min-h-dvh bg-slate-950" />}>
             <CommunityBrowse />
         </Suspense>
     );

@@ -381,12 +381,12 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
                                 );
                             })}
                         </GoogleMap>
-                        <span className="absolute bottom-2 left-2 z-10 rounded-md bg-slate-900/80 px-2 py-1 text-[11px] font-medium text-slate-300 shadow">{t('community.miniMapHint')}</span>
+                        <span className="absolute bottom-2 left-2 z-10 glass-dark rounded-md px-2 py-1 text-[11px] font-medium text-slate-300 shadow">{t('community.miniMapHint')}</span>
 
                         {/* Search jumps the panorama */}
                         <div className="absolute top-3 left-1/2 -translate-x-1/2 w-[min(92%,360px)] z-10 flex gap-2">
-                            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && runSearch()} placeholder={t('community.searchPlace')} className="flex-1 p-2.5 rounded-xl bg-slate-900/90 border border-slate-600 focus:border-indigo-500 text-white outline-none shadow-lg" />
-                            <button type="button" onClick={runSearch} aria-label={t('community.searchPlace')} className="px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg">
+                            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && runSearch()} placeholder={t('community.searchPlace')} className="flex-1 p-2.5 rounded-xl glass-inset focus:!border-indigo-400 text-white outline-none shadow-lg" />
+                            <button type="button" onClick={runSearch} aria-label={t('community.searchPlace')} className="px-3 rounded-xl btn-sheen press bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-lg">
                                 <FaSearch />
                             </button>
                         </div>
@@ -411,7 +411,7 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
                         )}
 
                         {opened && (onSave || onCaptureSpot) && (
-                            <button type="button" onClick={handleSaveClick} className="absolute bottom-5 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-6 rounded-full shadow-xl uppercase">
+                            <button type="button" onClick={handleSaveClick} className="absolute bottom-5 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 btn-sheen press bg-gradient-to-r from-indigo-500 to-violet-500 text-white font-bold py-3 px-6 rounded-full shadow-xl uppercase">
                                 <FaCamera /> {t('community.saveSpot')}
                             </button>
                         )}
@@ -426,11 +426,11 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
             {/* Name-this-spot modal */}
             {pendingSpot && (
                 <div className="absolute inset-0 z-20 bg-black/60 flex items-center justify-center p-4">
-                    <div className={`bg-slate-800 border border-slate-700 rounded-2xl p-5 w-full ${allowStartPoint ? 'max-w-2xl' : 'max-w-md'} max-h-[90vh] overflow-y-auto flex flex-col gap-4`}>
+                    <div className={`glass-dark rounded-2xl p-5 w-full ${allowStartPoint ? 'max-w-2xl' : 'max-w-md'} max-h-[90vh] overflow-y-auto flex flex-col gap-4`}>
                         <h3 className="font-bold text-white">{t('community.nameSpotTitle')}</h3>
                         <img src={getStreetViewImageUrl(pendingSpot, 400)} alt="" className="w-full rounded-xl aspect-square object-cover" />
-                        <input autoFocus type="text" placeholder={t('community.categoryNamePlaceholder')} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-600 focus:border-indigo-500 text-white outline-none" value={categoryName} onChange={(e) => setCategoryName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && confirmSave()} />
-                        <input type="text" placeholder={t('community.categoryHintPlaceholder')} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-600 focus:border-indigo-500 text-white outline-none" value={categoryHint} onChange={(e) => setCategoryHint(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && confirmSave()} />
+                        <input autoFocus type="text" placeholder={t('community.categoryNamePlaceholder')} className="w-full p-3 rounded-xl glass-inset focus:!border-indigo-400 text-white outline-none" value={categoryName} onChange={(e) => setCategoryName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && confirmSave()} />
+                        <input type="text" placeholder={t('community.categoryHintPlaceholder')} className="w-full p-3 rounded-xl glass-inset focus:!border-indigo-400 text-white outline-none" value={categoryHint} onChange={(e) => setCategoryHint(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && confirmSave()} />
 
                         {allowStartPoint && (
                             <div className="flex flex-col gap-2">
@@ -464,7 +464,7 @@ const StreetViewExplorer = forwardRef<StreetViewExplorerHandle, StreetViewExplor
                             >
                                 {t('common.cancel')}
                             </button>
-                            <button type="button" onClick={confirmSave} disabled={!categoryName.trim()} className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase text-sm disabled:opacity-50">
+                            <button type="button" onClick={confirmSave} disabled={!categoryName.trim()} className="px-4 py-2 rounded-xl btn-sheen press bg-gradient-to-r from-indigo-500 to-violet-500 text-white font-bold uppercase text-sm disabled:opacity-50">
                                 {t('community.saveCategory')}
                             </button>
                         </div>

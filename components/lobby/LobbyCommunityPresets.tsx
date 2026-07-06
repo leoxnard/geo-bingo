@@ -86,14 +86,14 @@ export default function LobbyCommunityPresets({ isOpen, onClose, onImport }: Lob
 
     return (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-            <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <div className="glass-dark rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
                 {/* Header */}
-                <div className="flex items-center justify-between p-4 border-b border-slate-800 shrink-0">
+                <div className="flex items-center justify-between p-4 border-b border-white/10 shrink-0">
                     <div className="flex items-center gap-3">
                         <button type="button" onClick={onClose} className="text-slate-400 hover:text-white p-1" aria-label={t('landing.backHome')}>
                             <FaArrowLeft />
                         </button>
-                        <h2 className="text-xl font-bold text-indigo-400">{t('community.browseTitle')}</h2>
+                        <h2 className="bg-gradient-to-r from-indigo-300 to-fuchsia-300 bg-clip-text text-xl font-bold text-transparent">{t('community.browseTitle')}</h2>
                     </div>
                     <button type="button" onClick={onClose} className="text-slate-400 hover:text-white p-1">
                         <FaTimes />
@@ -105,7 +105,7 @@ export default function LobbyCommunityPresets({ isOpen, onClose, onImport }: Lob
                     {/* Sort tabs */}
                     <div className="flex gap-2 mb-4">
                         {SORTS.map((s) => (
-                            <button key={s.key} type="button" onClick={() => handleSortChange(s.key)} className={`px-4 py-1.5 rounded-full text-sm font-bold transition-colors ${sort === s.key ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                            <button key={s.key} type="button" onClick={() => handleSortChange(s.key)} className={`px-4 py-1.5 rounded-full text-sm font-bold transition-colors ${sort === s.key ? 'bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-[0_10px_20px_-8px_rgba(99,102,241,0.6),inset_0_1px_0_rgba(255,255,255,0.3)]' : 'glass press text-slate-300 hover:text-white'}`}>
                                 {t(s.labelKey as Parameters<typeof t>[0])}
                             </button>
                         ))}
@@ -139,9 +139,9 @@ function LobbyPresetCard({ preset, isImporting, onImport }: { preset: CommunityP
     const boundaryCount = countDrawnBoundaries(preset.boundaries);
 
     return (
-        <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden flex flex-col">
+        <div className="glass card-lift rounded-2xl overflow-hidden flex flex-col">
             {/* Emoji banner */}
-            <div className="relative aspect-[2/1] overflow-hidden bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center">
+            <div className="relative aspect-[2/1] overflow-hidden bg-gradient-to-br from-indigo-500/25 via-slate-900/60 to-fuchsia-500/20 flex items-center justify-center">
                 <span aria-hidden className="pointer-events-none absolute inset-0 flex items-center justify-center text-[7rem] leading-none opacity-25 select-none">
                     {preset.icon || '🗺️'}
                 </span>
@@ -173,7 +173,7 @@ function LobbyPresetCard({ preset, isImporting, onImport }: { preset: CommunityP
                     <span className="px-1.5">•</span> <span>{preset.difficulty}</span>
                 </div>
 
-                <button type="button" onClick={() => onImport(preset)} disabled={isImporting} className="ml-auto bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-1.5 px-4 rounded-lg text-sm uppercase transition-colors disabled:opacity-50">
+                <button type="button" onClick={() => onImport(preset)} disabled={isImporting} className="btn-sheen press ml-auto bg-gradient-to-r from-indigo-500 to-violet-500 text-white font-bold py-1.5 px-4 rounded-lg text-sm uppercase shadow-[0_10px_20px_-8px_rgba(99,102,241,0.6),inset_0_1px_0_rgba(255,255,255,0.3)] disabled:opacity-50">
                     {isImporting ? t('common.loading') : t('community.import')}
                 </button>
             </div>

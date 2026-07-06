@@ -44,18 +44,18 @@ export default function GameInvitesButton() {
                 <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-indigo-500 px-1 text-[10px] font-bold leading-none text-white">{invites.length > 9 ? '9+' : invites.length}</span>
             </button>
 
-            <div role="dialog" aria-label={t('invites.title')} hidden={!open} className="absolute right-0 mt-2 w-72 rounded-xl border border-slate-600 bg-slate-800 p-3 shadow-xl">
+            <div role="dialog" aria-label={t('invites.title')} hidden={!open} className="glass-dark absolute right-0 mt-2 w-72 rounded-xl p-3">
                 <p className="mb-2 px-1 text-xs font-bold uppercase tracking-wide text-slate-400">{t('invites.title')}</p>
                 <ul className="flex flex-col gap-2">
                     {invites.map((inv) => (
-                        <li key={inv.id} className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/60 p-2">
+                        <li key={inv.id} className="glass-inset flex items-center gap-2 rounded-xl p-2">
                             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-indigo-300">
                                 <FaGamepad size={13} />
                             </div>
                             <p className="min-w-0 flex-1 text-xs text-slate-300">
                                 <span className="font-bold text-white">{inv.inviter_name}</span> {t('invites.invitedYouShort')}
                             </p>
-                            <button type="button" onClick={() => join(inv)} className="shrink-0 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold uppercase text-white transition-colors hover:bg-indigo-500">
+                            <button type="button" onClick={() => join(inv)} className="press shrink-0 rounded-lg bg-gradient-to-r from-indigo-500 to-violet-500 px-3 py-1.5 text-xs font-bold uppercase text-white shadow-[0_8px_16px_-6px_rgba(99,102,241,0.6),inset_0_1px_0_rgba(255,255,255,0.3)]">
                                 {t('invites.join')}
                             </button>
                             <button type="button" onClick={() => dismiss(inv.id)} aria-label={t('invites.dismiss')} className="shrink-0 rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-700/60 hover:text-white">

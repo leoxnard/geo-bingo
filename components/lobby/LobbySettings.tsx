@@ -47,7 +47,7 @@ export default function LobbySettings({ isHost, gameMode, teamMode, timeLimit, e
     };
 
     return (
-        <div className="bg-slate-800 p-4 sm:p-6 rounded-xl flex-1 border border-slate-700 h-fit">
+        <div className="glass p-4 sm:p-6 rounded-2xl flex-1 h-fit">
             {/* Team Mode Selection */}
             <ToggleButton title={t('settings.teamMode')} active={teamMode === 'ffa' ? 'left' : 'right'} onClick={(val: 'left' | 'right') => updateGameModeInfo({ team_mode: val === 'left' ? 'ffa' : 'teams' })} disabled={!isHost} isHost={isHost} labelLeft={t('settings.noTeams')} labelRight={t('settings.teams')} iconLeft="person" iconRight="person.2" position="top" />
 

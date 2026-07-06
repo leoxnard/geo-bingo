@@ -215,7 +215,7 @@ export default function CommunityBuilder() {
     };
 
     const renderCategoryRow = (name: string, viewpoint: CommunityCategory | null) => (
-        <div key={(viewpoint ? 'a-' : 'p-') + name} className="flex items-start gap-3 bg-slate-800 rounded-xl p-2">
+        <div key={(viewpoint ? 'a-' : 'p-') + name} className="flex items-start gap-3 glass-inset rounded-xl p-2">
             {viewpoint ? (
                 <button type="button" onClick={() => focusOnSpot(viewpoint)} onMouseEnter={() => setHoveredCategory(name)} onMouseLeave={() => setHoveredCategory(null)} title={t('community.jumpToSpot')} aria-label={t('community.jumpToSpot')} className="w-14 h-14 rounded-lg overflow-hidden shrink-0 ring-2 ring-transparent hover:ring-indigo-500 transition-shadow">
                     <img src={getStreetViewImageUrl(viewpoint, 120)} alt="" className="w-full h-full object-cover" />
@@ -229,7 +229,7 @@ export default function CommunityBuilder() {
                     {viewpoint?.hint && (
                         <div className="relative group flex-shrink-0 cursor-help" onClick={(e) => e.stopPropagation()}>
                             <FaInfoCircle className="text-slate-400/70 hover:text-white" size={12} />
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max max-w-[200px] bg-slate-800 text-white text-xs p-2 rounded-lg shadow-xl border border-slate-600 z-[100] whitespace-normal text-center cursor-default">
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max max-w-[200px] glass-dark text-white text-xs p-2 rounded-lg z-[100] whitespace-normal text-center cursor-default">
                                 <span className="font-bold text-indigo-300">{t('sv.tip')}</span> {viewpoint.hint}
                             </div>
                         </div>
@@ -349,9 +349,9 @@ export default function CommunityBuilder() {
     const stepTitles = [t('community.step1Title'), t('community.step2Title'), t('community.step3Title')]; // step3Title = Publish (step 2 in 0-indexed)
 
     return (
-        <main className="h-dvh flex flex-col bg-slate-900 text-white">
+        <main className="h-dvh flex flex-col bg-slate-950 text-white">
             {/* Header / stepper */}
-            <header className="flex items-center gap-3 py-3 pl-4 pr-16 border-b border-slate-800 shrink-0">
+            <header className="flex items-center gap-3 py-3 pl-4 pr-16 border-b border-white/10 shrink-0">
                 <button type="button" onClick={() => (step === 0 ? router.push('/community') : setStep((s) => s - 1))} className="text-slate-400 hover:text-white p-1" aria-label={t('community.back')}>
                     <FaArrowLeft />
                 </button>
@@ -374,7 +374,7 @@ export default function CommunityBuilder() {
                         <div className="flex-1 min-h-0 relative">
                             <StreetViewExplorer ref={explorerRef} isLoaded={isLoaded} mode="capture" onSave={assignViewpoint} onViewpointChange={handleViewpointChange} spots={categories} existingNames={existingNames} gameBoundary={boundaries} hoveredSpot={hoveredCategory} />
                         </div>
-                        <aside className="w-full md:w-80 border-t md:border-t-0 md:border-l border-slate-800 overflow-y-auto p-4 flex flex-col gap-3 shrink-0">
+                        <aside className="w-full md:w-80 border-t md:border-t-0 md:border-l border-white/10 overflow-y-auto p-4 flex flex-col gap-3 shrink-0">
                             <h2 className="font-bold text-sm uppercase text-slate-400">{t('community.savedCategories', { count: categories.length })}</h2>
                             {categories.length === 0 && pendingNames.length === 0 && <p className="text-slate-500 text-sm">{t('community.noCategoriesYet')}</p>}
                             {categories.map((cat) => renderCategoryRow(cat.categoryName, cat))}
@@ -388,7 +388,7 @@ export default function CommunityBuilder() {
                         <div className="flex-1 min-h-0">
                             <LobbyMap isHost={true} isLoaded={isLoaded} startingPoint={startingPoint} gameBoundary={boundaries} updateGameModeInfo={updateDraft} extraMarkers={extraMarkers} hoveredCategory={hoveredCategory} />
                         </div>
-                        <aside className="w-full md:w-80 border-t md:border-t-0 md:border-l border-slate-800 overflow-y-auto p-4 flex flex-col gap-3 shrink-0">
+                        <aside className="w-full md:w-80 border-t md:border-t-0 md:border-l border-white/10 overflow-y-auto p-4 flex flex-col gap-3 shrink-0">
                             <h2 className="font-bold text-sm uppercase text-slate-400">{t('community.savedCategories', { count: categories.length })}</h2>
                             {categories.length === 0 && <p className="text-slate-500 text-sm">{t('community.noCategoriesYet')}</p>}
                             {categories.map((cat) => renderCategoryRow(cat.categoryName, cat))}
@@ -402,24 +402,24 @@ export default function CommunityBuilder() {
                             <h2 className="text-xl font-bold text-indigo-400">{t('community.publishTitle')}</h2>
                             <div>
                                 <label className="text-xs text-slate-400 font-bold uppercase mb-1 block">{t('community.presetName')}</label>
-                                <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('community.presetNamePlaceholder')} className="w-full p-3 rounded-xl bg-slate-800 border border-slate-600 focus:border-indigo-500 text-white outline-none" />
+                                <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('community.presetNamePlaceholder')} className="w-full p-3 rounded-xl glass-inset focus:!border-indigo-400 text-white outline-none" />
                             </div>
                             <div>
                                 <label className="text-xs text-slate-400 font-bold uppercase mb-1 block">{t('community.presetDesc')}</label>
-                                <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t('community.presetDescPlaceholder')} rows={3} className="w-full p-3 rounded-xl bg-slate-800 border border-slate-600 focus:border-indigo-500 text-white outline-none resize-none" />
+                                <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t('community.presetDescPlaceholder')} rows={3} className="w-full p-3 rounded-xl glass-inset focus:!border-indigo-400 text-white outline-none resize-none" />
                             </div>
 
                             {/* Icon + category translations are generated automatically on publish */}
-                            <p className="text-xs text-slate-400 bg-slate-800 rounded-xl p-3">{t('community.autoFinalizeNote')}</p>
+                            <p className="text-xs text-slate-400 glass-inset rounded-xl p-3">{t('community.autoFinalizeNote')}</p>
 
                             {/* Game mode — Classic List vs Bingo Grid (Bingo only when the count is a supported square). Ordered like the lobby. */}
                             <div>
                                 <label className="text-xs text-slate-400 font-bold uppercase mb-1 block">{t('settings.gameMode')}</label>
                                 <div className="flex gap-2">
-                                    <button type="button" onClick={() => setBingoEnabled(false)} className={`flex-1 py-2 rounded-lg text-sm font-bold uppercase transition-colors ${!isBingo ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                                    <button type="button" onClick={() => setBingoEnabled(false)} className={`flex-1 py-2 rounded-lg text-sm font-bold uppercase transition-colors ${!isBingo ? 'bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3)]' : 'glass text-slate-300 hover:text-white'}`}>
                                         {t('settings.classicList')}
                                     </button>
-                                    <button type="button" onClick={() => canBingo && setBingoEnabled(true)} disabled={!canBingo} className={`flex-1 py-2 rounded-lg text-sm font-bold uppercase transition-colors ${isBingo ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'} disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-800`}>
+                                    <button type="button" onClick={() => canBingo && setBingoEnabled(true)} disabled={!canBingo} className={`flex-1 py-2 rounded-lg text-sm font-bold uppercase transition-colors ${isBingo ? 'bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3)]' : 'glass text-slate-300 hover:text-white'} disabled:opacity-40 disabled:cursor-not-allowed `}>
                                         {t('settings.bingoGrid')}
                                     </button>
                                 </div>
@@ -442,7 +442,7 @@ export default function CommunityBuilder() {
                                                     }}
                                                     onDragEnd={() => setDraggedBingoIndex(null)}
                                                     title={cat.categoryName}
-                                                    className={`relative flex items-center justify-center text-center rounded-lg border bg-slate-900 border-slate-600 cursor-grab active:cursor-grabbing hover:border-indigo-500 transition-all overflow-hidden aspect-square p-1 ${draggedBingoIndex === i ? 'opacity-50 scale-95 border-indigo-500' : ''}`}
+                                                    className={`relative flex items-center justify-center text-center rounded-lg glass-inset cursor-grab active:cursor-grabbing hover:border-indigo-500 transition-all overflow-hidden aspect-square p-1 ${draggedBingoIndex === i ? 'opacity-50 scale-95 border-indigo-500' : ''}`}
                                                 >
                                                     {cat.lat !== undefined && <img src={getStreetViewImageUrl(cat, 120)} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover opacity-30" />}
                                                     <span className="relative z-10 text-[10px] sm:text-xs font-bold leading-tight line-clamp-3 [word-break:break-word] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">{cat.categoryName}</span>
@@ -459,7 +459,7 @@ export default function CommunityBuilder() {
                                     <label className="text-xs text-slate-400 font-bold uppercase mb-1 block">{t('community.endCondition')}</label>
                                     <div className="flex gap-2">
                                         {(['timer', 'first_bingo'] as const).map((ec) => (
-                                            <button key={ec} type="button" onClick={() => setSetting('endCondition', ec)} className={`flex-1 py-2 rounded-lg text-sm font-bold uppercase transition-colors ${(settings.endCondition ?? 'timer') === ec ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                                            <button key={ec} type="button" onClick={() => setSetting('endCondition', ec)} className={`flex-1 py-2 rounded-lg text-sm font-bold uppercase transition-colors ${(settings.endCondition ?? 'timer') === ec ? 'bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3)]' : 'glass text-slate-300 hover:text-white'}`}>
                                                 {ec === 'timer' ? t('community.endTimer') : t('community.endFirstBingo')}
                                             </button>
                                         ))}
@@ -473,7 +473,7 @@ export default function CommunityBuilder() {
                                     <label className="text-xs text-slate-400 font-bold uppercase mb-1 block">{t('settings.votingMode')}</label>
                                     <div className="flex gap-2">
                                         {([false, true] as const).map((sv) => (
-                                            <button key={String(sv)} type="button" onClick={() => setSetting('scaleVoting', sv)} className={`flex-1 py-2 rounded-lg text-sm font-bold uppercase transition-colors ${(settings.scaleVoting ?? false) === sv ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                                            <button key={String(sv)} type="button" onClick={() => setSetting('scaleVoting', sv)} className={`flex-1 py-2 rounded-lg text-sm font-bold uppercase transition-colors ${(settings.scaleVoting ?? false) === sv ? 'bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3)]' : 'glass text-slate-300 hover:text-white'}`}>
                                                 {sv ? t('settings.scaleVoting') : t('settings.yesNoVoting')}
                                             </button>
                                         ))}
@@ -486,7 +486,7 @@ export default function CommunityBuilder() {
                                 <label className="text-xs text-slate-400 font-bold uppercase mb-1 block">{t('community.difficulty')}</label>
                                 <div className="flex gap-2">
                                     {(['easy', 'medium', 'hard'] as const).map((d) => (
-                                        <button key={d} type="button" onClick={() => setDifficulty(d)} className={`flex-1 py-2 rounded-lg text-sm font-bold uppercase transition-colors ${difficulty === d ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                                        <button key={d} type="button" onClick={() => setDifficulty(d)} className={`flex-1 py-2 rounded-lg text-sm font-bold uppercase transition-colors ${difficulty === d ? 'bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3)]' : 'glass text-slate-300 hover:text-white'}`}>
                                             {d === 'easy' ? t('community.diffEasy') : d === 'medium' ? t('community.diffMedium') : t('community.diffHard')}
                                         </button>
                                     ))}
@@ -497,13 +497,13 @@ export default function CommunityBuilder() {
                             <RangeSlider title={t('community.recommendedTime')} min={1} max={60} step={1} value={recommendedMinutes} displayValue={t('settings.minutes', { count: recommendedMinutes })} onChange={setRecommendedMinutes} onCommit={() => {}} />
 
                             {/* Advanced settings — collapsed by default */}
-                            <div className="bg-slate-800 rounded-xl">
+                            <div className="glass-inset rounded-xl">
                                 <button type="button" onClick={() => setAdvancedOpen((o) => !o)} className="w-full flex items-center justify-between p-3 text-sm font-bold text-slate-200">
                                     <span>{t('community.advancedSettings')}</span>
                                     {advancedOpen ? <FaCaretDown /> : <FaCaretRight />}
                                 </button>
                                 {advancedOpen && (
-                                    <div className="px-3 pb-3 flex flex-col gap-2.5 border-t border-slate-700 pt-3">
+                                    <div className="px-3 pb-3 flex flex-col gap-2.5 border-t border-white/10 pt-3">
                                         {(
                                             [
                                                 ['exclusiveMode', 'community.setExclusive'],
@@ -521,7 +521,7 @@ export default function CommunityBuilder() {
                                 )}
                             </div>
 
-                            <div className="text-sm text-slate-400 bg-slate-800 rounded-xl p-3 flex flex-col gap-1">
+                            <div className="text-sm text-slate-400 glass-inset rounded-xl p-3 flex flex-col gap-1">
                                 <span>{t('community.categoriesCount', { count: categories.length })}</span>
                                 <span>{countBoundaries(boundaries) > 0 && t('community.boundariesCount', { count: countBoundaries(boundaries) })}</span>
                                 <span>{startingPoint.startsWith('{') && t('community.fixedStart')}</span>
@@ -530,7 +530,7 @@ export default function CommunityBuilder() {
                             {!canSubmit && <p className="text-amber-400 text-xs">{t('community.submitRequirements')}</p>}
                             {!user && <p className="text-xs text-slate-400">{t('community.signUpHint')}</p>}
                             <AuthGate>
-                                <button type="button" onClick={handleSubmit} disabled={!canSubmit || submitting} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-xl uppercase transition-all disabled:opacity-50">
+                                <button type="button" onClick={handleSubmit} disabled={!canSubmit || submitting} className="w-full btn-sheen press bg-gradient-to-r from-indigo-500 to-violet-500 text-white font-bold py-4 rounded-xl uppercase transition-all disabled:opacity-50">
                                     {submitting ? t('community.submitting') : editId ? t('community.saveChanges') : t('community.submit')}
                                 </button>
                             </AuthGate>
@@ -541,11 +541,11 @@ export default function CommunityBuilder() {
 
             {/* Footer nav */}
             {step < 2 && (
-                <footer className="flex items-center justify-between gap-3 px-4 py-3 border-t border-slate-800 shrink-0">
-                    <button type="button" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0} className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold uppercase text-sm disabled:opacity-40">
+                <footer className="flex items-center justify-between gap-3 px-4 py-3 border-t border-white/10 shrink-0">
+                    <button type="button" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0} className="px-5 py-2.5 glass press rounded-xl text-white font-bold uppercase text-sm disabled:opacity-40">
                         {t('community.back')}
                     </button>
-                    <button type="button" onClick={() => setStep((s) => Math.min(TOTAL_STEPS - 1, s + 1))} disabled={step === 0 && categories.length === 0} className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase text-sm disabled:opacity-40">
+                    <button type="button" onClick={() => setStep((s) => Math.min(TOTAL_STEPS - 1, s + 1))} disabled={step === 0 && categories.length === 0} className="px-5 py-2.5 rounded-xl btn-sheen press bg-gradient-to-r from-indigo-500 to-violet-500 text-white font-bold uppercase text-sm disabled:opacity-40">
                         {t('community.next')}
                     </button>
                 </footer>
@@ -554,7 +554,7 @@ export default function CommunityBuilder() {
             {/* Starting-point acknowledgement */}
             {pendingStart && (
                 <div className="absolute inset-0 z-30 bg-black/60 flex items-center justify-center p-4">
-                    <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 w-full max-w-md flex flex-col gap-4">
+                    <div className="glass-dark rounded-2xl p-5 w-full max-w-md flex flex-col gap-4">
                         <div className="flex items-center gap-2 text-amber-400">
                             <FaExclamationTriangle />
                             <h3 className="font-bold">{t('community.startWarnTitle')}</h3>
@@ -564,7 +564,7 @@ export default function CommunityBuilder() {
                             <button type="button" onClick={() => setPendingStart(null)} className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold uppercase text-sm">
                                 {t('common.cancel')}
                             </button>
-                            <button type="button" onClick={acknowledgeStart} className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase text-sm">
+                            <button type="button" onClick={acknowledgeStart} className="px-4 py-2 rounded-xl btn-sheen press bg-gradient-to-r from-indigo-500 to-violet-500 text-white font-bold uppercase text-sm">
                                 {t('community.startWarnAck')}
                             </button>
                         </div>
@@ -575,10 +575,10 @@ export default function CommunityBuilder() {
             {/* Rename a category */}
             {renaming !== null && (
                 <div className="absolute inset-0 z-30 bg-black/60 flex items-center justify-center p-4">
-                    <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 w-full max-w-md flex flex-col gap-4">
+                    <div className="glass-dark rounded-2xl p-5 w-full max-w-md flex flex-col gap-4">
                         <h3 className="font-bold text-white">{t('community.renameCategory')}</h3>
-                        <input autoFocus type="text" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && confirmRename()} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-600 focus:border-indigo-500 text-white outline-none" />
-                        <input type="text" placeholder={t('community.categoryHintPlaceholder')} value={renameHintValue} onChange={(e) => setRenameHintValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && confirmRename()} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-600 focus:border-indigo-500 text-white outline-none" />
+                        <input autoFocus type="text" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && confirmRename()} className="w-full p-3 rounded-xl glass-inset focus:!border-indigo-400 text-white outline-none" />
+                        <input type="text" placeholder={t('community.categoryHintPlaceholder')} value={renameHintValue} onChange={(e) => setRenameHintValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && confirmRename()} className="w-full p-3 rounded-xl glass-inset focus:!border-indigo-400 text-white outline-none" />
                         <div className="flex gap-2 justify-end">
                             <button
                                 type="button"
@@ -590,7 +590,7 @@ export default function CommunityBuilder() {
                             >
                                 {t('common.cancel')}
                             </button>
-                            <button type="button" onClick={confirmRename} disabled={!renameValue.trim()} className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase text-sm disabled:opacity-50">
+                            <button type="button" onClick={confirmRename} disabled={!renameValue.trim()} className="px-4 py-2 rounded-xl btn-sheen press bg-gradient-to-r from-indigo-500 to-violet-500 text-white font-bold uppercase text-sm disabled:opacity-50">
                                 {t('community.rename')}
                             </button>
                         </div>
@@ -601,7 +601,7 @@ export default function CommunityBuilder() {
             {/* Choose-a-find picker (all game submissions for one category) */}
             {pickerCategory && (
                 <div className="absolute inset-0 z-30 bg-black/60 flex items-center justify-center p-4">
-                    <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 w-full max-w-lg max-h-[85vh] overflow-y-auto flex flex-col gap-4">
+                    <div className="glass-dark rounded-2xl p-5 w-full max-w-lg max-h-[85vh] overflow-y-auto flex flex-col gap-4">
                         <h3 className="font-bold text-white">{t('community.chooseFindTitle', { name: pickerCategory })}</h3>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                             {(submissionsByCategory[pickerCategory] ?? []).map((vp, i) => (

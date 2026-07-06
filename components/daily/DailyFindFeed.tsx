@@ -67,7 +67,7 @@ export default function DailyFindFeed({ date, answer = null, isLoaded = false }:
                     <p className="mb-3 text-xs text-slate-400">{t('daily.reportHint')}</p>
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                         {finds.map((f) => (
-                            <div key={f.id} className="overflow-hidden rounded-xl border border-slate-700 bg-slate-800">
+                            <div key={f.id} className="overflow-hidden rounded-xl glass">
                                 <img src={getStreetViewImageUrl(f, 300)} alt={f.name} className="aspect-square w-full object-cover" loading="lazy" />
                                 <div className="flex items-center justify-between gap-2 p-2">
                                     <div className="min-w-0">
@@ -178,18 +178,18 @@ function DailyFindsMap({ finds, answer, isLoaded }: { finds: DailyFind[]; answer
                         </>
                     )}
                 </GoogleMap>
-                <span className="absolute bottom-2 left-2 z-10 rounded-md bg-slate-900/80 px-2 py-1 text-[11px] font-medium text-slate-300 shadow">{t('daily.findsHeatmap')}</span>
+                <span className="absolute bottom-2 left-2 z-10 glass-dark rounded-md px-2 py-1 text-[11px] font-medium text-slate-300 shadow">{t('daily.findsHeatmap')}</span>
             </div>
 
             {tooltipPos && hovered && (
-                <div className="pointer-events-none fixed z-50 w-36 rounded-lg bg-slate-900/95 p-1 shadow-xl" style={{ left: tooltipPos.x - 70, top: tooltipPos.y - 190 }}>
+                <div className="pointer-events-none fixed z-50 w-36 rounded-lg glass-dark p-1 shadow-xl" style={{ left: tooltipPos.x - 70, top: tooltipPos.y - 190 }}>
                     <img src={getStreetViewImageUrl(hovered, 200)} alt={hovered.name} className="mb-1 aspect-square w-full rounded object-cover" />
                     <p className="truncate px-1 text-xs font-bold text-white">{hovered.name}</p>
                     <p className="px-1 font-mono text-[11px] text-indigo-300">{formatDuration(hovered.duration_ms)}</p>
                 </div>
             )}
             {tooltipPos && answerHover && answer && (
-                <div className="pointer-events-none fixed z-50 w-36 rounded-lg bg-slate-900/95 p-1 shadow-xl" style={{ left: tooltipPos.x - 70, top: tooltipPos.y - 170 }}>
+                <div className="pointer-events-none fixed z-50 w-36 rounded-lg glass-dark p-1 shadow-xl" style={{ left: tooltipPos.x - 70, top: tooltipPos.y - 170 }}>
                     <img src={getStreetViewImageUrl(answer, 200)} alt="" className="mb-1 aspect-square w-full rounded object-cover" />
                     <p className="px-1 text-xs font-bold text-amber-400">{t('daily.answerLocation')}</p>
                 </div>

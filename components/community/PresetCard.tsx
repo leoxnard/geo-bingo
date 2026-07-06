@@ -124,9 +124,9 @@ export default function PresetCard({ preset, myVote, isOwner, onVote, onDelete, 
     };
 
     return (
-        <div id={`preset-${preset.id}`} style={style} className={`card-lift animate-fade-in-up bg-slate-800 border rounded-2xl overflow-hidden flex flex-col ${highlighted ? 'border-indigo-500 ring-2 ring-indigo-500/60' : 'border-slate-700'}`}>
+        <div id={`preset-${preset.id}`} style={style} className={`glass card-lift animate-fade-in-up rounded-2xl overflow-hidden flex flex-col ${highlighted ? 'ring-2 ring-indigo-400/70' : ''}`}>
             {/* Emoji banner: icon as a big faded backdrop, title sized to fill */}
-            <div className="relative aspect-[2/1] overflow-hidden bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center">
+            <div className="relative aspect-[2/1] overflow-hidden bg-gradient-to-br from-indigo-500/25 via-slate-900/60 to-fuchsia-500/20 flex items-center justify-center">
                 <span aria-hidden className="pointer-events-none absolute inset-0 flex items-center justify-center text-[7rem] leading-none opacity-25 select-none">
                     {preset.icon || ICON_FALLBACK}
                 </span>
@@ -173,7 +173,7 @@ export default function PresetCard({ preset, myVote, isOwner, onVote, onDelete, 
                     <span className="px-1.5">•</span> <span>{preset.difficulty}</span>
                 </div>
 
-                <div className="flex items-center gap-2 pt-2 border-t border-slate-700">
+                <div className="flex items-center gap-2 pt-2 border-t border-white/10">
                     <button type="button" onClick={sharePreset} aria-label={t('community.share')} title={t('community.share')} className="flex items-center px-2.5 py-2 rounded-lg text-sm text-slate-300 hover:text-white transition-colors">
                         <FaLink size={12} />
                     </button>
@@ -183,7 +183,7 @@ export default function PresetCard({ preset, myVote, isOwner, onVote, onDelete, 
                     <button type="button" onClick={() => onVote(-1)} aria-label={t('community.downvote')} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm text-slate-300 hover:text-white transition-colors`}>
                         <FaThumbsDown size={12} color={myVote === -1 ? '#E53935' : ''} /> {preset.downvotes}
                     </button>
-                    <button type="button" onClick={importPreset} className="ml-auto bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-1.5 px-4 rounded-lg text-sm uppercase transition-colors">
+                    <button type="button" onClick={importPreset} className="btn-sheen press ml-auto rounded-lg bg-gradient-to-r from-indigo-500 to-violet-500 py-1.5 px-4 text-sm font-bold uppercase text-white shadow-[0_10px_20px_-8px_rgba(99,102,241,0.6),inset_0_1px_0_rgba(255,255,255,0.3)]">
                         {t('community.import')}
                     </button>
                 </div>

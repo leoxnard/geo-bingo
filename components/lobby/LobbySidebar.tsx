@@ -196,7 +196,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
     };
 
     const renderPlayerItem = (p: Player) => (
-        <li key={p.id} draggable onDragStart={(e) => handleDragStart(e, p.id)} className="flex flex-col gap-2 bg-slate-900 p-3 rounded-lg border border-slate-700 cursor-grab active:cursor-grabbing hover:bg-slate-800 transition-colors">
+        <li key={p.id} draggable onDragStart={(e) => handleDragStart(e, p.id)} className="glass-inset flex flex-col gap-2 p-3 rounded-lg cursor-grab active:cursor-grabbing transition-all hover:brightness-125">
             <div className="flex items-center gap-3">
                 <div className={`min-w-[8px] h-2 rounded-full animate-pulse ${props.onlinePlayers.includes(p.id) ? 'bg-green-500' : 'bg-orange-500'}`} />
                 <div className="flex-1 min-w-0 flex items-center gap-2">
@@ -242,7 +242,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
     return (
         <div className="flex flex-col gap-4 sm:gap-6 w-full lg:w-80">
             {/* Invite Box */}
-            <div className="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 h-fit">
+            <div className="glass p-4 sm:p-6 rounded-2xl h-fit">
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="text-xl font-semibold text-slate-300">{t('sidebar.inviteFriends')}</h2>
                     <div className="flex items-center gap-2">
@@ -253,7 +253,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                     </div>
                 </div>
                 <div className="space-y-3">
-                    <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 p-2 rounded-lg overflow-hidden">
+                    <div className="glass-inset flex items-center gap-2 p-2 rounded-lg overflow-hidden">
                         <span className="text-sm font-bold text-slate-400 w-12 tracking-widest shrink-0">{t('sidebar.idLabel')}</span>
                         <span className="flex-1 min-w-0 font-mono text-slate-300 text-lg truncate select-none px-2" style={blurLobbyInfo ? { color: 'transparent', textShadow: '0 0 12px rgba(203, 213, 225, 0.9), 0 0 6px rgba(203, 213, 225, 0.7)' } : undefined}>
                             {props.gameId}
@@ -262,7 +262,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                             {copiedId ? <FaCopy /> : <FaRegCopy />}
                         </button>
                     </div>
-                    <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 p-2 rounded-lg overflow-hidden">
+                    <div className="glass-inset flex items-center gap-2 p-2 rounded-lg overflow-hidden">
                         <span className="text-sm font-bold text-slate-400 w-12 tracking-widest shrink-0">{t('sidebar.linkLabel')}</span>
                         <span className="flex-1 min-w-0 font-mono text-slate-300 truncate select-none px-2" style={blurLobbyInfo ? { color: 'transparent', textShadow: '0 0 12px rgba(203, 213, 225, 0.9), 0 0 6px rgba(203, 213, 225, 0.7)' } : undefined}>
                             {isMounted ? window.location.href.replace('http://', '').replace('https://', '') : '...'}
@@ -275,7 +275,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
             </div>
 
             {/* Player / Teams List */}
-            <div className="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 h-fit">
+            <div className="glass p-4 sm:p-6 rounded-2xl h-fit">
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-semibold text-slate-300">{t('sidebar.players', { count: props.players.length })}</h2>
 
@@ -328,21 +328,21 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                         type="button"
                         onClick={props.handleStartGame}
                         disabled={(props.categories.length === 0 && (props.categorySource === 'manual' || props.categorySource === 'ai')) || props.isGenerating}
-                        className={`w-full py-4 rounded-xl font-bold mt-8 tracking-wider ${(props.categories.length === 0 && (props.categorySource === 'manual' || props.categorySource === 'ai')) || props.isGenerating ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-green-700 text-white hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-green-500'}`}
+                        className={`w-full py-4 rounded-xl font-bold mt-8 tracking-wider ${(props.categories.length === 0 && (props.categorySource === 'manual' || props.categorySource === 'ai')) || props.isGenerating ? 'glass-inset text-slate-500 cursor-not-allowed' : 'btn-sheen press bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-[0_16px_32px_-10px_rgba(16,185,129,0.6),inset_0_1px_0_rgba(255,255,255,0.3)] focus:outline-none focus:ring-2 focus:ring-emerald-400'}`}
                     >
                         {props.isGenerating ? t('common.generating') : t('sidebar.startGame')}
                     </button>
                 ) : (
-                    <div className="w-full bg-slate-700 text-slate-400 text-center py-4 rounded-xl font-bold mt-8">{props.isGenerating ? t('common.generating') : t('common.waitingForHost')}</div>
+                    <div className="glass-inset w-full text-slate-400 text-center py-4 rounded-xl font-bold mt-8">{props.isGenerating ? t('common.generating') : t('common.waitingForHost')}</div>
                 )}
 
-                <button type="button" onClick={props.handleLeaveLobby} className="w-full py-3 rounded-xl font-bold mt-3 border border-slate-600 text-slate-300 hover:bg-slate-700 transition-colors">
+                <button type="button" onClick={props.handleLeaveLobby} className="glass press w-full py-3 rounded-xl font-bold mt-3 text-slate-300 hover:text-white transition-colors">
                     {t('sidebar.leaveLobby')}
                 </button>
             </div>
 
             {/* More Game Settings */}
-            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 h-fit">
+            <div className="glass p-6 rounded-2xl h-fit">
                 <h2 className="text-xl font-semibold mb-6 text-slate-100 border-b border-slate-700 pb-3">{t('sidebar.moreGameSettings')}</h2>
 
                 <div className="flex flex-col gap-5">
@@ -361,7 +361,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                     </div>
 
                     {props.isHost && (
-                        <button type="button" onClick={props.onPresetClick} className="w-full py-2.5 rounded-lg font-medium bg-indigo-600 text-white hover:bg-indigo-500 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <button type="button" onClick={props.onPresetClick} className="btn-sheen press w-full py-2.5 rounded-lg font-medium bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-[0_10px_20px_-8px_rgba(99,102,241,0.6),inset_0_1px_0_rgba(255,255,255,0.3)] focus:outline-none focus:ring-2 focus:ring-indigo-400">
                             {t('community.browseTitle')}
                         </button>
                     )}

@@ -78,17 +78,18 @@ body {
     animation: pop-in 0.3s ease-out both;
 }
 
-/* Cards that gently lift on hover (pointer devices only). */
+/* Cards that respond on hover (pointer devices only) — shadow/brightness only,
+   no vertical movement. */
 @media (hover: hover) {
     .card-lift {
         transition:
-            transform 0.2s ease,
             box-shadow 0.2s ease,
+            filter 0.2s ease,
             border-color 0.2s ease;
     }
     .card-lift:hover {
-        transform: translateY(-3px);
         box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+        filter: brightness(1.08);
     }
 }
 
@@ -99,6 +100,196 @@ body {
     }
     .card-lift,
     .card-lift:hover {
+        transform: none;
+        transition: none;
+    }
+}
+
+/* ---------------------------------------------------------------------------
+   Glassmorphism kit — frosted panels WITHOUT backdrop-filter. The "frost" is
+   faked with layered translucent gradients + an edge-lit 1px highlight, while
+   vibrant blurred blobs float behind the glass to give it something to refract.
+--------------------------------------------------------------------------- */
+.glass {
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.11) 0%, rgba(255, 255, 255, 0.04) 45%, rgba(255, 255, 255, 0.07) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.22),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.05),
+        0 24px 48px -16px rgba(2, 6, 23, 0.65);
+}
+
+/* Dark variant for HUD panels floating over live imagery (Street View, maps):
+   keeps the edge-lit glass look but with an opaque-enough dark fill to stay
+   readable against bright skies. Still no backdrop-filter. */
+.glass-dark {
+    background: linear-gradient(160deg, rgba(15, 23, 42, 0.88) 0%, rgba(15, 23, 42, 0.76) 55%, rgba(30, 27, 75, 0.72) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.16),
+        0 16px 32px -12px rgba(2, 6, 23, 0.6);
+}
+
+.glass-inset {
+    background: linear-gradient(180deg, rgba(2, 6, 23, 0.5), rgba(2, 6, 23, 0.32));
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: inset 0 2px 6px rgba(2, 6, 23, 0.45);
+}
+
+/* Vibrant color fields that drift behind the glass. Blur is applied to the
+   blob itself (allowed), never as a backdrop-filter. */
+.glass-blob {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(70px);
+    will-change: transform;
+}
+
+@keyframes blob-drift-a {
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1);
+    }
+    50% {
+        transform: translate(6vw, -4vh) scale(1.15);
+    }
+}
+
+@keyframes blob-drift-b {
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1.1);
+    }
+    50% {
+        transform: translate(-5vw, 5vh) scale(0.9);
+    }
+}
+
+@keyframes blob-drift-c {
+    0%,
+    100% {
+        transform: translate(0, 0) scale(0.95);
+    }
+    50% {
+        transform: translate(4vw, 6vh) scale(1.12);
+    }
+}
+
+.animate-blob-a {
+    animation: blob-drift-a 22s ease-in-out infinite;
+}
+.animate-blob-b {
+    animation: blob-drift-b 26s ease-in-out infinite;
+}
+.animate-blob-c {
+    animation: blob-drift-c 19s ease-in-out infinite;
+}
+
+/* Faint map graticule fading out from the hero — ties the glass to the
+   geo theme without reading as a corporate grid. */
+.geo-graticule {
+    background-image:
+        linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse 90% 70% at 50% 38%, black 25%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 38%, black 25%, transparent 75%);
+}
+
+/* Floating glass bingo chips (decorative). */
+@keyframes chip-float {
+    0%,
+    100% {
+        transform: translateY(0) rotate(var(--chip-tilt, 0deg));
+    }
+    50% {
+        transform: translateY(-14px) rotate(var(--chip-tilt, 0deg));
+    }
+}
+
+.animate-chip-float {
+    animation: chip-float 7s ease-in-out infinite;
+}
+
+/* Drifting background emojis — tiny, faint, far behind the glass. Each drifter
+   rises the full viewport height on a long linear loop; negative delays spread
+   them across the path so the screen is populated from the first frame. */
+@keyframes emoji-drift {
+    0% {
+        transform: translateY(104vh) rotate(-8deg);
+        opacity: 0;
+    }
+    10% {
+        opacity: var(--drift-o, 0.13);
+    }
+    90% {
+        opacity: var(--drift-o, 0.13);
+    }
+    100% {
+        transform: translateY(-10vh) rotate(10deg);
+        opacity: 0;
+    }
+}
+
+.animate-emoji-drift {
+    position: absolute;
+    top: 0;
+    opacity: 0;
+    animation: emoji-drift var(--drift-dur, 48s) linear infinite;
+    animation-delay: var(--drift-delay, 0s);
+    filter: blur(1px);
+    will-change: transform, opacity;
+}
+
+/* Light sweep across a button face on hover. */
+.btn-sheen {
+    position: relative;
+    overflow: hidden;
+}
+.btn-sheen::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.35) 50%, transparent 60%);
+    transform: translateX(-150%);
+    transition: transform 0.55s ease;
+    pointer-events: none;
+}
+@media (hover: hover) {
+    .btn-sheen:hover::after {
+        transform: translateX(150%);
+    }
+}
+
+/* Springy press feedback for anything clickable on the landing page. */
+.press {
+    transition:
+        transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
+        box-shadow 0.2s ease,
+        filter 0.2s ease;
+}
+.press:active {
+    transform: scale(0.96);
+}
+/* Note: no hover-lift on purpose — buttons stay put; feedback is press-scale,
+   sheen and brightness only. */
+
+@media (prefers-reduced-motion: reduce) {
+    .animate-blob-a,
+    .animate-blob-b,
+    .animate-blob-c,
+    .animate-chip-float {
+        animation: none;
+    }
+    .animate-emoji-drift {
+        display: none;
+    }
+    .btn-sheen::after {
+        display: none;
+    }
+    .press,
+    .press:hover,
+    .press:active {
         transform: none;
         transition: none;
     }

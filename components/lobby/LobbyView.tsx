@@ -27,6 +27,7 @@ import LobbyMap from './LobbyMap';
 import LobbySettings from './LobbySettings';
 import LobbySidebar from './LobbySidebar';
 import { getHostToken } from '../../lib/hostToken';
+import GlassAmbience from '../utils/GlassAmbience';
 import { GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from '../utils/mapUtils';
 import type { CommunityPreset } from '../utils/types';
 
@@ -234,14 +235,15 @@ export default function LobbyView(props: LobbyViewProps) {
     };
 
     return (
-        <div className="min-h-screen flex flex-col items-center px-4 pb-6 pt-14 sm:pt-8 sm:pb-8 lg:p-10 bg-slate-900 text-white relative">
+        <div className="min-h-screen flex flex-col items-center px-4 pb-6 pt-14 sm:pt-8 sm:pb-8 lg:p-10 bg-slate-950 text-white relative overflow-hidden">
+            <GlassAmbience drifters={false} />
             <OptionsButton />
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 mb-8 sm:mb-12 hidden sm:flex">
+            <div className="relative flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 mb-8 sm:mb-12 hidden sm:flex">
                 <Image src="/mappin.and.ellipse.png" alt="Logo" width={60} height={60} className="w-auto h-auto" />
-                <h1 className="text-6xl font-bold text-indigo-400 tracking-tighter">Geo BingBong</h1>
+                <h1 className="bg-gradient-to-r from-indigo-300 via-fuchsia-300 to-cyan-300 bg-clip-text pb-[0.12em] text-6xl font-extrabold tracking-tighter text-transparent">Geo BingBong</h1>
             </div>
 
-            <div className="flex flex-col lg:flex-row gap-4 sm:gap-6 w-full max-w-5xl">
+            <div className="relative flex flex-col lg:flex-row gap-4 sm:gap-6 w-full max-w-5xl">
                 <div className="flex-1 gap-4 sm:gap-6 flex flex-col">
                     <LobbySettings isHost={props.isHost} gameMode={props.gameMode} teamMode={props.teamMode} gridSize={props.gridSize} timeLimit={props.timeLimit} endCondition={props.endCondition} exclusiveMode={props.exclusiveMode} scaleVoting={props.scaleVoting} updateGameModeInfo={props.updateGameModeInfo} />
 

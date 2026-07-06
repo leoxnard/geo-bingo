@@ -48,7 +48,7 @@ export default function ChecklistList({ listLayout, isPortrait, setGridEl, myBoa
                         const streetViewImageUrl = foundSub ? getStreetViewImageUrl(foundSub) : '';
 
                         return (
-                            <li key={cat} style={{ minHeight: COMPACT_MIN, maxHeight: COMPACT_MAX }} className={`relative p-1.5 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 flex-1 w-full ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'} ${foundSub?.ai_verdict === false ? '!border-red-500' : foundSub?.ai_verdict === true ? '!border-green-500' : ''}`}>
+                            <li key={cat} style={{ minHeight: COMPACT_MIN, maxHeight: COMPACT_MAX }} className={`relative p-1.5 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 flex-1 w-full ${foundSub ? 'shadow-md border-white/25' : isBlocked ? 'glass-inset !border-red-500 opacity-60' : 'glass hover:brightness-125'} ${foundSub?.ai_verdict === false ? '!border-red-500' : foundSub?.ai_verdict === true ? '!border-green-500' : ''}`}>
                                 <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
                                     {foundSub && <img src={streetViewImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />}
                                     {foundSub && <div className="absolute inset-0 bg-black/50 z-0"></div>}
@@ -60,7 +60,7 @@ export default function ChecklistList({ listLayout, isPortrait, setGridEl, myBoa
                                         {hint && (
                                             <div className="relative group flex-shrink-0 cursor-help" onClick={(e) => e.stopPropagation()}>
                                                 <FaInfoCircle className={`transition-colors ${foundSub ? 'text-white/70 hover:text-white' : 'text-slate-400 hover:text-white'}`} size={12} />
-                                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max max-w-[200px] bg-slate-800 text-white text-xs p-2 rounded-lg shadow-xl border border-slate-600 z-[100] whitespace-normal text-center cursor-default">
+                                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max max-w-[200px] glass-dark text-white text-xs p-2 rounded-lg z-[100] whitespace-normal text-center cursor-default">
                                                     <span className="font-bold text-indigo-300">{t('sv.tip')}</span> {hint}
                                                 </div>
                                             </div>
@@ -123,7 +123,7 @@ export default function ChecklistList({ listLayout, isPortrait, setGridEl, myBoa
                         const streetViewImageUrl = foundSub ? getStreetViewImageUrl(foundSub) : '';
 
                         return (
-                            <li key={cat} style={{ minHeight: ROOMY_MIN, maxHeight: ROOMY_MAX }} className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-between flex-1 w-full ${foundSub ? 'shadow-md border-slate-600' : isBlocked ? 'bg-slate-900 border-red-500 opacity-60' : 'bg-slate-800 border-slate-600 hover:bg-slate-700/30'} ${foundSub?.ai_verdict === false ? '!border-red-500' : foundSub?.ai_verdict === true ? '!border-green-500' : ''}`}>
+                            <li key={cat} style={{ minHeight: ROOMY_MIN, maxHeight: ROOMY_MAX }} className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-between flex-1 w-full ${foundSub ? 'shadow-md border-white/25' : isBlocked ? 'glass-inset !border-red-500 opacity-60' : 'glass hover:brightness-125'} ${foundSub?.ai_verdict === false ? '!border-red-500' : foundSub?.ai_verdict === true ? '!border-green-500' : ''}`}>
                                 <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
                                     {foundSub && <img src={streetViewImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />}
                                     {foundSub && <div className="absolute inset-0 bg-black/50 z-0"></div>}
@@ -137,7 +137,7 @@ export default function ChecklistList({ listLayout, isPortrait, setGridEl, myBoa
                                             {hint && (
                                                 <div className="ml-1.5 relative group flex-shrink-0 cursor-help" onClick={(e) => e.stopPropagation()}>
                                                     <FaInfoCircle className={`transition-colors ${foundSub ? 'text-white/70 hover:text-white' : 'text-slate-400 hover:text-white'}`} size={12} />
-                                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max max-w-[200px] bg-slate-800 text-white text-xs p-2 rounded-lg shadow-xl border border-slate-600 z-[100] whitespace-normal text-center cursor-default">
+                                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max max-w-[200px] glass-dark text-white text-xs p-2 rounded-lg z-[100] whitespace-normal text-center cursor-default">
                                                         <span className="font-bold text-indigo-300">{t('sv.tip')}</span> {hint}
                                                     </div>
                                                 </div>

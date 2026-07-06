@@ -19,6 +19,7 @@ import { FaArrowLeft, FaCheck, FaCrown, FaEye, FaFire, FaFlag, FaMapMarkedAlt, F
 
 import AuthGate from '@/components/community/AuthGate';
 import { useUser } from '@/components/community/useUser';
+import GlassAmbience from '@/components/utils/GlassAmbience';
 import type { DailyRecentChallenge } from '@/components/utils/types';
 import { formatDuration, getRecentDailyChallenges, resolveDailyCategory, todayUtc } from '@/lib/daily';
 import { useT } from '@/lib/i18n/I18nProvider';
@@ -77,17 +78,18 @@ export default function DailyHub() {
     const streak = recent && user ? streakOf(recent, todayStr) : 0;
 
     return (
-        <main className="relative min-h-dvh bg-slate-900 px-4 py-8 text-white">
+        <main className="relative min-h-dvh overflow-hidden bg-slate-950 px-4 py-8 text-white">
+            <GlassAmbience />
             <OptionsButton />
-            <div className="mx-auto flex w-full max-w-2xl flex-col gap-5">
+            <div className="relative mx-auto flex w-full max-w-2xl flex-col gap-5">
                 <div className="flex items-center justify-between gap-3">
-                    <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-slate-400 hover:text-white">
+                    <Link href="/" className="glass press inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-sm font-medium text-slate-300 hover:text-white">
                         <FaArrowLeft size={12} /> {t('daily.backHome')}
                     </Link>
                 </div>
 
                 {/* Spotlight — the selected day (today by default) */}
-                {recent === null ? <div className="h-52 animate-pulse rounded-3xl border border-slate-800 bg-slate-800/60" /> : <Spotlight day={day} isToday={isToday} selected={selected} streak={streak} />}
+                {recent === null ? <div className="glass h-52 animate-pulse rounded-3xl" /> : <Spotlight day={day} isToday={isToday} selected={selected} streak={streak} />}
 
                 {/* Calendar week strip */}
                 {week.length > 0 && (
@@ -99,7 +101,7 @@ export default function DailyHub() {
                 )}
 
                 {/* Leaderboard for the selected day */}
-                <div className="rounded-2xl border border-slate-800 bg-slate-800/50 p-4">
+                <div className="glass rounded-2xl p-4">
                     <div className="mb-3 flex items-center justify-between gap-2">
                         <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-400">
                             <FaTrophy className="text-amber-400" size={13} /> {t('daily.leaderboard')}
@@ -116,7 +118,7 @@ export default function DailyHub() {
                         <DailyStats refreshKey={recent ? 1 : 0} />
                     </div>
                 ) : (
-                    <div className="rounded-2xl border border-slate-700 bg-slate-800 p-5">
+                    <div className="glass rounded-2xl p-5">
                         <h2 className="text-lg font-bold text-indigo-300">{t('daily.signInToRank')}</h2>
                         <p className="mb-4 mt-1 text-sm text-slate-400">{t('daily.signInPrompt')}</p>
                         <AuthGate>
@@ -134,7 +136,8 @@ function Spotlight({ day, isToday, selected, streak }: { day: DailyRecentChallen
     const eyebrow = isToday ? t('daily.today') : `${weekdayShort(selected)}, ${monthDay(selected)}`;
 
     return (
-        <section className="relative overflow-hidden rounded-3xl border border-indigo-500/30 bg-gradient-to-br from-indigo-600/20 via-slate-800/80 to-slate-800 p-6 shadow-xl shadow-indigo-950/30">
+        <section className="glass relative overflow-hidden rounded-3xl p-6">
+            <div aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/20 via-transparent to-fuchsia-500/10" />
             <FaMapMarkedAlt className="pointer-events-none absolute -right-6 -top-6 text-indigo-500/10" size={170} />
 
             <div className="relative z-10 flex flex-col gap-4">
@@ -186,7 +189,7 @@ function CtaButton({ day, isToday }: { day: DailyRecentChallenge; isToday: boole
     const [Icon, label] = status === 'won' || status === 'done' ? [FaEye, t('daily.viewResult')] : status === 'forfeit' ? [FaRedo, t('daily.replay')] : [FaPlay, t('daily.play')];
 
     return (
-        <Link href={href} className="inline-flex w-fit items-center justify-center gap-2 rounded-xl bg-indigo-600 px-6 py-3 font-bold uppercase tracking-wide text-white shadow-lg shadow-indigo-900/40 transition-colors hover:bg-indigo-500">
+        <Link href={href} className="btn-sheen press inline-flex w-fit items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 px-6 py-3 font-bold uppercase tracking-wide text-white shadow-[0_14px_28px_-10px_rgba(99,102,241,0.65),inset_0_1px_0_rgba(255,255,255,0.3)]">
             <Icon size={13} /> {label}
         </Link>
     );
@@ -220,7 +223,7 @@ function YourBadge({ day }: { day: DailyRecentChallenge }) {
 }
 
 function MetaChip({ children }: { children: React.ReactNode }) {
-    return <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-900/50 px-3 py-1 text-xs font-medium text-slate-300 ring-1 ring-white/5">{children}</span>;
+    return <span className="glass-inset inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium text-slate-300">{children}</span>;
 }
 
 function DayTile({ r, todayStr, selected, onSelect }: { r: DailyRecentChallenge; todayStr: string; selected: string; onSelect: (d: string) => void }) {
@@ -228,10 +231,10 @@ function DayTile({ r, todayStr, selected, onSelect }: { r: DailyRecentChallenge;
     const isSel = selected === r.challenge_date;
     const status = statusOf(r);
 
-    const ring = isSel ? 'border-indigo-400 bg-slate-800 ring-2 ring-indigo-500/40' : isToday ? 'border-indigo-500/40 bg-slate-800/70 hover:border-indigo-400' : 'border-slate-700/70 bg-slate-800/40 hover:border-slate-500';
+    const ring = isSel ? 'glass ring-2 ring-indigo-400/60' : isToday ? 'glass ring-1 ring-indigo-400/40' : 'glass opacity-70 hover:opacity-100';
 
     return (
-        <button type="button" onClick={() => onSelect(r.challenge_date)} className={`flex min-w-[64px] flex-1 flex-col items-center gap-1.5 rounded-2xl border px-2 py-3 transition-colors ${ring}`}>
+        <button type="button" onClick={() => onSelect(r.challenge_date)} className={`press flex min-w-[64px] flex-1 flex-col items-center gap-1.5 rounded-2xl px-2 py-3 transition-all ${ring}`}>
             <span className={`text-[10px] font-bold uppercase tracking-wide ${isToday ? 'text-indigo-300' : 'text-slate-500'}`}>{weekdayShort(r.challenge_date)}</span>
             <span className="text-lg font-bold leading-none text-white">{atUtc(r.challenge_date).getUTCDate()}</span>
             <StatusDot status={status} isToday={isToday} />

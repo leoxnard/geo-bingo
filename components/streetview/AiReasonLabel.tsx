@@ -33,7 +33,7 @@ export function AiReasonLabel({ reason }: { reason: string }) {
             {pos &&
                 typeof document !== 'undefined' &&
                 createPortal(
-                    <div style={{ position: 'fixed', top: pos.top, left: pos.left, transform: 'translate(-100%, -100%)' }} className="w-max max-w-[220px] bg-slate-800 text-white text-xs p-2 rounded-lg shadow-xl border border-slate-600 z-[200] whitespace-normal text-left normal-case font-normal pointer-events-none">
+                    <div style={{ position: 'fixed', top: pos.top, left: pos.left, transform: 'translate(-100%, -100%)' }} className="glass-dark w-max max-w-[220px] text-white text-xs p-2 rounded-lg z-[200] whitespace-normal text-left normal-case font-normal pointer-events-none">
                         <span className="font-bold text-red-300">{t('sv.reason')}</span> {reason}
                     </div>,
                     document.body,

@@ -52,7 +52,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     };
 
     return (
-        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 flex flex-col gap-4 max-w-md">
+        <div className="glass rounded-2xl p-6 flex flex-col gap-4 max-w-md">
             <div>
                 <h2 className="text-xl font-bold text-indigo-400">{t('community.signInTitle')}</h2>
                 <p className="text-sm text-slate-400 mt-1">{t('community.signInDesc')}</p>
@@ -60,16 +60,16 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
             {stage === 'email' ? (
                 <form onSubmit={sendCode} className="flex flex-col gap-3">
-                    <input type="email" required placeholder={t('community.emailPlaceholder')} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-600 focus:border-indigo-500 text-white outline-none" value={email} onChange={(e) => setEmail(e.target.value)} />
-                    <button type="submit" disabled={busy} className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition-all uppercase disabled:opacity-50">
+                    <input type="email" required placeholder={t('community.emailPlaceholder')} className="w-full p-3 rounded-xl glass-inset focus:!border-indigo-400 text-white outline-none" value={email} onChange={(e) => setEmail(e.target.value)} />
+                    <button type="submit" disabled={busy} className="btn-sheen press bg-gradient-to-r from-indigo-500 to-violet-500 text-white font-bold py-3 rounded-xl transition-all uppercase disabled:opacity-50">
                         {busy ? t('common.loading') : t('community.sendCode')}
                     </button>
                 </form>
             ) : (
                 <form onSubmit={verify} className="flex flex-col gap-3">
                     <p className="text-xs text-slate-400">{t('community.codeSent', { email })}</p>
-                    <input inputMode="numeric" required placeholder={t('community.codePlaceholder')} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-600 focus:border-indigo-500 text-white outline-none tracking-widest text-center" value={code} onChange={(e) => setCode(e.target.value)} />
-                    <button type="submit" disabled={busy} className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition-all uppercase disabled:opacity-50">
+                    <input inputMode="numeric" required placeholder={t('community.codePlaceholder')} className="w-full p-3 rounded-xl glass-inset focus:!border-indigo-400 text-white outline-none tracking-widest text-center" value={code} onChange={(e) => setCode(e.target.value)} />
+                    <button type="submit" disabled={busy} className="btn-sheen press bg-gradient-to-r from-indigo-500 to-violet-500 text-white font-bold py-3 rounded-xl transition-all uppercase disabled:opacity-50">
                         {busy ? t('common.loading') : t('community.verify')}
                     </button>
                 </form>

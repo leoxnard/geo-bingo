@@ -15,6 +15,7 @@ onSubmit, which gates the rest of the game-room initialization.
 import { useState } from 'react';
 
 import { GeoBingoLogo } from '@/components/utils/Elements';
+import GlassAmbience from '@/components/utils/GlassAmbience';
 import { useT } from '@/lib/i18n/I18nProvider';
 
 import { adjectives, badAdjectives, animals } from '../../lib/names';
@@ -35,22 +36,23 @@ export default function NamePrompt({ onSubmit }: { onSubmit: (name: string) => v
     };
 
     return (
-        <section className="min-h-dvh flex flex-col items-center justify-center bg-slate-900 px-4 py-8">
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 mb-6 sm:mb-8">
+        <section className="relative min-h-dvh flex flex-col items-center justify-center overflow-hidden bg-slate-950 px-4 py-8">
+            <GlassAmbience />
+            <div className="relative flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 mb-6 sm:mb-8">
                 <GeoBingoLogo size={50} className="animate-pulse" />
-                <h1 className="text-3xl sm:text-5xl font-bold text-indigo-400 tracking-tighter text-center sm:text-left">Geo BingBong</h1>
+                <h1 className="bg-gradient-to-r from-indigo-300 via-fuchsia-300 to-cyan-300 bg-clip-text pb-[0.12em] text-3xl sm:text-5xl font-extrabold tracking-tighter text-transparent text-center sm:text-left">Geo BingBong</h1>
             </div>
 
-            <form onSubmit={submit} className="animate-fade-in-up bg-slate-800 p-6 md:p-8 rounded-2xl shadow-2xl border border-slate-700 w-full max-w-md flex flex-col gap-4">
+            <form onSubmit={submit} className="glass animate-fade-in-up p-6 md:p-8 rounded-3xl w-full max-w-md flex flex-col gap-4">
                 <div>
-                    <button type="button" className="text-sm text-slate-400 font-bold uppercase mb-2 block" onClick={() => setShowBadNames(!showBadNames)}>
+                    <button type="button" className="text-sm text-slate-300 font-bold uppercase mb-2 block transition-colors hover:text-fuchsia-300" onClick={() => setShowBadNames(!showBadNames)}>
                         {showBadNames ? t('home.yourBadassName') : t('home.yourName')}
                     </button>
-                    <input type="text" autoFocus placeholder={t('home.namePlaceholder')} className="w-full p-4 rounded-xl bg-slate-900 border border-slate-600 focus:outline-none focus:border-indigo-500 text-white font-medium text-lg" value={name} onChange={(e) => setName(e.target.value)} />
+                    <input type="text" autoFocus placeholder={t('home.namePlaceholder')} className="glass-inset w-full p-4 rounded-xl text-white font-medium text-lg placeholder:text-slate-500 transition-shadow focus:shadow-[inset_0_2px_6px_rgba(2,6,23,0.45),0_0_0_2px_rgba(129,140,248,0.7)] focus:outline-none" value={name} onChange={(e) => setName(e.target.value)} />
                     <p className="mt-2 text-sm text-slate-500">{t('game.namePromptHint')}</p>
                 </div>
 
-                <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-xl transition-all tracking-wide uppercase">
+                <button type="submit" className="btn-sheen press w-full bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 text-white font-bold py-4 rounded-xl tracking-wide uppercase shadow-[0_16px_32px_-10px_rgba(99,102,241,0.65),inset_0_1px_0_rgba(255,255,255,0.3)]">
                     {t('home.joinGame')}
                 </button>
             </form>
