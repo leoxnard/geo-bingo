@@ -23,6 +23,76 @@ COMMENT ON SCHEMA "public" IS 'standard public schema';
 
 
 
+CREATE OR REPLACE FUNCTION "public"."accept_friend_request"("p_requester_id" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    uid uuid := auth.uid();
+BEGIN
+    IF uid IS NULL THEN RETURN jsonb_build_object('success', false, 'error', 'NOT_AUTHENTICATED'); END IF;
+    IF NOT EXISTS (SELECT 1 FROM friend_requests WHERE requester_id = p_requester_id AND addressee_id = uid) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NO_REQUEST');
+    END IF;
+    DELETE FROM friend_requests
+    WHERE (requester_id = p_requester_id AND addressee_id = uid)
+       OR (requester_id = uid AND addressee_id = p_requester_id);
+    INSERT INTO friendships (account_id, friend_id) VALUES (uid, p_requester_id) ON CONFLICT DO NOTHING;
+    INSERT INTO friendships (account_id, friend_id) VALUES (p_requester_id, uid) ON CONFLICT DO NOTHING;
+    RETURN jsonb_build_object('success', true, 'name', public.account_display_name(p_requester_id));
+END;
+$$;
+
+
+ALTER FUNCTION "public"."accept_friend_request"("p_requester_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."account_display_name"("p_id" "uuid") RETURNS "text"
+    LANGUAGE "sql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+    SELECT coalesce(nullif(pr.username, ''), split_part(u.email, '@', 1), 'Anonymous')
+    FROM auth.users u LEFT JOIN profiles pr ON pr.id = u.id
+    WHERE u.id = p_id;
+$$;
+
+
+ALTER FUNCTION "public"."account_display_name"("p_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."add_friend"("p_friend_id" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    uid        uuid := auth.uid();
+    fname      text;
+BEGIN
+    IF uid IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_AUTHENTICATED');
+    END IF;
+    IF p_friend_id IS NULL OR p_friend_id = uid THEN
+        RETURN jsonb_build_object('success', false, 'error', 'INVALID_FRIEND');
+    END IF;
+
+    SELECT coalesce(nullif(u.raw_user_meta_data->>'display_name', ''), split_part(u.email, '@', 1), 'Anonymous')
+    INTO fname
+    FROM auth.users u WHERE u.id = p_friend_id;
+    IF fname IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_FOUND');
+    END IF;
+
+    INSERT INTO friendships (account_id, friend_id) VALUES (uid, p_friend_id) ON CONFLICT DO NOTHING;
+    INSERT INTO friendships (account_id, friend_id) VALUES (p_friend_id, uid) ON CONFLICT DO NOTHING;
+
+    RETURN jsonb_build_object('success', true, 'name', fname);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."add_friend"("p_friend_id" "uuid") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."admin_add_candidate"("p_category" "text", "p_source" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_start_lat" double precision DEFAULT NULL::double precision, "p_start_lng" double precision DEFAULT NULL::double precision, "p_boundary" "text" DEFAULT NULL::"text", "p_translations" "jsonb" DEFAULT NULL::"jsonb") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -657,6 +727,23 @@ $$;
 ALTER FUNCTION "public"."daily_caller_name"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."decline_friend_request"("p_requester_id" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    uid uuid := auth.uid();
+BEGIN
+    IF uid IS NULL THEN RETURN jsonb_build_object('success', false, 'error', 'NOT_AUTHENTICATED'); END IF;
+    DELETE FROM friend_requests WHERE requester_id = p_requester_id AND addressee_id = uid;
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."decline_friend_request"("p_requester_id" "uuid") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."delete_community_preset"("p_preset_id" "uuid") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -692,8 +779,13 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'error', 'NOT_AUTHENTICATED');
     END IF;
 
-    DELETE FROM community_presets WHERE author_id = caller;  -- votes cascade
-    DELETE FROM daily_attempts    WHERE account_id = caller;
+    DELETE FROM community_presets    WHERE author_id = caller;
+    DELETE FROM daily_attempts       WHERE account_id = caller;
+    DELETE FROM account_game_results WHERE account_id = caller;
+    DELETE FROM game_invitations     WHERE inviter_id = caller OR invitee_id = caller;
+    DELETE FROM friend_requests      WHERE requester_id = caller OR addressee_id = caller;
+    DELETE FROM friendships          WHERE account_id = caller OR friend_id = caller;
+    DELETE FROM profiles             WHERE id = caller;
 
     DELETE FROM auth.users WHERE id = caller;
 
@@ -746,6 +838,25 @@ $$;
 
 
 ALTER FUNCTION "public"."delete_submission"("p_id" "uuid", "p_player_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."dismiss_game_invitation"("p_id" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    uid uuid := auth.uid();
+BEGIN
+    IF uid IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_AUTHENTICATED');
+    END IF;
+    DELETE FROM game_invitations WHERE id = p_id AND invitee_id = uid;
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."dismiss_game_invitation"("p_id" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."downvote_daily_find"("p_attempt_id" "uuid", "p_device_id" "text") RETURNS "jsonb"
@@ -985,6 +1096,96 @@ $$;
 ALTER FUNCTION "public"."get_daily_leaderboard"("p_date" "date") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."get_friends_with_stats"() RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE uid uuid := auth.uid();
+BEGIN
+    IF uid IS NULL THEN RETURN jsonb_build_object('success', false, 'error', 'NOT_AUTHENTICATED'); END IF;
+    RETURN jsonb_build_object('success', true, 'data', coalesce((
+        SELECT jsonb_agg(row_to_json(f) ORDER BY lower(f.name))
+        FROM (
+            SELECT
+                fr.friend_id AS id,
+                coalesce(nullif(pr.username, ''), split_part(u.email, '@', 1), 'Anonymous') AS name,
+                (SELECT count(*) FROM account_game_results r WHERE r.account_id = fr.friend_id) AS games_played,
+                (SELECT count(*) FROM account_game_results r WHERE r.account_id = fr.friend_id AND r.won) AS games_won,
+                (SELECT coalesce(sum(r.categories_found), 0) FROM account_game_results r WHERE r.account_id = fr.friend_id) AS categories_found,
+                (SELECT count(*) FROM daily_attempts a WHERE a.account_id = fr.friend_id AND NOT a.removed AND a.duration_ms IS NOT NULL) AS daily_completed
+            FROM friendships fr
+            JOIN auth.users u ON u.id = fr.friend_id
+            LEFT JOIN profiles pr ON pr.id = fr.friend_id
+            WHERE fr.account_id = uid
+        ) f
+    ), '[]'::jsonb));
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_friends_with_stats"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_incoming_friend_requests"() RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE uid uuid := auth.uid();
+BEGIN
+    IF uid IS NULL THEN RETURN jsonb_build_object('success', false, 'error', 'NOT_AUTHENTICATED'); END IF;
+    RETURN jsonb_build_object('success', true, 'data', coalesce((
+        SELECT jsonb_agg(row_to_json(r) ORDER BY r.created_at DESC)
+        FROM (
+            SELECT fr.requester_id AS id, public.account_display_name(fr.requester_id) AS name, fr.created_at
+            FROM friend_requests fr WHERE fr.addressee_id = uid
+        ) r
+    ), '[]'::jsonb));
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_incoming_friend_requests"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_my_account_stats"() RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    uid uuid := auth.uid();
+    r   record;
+BEGIN
+    IF uid IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_AUTHENTICATED');
+    END IF;
+
+    SELECT
+        count(*)                                                       AS games_played,
+        coalesce(sum(CASE WHEN won THEN 1 ELSE 0 END), 0)              AS games_won,
+        coalesce(sum(CASE WHEN player_count >= 2 THEN 1 ELSE 0 END), 0) AS multiplayer_played,
+        coalesce(sum(CASE WHEN won AND player_count >= 2 THEN 1 ELSE 0 END), 0) AS multiplayer_won,
+        coalesce(sum(categories_found), 0)                             AS categories_found,
+        coalesce(sum(jsonb_array_length(finds)), 0)                    AS finds_count
+    INTO r
+    FROM account_game_results
+    WHERE account_id = uid;
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'games_played', r.games_played,
+        'games_won', r.games_won,
+        'multiplayer_played', r.multiplayer_played,
+        'multiplayer_won', r.multiplayer_won,
+        'categories_found', r.categories_found,
+        'finds_count', r.finds_count
+    );
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_my_account_stats"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."get_my_daily_stats"() RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -1016,6 +1217,86 @@ $$;
 
 
 ALTER FUNCTION "public"."get_my_daily_stats"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_my_game_history"("p_limit" integer DEFAULT 20) RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    uid uuid := auth.uid();
+BEGIN
+    IF uid IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_AUTHENTICATED');
+    END IF;
+
+    RETURN jsonb_build_object('success', true, 'data', coalesce((
+        SELECT jsonb_agg(row_to_json(h) ORDER BY h.finished_at DESC)
+        FROM (
+            SELECT id, game_mode, team_mode, placement, player_count,
+                   score, categories_found, won, finished_at
+            FROM account_game_results
+            WHERE account_id = uid
+            ORDER BY finished_at DESC
+            LIMIT greatest(1, least(coalesce(p_limit, 20), 100))
+        ) h
+    ), '[]'::jsonb));
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_my_game_history"("p_limit" integer) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_my_game_invitations"() RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    uid uuid := auth.uid();
+BEGIN
+    IF uid IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_AUTHENTICATED');
+    END IF;
+    RETURN jsonb_build_object('success', true, 'data', coalesce((
+        SELECT jsonb_agg(row_to_json(i) ORDER BY i.created_at DESC)
+        FROM (
+            SELECT gi.id,
+                   gi.game_id,
+                   gi.inviter_id,
+                   public.account_display_name(gi.inviter_id) AS inviter_name,
+                   gi.created_at
+            FROM game_invitations gi
+            WHERE gi.invitee_id = uid
+              AND gi.created_at > now() - interval '2 minutes'
+        ) i
+    ), '[]'::jsonb));
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_my_game_invitations"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_outgoing_friend_requests"() RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE uid uuid := auth.uid();
+BEGIN
+    IF uid IS NULL THEN RETURN jsonb_build_object('success', false, 'error', 'NOT_AUTHENTICATED'); END IF;
+    RETURN jsonb_build_object('success', true, 'data', coalesce((
+        SELECT jsonb_agg(row_to_json(r) ORDER BY r.created_at DESC)
+        FROM (
+            SELECT fr.addressee_id AS id, public.account_display_name(fr.addressee_id) AS name, fr.created_at
+            FROM friend_requests fr WHERE fr.requester_id = uid
+        ) r
+    ), '[]'::jsonb));
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_outgoing_friend_requests"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."get_recent_daily_challenges"() RETURNS "jsonb"
@@ -1205,6 +1486,59 @@ $$;
 ALTER FUNCTION "public"."player_vote_to_end_round"("p_game_id" "text", "p_player_id" "uuid") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."record_my_game_result"("p_game_id" "text", "p_player_id" "uuid", "p_game_mode" "text", "p_team_mode" "text", "p_placement" integer, "p_player_count" integer, "p_score" numeric, "p_categories_found" integer, "p_won" boolean, "p_finds" "jsonb") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    uid          uuid := auth.uid();
+    g            record;
+    real_count   int;
+    safe_finds   jsonb;
+    clamped_pos  int;
+BEGIN
+    IF uid IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_AUTHENTICATED');
+    END IF;
+
+    SELECT status, coalesce(finished_at, now()) AS finished_at INTO g
+    FROM games WHERE id = p_game_id;
+    IF NOT FOUND OR g.status <> 'finished' THEN
+        RETURN jsonb_build_object('success', false, 'error', 'GAME_NOT_FINISHED');
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM players WHERE id = p_player_id AND game_id = p_game_id) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_IN_GAME');
+    END IF;
+
+    SELECT count(*) INTO real_count FROM players WHERE game_id = p_game_id;
+
+    safe_finds := CASE WHEN jsonb_typeof(p_finds) = 'array' THEN p_finds ELSE '[]'::jsonb END;
+    IF jsonb_array_length(safe_finds) > 200 THEN
+        safe_finds := (SELECT jsonb_agg(e) FROM (
+            SELECT e FROM jsonb_array_elements(safe_finds) e LIMIT 200
+        ) s);
+    END IF;
+    clamped_pos := greatest(1, least(coalesce(p_placement, real_count), real_count));
+
+    INSERT INTO account_game_results (
+        account_id, game_id, finished_at, game_mode, team_mode,
+        placement, player_count, score, categories_found, won, finds
+    ) VALUES (
+        uid, p_game_id, g.finished_at, p_game_mode, p_team_mode,
+        clamped_pos, real_count, p_score, greatest(0, coalesce(p_categories_found, 0)),
+        coalesce(p_won, false), safe_finds
+    )
+    ON CONFLICT (account_id, game_id, finished_at) DO NOTHING;
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."record_my_game_result"("p_game_id" "text", "p_player_id" "uuid", "p_game_mode" "text", "p_team_mode" "text", "p_placement" integer, "p_player_count" integer, "p_score" numeric, "p_categories_found" integer, "p_won" boolean, "p_finds" "jsonb") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."register_host_secret"("p_game_id" "text", "p_player_id" "text", "p_token" "text") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -1312,6 +1646,27 @@ $$;
 ALTER FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_player_id" "text", "p_vote" boolean) OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."remove_friend"("p_friend_id" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    uid uuid := auth.uid();
+BEGIN
+    IF uid IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_AUTHENTICATED');
+    END IF;
+    DELETE FROM friendships
+    WHERE (account_id = uid AND friend_id = p_friend_id)
+       OR (account_id = p_friend_id AND friend_id = uid);
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."remove_friend"("p_friend_id" "uuid") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."rename_my_presets_author"("p_name" "text") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -1394,6 +1749,90 @@ $$;
 ALTER FUNCTION "public"."review_daily_candidate"("p_id" "uuid", "p_decision" "text", "p_translations" "jsonb") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."send_friend_request"("p_addressee_id" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    uid   uuid := auth.uid();
+    aname text;
+BEGIN
+    IF uid IS NULL THEN RETURN jsonb_build_object('success', false, 'error', 'NOT_AUTHENTICATED'); END IF;
+    IF p_addressee_id IS NULL OR p_addressee_id = uid THEN RETURN jsonb_build_object('success', false, 'error', 'INVALID'); END IF;
+    IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = p_addressee_id) THEN RETURN jsonb_build_object('success', false, 'error', 'NOT_FOUND'); END IF;
+    aname := public.account_display_name(p_addressee_id);
+    IF EXISTS (SELECT 1 FROM friendships WHERE account_id = uid AND friend_id = p_addressee_id) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'ALREADY_FRIENDS', 'name', aname);
+    END IF;
+    IF EXISTS (SELECT 1 FROM friend_requests WHERE requester_id = p_addressee_id AND addressee_id = uid) THEN
+        DELETE FROM friend_requests
+        WHERE (requester_id = p_addressee_id AND addressee_id = uid)
+           OR (requester_id = uid AND addressee_id = p_addressee_id);
+        INSERT INTO friendships (account_id, friend_id) VALUES (uid, p_addressee_id) ON CONFLICT DO NOTHING;
+        INSERT INTO friendships (account_id, friend_id) VALUES (p_addressee_id, uid) ON CONFLICT DO NOTHING;
+        RETURN jsonb_build_object('success', true, 'status', 'accepted', 'name', aname);
+    END IF;
+    INSERT INTO friend_requests (requester_id, addressee_id) VALUES (uid, p_addressee_id)
+        ON CONFLICT (requester_id, addressee_id) DO NOTHING;
+    RETURN jsonb_build_object('success', true, 'status', 'requested', 'name', aname);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."send_friend_request"("p_addressee_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."send_friend_request_by_username"("p_username" "text") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    uid    uuid := auth.uid();
+    target uuid;
+    u      text := btrim(coalesce(p_username, ''));
+BEGIN
+    IF uid IS NULL THEN RETURN jsonb_build_object('success', false, 'error', 'NOT_AUTHENTICATED'); END IF;
+    SELECT id INTO target FROM profiles WHERE lower(username) = lower(u);
+    IF target IS NULL THEN RETURN jsonb_build_object('success', false, 'error', 'USER_NOT_FOUND'); END IF;
+    RETURN public.send_friend_request(target);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."send_friend_request_by_username"("p_username" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."send_game_invitation"("p_game_id" "text", "p_invitee_id" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    uid uuid := auth.uid();
+BEGIN
+    IF uid IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_AUTHENTICATED');
+    END IF;
+    IF p_game_id IS NULL OR btrim(p_game_id) = '' OR p_invitee_id IS NULL OR p_invitee_id = uid THEN
+        RETURN jsonb_build_object('success', false, 'error', 'INVALID');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM friendships WHERE account_id = uid AND friend_id = p_invitee_id) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_FRIENDS');
+    END IF;
+
+    DELETE FROM game_invitations WHERE created_at < now() - interval '2 minutes';
+
+    INSERT INTO game_invitations (game_id, inviter_id, invitee_id)
+    VALUES (p_game_id, uid, p_invitee_id)
+    ON CONFLICT (inviter_id, invitee_id, game_id) DO UPDATE SET created_at = now();
+
+    RETURN jsonb_build_object('success', true, 'name', public.account_display_name(p_invitee_id));
+END;
+$$;
+
+
+ALTER FUNCTION "public"."send_game_invitation"("p_game_id" "text", "p_invitee_id" "uuid") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."set_game_status"("p_game_id" "text", "p_host_id" "text", "p_status" "text") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -1402,11 +1841,13 @@ BEGIN
     IF p_status NOT IN ('lobby', 'playing', 'voting', 'finished') THEN
         RETURN jsonb_build_object('success', false, 'error', 'BAD_STATUS');
     END IF;
-    -- p_host_id carries the host capability TOKEN, not a player id.
     IF NOT public.is_valid_host(p_game_id, p_host_id) THEN
         RETURN jsonb_build_object('success', false, 'error', 'NOT_HOST');
     END IF;
-    UPDATE games SET status = p_status WHERE id = p_game_id;
+    UPDATE games
+    SET status = p_status,
+        finished_at = CASE WHEN p_status = 'finished' THEN now() ELSE finished_at END
+    WHERE id = p_game_id;
     RETURN jsonb_build_object('success', true);
 END;
 $$;
@@ -1434,6 +1875,32 @@ $$;
 
 
 ALTER FUNCTION "public"."set_submission_ai_verdict"("p_id" "uuid", "p_player_id" "uuid", "p_verdict" boolean, "p_hash" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."set_username"("p_username" "text") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    uid uuid := auth.uid();
+    u   text := btrim(coalesce(p_username, ''));
+BEGIN
+    IF uid IS NULL THEN RETURN jsonb_build_object('success', false, 'error', 'NOT_AUTHENTICATED'); END IF;
+    IF length(u) < 2 OR length(u) > 30 THEN RETURN jsonb_build_object('success', false, 'error', 'INVALID'); END IF;
+    IF EXISTS (SELECT 1 FROM profiles WHERE lower(username) = lower(u) AND id <> uid) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'TAKEN');
+    END IF;
+    INSERT INTO profiles (id, username) VALUES (uid, u)
+        ON CONFLICT (id) DO UPDATE SET username = excluded.username;
+    UPDATE community_presets SET author_name = u WHERE author_id = uid;
+    RETURN jsonb_build_object('success', true, 'username', u);
+EXCEPTION WHEN unique_violation THEN
+    RETURN jsonb_build_object('success', false, 'error', 'TAKEN');
+END;
+$$;
+
+
+ALTER FUNCTION "public"."set_username"("p_username" "text") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."submit_daily_attempt"("p_date" "date", "p_device_id" "text", "p_duration_ms" bigint, "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_ai_reason" "text" DEFAULT NULL::"text") RETURNS "jsonb"
@@ -1804,6 +2271,26 @@ $$;
 ALTER FUNCTION "public"."votes_all_yes"("p_votes" "jsonb") OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."account_game_results" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "account_id" "uuid" NOT NULL,
+    "game_id" "text" NOT NULL,
+    "finished_at" timestamp with time zone NOT NULL,
+    "game_mode" "text",
+    "team_mode" "text",
+    "placement" integer,
+    "player_count" integer,
+    "score" numeric,
+    "categories_found" integer,
+    "won" boolean DEFAULT false NOT NULL,
+    "finds" "jsonb" DEFAULT '[]'::"jsonb" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."account_game_results" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."community_preset_votes" (
     "preset_id" "uuid" NOT NULL,
     "device_id" "text" NOT NULL,
@@ -1902,6 +2389,27 @@ CREATE TABLE IF NOT EXISTS "public"."daily_challenges" (
 ALTER TABLE "public"."daily_challenges" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."friend_requests" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "requester_id" "uuid" NOT NULL,
+    "addressee_id" "uuid" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."friend_requests" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."friendships" (
+    "account_id" "uuid" NOT NULL,
+    "friend_id" "uuid" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."friendships" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."game_host_secrets" (
     "game_id" "text" NOT NULL,
     "host_token" "text" NOT NULL
@@ -1909,6 +2417,18 @@ CREATE TABLE IF NOT EXISTS "public"."game_host_secrets" (
 
 
 ALTER TABLE "public"."game_host_secrets" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."game_invitations" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "game_id" "text" NOT NULL,
+    "inviter_id" "uuid" NOT NULL,
+    "invitee_id" "uuid" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."game_invitations" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."games" (
@@ -1942,7 +2462,8 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "category_translations" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
     "category_hint_translations" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
     "preset_categories" "jsonb" DEFAULT '[]'::"jsonb" NOT NULL,
-    "scale_voting" boolean DEFAULT false NOT NULL
+    "scale_voting" boolean DEFAULT false NOT NULL,
+    "finished_at" timestamp with time zone
 );
 
 
@@ -1956,11 +2477,22 @@ CREATE TABLE IF NOT EXISTS "public"."players" (
     "score" integer DEFAULT 0,
     "bingo_board" "jsonb" DEFAULT '[]'::"jsonb",
     "team" integer DEFAULT 0,
-    "path" "jsonb" DEFAULT '[]'::"jsonb"
+    "path" "jsonb" DEFAULT '[]'::"jsonb",
+    "account_id" "uuid"
 );
 
 
 ALTER TABLE "public"."players" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."profiles" (
+    "id" "uuid" NOT NULL,
+    "username" "text" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."profiles" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."submissions" (
@@ -1981,6 +2513,16 @@ CREATE TABLE IF NOT EXISTS "public"."submissions" (
 
 
 ALTER TABLE "public"."submissions" OWNER TO "postgres";
+
+
+ALTER TABLE ONLY "public"."account_game_results"
+    ADD CONSTRAINT "account_game_results_account_id_game_id_finished_at_key" UNIQUE ("account_id", "game_id", "finished_at");
+
+
+
+ALTER TABLE ONLY "public"."account_game_results"
+    ADD CONSTRAINT "account_game_results_pkey" PRIMARY KEY ("id");
+
 
 
 ALTER TABLE ONLY "public"."community_preset_votes"
@@ -2023,8 +2565,33 @@ ALTER TABLE ONLY "public"."daily_challenges"
 
 
 
+ALTER TABLE ONLY "public"."friend_requests"
+    ADD CONSTRAINT "friend_requests_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."friend_requests"
+    ADD CONSTRAINT "friend_requests_requester_id_addressee_id_key" UNIQUE ("requester_id", "addressee_id");
+
+
+
+ALTER TABLE ONLY "public"."friendships"
+    ADD CONSTRAINT "friendships_pkey" PRIMARY KEY ("account_id", "friend_id");
+
+
+
 ALTER TABLE ONLY "public"."game_host_secrets"
     ADD CONSTRAINT "game_host_secrets_pkey" PRIMARY KEY ("game_id");
+
+
+
+ALTER TABLE ONLY "public"."game_invitations"
+    ADD CONSTRAINT "game_invitations_inviter_id_invitee_id_game_id_key" UNIQUE ("inviter_id", "invitee_id", "game_id");
+
+
+
+ALTER TABLE ONLY "public"."game_invitations"
+    ADD CONSTRAINT "game_invitations_pkey" PRIMARY KEY ("id");
 
 
 
@@ -2038,6 +2605,11 @@ ALTER TABLE ONLY "public"."players"
 
 
 
+ALTER TABLE ONLY "public"."profiles"
+    ADD CONSTRAINT "profiles_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."submissions"
     ADD CONSTRAINT "submissions_game_player_category_key" UNIQUE ("game_id", "player_id", "category");
 
@@ -2045,6 +2617,10 @@ ALTER TABLE ONLY "public"."submissions"
 
 ALTER TABLE ONLY "public"."submissions"
     ADD CONSTRAINT "submissions_pkey" PRIMARY KEY ("id");
+
+
+
+CREATE INDEX "account_game_results_account_idx" ON "public"."account_game_results" USING "btree" ("account_id", "finished_at" DESC);
 
 
 
@@ -2080,7 +2656,19 @@ CREATE INDEX "daily_challenges_date_idx" ON "public"."daily_challenges" USING "b
 
 
 
+CREATE INDEX "friend_requests_addressee_idx" ON "public"."friend_requests" USING "btree" ("addressee_id");
+
+
+
+CREATE INDEX "game_invitations_invitee_idx" ON "public"."game_invitations" USING "btree" ("invitee_id");
+
+
+
 CREATE INDEX "players_game_id_idx" ON "public"."players" USING "btree" ("game_id");
+
+
+
+CREATE UNIQUE INDEX "profiles_username_lower_idx" ON "public"."profiles" USING "btree" ("lower"("username"));
 
 
 
@@ -2097,6 +2685,11 @@ CREATE OR REPLACE TRIGGER "harvest_daily_candidates_trg" AFTER UPDATE OF "status
 
 
 CREATE OR REPLACE TRIGGER "update_games_updated_at" BEFORE UPDATE ON "public"."games" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
+
+
+
+ALTER TABLE ONLY "public"."account_game_results"
+    ADD CONSTRAINT "account_game_results_account_id_fkey" FOREIGN KEY ("account_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
 
 
 
@@ -2125,13 +2718,53 @@ ALTER TABLE ONLY "public"."daily_challenges"
 
 
 
+ALTER TABLE ONLY "public"."friend_requests"
+    ADD CONSTRAINT "friend_requests_addressee_id_fkey" FOREIGN KEY ("addressee_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."friend_requests"
+    ADD CONSTRAINT "friend_requests_requester_id_fkey" FOREIGN KEY ("requester_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."friendships"
+    ADD CONSTRAINT "friendships_account_id_fkey" FOREIGN KEY ("account_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."friendships"
+    ADD CONSTRAINT "friendships_friend_id_fkey" FOREIGN KEY ("friend_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY "public"."game_host_secrets"
     ADD CONSTRAINT "game_host_secrets_game_id_fkey" FOREIGN KEY ("game_id") REFERENCES "public"."games"("id") ON DELETE CASCADE;
 
 
 
+ALTER TABLE ONLY "public"."game_invitations"
+    ADD CONSTRAINT "game_invitations_invitee_id_fkey" FOREIGN KEY ("invitee_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."game_invitations"
+    ADD CONSTRAINT "game_invitations_inviter_id_fkey" FOREIGN KEY ("inviter_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."players"
+    ADD CONSTRAINT "players_account_id_fkey" FOREIGN KEY ("account_id") REFERENCES "auth"."users"("id") ON DELETE SET NULL;
+
+
+
 ALTER TABLE ONLY "public"."players"
     ADD CONSTRAINT "players_game_id_fkey" FOREIGN KEY ("game_id") REFERENCES "public"."games"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."profiles"
+    ADD CONSTRAINT "profiles_id_fkey" FOREIGN KEY ("id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
 
 
 
@@ -2167,12 +2800,35 @@ CREATE POLICY "Insert players only into open lobbies" ON "public"."players" FOR 
 
 
 
+CREATE POLICY "Public read profiles" ON "public"."profiles" FOR SELECT USING (true);
+
+
+
 CREATE POLICY "Public read published presets" ON "public"."community_presets" FOR SELECT USING (("status" = 'published'::"text"));
 
 
 
 CREATE POLICY "Public read votes" ON "public"."community_preset_votes" FOR SELECT USING (true);
 
+
+
+CREATE POLICY "Read own friend requests" ON "public"."friend_requests" FOR SELECT USING ((("requester_id" = "auth"."uid"()) OR ("addressee_id" = "auth"."uid"())));
+
+
+
+CREATE POLICY "Read own friendships" ON "public"."friendships" FOR SELECT USING (("account_id" = "auth"."uid"()));
+
+
+
+CREATE POLICY "Read own game invitations" ON "public"."game_invitations" FOR SELECT USING ((("invitee_id" = "auth"."uid"()) OR ("inviter_id" = "auth"."uid"())));
+
+
+
+CREATE POLICY "Read own game results" ON "public"."account_game_results" FOR SELECT USING (("account_id" = "auth"."uid"()));
+
+
+
+ALTER TABLE "public"."account_game_results" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."community_preset_votes" ENABLE ROW LEVEL SECURITY;
@@ -2193,13 +2849,25 @@ ALTER TABLE "public"."daily_challenge_candidates" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."daily_challenges" ENABLE ROW LEVEL SECURITY;
 
 
+ALTER TABLE "public"."friend_requests" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."friendships" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."game_host_secrets" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."game_invitations" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."games" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."players" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."profiles" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."submissions" ENABLE ROW LEVEL SECURITY;
@@ -2209,6 +2877,24 @@ GRANT USAGE ON SCHEMA "public" TO "postgres";
 GRANT USAGE ON SCHEMA "public" TO "anon";
 GRANT USAGE ON SCHEMA "public" TO "authenticated";
 GRANT USAGE ON SCHEMA "public" TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."accept_friend_request"("p_requester_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."accept_friend_request"("p_requester_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."accept_friend_request"("p_requester_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."account_display_name"("p_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."account_display_name"("p_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."account_display_name"("p_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."add_friend"("p_friend_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."add_friend"("p_friend_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."add_friend"("p_friend_id" "uuid") TO "service_role";
 
 
 
@@ -2325,6 +3011,12 @@ GRANT ALL ON FUNCTION "public"."daily_caller_name"() TO "service_role";
 
 
 
+GRANT ALL ON FUNCTION "public"."decline_friend_request"("p_requester_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."decline_friend_request"("p_requester_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."decline_friend_request"("p_requester_id" "uuid") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."delete_community_preset"("p_preset_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."delete_community_preset"("p_preset_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."delete_community_preset"("p_preset_id" "uuid") TO "service_role";
@@ -2346,6 +3038,12 @@ GRANT ALL ON FUNCTION "public"."delete_player"("p_id" "uuid", "p_host_id" "text"
 GRANT ALL ON FUNCTION "public"."delete_submission"("p_id" "uuid", "p_player_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."delete_submission"("p_id" "uuid", "p_player_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."delete_submission"("p_id" "uuid", "p_player_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."dismiss_game_invitation"("p_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."dismiss_game_invitation"("p_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."dismiss_game_invitation"("p_id" "uuid") TO "service_role";
 
 
 
@@ -2384,9 +3082,45 @@ GRANT ALL ON FUNCTION "public"."get_daily_leaderboard"("p_date" "date") TO "serv
 
 
 
+GRANT ALL ON FUNCTION "public"."get_friends_with_stats"() TO "anon";
+GRANT ALL ON FUNCTION "public"."get_friends_with_stats"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_friends_with_stats"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_incoming_friend_requests"() TO "anon";
+GRANT ALL ON FUNCTION "public"."get_incoming_friend_requests"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_incoming_friend_requests"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_my_account_stats"() TO "anon";
+GRANT ALL ON FUNCTION "public"."get_my_account_stats"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_my_account_stats"() TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."get_my_daily_stats"() TO "anon";
 GRANT ALL ON FUNCTION "public"."get_my_daily_stats"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_my_daily_stats"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_my_game_history"("p_limit" integer) TO "anon";
+GRANT ALL ON FUNCTION "public"."get_my_game_history"("p_limit" integer) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_my_game_history"("p_limit" integer) TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_my_game_invitations"() TO "anon";
+GRANT ALL ON FUNCTION "public"."get_my_game_invitations"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_my_game_invitations"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_outgoing_friend_requests"() TO "anon";
+GRANT ALL ON FUNCTION "public"."get_outgoing_friend_requests"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_outgoing_friend_requests"() TO "service_role";
 
 
 
@@ -2427,6 +3161,12 @@ GRANT ALL ON FUNCTION "public"."player_vote_to_end_round"("p_game_id" "text", "p
 
 
 
+GRANT ALL ON FUNCTION "public"."record_my_game_result"("p_game_id" "text", "p_player_id" "uuid", "p_game_mode" "text", "p_team_mode" "text", "p_placement" integer, "p_player_count" integer, "p_score" numeric, "p_categories_found" integer, "p_won" boolean, "p_finds" "jsonb") TO "anon";
+GRANT ALL ON FUNCTION "public"."record_my_game_result"("p_game_id" "text", "p_player_id" "uuid", "p_game_mode" "text", "p_team_mode" "text", "p_placement" integer, "p_player_count" integer, "p_score" numeric, "p_categories_found" integer, "p_won" boolean, "p_finds" "jsonb") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."record_my_game_result"("p_game_id" "text", "p_player_id" "uuid", "p_game_mode" "text", "p_team_mode" "text", "p_placement" integer, "p_player_count" integer, "p_score" numeric, "p_categories_found" integer, "p_won" boolean, "p_finds" "jsonb") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."register_host_secret"("p_game_id" "text", "p_player_id" "text", "p_token" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."register_host_secret"("p_game_id" "text", "p_player_id" "text", "p_token" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."register_host_secret"("p_game_id" "text", "p_player_id" "text", "p_token" "text") TO "service_role";
@@ -2451,6 +3191,12 @@ GRANT ALL ON FUNCTION "public"."register_vote"("p_submission_id" "uuid", "p_play
 
 
 
+GRANT ALL ON FUNCTION "public"."remove_friend"("p_friend_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."remove_friend"("p_friend_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."remove_friend"("p_friend_id" "uuid") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."rename_my_presets_author"("p_name" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."rename_my_presets_author"("p_name" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."rename_my_presets_author"("p_name" "text") TO "service_role";
@@ -2469,6 +3215,24 @@ GRANT ALL ON FUNCTION "public"."review_daily_candidate"("p_id" "uuid", "p_decisi
 
 
 
+GRANT ALL ON FUNCTION "public"."send_friend_request"("p_addressee_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."send_friend_request"("p_addressee_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."send_friend_request"("p_addressee_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."send_friend_request_by_username"("p_username" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."send_friend_request_by_username"("p_username" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."send_friend_request_by_username"("p_username" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."send_game_invitation"("p_game_id" "text", "p_invitee_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."send_game_invitation"("p_game_id" "text", "p_invitee_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."send_game_invitation"("p_game_id" "text", "p_invitee_id" "uuid") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."set_game_status"("p_game_id" "text", "p_host_id" "text", "p_status" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."set_game_status"("p_game_id" "text", "p_host_id" "text", "p_status" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_game_status"("p_game_id" "text", "p_host_id" "text", "p_status" "text") TO "service_role";
@@ -2478,6 +3242,12 @@ GRANT ALL ON FUNCTION "public"."set_game_status"("p_game_id" "text", "p_host_id"
 GRANT ALL ON FUNCTION "public"."set_submission_ai_verdict"("p_id" "uuid", "p_player_id" "uuid", "p_verdict" boolean, "p_hash" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."set_submission_ai_verdict"("p_id" "uuid", "p_player_id" "uuid", "p_verdict" boolean, "p_hash" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_submission_ai_verdict"("p_id" "uuid", "p_player_id" "uuid", "p_verdict" boolean, "p_hash" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."set_username"("p_username" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."set_username"("p_username" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."set_username"("p_username" "text") TO "service_role";
 
 
 
@@ -2529,6 +3299,12 @@ GRANT ALL ON FUNCTION "public"."votes_all_yes"("p_votes" "jsonb") TO "service_ro
 
 
 
+GRANT ALL ON TABLE "public"."account_game_results" TO "anon";
+GRANT ALL ON TABLE "public"."account_game_results" TO "authenticated";
+GRANT ALL ON TABLE "public"."account_game_results" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."community_preset_votes" TO "anon";
 GRANT ALL ON TABLE "public"."community_preset_votes" TO "authenticated";
 GRANT ALL ON TABLE "public"."community_preset_votes" TO "service_role";
@@ -2559,9 +3335,27 @@ GRANT ALL ON TABLE "public"."daily_challenges" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."friend_requests" TO "anon";
+GRANT ALL ON TABLE "public"."friend_requests" TO "authenticated";
+GRANT ALL ON TABLE "public"."friend_requests" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."friendships" TO "anon";
+GRANT ALL ON TABLE "public"."friendships" TO "authenticated";
+GRANT ALL ON TABLE "public"."friendships" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."game_host_secrets" TO "anon";
 GRANT ALL ON TABLE "public"."game_host_secrets" TO "authenticated";
 GRANT ALL ON TABLE "public"."game_host_secrets" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."game_invitations" TO "anon";
+GRANT ALL ON TABLE "public"."game_invitations" TO "authenticated";
+GRANT ALL ON TABLE "public"."game_invitations" TO "service_role";
 
 
 
@@ -2574,6 +3368,12 @@ GRANT ALL ON TABLE "public"."games" TO "service_role";
 GRANT ALL ON TABLE "public"."players" TO "anon";
 GRANT ALL ON TABLE "public"."players" TO "authenticated";
 GRANT ALL ON TABLE "public"."players" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."profiles" TO "anon";
+GRANT ALL ON TABLE "public"."profiles" TO "authenticated";
+GRANT ALL ON TABLE "public"."profiles" TO "service_role";
 
 
 
