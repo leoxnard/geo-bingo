@@ -157,13 +157,20 @@ export async function deleteAccount(): Promise<void> {
     await supabase.auth.signOut();
 }
 
-/** Set the caller's account-wide display name (auth metadata + every owned preset's author_name). */
+/**
+ * Set the caller's account-wide, globally UNIQUE username. set_username claims it
+ * (rejecting duplicates via 'TAKEN'/'INVALID') and syncs every owned preset's
+ * author_name; we then mirror it into auth metadata so display_name stays in sync
+ * for the session-readable name (displayNameFor). Throws Error(<code>) on failure.
+ */
 export async function renameAuthor(name: string): Promise<void> {
     const trimmed = name.trim();
+    const { data, error } = await supabase.rpc('set_username', { p_username: trimmed });
+    if (error) throw error;
+    const res = (data ?? {}) as { success: boolean; error?: string };
+    if (!res.success) throw new Error(res.error || 'RENAME_FAILED');
     const { error: metaError } = await supabase.auth.updateUser({ data: { display_name: trimmed } });
     if (metaError) throw metaError;
-    const { error: rpcError } = await supabase.rpc('rename_my_presets_author', { p_name: trimmed });
-    if (rpcError) throw rpcError;
 }
 
 // Seed a builder from a played game. Every category starts empty (in "pending"):

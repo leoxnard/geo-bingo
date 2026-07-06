@@ -10,24 +10,26 @@ Supports both individual and team game modes with animated podium display.
 ================================================================================
 */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 import { useRouter } from 'next/navigation';
 import Confetti from 'react-confetti';
 
+import { recordGameResult } from '@/lib/account';
 import { buildPresetSeedFromGame } from '@/lib/community';
+import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
 
 import { getHostToken } from '../lib/hostToken';
 import { supabase } from '../lib/supabase';
 import { GeoBingoLogo } from './utils/Elements';
-import { ScoreEntity, PlayerStats, PodiumViewProps } from './utils/types';
+import { GameFind, ScoreEntity, PlayerStats, PodiumViewProps } from './utils/types';
 import { tallyVotes, tallyScale } from './utils/votes';
 
 // Each hype a submission receives is worth this many bonus points to its owner.
 const HYPE_POINT_VALUE = 0.5;
 
-export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps) {
+export default function PodiumView({ gameId, isHost, teamMode, playerId }: PodiumViewProps) {
     const { t } = useT();
     const router = useRouter();
     const [stats, setStats] = useState<PlayerStats[]>([]);
@@ -37,6 +39,9 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
     const [scaleVoting, setScaleVoting] = useState(false);
     const [animPhase, setAnimPhase] = useState(0);
     const [windowDim, setWindowDim] = useState({ width: 0, height: 0 });
+    // Records this player's result exactly once per mount; the RPC is also
+    // idempotent per round, so a refresh/remount never double-counts.
+    const recordedRef = useRef(false);
 
     useEffect(() => {
         setWindowDim({ width: window.innerWidth, height: window.innerHeight });
@@ -295,12 +300,60 @@ export default function PodiumView({ gameId, isHost, teamMode }: PodiumViewProps
                     }
                 });
                 setStats(playerStats);
+
+                // Persist this game's outcome to the signed-in player's profile
+                // (idempotent per round server-side). Guests, disabled-flag builds,
+                // and non-members record nothing. Uses the player's OWN submissions
+                // for categories-found and the find coordinates (future heatmap).
+                if (FEATURES.playerProfiles && playerId && !recordedRef.current) {
+                    const me = players.find((p) => p.id === playerId);
+                    if (me) {
+                        const myTeam = me.team ?? -1;
+                        const entityId = teamMode === 'teams' && myTeam >= 0 ? `team-${myTeam}` : playerId;
+                        const myStat = playerStats.find((s) => s.id === entityId);
+
+                        const finds: GameFind[] = [];
+                        let categoriesFound = 0;
+                        submissions
+                            .filter((s) => s.player_id === playerId)
+                            .forEach((sub) => {
+                                const approved = isScaleVoting
+                                    ? tallyScale(sub.votes).count > 0
+                                    : (() => {
+                                        const { yes, no } = tallyVotes(sub.votes);
+                                        return yes + no > 0 && yes > (yes + no) / 2;
+                                    })();
+                                if (!approved) return;
+                                categoriesFound += 1;
+                                if (typeof sub.lat === 'number' && typeof sub.lng === 'number') {
+                                    finds.push({ lat: sub.lat, lng: sub.lng, category: sub.category });
+                                }
+                            });
+
+                        recordedRef.current = true;
+                        recordGameResult({
+                            gameId,
+                            playerId,
+                            gameMode: fetchedGameMode,
+                            teamMode,
+                            placement: myStat?.rank ?? playerStats.length,
+                            playerCount: players.length,
+                            score: myStat?.score ?? 0,
+                            categoriesFound,
+                            // Solo rooms are trivially "1st"; only count a real win.
+                            won: myStat?.rank === 1 && players.length >= 2,
+                            finds,
+                        }).catch(() => {
+                            recordedRef.current = false; // let a later attempt retry
+                        });
+                    }
+                }
             }
             setLoading(false);
         };
 
         fetchResults();
-    }, [gameId, teamMode]);
+    }, [gameId, teamMode, playerId]);
 
     if (loading)
         return (

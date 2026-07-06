@@ -496,10 +496,14 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             }
 
             if (!existingPlayer) {
+                // Attribute this player to their account (if signed in) so their
+                // profile can record this game's outcome at the finished phase.
+                const accountId = FEATURES.playerProfiles ? (await supabase.auth.getUser()).data.user?.id : undefined;
                 const insertData = {
                     id: currentPlayerId,
                     game_id: gameId,
                     name: playerName,
+                    ...(accountId && { account_id: accountId }),
                     ...(bingoBoardToAssign && { bingo_board: bingoBoardToAssign }),
                 };
                 const { error: playerInsertErr } = await supabase.from('players').insert([insertData]);
@@ -958,7 +962,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
         // --- VIEW 4: PODIUM (FINISHED) ---
         if (status === 'finished') {
-            return <PodiumView gameId={gameId} gameHostId={gameHostId} isHost={isHost} teamMode={teamMode} />;
+            return <PodiumView gameId={gameId} gameHostId={gameHostId} isHost={isHost} teamMode={teamMode} playerId={playerId} />;
         }
     };
 

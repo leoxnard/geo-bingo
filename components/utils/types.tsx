@@ -341,6 +341,65 @@ export interface PodiumViewProps {
     gameHostId: string;
     isHost: boolean;
     teamMode: 'ffa' | 'teams';
+    playerId: string;
+}
+
+// ── Player profile (account_game_results / friendships) ──────────────────────
+
+/** A single recorded find (persisted for the future heatmap). */
+export interface GameFind {
+    lat: number;
+    lng: number;
+    category: string;
+}
+
+/** Lifetime multiplayer summary from get_my_account_stats. */
+export interface AccountStats {
+    games_played: number;
+    games_won: number;
+    multiplayer_played: number;
+    multiplayer_won: number;
+    categories_found: number;
+    finds_count: number;
+}
+
+/** One recorded game from get_my_game_history. */
+export interface GameHistoryEntry {
+    id: string;
+    game_mode: string | null;
+    team_mode: string | null;
+    placement: number | null;
+    player_count: number | null;
+    score: number | null;
+    categories_found: number | null;
+    won: boolean;
+    finished_at: string;
+}
+
+/** A friend plus their lifetime summary, from get_friends_with_stats. */
+export interface FriendWithStats {
+    id: string;
+    name: string;
+    games_played: number;
+    games_won: number;
+    categories_found: number;
+    daily_completed: number;
+}
+
+/** A pending friend request. `id` is the OTHER account (requester for incoming, addressee for outgoing). */
+export interface FriendRequest {
+    id: string;
+    name: string;
+    created_at: string;
+}
+
+/** A live invitation to join a friend's game. Valid for 2 minutes from `created_at`. */
+export interface GameInvitation {
+    id: string;
+    game_id: string;
+    inviter_id: string;
+    inviter_name: string;
+    created_at: string;
 }
 
 export interface ScoreEntity {

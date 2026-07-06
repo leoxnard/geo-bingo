@@ -71,4 +71,23 @@ export const FEATURES = {
      * and /admin/daily routes, and game-submission harvesting all disappear.
      */
     dailyChallenge: true,
+
+    // ── Player profiles & friends ────────────────────────────────────────────
+
+    /**
+     * Persistent player profile: per-account game history, win-rate, categories
+     * found (+ stored find coordinates for a future heatmap) and a friends list
+     * with one-tap invites. Off → the /account route, its options-menu link and
+     * the podium result-recording all disappear; nothing new is persisted.
+     */
+    playerProfiles: true,
+
+    /**
+     * Invite a friend straight into the current lobby. The invitee gets a realtime
+     * toast with a Join button plus an invitations button next to the options gear.
+     * Requires an account, so it also implies playerProfiles. Off → the lobby
+     * "invite a friend" button, the invitations button and all invite realtime
+     * disappear. Invitations are valid for 2 minutes.
+     */
+    gameInvites: true,
 } as const;
