@@ -18,7 +18,7 @@ import { GoMoveToStart } from 'react-icons/go';
 import { useT } from '@/lib/i18n/I18nProvider';
 
 import { ROOMY_MAX, ROOMY_MIN, getAiVerdictState, getStreetViewImageUrl, resolveHint, type HintMap, panoOptions, safeStartCenter } from './streetViewHelpers';
-import { ExitButton, FullscreenButton } from '../utils/Elements';
+import { CoverageToggleButton, ExitButton, FullscreenButton } from '../utils/Elements';
 import { mapOptions } from '../utils/mapUtils';
 import { BoundaryPolygon, Submission } from '../utils/types';
 
@@ -43,6 +43,8 @@ interface StreetViewMapPanelProps {
     onUnmount: () => void;
     inStreetView: boolean;
     hideMiniMap: boolean;
+    showCoverage: boolean;
+    setShowCoverage: React.Dispatch<React.SetStateAction<boolean>>;
     isFullscreen: boolean;
     fsPanelOpen: boolean;
     setFsPanelOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -63,7 +65,7 @@ interface StreetViewMapPanelProps {
 export default function StreetViewMapPanel(props: StreetViewMapPanelProps) {
     const { t } = useT();
     const { containerRef, panelRef, streetViewRef, minimapCenter, isMobileLandscape, isPortrait, isNarrow, gameId, mapCenter, mapZoom, additionalMapOptions, additionalMiniMapOptions, parsedBoundaries, setMainMapInstance, setMinimapInstance, setPanoInstance, onLoad, onUnmount } = props;
-    const { inStreetView, hideMiniMap, isFullscreen, fsPanelOpen, setFsPanelOpen, setIsFullscreen, measuredPanelWidth, startingPoint, myBoard, mySubmissions, otherSubmissions, exclusiveMode, allowHints, submittingCategory, textSizeClass, handleSubmit, hintByCategory } = props;
+    const { inStreetView, hideMiniMap, showCoverage, setShowCoverage, isFullscreen, fsPanelOpen, setFsPanelOpen, setIsFullscreen, measuredPanelWidth, startingPoint, myBoard, mySubmissions, otherSubmissions, exclusiveMode, allowHints, submittingCategory, textSizeClass, handleSubmit, hintByCategory } = props;
 
     const renderBoundaries = (keyPrefix: string) =>
         parsedBoundaries.map((boundary, index) =>
@@ -113,6 +115,8 @@ export default function StreetViewMapPanel(props: StreetViewMapPanelProps) {
             )}
 
             {!isMobileLandscape && <FullscreenButton isFullscreen={isFullscreen} containerRef={containerRef} setIsFullscreen={setIsFullscreen} />}
+
+            {!inStreetView && <CoverageToggleButton active={showCoverage} onClick={() => setShowCoverage((v) => !v)} className="absolute top-16 right-2 z-5 hidden sm:flex" />}
 
             {isFullscreen && (
                 <div ref={panelRef} className={`absolute z-10 top-0 left-0 bottom-0 h-full glass-dark border-r border-white/10 transition-transform duration-300 ease-out ${fsPanelOpen ? 'translate-x-0' : '-translate-x-full'}`}>

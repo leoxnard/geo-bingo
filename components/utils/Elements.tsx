@@ -14,7 +14,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import Image from 'next/image';
 import toast from 'react-hot-toast';
-import { FaRegQuestionCircle } from 'react-icons/fa';
+import { FaRegQuestionCircle, FaRoute } from 'react-icons/fa';
 
 import { useT } from '@/lib/i18n/I18nProvider';
 
@@ -72,6 +72,21 @@ export const ExitButton = ({ onExit, style }: ExitButtonProps) => {
                 <line x1="18" y1="6" x2="6" y2="18"></line>
                 <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>
+        </button>
+    );
+};
+
+interface CoverageToggleButtonProps {
+    active: boolean;
+    onClick: () => void;
+    className?: string;
+}
+
+export const CoverageToggleButton = ({ active, onClick, className = '' }: CoverageToggleButtonProps) => {
+    const { t } = useT();
+    return (
+        <button type="button" onClick={onClick} title={active ? t('map.hideCoverage') : t('map.showCoverage')} className={`glass-dark flex w-12 h-12 items-center justify-center rounded-md font-bold transition-transform hover:scale-105 active:scale-95 hover:brightness-125 ${active ? 'text-indigo-400' : 'text-white'} ${className}`}>
+            <FaRoute size={18} />
         </button>
     );
 };

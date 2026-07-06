@@ -63,6 +63,8 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     };
     const containerRef = useRef<HTMLDivElement>(null);
     const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
+    const [showCoverage, setShowCoverage] = useState(false);
+    const coverageLayerRef = useRef<google.maps.StreetViewCoverageLayer | null>(null);
     const [hoveredLocation, setHoveredLocation] = useState<Point | null>(null);
     const [selectedBoundaryId, setSelectedBoundaryId] = useState<string | null>(null);
     const prevZoomRef = useRef<number>(1);
@@ -169,6 +171,14 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         mapInstance.setZoom(centerOn.zoom ?? 14);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mapInstance]);
+
+    useEffect(() => {
+        if (!mapInstance) return;
+        if (!coverageLayerRef.current) coverageLayerRef.current = new google.maps.StreetViewCoverageLayer();
+        coverageLayerRef.current.setMap(showCoverage ? mapInstance : null);
+    }, [mapInstance, showCoverage]);
+
+    useEffect(() => () => coverageLayerRef.current?.setMap(null), []);
 
     const parseBoundaryString = (boundaryString: string): BoundaryPolygon[] => {
         if (!boundaryString || boundaryString === '[]') return [];
@@ -869,6 +879,15 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                             </GoogleMap>
                         </div>
                     )}
+
+                    {/* Street View coverage toggle: overlaid on the map's top-right corner, available to host and players alike since it's a local display preference, not game state. */}
+                    <div className="absolute top-3 right-3 z-[5] flex items-center gap-2 glass-dark rounded-lg px-3 py-2 text-sm shadow-lg">
+                        <span className="text-slate-400 text-xs">{t('map.streetViewCoverage')}</span>
+                        <label className={`relative inline-flex h-7 w-14 cursor-pointer items-center rounded-full transition-colors ${showCoverage ? 'bg-indigo-600/60' : 'bg-slate-700'}`} title={t('map.toggleCoverageHint')}>
+                            <input type="checkbox" role="switch" className="sr-only" checked={showCoverage} onChange={() => setShowCoverage((v) => !v)} aria-label={t('map.streetViewCoverage')} />
+                            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${showCoverage ? 'translate-x-8' : 'translate-x-1'}`} />
+                        </label>
+                    </div>
 
                     {/* World-default toggle: only shown when the drawn areas mix zone types. When all areas share a type, the default is forced to the opposite and the toggle is hidden. Overlaid on the map's top-left corner. */}
                     {isHost && hasMixedZones && (

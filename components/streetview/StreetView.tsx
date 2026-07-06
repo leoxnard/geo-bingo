@@ -58,6 +58,8 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
     const [minimapInstance, setMinimapInstance] = useState<google.maps.Map | null>(null);
     const [mainMapInstance, setMainMapInstance] = useState<google.maps.Map | null>(null);
     const mainMapDotRef = useRef<google.maps.Marker | null>(null);
+    const [showCoverage, setShowCoverage] = useState(false);
+    const coverageLayerRef = useRef<google.maps.StreetViewCoverageLayer | null>(null);
 
     const streetViewRef = useRef<google.maps.StreetViewPanorama | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -280,6 +282,14 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
             mainMapDotRef.current.setVisible(!inStreetView);
         }
     }, [inStreetView]);
+
+    useEffect(() => {
+        if (!mainMapInstance) return;
+        if (!coverageLayerRef.current) coverageLayerRef.current = new google.maps.StreetViewCoverageLayer();
+        coverageLayerRef.current.setMap(showCoverage ? mainMapInstance : null);
+    }, [mainMapInstance, showCoverage]);
+
+    useEffect(() => () => coverageLayerRef.current?.setMap(null), []);
 
     useEffect(() => {
         const handleFullscreenChange = () => {
@@ -754,6 +764,8 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                             onUnmount={onUnmount}
                             inStreetView={inStreetView}
                             hideMiniMap={hideMiniMap}
+                            showCoverage={showCoverage}
+                            setShowCoverage={setShowCoverage}
                             isFullscreen={isFullscreen}
                             fsPanelOpen={fsPanelOpen}
                             setFsPanelOpen={setFsPanelOpen}
