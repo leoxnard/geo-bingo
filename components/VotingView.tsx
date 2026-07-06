@@ -1161,7 +1161,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
             {/* Right Panel */}
             <div className={`relative ${isNarrow ? 'w-full h-1/2' : 'w-1/2 h-full'} bg-slate-950 z-20 shadow-[-20px_0_50px_rgba(0,0,0,0.5)] overflow-hidden`}>
-                <GlassAmbience drifters={false} />
+                <GlassAmbience drifters={false} alpha={0.3} />
                 {/* Progress Bar */}
                 {isNarrow ? (
                     <div className="absolute left-0 top-0 right-0 h-1.5 z-40 bg-slate-950/60 border-b border-white/10">

@@ -30,9 +30,9 @@ const DRIFTERS: Drifter[] = [
     { emoji: '🌵', left: '9%', dur: 72, delay: -60, size: 'text-lg', o: 0.1 },
 ];
 
-export default function GlassAmbience({ drifters = true }: { drifters?: boolean }) {
+export default function GlassAmbience({ drifters = true, alpha = 0.7 }: { drifters?: boolean; alpha?: number }) {
     return (
-        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden select-none">
+        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden select-none" style={{ opacity: alpha }}>
             <div className="glass-blob animate-blob-a -top-32 -left-24 h-[28rem] w-[28rem] bg-indigo-600/50" />
             <div className="glass-blob animate-blob-b top-1/4 -right-32 h-[26rem] w-[26rem] bg-fuchsia-500/35" />
             <div className="glass-blob animate-blob-c -bottom-40 left-1/3 h-[30rem] w-[30rem] bg-cyan-400/25" />

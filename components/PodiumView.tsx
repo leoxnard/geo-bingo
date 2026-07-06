@@ -411,7 +411,7 @@ export default function PodiumView({ gameId, isHost, teamMode, playerId }: Podiu
 
     return (
         <div className="relative min-h-screen flex flex-col items-center p-4 bg-slate-950 text-white overflow-hidden">
-            <GlassAmbience />
+            <GlassAmbience alpha={0.3} />
             {animPhase >= 4 && !prefersReducedMotion && (
                 <div className="absolute inset-0 pointer-events-none z-[100] overflow-hidden">
                     <Confetti width={windowDim.width} height={windowDim.height} recycle={false} numberOfPieces={500} gravity={0.15} />
