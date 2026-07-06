@@ -45,7 +45,12 @@ interface FullscreenButtonProps {
 export const FullscreenButton = ({ isFullscreen, containerRef, setIsFullscreen }: FullscreenButtonProps) => {
     const { t } = useT();
     return (
-        <button type="button" onClick={() => toggleFullscreen(containerRef, setIsFullscreen)} className="glass-dark absolute top-2 right-2 z-5 hidden sm:flex w-12 h-12 hover:brightness-125 text-white items-center justify-center rounded-md font-bold transition-transform hover:scale-105 active:scale-95" title={isFullscreen ? t('elements.exitFullscreen') : t('elements.enterFullscreen')}>
+        <button
+            type="button"
+            onClick={() => toggleFullscreen(containerRef, setIsFullscreen)}
+            className="bg-[linear-gradient(160deg,rgba(15,23,42,0.5)_0%,rgba(15,23,42,0.4)_55%,rgba(30,27,75,0.38)_100%)] border border-white/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.19),0_20px_40px_-14px_rgba(2,6,23,0.55)] absolute top-2 right-2 z-5 hidden sm:flex w-12 h-12 hover:brightness-125 text-white items-center justify-center rounded-md font-bold transition-transform hover:scale-105 active:scale-95"
+            title={isFullscreen ? t('elements.exitFullscreen') : t('elements.enterFullscreen')}
+        >
             {isFullscreen ? (
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
@@ -67,7 +72,7 @@ interface ExitButtonProps {
 export const ExitButton = ({ onExit, style }: ExitButtonProps) => {
     const { t } = useT();
     return (
-        <button type="button" onClick={onExit} style={style} className="hidden sm:flex w-12 h-12 bg-gradient-to-br from-rose-500/85 to-red-600/85 border border-red-300/60 shadow-[0_12px_24px_-8px_rgba(244,63,94,0.6),inset_0_1px_0_rgba(255,255,255,0.35)] hover:brightness-110 text-white items-center justify-center rounded-md font-bold transition-transform duration-300 hover:scale-105 active:scale-95" title={t('elements.exitStreetView')}>
+        <button type="button" onClick={onExit} style={style} className="hidden sm:flex w-12 h-12 bg-gradient-to-br from-rose-500/80 to-red-600/75 border border-white/25 shadow-[0_16px_32px_-12px_rgba(244,63,94,0.55),inset_0_1px_0_rgba(255,255,255,0.3)] hover:brightness-125 text-white items-center justify-center rounded-md font-bold transition-transform hover:scale-105 active:scale-95" title={t('elements.exitStreetView')}>
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
                 <line x1="6" y1="6" x2="18" y2="18"></line>
