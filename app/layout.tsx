@@ -19,6 +19,7 @@ import AppToaster from '@/components/utils/AppToaster';
 import { getServerLocale } from '@/lib/i18n/getServerLocale';
 import { I18nProvider } from '@/lib/i18n/I18nProvider';
 import { SettingsProvider } from '@/lib/settings/SettingsProvider';
+import { SoundProvider } from '@/lib/sound/SoundProvider';
 
 const geistSans = Geist({
     variable: '--font-geist-sans',
@@ -92,7 +93,9 @@ export default async function RootLayout({
             <body className="min-h-full flex flex-col">
                 <I18nProvider initialLocale={locale}>
                     <SettingsProvider>
-                        <GameInvitesProvider>{children}</GameInvitesProvider>
+                        <SoundProvider>
+                            <GameInvitesProvider>{children}</GameInvitesProvider>
+                        </SoundProvider>
                     </SettingsProvider>
                 </I18nProvider>
                 <AppToaster />

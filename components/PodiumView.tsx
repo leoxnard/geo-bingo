@@ -19,6 +19,7 @@ import { recordGameResult } from '@/lib/account';
 import { buildPresetSeedFromGame } from '@/lib/community';
 import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
+import { useSounds } from '@/lib/sound/SoundProvider';
 
 import { getHostToken } from '../lib/hostToken';
 import { supabase } from '../lib/supabase';
@@ -42,10 +43,21 @@ export default function PodiumView({ gameId, isHost, teamMode, playerId }: Podiu
     // Records this player's result exactly once per mount; the RPC is also
     // idempotent per round, so a refresh/remount never double-counts.
     const recordedRef = useRef(false);
+    const { play } = useSounds();
+    // Fanfare on the winner reveal (animPhase 4, same beat as the confetti), once.
+    const fanfarePlayedRef = useRef(false);
 
     useEffect(() => {
         setWindowDim({ width: window.innerWidth, height: window.innerHeight });
     }, []);
+
+    useEffect(() => {
+        if (fanfarePlayedRef.current) return;
+        if (animPhase >= 4 && stats.some((s) => s.rank === 1)) {
+            fanfarePlayedRef.current = true;
+            play('podium-first');
+        }
+    }, [animPhase, stats, play]);
 
     useEffect(() => {
         if (!loading) {

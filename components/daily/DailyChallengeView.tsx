@@ -32,6 +32,7 @@ import { GOOGLE_MAPS_LIBRARIES, isLocationAllowed, mapOptions } from '@/componen
 import type { DailyChallenge, DailyViewpoint } from '@/components/utils/types';
 import { amIDailyAdmin, forfeitDailyAttempt, formatDuration, getDailyChallenge, resolveDailyCategory, revealDailyLocation, startDailyAttempt, submitDailyAttempt, todayUtc } from '@/lib/daily';
 import { useT } from '@/lib/i18n/I18nProvider';
+import { useSounds } from '@/lib/sound/SoundProvider';
 
 import DailyFindFeed from './DailyFindFeed';
 import DailyLeaderboard from './DailyLeaderboard';
@@ -42,6 +43,7 @@ const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
 export default function DailyChallengeView({ date }: { date: string }) {
     const { t, locale } = useT();
+    const { play } = useSounds();
     const { user, loading: userLoading } = useUser();
     const resolvedDate = useMemo(() => (date === 'today' ? todayUtc() : date), [date]);
 
@@ -243,9 +245,11 @@ export default function DailyChallengeView({ date }: { date: string }) {
             if (!passed) {
                 setLastReason(reason);
                 setPhase('playing');
+                play('verify-reject');
                 toast.error(t('daily.notAccepted'));
                 return;
             }
+            play('verify-accept');
             setFinalMs(elapsed);
             setOutcome('found');
             await submitDailyAttempt(resolvedDate, elapsed, vp, reason).catch(() => null);

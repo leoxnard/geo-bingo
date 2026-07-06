@@ -282,6 +282,9 @@ export const MultiToggleButton = <T extends string | number>({ classname = '', o
                             <button
                                 key={option.value}
                                 type="button"
+                                // Blocked options are clickable (to show the hint), so give them the
+                                // "denied" cue instead of the default click via the sound provider.
+                                data-sound={isOptionDisabled ? 'denied' : undefined}
                                 onClick={() => {
                                     if (!isOptionDisabled) {
                                         onChange(option.value);

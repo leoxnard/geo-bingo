@@ -15,6 +15,7 @@ import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } fr
 
 import toast from 'react-hot-toast';
 
+import { useSounds } from '../../lib/sound/SoundProvider';
 import { supabase } from '../../lib/supabase';
 import { isSubmissionVerified, verifySubmissions } from '../utils/aiVerify';
 import type { Submission } from '../utils/types';
@@ -45,6 +46,7 @@ interface UseAiVerifyArgs {
 export function useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSubmissions, notifyGameEvent }: UseAiVerifyArgs) {
     const [isVerifying, setIsVerifying] = useState(false);
     const [aiVerificationSuccess, setAiVerificationSuccess] = useState(false);
+    const { play } = useSounds();
 
     const allCategoriesFilled = useMemo(() => myBoard.every((cat) => mySubmissions.some((s) => s.category === cat)), [myBoard, mySubmissions]);
 
@@ -88,9 +90,12 @@ export function useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSu
                     await supabase.rpc('player_end_round', { p_game_id: gameId, p_player_id: playerId });
                     notifyGameEvent?.('ai_end_game', { player_id: playerId });
                     setAiVerificationSuccess(true);
+                    play('verify-accept');
                     return { success: true as const, rejectedCount: 0, erroredCount: 0 };
                 }
                 setAiVerificationSuccess(false);
+                // Only a genuine AI "no" gets the rejection cue; pure API errors don't.
+                if (rejected.length > 0) play('verify-reject');
                 const parts: string[] = [];
                 if (rejected.length > 0) parts.push(`${rejected.length} rejected by AI`);
                 if (errored.length > 0) parts.push(`${errored.length} API error${errored.length === 1 ? '' : 's'} (see console)`);
@@ -110,7 +115,7 @@ export function useAiVerify({ gameId, playerId, myBoard, mySubmissions, setAllSu
                 setIsVerifying(false);
             }
         },
-        [gameId, playerId, setAllSubmissions, notifyGameEvent],
+        [gameId, playerId, setAllSubmissions, notifyGameEvent, play],
     );
 
     const handleVerifyAndEnd = async () => {

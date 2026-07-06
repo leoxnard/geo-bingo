@@ -19,6 +19,7 @@ import { CiCirclePlus, CiCircleMinus, CiCircleRemove, CiCircleCheck, CiCircleQue
 import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { CategoryLanguage } from '@/lib/i18n/locales';
+import { useSounds } from '@/lib/sound/SoundProvider';
 
 import { generateAICategories } from './AICategories';
 import { generateNearbyPlaceCategories } from './NearbyPlaceCategories';
@@ -237,6 +238,7 @@ interface LobbyCategoriesProps {
 
 export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, language, gridSize, categories, suggestedCategories, gameId, playerId, supabase, maxGridSize, startingPoint, categorySource, aiEnabled, isDeveloper, generationRadius, generationNumber, difficulty, categoriesGenerated }: LobbyCategoriesProps) {
     const { t } = useT();
+    const { play } = useSounds();
     const [newCategory, setNewCategory] = useState('');
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [localRadius, setLocalRadius] = useState(generationRadius);
@@ -266,6 +268,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
         const canUseAI = isDeveloper || currentCount < 3;
 
         if (isAiOption && !canUseAI) {
+            play('denied');
             toast.error(t('cat.toastDailyLimit'));
             return;
         }
@@ -302,6 +305,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
             const currentCount = parseInt(localStorage.getItem('geoBingoPromptCount') || '0', 10);
 
             if (currentCount >= DAILY_AI_LIMIT) {
+                play('denied');
                 toast.error(t('cat.toastDailyLimitShort', { limit: DAILY_AI_LIMIT }));
                 return;
             }
@@ -313,12 +317,14 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
         let startPos: { lat: number; lng: number } | null = null;
         if (categorySource === 'nearbyPlaces' || categorySource === 'nearbyStreetView') {
             if (startingPoint === 'open-world') {
+                play('denied');
                 toast.error(t('cat.toastSetStartingPoint'));
                 return;
             }
             try {
                 startPos = JSON.parse(startingPoint);
             } catch {
+                play('denied');
                 toast.error(t('cat.toastInvalidStartingPoint'));
                 return;
             }
@@ -368,6 +374,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                 categories_generated: true,
                 category_source: 'manual',
             });
+            play('categories-ready');
         } catch (error) {
             toast.dismiss(loadingToast);
             toast.error(error instanceof Error ? error.message : t('cat.toastGenerationFailed'));
