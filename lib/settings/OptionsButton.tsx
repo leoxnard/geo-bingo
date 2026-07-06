@@ -21,9 +21,13 @@ menu is opened — no flash of an empty account row.
 
 import { useEffect, useRef, useState } from 'react';
 
-import { FaCog } from 'react-icons/fa';
+import Link from 'next/link';
+import { FaCog, FaUserCircle } from 'react-icons/fa';
 
 import AccountButton from '@/components/account/AccountButton';
+import { useUser, displayNameFor } from '@/components/community/useUser';
+import GameInvitesButton from '@/components/invites/GameInvitesButton';
+import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { LOCALE_CODES, LOCALES } from '@/lib/i18n/locales';
 import { useSettings } from '@/lib/settings/SettingsProvider';
@@ -31,6 +35,7 @@ import { useSettings } from '@/lib/settings/SettingsProvider';
 export default function OptionsButton({ className = 'fixed top-3 right-3 z-[1000]', onRenamed }: { className?: string; onRenamed?: () => void }) {
     const { t, locale, setLocale } = useT();
     const { settings, setSetting } = useSettings();
+    const { user } = useUser();
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
@@ -46,41 +51,53 @@ export default function OptionsButton({ className = 'fixed top-3 right-3 z-[1000
     const volumePct = Math.round(settings.volume * 100);
 
     return (
-        <div ref={ref} className={className}>
-            <button type="button" onClick={() => setOpen((v) => !v)} aria-haspopup="dialog" aria-expanded={open} aria-label={t('options.title')} className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-800/70 hover:text-white">
-                <FaCog size={18} />
-            </button>
+        <div className={`${className} flex items-center gap-1`}>
+            {/* Invitations button — only visible while there are live invites. */}
+            <GameInvitesButton />
 
-            {/* Kept mounted while closed (just hidden) so the async account row is
-                already loaded by the time the menu is first opened. */}
-            <div role="dialog" aria-label={t('options.title')} hidden={!open} className="absolute right-0 mt-2 w-64 rounded-xl border border-slate-600 bg-slate-800 p-4 shadow-xl">
-                {/* Account */}
-                <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-400">{t('options.account')}</p>
-                <div className="mb-4">
-                    <AccountButton className="w-full justify-center" onRenamed={onRenamed} />
+            <div ref={ref} className="relative">
+                <button type="button" onClick={() => setOpen((v) => !v)} aria-haspopup="dialog" aria-expanded={open} aria-label={t('options.title')} className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-800/70 hover:text-white">
+                    <FaCog size={18} />
+                </button>
+
+                {/* Kept mounted while closed (just hidden) so the async account row is
+                    already loaded by the time the menu is first opened. */}
+                <div role="dialog" aria-label={t('options.title')} hidden={!open} className="absolute right-0 mt-2 w-64 rounded-xl border border-slate-600 bg-slate-800 p-4 shadow-xl">
+                    {/* Account — links to the full profile page (stats + name edit +
+                    account deletion). Falls back to the inline overlay only when
+                    player profiles are switched off. */}
+                    <div className="mb-4">
+                        {FEATURES.playerProfiles ? (
+                            <Link href="/account" onClick={() => setOpen(false)} className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-700 bg-slate-800/60 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:border-indigo-500 hover:text-white">
+                                <FaUserCircle /> {user ? displayNameFor(user) : t('community.signIn')}
+                            </Link>
+                        ) : (
+                            <AccountButton className="w-full justify-center" onRenamed={onRenamed} />
+                        )}
+                    </div>
+
+                    {/* UI language */}
+                    <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-400">{t('options.language')}</p>
+                    <div className="mb-4 flex flex-col gap-1">
+                        {LOCALE_CODES.map((code) => {
+                            const item = LOCALES[code];
+                            const selected = code === locale;
+                            return (
+                                <button key={code} type="button" aria-pressed={selected} onClick={() => setLocale(code)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-slate-700 ${selected ? 'bg-slate-700/60 text-white' : 'text-slate-300'}`}>
+                                    <span className="text-base leading-none">{item.flag}</span>
+                                    <span>{item.label}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    {/* Audio volume */}
+                    <label htmlFor="options-volume" className="mb-1.5 flex items-center justify-between text-xs font-bold uppercase tracking-wide text-slate-400">
+                        <span>{t('options.volume')}</span>
+                        <span className="text-slate-500">{volumePct}%</span>
+                    </label>
+                    <input id="options-volume" type="range" min={0} max={100} value={volumePct} onChange={(e) => setSetting('volume', Number(e.target.value) / 100)} className="w-full accent-indigo-500" />
                 </div>
-
-                {/* UI language */}
-                <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-400">{t('options.language')}</p>
-                <div className="mb-4 flex flex-col gap-1">
-                    {LOCALE_CODES.map((code) => {
-                        const item = LOCALES[code];
-                        const selected = code === locale;
-                        return (
-                            <button key={code} type="button" aria-pressed={selected} onClick={() => setLocale(code)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-slate-700 ${selected ? 'bg-slate-700/60 text-white' : 'text-slate-300'}`}>
-                                <span className="text-base leading-none">{item.flag}</span>
-                                <span>{item.label}</span>
-                            </button>
-                        );
-                    })}
-                </div>
-
-                {/* Audio volume */}
-                <label htmlFor="options-volume" className="mb-1.5 flex items-center justify-between text-xs font-bold uppercase tracking-wide text-slate-400">
-                    <span>{t('options.volume')}</span>
-                    <span className="text-slate-500">{volumePct}%</span>
-                </label>
-                <input id="options-volume" type="range" min={0} max={100} value={volumePct} onChange={(e) => setSetting('volume', Number(e.target.value) / 100)} className="w-full accent-indigo-500" />
             </div>
         </div>
     );

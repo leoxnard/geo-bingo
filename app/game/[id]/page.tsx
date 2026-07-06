@@ -15,8 +15,7 @@ import { useState, use, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import toast, { Toaster } from 'react-hot-toast';
-import { CiCircleAlert, CiCircleCheck } from 'react-icons/ci';
+import toast from 'react-hot-toast';
 
 import NamePrompt from '@/components/game/NamePrompt';
 import LobbyView from '@/components/lobby/LobbyView';
@@ -968,28 +967,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
     return (
         <>
-            <Toaster
-                toastOptions={{
-                    style: {
-                        borderRadius: '20px',
-                        background: '#333',
-                        color: '#fff',
-                    },
-                    success: {
-                        icon: <CiCircleCheck size="3em" color="#00b01d" />,
-                        style: {
-                            color: '#00b01d',
-                        },
-                    },
-                    error: {
-                        icon: <CiCircleAlert size="3em" color="#ff0000" />,
-                        style: {
-                            color: '#ff0000',
-                        },
-                        duration: 5000,
-                    },
-                }}
-            />
             {nameGate === 'checking' ? (
                 <div className="min-h-dvh flex items-center justify-center bg-slate-900">
                     <div className="h-10 w-10 rounded-full border-4 border-slate-700 border-t-indigo-500 animate-spin" aria-label="Loading" />

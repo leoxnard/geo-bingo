@@ -16,6 +16,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import toast from 'react-hot-toast';
 import { FaRegCopy, FaCopy, FaRegEdit, FaPlus, FaRandom, FaTimes, FaEye, FaEyeSlash } from 'react-icons/fa';
 
+import InviteFriendsButton from '@/components/invites/InviteFriendsButton';
 import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { categoryLanguageForLocale, CategoryLanguage, LOCALE_CODES, LOCALES } from '@/lib/i18n/locales';
@@ -244,9 +245,12 @@ export default function LobbySidebar(props: LobbySidebarProps) {
             <div className="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 h-fit">
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="text-xl font-semibold text-slate-300">{t('sidebar.inviteFriends')}</h2>
-                    <button type="button" onClick={() => setBlurLobbyInfo(!blurLobbyInfo)} className="p-2 mr-2 rounded-md transition-all bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-200" title={blurLobbyInfo ? t('sidebar.showInfo') : t('sidebar.blurInfo')}>
-                        {blurLobbyInfo ? <FaEyeSlash /> : <FaEye />}
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {FEATURES.gameInvites && <InviteFriendsButton gameId={props.gameId} />}
+                        <button type="button" onClick={() => setBlurLobbyInfo(!blurLobbyInfo)} className="p-2 rounded-md transition-all bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-200" title={blurLobbyInfo ? t('sidebar.showInfo') : t('sidebar.blurInfo')}>
+                            {blurLobbyInfo ? <FaEyeSlash /> : <FaEye />}
+                        </button>
+                    </div>
                 </div>
                 <div className="space-y-3">
                     <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 p-2 rounded-lg overflow-hidden">

@@ -14,6 +14,8 @@ import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 
+import { GameInvitesProvider } from '@/components/invites/GameInvitesProvider';
+import AppToaster from '@/components/utils/AppToaster';
 import { getServerLocale } from '@/lib/i18n/getServerLocale';
 import { I18nProvider } from '@/lib/i18n/I18nProvider';
 import { SettingsProvider } from '@/lib/settings/SettingsProvider';
@@ -89,8 +91,11 @@ export default async function RootLayout({
         <html lang={locale} className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
             <body className="min-h-full flex flex-col">
                 <I18nProvider initialLocale={locale}>
-                    <SettingsProvider>{children}</SettingsProvider>
+                    <SettingsProvider>
+                        <GameInvitesProvider>{children}</GameInvitesProvider>
+                    </SettingsProvider>
                 </I18nProvider>
+                <AppToaster />
                 <Analytics />
                 <SpeedInsights />
             </body>
