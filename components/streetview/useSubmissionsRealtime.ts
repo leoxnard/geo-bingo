@@ -18,6 +18,7 @@ hook can write verdicts.
 import { useEffect, useMemo, useState } from 'react';
 
 import { supabase } from '../../lib/supabase';
+import { isSubmissionRow } from '../utils/typeGuards';
 import type { Player, Submission } from '../utils/types';
 
 interface UseSubmissionsRealtimeArgs {
@@ -37,6 +38,7 @@ export function useSubmissionsRealtime({ gameId, playerId, players, teamMode }: 
         };
         fetchAllSubmissions();
 
+        let channelDropped = false;
         const channel = supabase
             .channel(`game-submissions-${gameId}`)
             .on(
@@ -48,7 +50,8 @@ export function useSubmissionsRealtime({ gameId, playerId, players, teamMode }: 
                     filter: `game_id=eq.${gameId}`,
                 },
                 (payload) => {
-                    const newSub = payload.new as Submission;
+                    const newSub = payload.new;
+                    if (!isSubmissionRow(newSub)) return;
                     setAllSubmissions((prev) => {
                         if (prev.find((s) => s.id === newSub.id)) return prev;
                         return [...prev, newSub];
@@ -64,11 +67,23 @@ export function useSubmissionsRealtime({ gameId, playerId, players, teamMode }: 
                     filter: `game_id=eq.${gameId}`,
                 },
                 (payload) => {
-                    const updatedSub = payload.new as Submission;
+                    const updatedSub = payload.new;
+                    if (!isSubmissionRow(updatedSub)) return;
                     setAllSubmissions((prev) => prev.map((s) => (s.id === updatedSub.id ? { ...s, ...updatedSub } : s)));
                 },
             )
-            .subscribe();
+            .subscribe((channelStatus) => {
+                // Rows inserted/updated while the websocket was down are not
+                // replayed on reconnect, so refetch after a resubscribe-after-drop.
+                if (channelStatus === 'SUBSCRIBED') {
+                    if (channelDropped) {
+                        channelDropped = false;
+                        void fetchAllSubmissions();
+                    }
+                } else if (channelStatus === 'CHANNEL_ERROR' || channelStatus === 'TIMED_OUT' || channelStatus === 'CLOSED') {
+                    channelDropped = true;
+                }
+            });
 
         return () => {
             const cleanup = async () => {

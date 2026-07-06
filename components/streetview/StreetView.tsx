@@ -32,6 +32,7 @@ import { useSubmissionsRealtime } from './useSubmissionsRealtime';
 import { supabase } from '../../lib/supabase';
 import { calculateBingoCounter, getBingoLineSubmissions, getDistance } from '../utils/Functions';
 import { GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from '../utils/mapUtils';
+import { isSubmissionRow } from '../utils/typeGuards';
 import { Submission, StreetViewProps, BoundaryPolygon } from '../utils/types';
 import { useViewport } from '../utils/useViewport';
 
@@ -551,8 +552,13 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                 setAllSubmissions((prev) => prev.filter((s) => s.id !== tempId));
                 return;
             } else if (data && data.success) {
-                savedSub = data.data as Submission;
-                setAllSubmissions((prev) => prev.map((s) => (s.id === tempId ? data.data : s)));
+                const returnedSub: unknown = data.data;
+                if (!isSubmissionRow(returnedSub)) {
+                    console.error('claim_exclusive_category returned an unexpected payload:', returnedSub);
+                    return;
+                }
+                savedSub = returnedSub;
+                setAllSubmissions((prev) => prev.map((s) => (s.id === tempId ? returnedSub : s)));
             }
         } else {
             // ffa insert-or-update via claim_category upsert: a re-take at a new
@@ -575,8 +581,13 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                 setAllSubmissions((prev) => (existingSub ? prev : prev.filter((s) => s.id !== tempId)));
                 return;
             } else if (data && data.success) {
-                savedSub = data.data as Submission;
-                setAllSubmissions((prev) => prev.map((s) => (s.id === tempId ? data.data : s)));
+                const returnedSub: unknown = data.data;
+                if (!isSubmissionRow(returnedSub)) {
+                    console.error('claim_category returned an unexpected payload:', returnedSub);
+                    return;
+                }
+                savedSub = returnedSub;
+                setAllSubmissions((prev) => prev.map((s) => (s.id === tempId ? returnedSub : s)));
             }
         }
 
