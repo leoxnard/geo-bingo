@@ -90,4 +90,13 @@ export const FEATURES = {
      * disappear. Invitations are valid for 2 minutes.
      */
     gameInvites: true,
+
+    // ── Admin tools ──────────────────────────────────────────────────────────
+
+    /**
+     * /admin/presets route (allow-listed admins only): draw boundary areas on
+     * a map and export them as a JSON snippet for MANUAL_OVERRIDES in
+     * scripts/getProcessedCountryBorders.py. Off → the route 404s.
+     */
+    presetExport: true,
 } as const;

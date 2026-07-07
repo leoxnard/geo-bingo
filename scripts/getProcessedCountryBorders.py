@@ -36,6 +36,39 @@ CUSTOM_REGIONS = {
     "Islands_Special": ["Seychelles", "Bahamas", "Fiji"] # Grouped for safety
 }
 
+# ── Manual preset overrides ──────────────────────────────────────────────────
+# import manual overrides from ./manual_overrides.json if it exists, otherwise use an empty dict
+if os.path.exists("manual_overrides.json"):
+    with open("manual_overrides.json", "r", encoding="utf-8") as f: 
+        MANUAL_OVERRIDES = json.load(f)
+else:
+    MANUAL_OVERRIDES = {}
+
+# ── Name translation ─────────────────────────────────────────────────────────
+# English is the single source language. Every preset gets a "names" map
+# ({en, de, es, fr, zh}) translated via DeepL at generation time, so the app
+# never translates live. Results are cached in data/deepl_cache.json — only
+# new/changed names hit the API. Requires the DEEPL_API_KEY env var; without
+# it, missing translations fall back to English.
+UI_LOCALES = ["de", "es", "fr", "zh"]
+DEEPL_TARGET = {"de": "DE", "es": "ES", "fr": "FR", "zh": "ZH"}
+DEEPL_CACHE_FILE = os.path.join("data", "deepl_cache.json")
+
+
+def get_deepl_api_key():
+    """DEEPL_API_KEY from the environment, else from the repo's .env.local."""
+    key = os.environ.get("DEEPL_API_KEY")
+    if key:
+        return key
+    env_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env.local")
+    if os.path.exists(env_file):
+        with open(env_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("DEEPL_API_KEY="):
+                    return line.split("=", 1)[1].strip().strip('"').strip("'") or None
+    return None
+
 # Geographic regions
 GEO_REGION_MAP = {
     "Sahara": "Sahara Desert",
@@ -130,6 +163,58 @@ def process_geometry(geom, dict_key, name_de, name_en, presets, original_crs):
             "points": points
         })
 
+def translate_names(presets):
+    """Attach a names map {en, de, es, fr, zh} to every area, translating the
+    English display name via DeepL (cached). Replaces legacy name_de/name_en."""
+    api_key = get_deepl_api_key()
+    cache = {}
+    if os.path.exists(DEEPL_CACHE_FILE):
+        with open(DEEPL_CACHE_FILE, "r", encoding="utf-8") as f:
+            cache = json.load(f)
+
+    # English source name per preset: existing names.en / name_en, else the key.
+    sources = {}
+    for pkey, areas in presets.items():
+        name = None
+        for a in areas:
+            name = (a.get("names") or {}).get("en") or a.get("name_en")
+            if name:
+                break
+        sources[pkey] = name or pkey.replace("_", " ")
+
+    missing = sorted({n for n in sources.values() if any(loc not in cache.get(n, {}) for loc in UI_LOCALES)})
+    if missing and not api_key:
+        print(f"WARNING: DEEPL_API_KEY not set — {len(missing)} name(s) fall back to English in all languages.")
+    elif missing:
+        endpoint = "https://api-free.deepl.com/v2/translate" if api_key.endswith(":fx") else "https://api.deepl.com/v2/translate"
+        print(f"Translating {len(missing)} preset name(s) via DeepL...")
+        for loc in UI_LOCALES:
+            todo = [n for n in missing if loc not in cache.get(n, {})]
+            for i in range(0, len(todo), 50):
+                batch = todo[i:i + 50]
+                res = requests.post(
+                    endpoint,
+                    headers={"Authorization": f"DeepL-Auth-Key {api_key}"},
+                    json={"text": batch, "target_lang": DEEPL_TARGET[loc], "source_lang": "EN"},
+                )
+                res.raise_for_status()
+                for src, tr in zip(batch, res.json()["translations"]):
+                    cache.setdefault(src, {})[loc] = tr["text"]
+        os.makedirs("data", exist_ok=True)
+        with open(DEEPL_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(cache, f, indent=2, ensure_ascii=False)
+
+    for pkey, areas in presets.items():
+        en = sources[pkey]
+        names = {"en": en}
+        for loc in UI_LOCALES:
+            names[loc] = cache.get(en, {}).get(loc, en)
+        for a in areas:
+            a["names"] = names
+            a.pop("name_de", None)
+            a.pop("name_en", None)
+
+
 def process_boundaries():
     print("Checking downloads...")
     files = {k: download_data(v) for k, v in URLS.items()}
@@ -220,6 +305,17 @@ def process_boundaries():
             name = row.get(state_name_col, "Unknown")
             if name != "Unknown":
                 process_geometry(row['geometry'], f"{prefix}_{name.replace(' ', '_')}", name, name, presets, gdf_states.crs)
+
+    # 8. Manual overrides (drawn in the in-app admin tool) win over everything
+    if MANUAL_OVERRIDES:
+        print("\nApplying manual overrides...")
+        for key, areas in MANUAL_OVERRIDES.items():
+            action = "replacing" if key in presets else "adding"
+            print(f"  {action} {key} ({len(areas)} area(s))")
+            presets[key] = areas
+
+    # 9. Translate every preset name into all UI languages (English source)
+    translate_names(presets)
 
     with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
         json.dump(presets, f, indent=2, ensure_ascii=False)
