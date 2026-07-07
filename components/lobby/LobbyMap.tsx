@@ -10,9 +10,10 @@ Integrates with nearby place and street view category generation.
 ================================================================================
 */
 
-import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, Fragment } from 'react';
 
 import { GoogleMap, PolygonF, MarkerF, OverlayView, OverlayViewF, CircleF, PolylineF, RectangleF } from '@react-google-maps/api';
+import { createPortal } from 'react-dom';
 import { FaPlus, FaTimes, FaCaretDown, FaCaretRight, FaUndo } from 'react-icons/fa';
 
 import { useT } from '@/lib/i18n/I18nProvider';
@@ -42,7 +43,7 @@ interface LobbyMapProps {
 }
 
 export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary, generationRadius, updateGameModeInfo, extraMarkers, hoveredCategory, centerOn, hideDescription = false }: LobbyMapProps) {
-    const { t } = useT();
+    const { t, locale } = useT();
     const groupLabel = (key: string) => {
         switch (key) {
         case 'Continents':
@@ -91,6 +92,11 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
 
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    // The menu is portaled to document.body (position:fixed): the map panel's
+    // stacking context would otherwise trap its z-index and let the categories
+    // panel — a later sibling — paint its translucent glass over the list.
+    const menuRef = useRef<HTMLDivElement>(null);
+    const [menuRect, setMenuRect] = useState<{ left: number; top: number; width: number } | null>(null);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [boundaryPresetsData, setBoundaryPresetsData] = useState<Record<string, any[]>>({});
@@ -110,18 +116,55 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                setIsMenuOpen(false);
-            }
+            const target = event.target as Node;
+            if (dropdownRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+            setIsMenuOpen(false);
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    // Anchor the portaled menu to the search field. Measured on open; a page
+    // scroll or resize would leave the fixed-position menu floating detached
+    // from its trigger, so close it instead (scrolling inside the list is fine).
+    useLayoutEffect(() => {
+        if (!isMenuOpen) return;
+        const rect = dropdownRef.current?.getBoundingClientRect();
+        if (rect) setMenuRect({ left: rect.left, top: rect.bottom, width: rect.width });
+    }, [isMenuOpen]);
+
     useEffect(() => {
-        fetch('/geo_bingo_presets.json')
+        if (!isMenuOpen) return;
+        const onScroll = (e: Event) => {
+            if (menuRef.current?.contains(e.target as Node)) return;
+            setIsMenuOpen(false);
+        };
+        const onResize = () => setIsMenuOpen(false);
+        window.addEventListener('scroll', onScroll, true);
+        window.addEventListener('resize', onResize);
+        return () => {
+            window.removeEventListener('scroll', onScroll, true);
+            window.removeEventListener('resize', onResize);
+        };
+    }, [isMenuOpen]);
+
+    useEffect(() => {
+        // no-store: browsers cache this static JSON aggressively; stale copies
+        // resurface fixed geometry bugs (e.g. the old duplicated Antarctica areas).
+        fetch('/geo_bingo_presets.json', { cache: 'no-store' })
             .then((res) => res.json())
-            .then((data) => {
+            .then((data: Record<string, { id?: string; points: unknown[] }[]>) => {
+                // Defensive dedupe: identical areas sharing an id would render
+                // duplicate React keys and double-stacked polygons.
+                Object.keys(data).forEach((key) => {
+                    const seen = new Set<string>();
+                    data[key] = data[key].filter((area, i) => {
+                        const id = area.id || String(i);
+                        if (seen.has(id)) return false;
+                        seen.add(id);
+                        return true;
+                    });
+                });
                 setBoundaryPresetsData(data);
                 setPresetsLoading(false);
             })
@@ -219,7 +262,13 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         const regions = ['Scandinavia', 'Balkans', 'Benelux', 'Iberia', 'Baltic_States', 'UK_and_Ireland', 'Middle_East', 'Sahara', 'Alps', 'Himalayas', 'Amazon_Basin', 'Nile_Delta', 'Patagonia', 'Central_America', 'Polynesia'];
 
         keys.forEach((k) => {
-            if (continents.includes(k)) groups['Continents'].push(k);
+            // An explicit "group" on the preset's first area (set by the
+            // /admin/presets export tool) wins over the key heuristics below.
+            // Unknown group names create a new dropdown group (appended after
+            // the built-in ones; groupLabel falls back to the raw name).
+            const explicitGroup = boundaryPresetsData[k]?.[0]?.group;
+            if (typeof explicitGroup === 'string' && explicitGroup.trim()) (groups[explicitGroup] ??= []).push(k);
+            else if (continents.includes(k)) groups['Continents'].push(k);
             else if (regions.includes(k)) groups['Regions & Nature'].push(k);
             else if (k.startsWith('US_')) groups['US States'].push(k);
             else if (k.startsWith('DE_')) groups['German States'].push(k);
@@ -234,18 +283,39 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         return groups;
     }, [boundaryPresetsData]);
 
+    // Localized preset display name: generated presets carry a "names" map
+    // ({en,de,es,fr,zh}, DeepL-translated at generation time by
+    // getProcessedCountryBorders.py); fall back to formatting the key for data
+    // that predates it.
+    const getDisplayName = useCallback(
+        (key: string) => {
+            if (!key) return '';
+            const names = boundaryPresetsData[key]?.[0]?.names as Record<string, string> | undefined;
+            const localized = names?.[locale] || names?.en;
+            return localized || key.replace(/_/g, ' ').replace('US ', '').replace('DE ', '');
+        },
+        [boundaryPresetsData, locale],
+    );
+
+    // Search matches both the English key and the localized display name.
+    const matchesTerm = useCallback(
+        (key: string, term: string) =>
+            [key.replace(/_/g, ' '), getDisplayName(key)].some((candidate) => {
+                const normalized = candidate.toLowerCase();
+                return normalized.startsWith(term) || normalized.includes(` ${term}`);
+            }),
+        [getDisplayName],
+    );
+
     const filteredGroups = useMemo(() => {
         const term = searchTerm.toLowerCase();
         const result: Record<string, string[]> = {};
 
         Object.entries(groupedPresets).forEach(([groupName, items]) => {
-            result[groupName] = items.filter((item) => {
-                const normalizedItem = item.replace(/_/g, ' ').toLowerCase();
-                return normalizedItem.startsWith(term) || normalizedItem.includes(` ${term}`);
-            });
+            result[groupName] = items.filter((item) => matchesTerm(item, term));
         });
         return result;
-    }, [searchTerm, groupedPresets]);
+    }, [searchTerm, groupedPresets, matchesTerm]);
 
     const groupNames = useMemo(() => Object.keys(filteredGroups), [filteredGroups]);
 
@@ -273,12 +343,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         if (value.trim() === '') return;
 
         const term = value.toLowerCase();
-        const firstValidGroup = groupNames.find((g) =>
-            groupedPresets[g]?.some((item) => {
-                const normalizedItem = item.replace(/_/g, ' ').toLowerCase();
-                return normalizedItem.startsWith(term) || normalizedItem.includes(` ${term}`);
-            }),
-        );
+        const firstValidGroup = groupNames.find((g) => groupedPresets[g]?.some((item) => matchesTerm(item, term)));
 
         if (!firstValidGroup) return;
 
@@ -592,12 +657,14 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
 
         const presetData = boundaryPresetsData[presetKey];
         if (presetData && presetData.length > 0) {
-            const formattedName = presetKey.replace(/_/g, ' ');
+            const formattedName = getDisplayName(presetKey);
 
             const sharedGroupId = Date.now().toString();
 
-            const newBoundaries: BoundaryPolygon[] = presetData.map((area) => ({
-                id: area.id || (Date.now() + Math.random()).toString(),
+            const newBoundaries: BoundaryPolygon[] = presetData.map((area, index) => ({
+                // Preset ids are static in geo_bingo_presets.json; namespace them per
+                // application so selecting the same preset twice never collides.
+                id: `${sharedGroupId}_${area.id || index}`,
                 groupId: sharedGroupId,
                 type: (area.type || 'allow') as 'allow' | 'forbid',
                 points: area.points,
@@ -652,11 +719,6 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
             return b;
         });
         commitBoundaryChange(newBoundaries);
-    };
-
-    const getDisplayName = (key: string) => {
-        if (!key) return '';
-        return key.replace(/_/g, ' ').replace('US ', '').replace('DE ', '');
     };
 
     return (
@@ -945,7 +1007,7 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                         </div>
 
                         <div className="flex flex-wrap items-center justify-start gap-3 text-sm">
-                            <div ref={dropdownRef} className="relative z-[10] min-w-[250px]">
+                            <div ref={dropdownRef} className="relative min-w-[250px]">
                                 <span className="block text-xs text-slate-400 mb-1">{t('map.orSelectPreset')}</span>
                                 <div onClick={() => setIsMenuOpen(true)} className={`w-full bg-slate-900 border border-slate-700 hover:border-slate-500 rounded-lg flex items-center transition-colors cursor-text ${presetsLoading ? 'opacity-50 pointer-events-none' : ''}`}>
                                     <input
@@ -963,71 +1025,74 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                     </span>
                                 </div>
 
-                                {/* Dropdown-Menü */}
-                                {isMenuOpen && (
-                                    <div className="absolute left-0 top-full w-full pt-1 z-[10]">
-                                        <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-xl py-1 max-h-64 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                                            {visibleItems.length > 0 ? (
-                                                visibleItems.map((item, idx) => {
-                                                    const isHighlighted = highlightedIndex === idx;
+                                {/* Dropdown-Menü — portaled above every panel, see menuRef comment */}
+                                {isMenuOpen &&
+                                    menuRect &&
+                                    createPortal(
+                                        <div ref={menuRef} style={{ left: menuRect.left, top: menuRect.top, width: menuRect.width }} className="fixed z-[9999] pt-1">
+                                            <div className="bg-slate-900 border border-white/15 rounded-lg shadow-[0_20px_40px_-14px_rgba(2,6,23,0.75)] py-1 max-h-64 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                                                {visibleItems.length > 0 ? (
+                                                    visibleItems.map((item, idx) => {
+                                                        const isHighlighted = highlightedIndex === idx;
 
-                                                    if (item.type === 'group') {
-                                                        const count = filteredGroups[item.value].length;
-                                                        const isExpanded = expandedGroup === item.value;
-                                                        const isEmpty = count === 0;
+                                                        if (item.type === 'group') {
+                                                            const count = filteredGroups[item.value].length;
+                                                            const isExpanded = expandedGroup === item.value;
+                                                            const isEmpty = count === 0;
 
-                                                        return (
-                                                            <div
-                                                                key={`group-${item.value}`}
-                                                                ref={isHighlighted ? (el) => el?.scrollIntoView({ block: 'nearest' }) : null}
-                                                                onMouseEnter={() => setHighlightedIndex(idx)}
-                                                                onClick={() => {
-                                                                    if (isExpanded) setExpandedGroup(null);
-                                                                    else if (!isEmpty) setExpandedGroup(item.value);
-                                                                }}
-                                                                className={`px-4 py-2 cursor-pointer flex justify-between items-center text-sm transition-colors select-none
+                                                            return (
+                                                                <div
+                                                                    key={`group-${item.value}`}
+                                                                    ref={isHighlighted ? (el) => el?.scrollIntoView({ block: 'nearest' }) : null}
+                                                                    onMouseEnter={() => setHighlightedIndex(idx)}
+                                                                    onClick={() => {
+                                                                        if (isExpanded) setExpandedGroup(null);
+                                                                        else if (!isEmpty) setExpandedGroup(item.value);
+                                                                    }}
+                                                                    className={`px-4 py-2 cursor-pointer flex justify-between items-center text-sm transition-colors select-none
                                                                     ${isHighlighted ? 'bg-slate-700' : 'hover:bg-slate-700'}
                                                                     ${isEmpty ? 'text-slate-500' : 'text-slate-200'}
                                                                 `}
-                                                            >
-                                                                <span className="font-semibold">
-                                                                    {groupLabel(item.value)} <span className="text-xs font-normal opacity-50 ml-1">({count})</span>
-                                                                </span>
-                                                                <span className={`text-[10px] transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}>
-                                                                    <FaCaretRight size={15} />
-                                                                </span>
-                                                            </div>
-                                                        );
-                                                    } else {
-                                                        // Item Rendering
-                                                        return (
-                                                            <div
-                                                                key={`item-${item.value}`}
-                                                                ref={isHighlighted ? (el) => el?.scrollIntoView({ block: 'nearest' }) : null}
-                                                                onMouseEnter={() => setHighlightedIndex(idx)}
-                                                                onMouseDown={(e) => {
-                                                                    e.preventDefault();
-                                                                }}
-                                                                onClick={() => {
-                                                                    handlePresetChange(item.value);
-                                                                    setSearchTerm('');
-                                                                    setIsMenuOpen(false);
-                                                                }}
-                                                                className={`pl-8 pr-4 py-2 cursor-pointer text-sm truncate transition-colors
+                                                                >
+                                                                    <span className="font-semibold">
+                                                                        {groupLabel(item.value)} <span className="text-xs font-normal opacity-50 ml-1">({count})</span>
+                                                                    </span>
+                                                                    <span className={`text-[10px] transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}>
+                                                                        <FaCaretRight size={15} />
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        } else {
+                                                            // Item Rendering
+                                                            return (
+                                                                <div
+                                                                    key={`item-${item.value}`}
+                                                                    ref={isHighlighted ? (el) => el?.scrollIntoView({ block: 'nearest' }) : null}
+                                                                    onMouseEnter={() => setHighlightedIndex(idx)}
+                                                                    onMouseDown={(e) => {
+                                                                        e.preventDefault();
+                                                                    }}
+                                                                    onClick={() => {
+                                                                        handlePresetChange(item.value);
+                                                                        setSearchTerm('');
+                                                                        setIsMenuOpen(false);
+                                                                    }}
+                                                                    className={`pl-8 pr-4 py-2 cursor-pointer text-sm truncate transition-colors
                                                                     ${isHighlighted ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-indigo-600/50 hover:text-white'}
                                                                 `}
-                                                            >
-                                                                {getDisplayName(item.value)}
-                                                            </div>
-                                                        );
-                                                    }
-                                                })
-                                            ) : (
-                                                <div className="px-4 py-2 text-slate-500 text-sm italic">{t('map.noMatchingAreas')}</div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
+                                                                >
+                                                                    {getDisplayName(item.value)}
+                                                                </div>
+                                                            );
+                                                        }
+                                                    })
+                                                ) : (
+                                                    <div className="px-4 py-2 text-slate-500 text-sm italic">{t('map.noMatchingAreas')}</div>
+                                                )}
+                                            </div>
+                                        </div>,
+                                        document.body,
+                                    )}
                             </div>
                         </div>
 

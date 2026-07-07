@@ -13,8 +13,9 @@ Provides consistent styling and interaction patterns across the app.
 import { useEffect, useRef, useState } from 'react';
 
 import Image from 'next/image';
+import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
-import { FaRegQuestionCircle, FaRoute } from 'react-icons/fa';
+import { FaCaretDown, FaRegQuestionCircle, FaRoute } from 'react-icons/fa';
 
 import { useT } from '@/lib/i18n/I18nProvider';
 
@@ -346,8 +347,8 @@ export const RangeSlider = ({ classname, title, min, max, minLabel = String(min)
             <span className="font-black text-indigo-400 tabular-nums">{displayValue || value}</span>
         </div>
 
-        <div className="p-4 bg-slate-900 rounded-xl shadow-inner flex flex-col gap-2">
-            <input type="range" title={title} min={min} max={max} step={step} value={value} disabled={disabled} onChange={(e) => onChange(parseInt(e.target.value))} onMouseUp={onCommit} onTouchEnd={onCommit} className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 hover:accent-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all" />
+        <div className="p-4 bg-[linear-gradient(160deg,rgba(15,23,42,0.5)_0%,rgba(15,23,42,0.4)_55%,rgba(30,27,75,0.38)_100%)] border border-white/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.19),0_20px_40px_-14px_rgba(2,6,23,0.55)] rounded-xl flex flex-col gap-2">
+            <input type="range" title={title} min={min} max={max} step={step} value={value} disabled={disabled} onChange={(e) => onChange(parseInt(e.target.value))} onMouseUp={onCommit} onTouchEnd={onCommit} className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-indigo-500 hover:accent-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all" />
             <div className="flex justify-between text-[10px] tracking-widest text-slate-500 font-bold px-1">
                 <span>{minLabel}</span>
                 <span>{maxLabel}</span>
@@ -358,26 +359,105 @@ export const RangeSlider = ({ classname, title, min, max, minLabel = String(min)
     </div>
 );
 
-export const Selection = ({ classname, title, options, value, onChange, disabled, position = 'middle', description }: { classname?: string; title: string; options: { label: string; value: string }[]; value: string; onChange: (val: string) => void; disabled?: boolean; position?: 'top' | 'middle' | 'bottom' | 'clean'; description?: string }) => (
-    <div
-        className={`
+// Custom dropdown (not a native <select>) so the option list can be styled to
+// match the glass kit. The list is rendered into document.body via a portal
+// with position:fixed — a parent panel's stacking context (transform/animation
+// from the glass design) would otherwise trap any z-index and let later
+// sibling panels paint over it. Opaque background, stable scrollbar gutter.
+export const Selection = ({ classname, title, options, value, onChange, disabled, position = 'middle', description }: { classname?: string; title: string; options: { label: string; value: string }[]; value: string; onChange: (val: string) => void; disabled?: boolean; position?: 'top' | 'middle' | 'bottom' | 'clean'; description?: string }) => {
+    const [open, setOpen] = useState(false);
+    const [menuRect, setMenuRect] = useState<{ left: number; top: number; width: number } | null>(null);
+    const triggerRef = useRef<HTMLButtonElement>(null);
+    const menuRef = useRef<HTMLUListElement>(null);
+    const selected = options.find((opt) => opt.value === value);
+
+    const toggleMenu = () => {
+        if (open) {
+            setOpen(false);
+            return;
+        }
+        const rect = triggerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        setMenuRect({ left: rect.left, top: rect.bottom + 4, width: rect.width });
+        setOpen(true);
+    };
+
+    useEffect(() => {
+        if (!open) return;
+        const onDocPointer = (e: PointerEvent) => {
+            const target = e.target as Node;
+            if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+            setOpen(false);
+        };
+        // The page scrolling/resizing under a fixed-position menu would leave it
+        // floating detached from its trigger — close instead. Scrolls inside the
+        // option list itself must not close it.
+        const onScroll = (e: Event) => {
+            if (menuRef.current?.contains(e.target as Node)) return;
+            setOpen(false);
+        };
+        const onResize = () => setOpen(false);
+        document.addEventListener('pointerdown', onDocPointer);
+        window.addEventListener('scroll', onScroll, true);
+        window.addEventListener('resize', onResize);
+        return () => {
+            document.removeEventListener('pointerdown', onDocPointer);
+            window.removeEventListener('scroll', onScroll, true);
+            window.removeEventListener('resize', onResize);
+        };
+    }, [open]);
+
+    return (
+        <div
+            className={`
         ${position === 'middle' ? 'py-3 border-t border-white/10' : ''}
         ${position === 'top' ? 'pb-3 border-t border-white/10 border-t-0' : ''}
         ${position === 'bottom' ? 'pt-3 border-t border-white/10' : ''}
         ${classname}`}
-    >
-        <div className="flex items-center justify-between gap-4">
-            <label className="text-sm text-slate-300 flex-shrink-0">{title}</label>
+        >
+            <div className="flex items-center justify-between gap-4">
+                <label className="text-sm text-slate-300 flex-shrink-0">{title}</label>
 
-            <select title={title} value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} className="h-[42px] px-3 w-full max-w-[200px] sm:max-w-[250px] rounded-lg bg-slate-900 border border-slate-600 text-sm text-white cursor-pointer transition-colors focus:outline-none focus:border-indigo-500 hover:border-slate-500 disabled:opacity-50">
-                {options.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                    </option>
-                ))}
-            </select>
+                <div className="relative w-full max-w-[200px] sm:max-w-[250px]" onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
+                    <button
+                        ref={triggerRef}
+                        type="button"
+                        title={title}
+                        disabled={disabled}
+                        aria-haspopup="listbox"
+                        aria-expanded={open}
+                        onClick={toggleMenu}
+                        className="h-[42px] px-3 w-full rounded-lg bg-[linear-gradient(160deg,rgba(15,23,42,0.5)_0%,rgba(15,23,42,0.4)_55%,rgba(30,27,75,0.38)_100%)] border border-white/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.19),0_20px_40px_-14px_rgba(2,6,23,0.55)] text-sm text-white cursor-pointer transition-colors focus:outline-none focus:border-indigo-500 hover:border-white/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between gap-2 text-left"
+                    >
+                        <span className="truncate">{selected?.label ?? value}</span>
+                        <FaCaretDown size={14} className={`shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {open &&
+                        menuRect &&
+                        createPortal(
+                            <ul ref={menuRef} role="listbox" aria-label={title} style={{ left: menuRect.left, top: menuRect.top, width: menuRect.width }} className="fixed z-[9999] bg-slate-900 border border-white/15 rounded-lg shadow-[0_20px_40px_-14px_rgba(2,6,23,0.75)] py-1 max-h-60 overflow-y-auto [scrollbar-gutter:stable]">
+                                {options.map((opt) => (
+                                    <li key={opt.value} role="option" aria-selected={opt.value === value}>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                onChange(opt.value);
+                                                setOpen(false);
+                                            }}
+                                            className={`w-full text-left px-3 py-2 text-sm transition-colors hover:bg-slate-800 ${opt.value === value ? 'text-indigo-400 font-semibold' : 'text-slate-200'}`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>,
+                            document.body,
+                        )}
+                </div>
+            </div>
+
+            {description && <p className="mt-2 text-xs text-slate-400 italic">{description}</p>}
         </div>
-
-        {description && <p className="mt-2 text-xs text-slate-400 italic">{description}</p>}
-    </div>
-);
+    );
+};

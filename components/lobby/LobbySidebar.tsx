@@ -247,7 +247,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                     <h2 className="text-xl font-semibold text-slate-300">{t('sidebar.inviteFriends')}</h2>
                     <div className="flex items-center gap-2">
                         {FEATURES.gameInvites && <InviteFriendsButton gameId={props.gameId} />}
-                        <button type="button" onClick={() => setBlurLobbyInfo(!blurLobbyInfo)} className="p-2 rounded-md transition-all bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-200" title={blurLobbyInfo ? t('sidebar.showInfo') : t('sidebar.blurInfo')}>
+                        <button type="button" onClick={() => setBlurLobbyInfo(!blurLobbyInfo)} className="p-2 glass press rounded-md p-2 text-slate-400 hover:text-slate-200" title={blurLobbyInfo ? t('sidebar.showInfo') : t('sidebar.blurInfo')}>
                             {blurLobbyInfo ? <FaEyeSlash /> : <FaEye />}
                         </button>
                     </div>
@@ -258,7 +258,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                         <span className="flex-1 min-w-0 font-mono text-slate-300 text-lg truncate select-none px-2" style={blurLobbyInfo ? { color: 'transparent', textShadow: '0 0 12px rgba(203, 213, 225, 0.9), 0 0 6px rgba(203, 213, 225, 0.7)' } : undefined}>
                             {props.gameId}
                         </span>
-                        <button type="button" onClick={handleCopyGameId} className={`shrink-0 p-2 rounded-md transition-all ${copiedId ? 'bg-green-600/40 text-green-400' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}`} title={t('sidebar.copyGameId')}>
+                        <button type="button" onClick={handleCopyGameId} className={`shrink-0 p-2 glass press rounded-md p-2 hover:text-slate-200 transition-all ${copiedId ? 'bg-green-600/40 text-green-400' : 'bg-slate-700 text-slate-400'}`} title={t('sidebar.copyGameId')}>
                             {copiedId ? <FaCopy /> : <FaRegCopy />}
                         </button>
                     </div>
@@ -267,7 +267,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                         <span className="flex-1 min-w-0 font-mono text-slate-300 truncate select-none px-2" style={blurLobbyInfo ? { color: 'transparent', textShadow: '0 0 12px rgba(203, 213, 225, 0.9), 0 0 6px rgba(203, 213, 225, 0.7)' } : undefined}>
                             {isMounted ? window.location.href.replace('http://', '').replace('https://', '') : '...'}
                         </span>
-                        <button type="button" onClick={handleCopyGameLink} className={`shrink-0 p-2 rounded-md transition-all ${copiedLink ? 'bg-green-600/40 text-green-400' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}`} title={t('sidebar.copyGameLink')}>
+                        <button type="button" onClick={handleCopyGameLink} className={`shrink-0 p-2 glass press rounded-md p-2 hover:text-slate-200 transition-all ${copiedLink ? 'bg-green-600/40 text-green-400' : 'bg-slate-700 text-slate-400'}`} title={t('sidebar.copyGameLink')}>
                             {copiedLink ? <FaCopy /> : <FaRegCopy />}
                         </button>
                     </div>
