@@ -60,12 +60,13 @@ interface StreetViewMapPanelProps {
     textSizeClass: string;
     handleSubmit: (category: string) => void;
     hintByCategory?: HintMap;
+    labelByCategory?: Record<string, string>;
 }
 
 export default function StreetViewMapPanel(props: StreetViewMapPanelProps) {
     const { t } = useT();
     const { containerRef, panelRef, streetViewRef, minimapCenter, isMobileLandscape, isPortrait, isNarrow, gameId, mapCenter, mapZoom, additionalMapOptions, additionalMiniMapOptions, parsedBoundaries, setMainMapInstance, setMinimapInstance, setPanoInstance, onLoad, onUnmount } = props;
-    const { inStreetView, hideMiniMap, showCoverage, setShowCoverage, isFullscreen, fsPanelOpen, setFsPanelOpen, setIsFullscreen, measuredPanelWidth, startingPoint, myBoard, mySubmissions, otherSubmissions, exclusiveMode, allowHints, submittingCategory, textSizeClass, handleSubmit, hintByCategory } = props;
+    const { inStreetView, hideMiniMap, showCoverage, setShowCoverage, isFullscreen, fsPanelOpen, setFsPanelOpen, setIsFullscreen, measuredPanelWidth, startingPoint, myBoard, mySubmissions, otherSubmissions, exclusiveMode, allowHints, submittingCategory, textSizeClass, handleSubmit, hintByCategory, labelByCategory = {} } = props;
 
     const renderBoundaries = (keyPrefix: string) =>
         parsedBoundaries.map((boundary, index) =>
@@ -150,7 +151,7 @@ export default function StreetViewMapPanel(props: StreetViewMapPanelProps) {
                                         {foundSub && <div className="absolute inset-0 bg-black/50 z-0"></div>}
                                     </div>
                                     <div className={`relative z-10 font-bold text-center ${getAiVerdictState(foundSub) === 'rejected' ? 'text-red-400' : foundSub ? 'text-white' : isBlocked ? 'text-red-400' : 'text-slate-300'} ${textSizeClass}`}>
-                                        {cat}
+                                        {labelByCategory[cat] ?? cat}
                                         {hint && (
                                             <div className="mt-1 text-xs text-slate-400 font-normal">
                                                 {t('sv.hint')} <em>{hint}</em>

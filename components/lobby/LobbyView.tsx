@@ -18,7 +18,7 @@ import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.
 import Image from 'next/image';
 import toast from 'react-hot-toast';
 
-import { CategoryLanguage, normalizeLocale } from '@/lib/i18n/locales';
+import { CategoryLanguage, Locale, normalizeLocale } from '@/lib/i18n/locales';
 import OptionsButton from '@/lib/settings/OptionsButton';
 
 import LobbyCategories from './LobbyCategories';
@@ -80,6 +80,9 @@ interface LobbyViewProps {
     categoriesGenerated: boolean;
     notifyGameEvent?: (event: 'ai_end_game' | 'ai_generating_categories', payload: { player_id: string }) => void;
     onCategoryLanguageChange?: (newLanguage: CategoryLanguage) => Promise<void>;
+    translateCategories: boolean;
+    displayLocale: Locale;
+    onDisplayLocaleChange: (locale: Locale) => void;
 }
 
 export default function LobbyView(props: LobbyViewProps) {
@@ -296,6 +299,9 @@ export default function LobbyView(props: LobbyViewProps) {
                     language={props.language}
                     updateGameModeInfo={props.updateGameModeInfo}
                     onCategoryLanguageChange={props.onCategoryLanguageChange}
+                    translateCategories={props.translateCategories}
+                    displayLocale={props.displayLocale}
+                    onDisplayLocaleChange={props.onDisplayLocaleChange}
                     categorySource={props.categorySource}
                     isGenerating={false}
                     onPresetClick={() => setShowCommunityPresets(true)}

@@ -19,9 +19,9 @@ import { FaRegCopy, FaCopy, FaRegEdit, FaPlus, FaRandom, FaTimes, FaEye, FaEyeSl
 import InviteFriendsButton from '@/components/invites/InviteFriendsButton';
 import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
-import { categoryLanguageForLocale, CategoryLanguage, LOCALE_CODES, LOCALES } from '@/lib/i18n/locales';
+import { categoryLanguageForLocale, CategoryLanguage, Locale, LOCALE_CODES, LOCALES } from '@/lib/i18n/locales';
 
-import { ToggleSwitch } from '../utils/Elements';
+import { Selection, ToggleSwitch } from '../utils/Elements';
 import { shuffle } from '../utils/Functions';
 
 interface Player {
@@ -29,6 +29,7 @@ interface Player {
     name: string;
     bingo_board?: string[];
     team?: number;
+    category_locale?: string | null;
 }
 
 interface LobbySidebarProps {
@@ -53,6 +54,9 @@ interface LobbySidebarProps {
     language: CategoryLanguage;
     updateGameModeInfo: (updates: Record<string, unknown>) => void;
     onCategoryLanguageChange?: (newLanguage: CategoryLanguage) => Promise<void>;
+    translateCategories: boolean;
+    displayLocale: Locale;
+    onDisplayLocaleChange: (locale: Locale) => void;
     categorySource: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
     isGenerating: boolean;
     onPresetClick?: () => void;
@@ -224,14 +228,14 @@ export default function LobbySidebar(props: LobbySidebarProps) {
             </div>
 
             {props.isHost && p.id !== props.playerId && (
-                <div className="flex gap-2 w-full mt-1 border-t border-slate-800 pt-2">
-                    <button type="button" onClick={() => props.makeHost(p.id)} className="text-[10px] flex-[2] bg-indigo-900/50 text-indigo-400 hover:bg-indigo-600 hover:text-white py-1 rounded">
+                <div className="flex gap-2 w-full mt-1 border-t border-white/10 pt-2">
+                    <button type="button" onClick={() => props.makeHost(p.id)} className="press text-[10px] flex-[2] bg-indigo-500/20 text-indigo-300 hover:bg-indigo-600 hover:text-white py-1 rounded transition-colors">
                         {t('sidebar.makeHost')}
                     </button>
-                    <button type="button" onClick={() => props.kickPlayer(p.id)} className="text-[10px] flex-1 bg-orange-900/50 text-orange-400 hover:bg-orange-600 hover:text-white py-1 rounded">
+                    <button type="button" onClick={() => props.kickPlayer(p.id)} className="press text-[10px] flex-1 bg-orange-500/20 text-orange-300 hover:bg-orange-600 hover:text-white py-1 rounded transition-colors">
                         {t('sidebar.kick')}
                     </button>
-                    <button type="button" onClick={() => props.banPlayer(p.id)} className="text-[10px] flex-1 bg-red-900/50 text-red-400 hover:bg-red-600 hover:text-white py-1 rounded">
+                    <button type="button" onClick={() => props.banPlayer(p.id)} className="press text-[10px] flex-1 bg-red-500/20 text-red-300 hover:bg-red-600 hover:text-white py-1 rounded transition-colors">
                         {t('sidebar.ban')}
                     </button>
                 </div>
@@ -239,8 +243,31 @@ export default function LobbySidebar(props: LobbySidebarProps) {
         </li>
     );
 
+    const me = props.players.find((p) => p.id === props.playerId);
+    const iHaveSetLanguage = !!me?.category_locale;
+    // Guests who still need to pick a display language. The host itself never
+    // counts — excluded both by host id and by being the viewer (this button is
+    // host-only) so it can never wait on itself. Offline players don't block,
+    // to avoid ghost deadlocks.
+    const pendingLanguagePlayers = props.translateCategories ? props.players.filter((p) => p.id !== props.gameHostId && p.id !== props.playerId && props.onlinePlayers.includes(p.id) && !p.category_locale) : [];
+    const waitingForLanguages = pendingLanguagePlayers.length > 0;
+
     return (
         <div className="flex flex-col gap-4 sm:gap-6 w-full lg:w-80">
+            {/* Your category language — the one setting a guest controls, so it
+                sits up top with an accent until chosen. */}
+            {props.translateCategories && !props.isHost && (
+                <div className={`p-5 rounded-2xl h-fit transition-all ${iHaveSetLanguage ? 'glass' : 'glass border border-indigo-400/50 shadow-[0_0_34px_-8px_rgba(99,102,241,0.65)]'}`}>
+                    <h2 className="flex items-center gap-2 text-lg font-bold text-slate-100 mb-1">
+                        <span aria-hidden>🌐</span>
+                        {iHaveSetLanguage ? t('sidebar.myCategoryLanguage') : t('sidebar.chooseLanguagePrompt')}
+                    </h2>
+                    <p className="text-xs text-slate-400 mb-4">{t('sidebar.chooseLanguageHint')}</p>
+                    <Selection position="clean" title={t('sidebar.myCategoryLanguage')} value={iHaveSetLanguage ? props.displayLocale : '__none__'} onChange={(v) => v !== '__none__' && props.onDisplayLocaleChange(v as Locale)} options={[...(iHaveSetLanguage ? [] : [{ label: t('sidebar.selectLanguagePlaceholder'), value: '__none__' }]), ...LOCALE_CODES.map((code) => ({ label: LOCALES[code].label, value: code }))]} />
+                    {iHaveSetLanguage && <p className="mt-3 text-xs font-medium text-emerald-400">✓ {t('sidebar.languageChosen')}</p>}
+                </div>
+            )}
+
             {/* Invite Box */}
             <div className="glass p-4 sm:p-6 rounded-2xl h-fit">
                 <div className="flex items-center justify-between mb-4">
@@ -258,7 +285,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                         <span className="flex-1 min-w-0 font-mono text-slate-300 text-lg truncate select-none px-2" style={blurLobbyInfo ? { color: 'transparent', textShadow: '0 0 12px rgba(203, 213, 225, 0.9), 0 0 6px rgba(203, 213, 225, 0.7)' } : undefined}>
                             {props.gameId}
                         </span>
-                        <button type="button" onClick={handleCopyGameId} className={`shrink-0 p-2 glass press rounded-md p-2 hover:text-slate-200 transition-all ${copiedId ? 'bg-green-600/40 text-green-400' : 'bg-slate-700 text-slate-400'}`} title={t('sidebar.copyGameId')}>
+                        <button type="button" onClick={handleCopyGameId} className={`shrink-0 p-2 glass press rounded-md p-2 hover:text-slate-200 transition-all ${copiedId ? 'bg-green-600/40 text-green-400' : 'text-slate-400'}`} title={t('sidebar.copyGameId')}>
                             {copiedId ? <FaCopy /> : <FaRegCopy />}
                         </button>
                     </div>
@@ -267,7 +294,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                         <span className="flex-1 min-w-0 font-mono text-slate-300 truncate select-none px-2" style={blurLobbyInfo ? { color: 'transparent', textShadow: '0 0 12px rgba(203, 213, 225, 0.9), 0 0 6px rgba(203, 213, 225, 0.7)' } : undefined}>
                             {isMounted ? window.location.href.replace('http://', '').replace('https://', '') : '...'}
                         </span>
-                        <button type="button" onClick={handleCopyGameLink} className={`shrink-0 p-2 glass press rounded-md p-2 hover:text-slate-200 transition-all ${copiedLink ? 'bg-green-600/40 text-green-400' : 'bg-slate-700 text-slate-400'}`} title={t('sidebar.copyGameLink')}>
+                        <button type="button" onClick={handleCopyGameLink} className={`shrink-0 p-2 glass press rounded-md p-2 hover:text-slate-200 transition-all ${copiedLink ? 'bg-green-600/40 text-green-400' : 'text-slate-400'}`} title={t('sidebar.copyGameLink')}>
                             {copiedLink ? <FaCopy /> : <FaRegCopy />}
                         </button>
                     </div>
@@ -282,10 +309,10 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                     {/* Team Controls (Only Host or enabled for everyone depending on preference, here visible if teams mode) */}
                     {props.teamMode === 'teams' && (
                         <div className="flex gap-2">
-                            <button onClick={handleRandomizeTeams} className="p-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg transition" title={t('sidebar.randomizeTeams')}>
+                            <button onClick={handleRandomizeTeams} className="glass press p-2 text-slate-300 hover:text-white rounded-lg transition" title={t('sidebar.randomizeTeams')}>
                                 <FaRandom />
                             </button>
-                            <button onClick={() => setTeamCount(Math.min(displayTeamCount + 1, darkTeamColors.length))} disabled={displayTeamCount >= darkTeamColors.length} className={`p-2 rounded-lg transition ${displayTeamCount >= darkTeamColors.length ? 'bg-slate-800 text-slate-600 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`} title={t('sidebar.addTeam')}>
+                            <button onClick={() => setTeamCount(Math.min(displayTeamCount + 1, darkTeamColors.length))} disabled={displayTeamCount >= darkTeamColors.length} className={`p-2 rounded-lg transition ${displayTeamCount >= darkTeamColors.length ? 'glass-inset text-slate-600 cursor-not-allowed' : 'btn-sheen press bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-[0_10px_20px_-8px_rgba(99,102,241,0.6),inset_0_1px_0_rgba(255,255,255,0.3)]'}`} title={t('sidebar.addTeam')}>
                                 <FaPlus />
                             </button>
                         </div>
@@ -324,14 +351,23 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                 )}
 
                 {props.isHost ? (
-                    <button
-                        type="button"
-                        onClick={props.handleStartGame}
-                        disabled={(props.categories.length === 0 && (props.categorySource === 'manual' || props.categorySource === 'ai')) || props.isGenerating}
-                        className={`w-full py-4 rounded-xl font-bold mt-8 tracking-wider ${(props.categories.length === 0 && (props.categorySource === 'manual' || props.categorySource === 'ai')) || props.isGenerating ? 'glass-inset text-slate-500 cursor-not-allowed' : 'btn-sheen press bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-[0_16px_32px_-10px_rgba(16,185,129,0.6),inset_0_1px_0_rgba(255,255,255,0.3)] focus:outline-none focus:ring-2 focus:ring-emerald-400'}`}
-                    >
-                        {props.isGenerating ? t('common.generating') : t('sidebar.startGame')}
-                    </button>
+                    (() => {
+                        const noCategories = props.categories.length === 0 && (props.categorySource === 'manual' || props.categorySource === 'ai');
+                        const startDisabled = noCategories || props.isGenerating || waitingForLanguages;
+                        return (
+                            <>
+                                <button type="button" onClick={props.handleStartGame} disabled={startDisabled} className={`w-full py-4 rounded-xl font-bold mt-8 tracking-wider ${startDisabled ? 'glass-inset text-slate-500 cursor-not-allowed' : 'btn-sheen press bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-[0_16px_32px_-10px_rgba(16,185,129,0.6),inset_0_1px_0_rgba(255,255,255,0.3)] focus:outline-none focus:ring-2 focus:ring-emerald-400'}`}>
+                                    {props.isGenerating ? t('common.generating') : t('sidebar.startGame')}
+                                </button>
+                                {waitingForLanguages && !props.isGenerating && (
+                                    <p className="mt-2 text-xs text-amber-400/90 text-center">
+                                        {t('sidebar.waitingForLanguages')}
+                                        <span className="block text-amber-300/80">{pendingLanguagePlayers.map((p) => p.name).join(', ')}</span>
+                                    </p>
+                                )}
+                            </>
+                        );
+                    })()
                 ) : (
                     <div className="glass-inset w-full text-slate-400 text-center py-4 rounded-xl font-bold mt-8">{props.isGenerating ? t('common.generating') : t('common.waitingForHost')}</div>
                 )}
@@ -343,22 +379,15 @@ export default function LobbySidebar(props: LobbySidebarProps) {
 
             {/* More Game Settings */}
             <div className="glass p-6 rounded-2xl h-fit">
-                <h2 className="text-xl font-semibold mb-6 text-slate-100 border-b border-slate-700 pb-3">{t('sidebar.moreGameSettings')}</h2>
+                <h2 className="text-xl font-semibold mb-6 text-slate-100 border-b border-white/10 pb-3">{t('sidebar.moreGameSettings')}</h2>
 
                 <div className="flex flex-col gap-5">
-                    <div>
-                        <label htmlFor="category-language" className="flex items-center gap-1.5 font-bold mb-2 text-sm text-slate-300" title={t('sidebar.categoryLanguageTooltip')}>
-                            {t('sidebar.categoryLanguage')}
-                            {langBusy && <span className="text-xs font-normal text-indigo-400">{t('common.generating')}</span>}
-                        </label>
-                        <select id="category-language" title={t('sidebar.categoryLanguage')} value={props.language} onChange={(e) => handleLanguageSelect(e.target.value as CategoryLanguage)} disabled={!props.isHost || langBusy} className="h-[42px] px-3 w-full rounded-lg bg-slate-900 border border-slate-600 text-sm text-white cursor-pointer transition-colors focus:outline-none focus:border-indigo-500 hover:border-slate-500 disabled:opacity-50">
-                            {LOCALE_CODES.map((code) => (
-                                <option key={code} value={categoryLanguageForLocale(code)}>
-                                    {LOCALES[code].label}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                    <Selection position="clean" title={t('sidebar.categoryLanguage')} value={props.language} onChange={(v) => handleLanguageSelect(v as CategoryLanguage)} disabled={!props.isHost || langBusy} options={LOCALE_CODES.map((code) => ({ label: LOCALES[code].label, value: categoryLanguageForLocale(code) }))} description={langBusy ? t('common.generating') : undefined} />
+
+                    {/* Individual translation: host flips it on; guests then pick
+                        their own display language. The host reads in the board
+                        language they set above, so they get no second selector. */}
+                    <ToggleSwitch label={t('sidebar.translateIndividually')} tooltip={t('sidebar.translateIndividuallyTooltip')} checked={props.translateCategories} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ translate_categories: checked })} />
 
                     {props.isHost && (
                         <button type="button" onClick={props.onPresetClick} className="btn-sheen press w-full py-2.5 rounded-lg font-medium bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-[0_10px_20px_-8px_rgba(99,102,241,0.6),inset_0_1px_0_rgba(255,255,255,0.3)] focus:outline-none focus:ring-2 focus:ring-indigo-400">
@@ -369,7 +398,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                     {FEATURES.hideMapSymbols && <ToggleSwitch label={t('sidebar.hideMapSymbols')} tooltip={t('sidebar.hideMapSymbolsTooltip')} checked={props.hideMapSymbols} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ hide_map_symbols: checked })} />}
                     {FEATURES.hideMiniMap && <ToggleSwitch label={t('sidebar.hideMiniMap')} tooltip={t('sidebar.hideMiniMapTooltip')} checked={props.hideMiniMap} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ hide_minimap: checked })} />}
                     {FEATURES.aiVerifyEndGame && <ToggleSwitch label={t('sidebar.aiVerifyEndGame')} tooltip={t('sidebar.aiVerifyEndGameTooltip')} checked={props.aiEndGame} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ ai_end_game: checked })} />}
-                    {!props.isHost && <p className="text-xs text-slate-500 pt-4 border-t border-slate-700/50 text-center">{t('sidebar.onlyHostCanChange')}</p>}
+                    {!props.isHost && <p className="text-xs text-slate-500 pt-4 border-t border-white/10 text-center">{t('sidebar.onlyHostCanChange')}</p>}
                 </div>
             </div>
         </div>

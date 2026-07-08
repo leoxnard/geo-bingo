@@ -52,6 +52,9 @@ export interface Player {
     name: string;
     bingo_board?: string[];
     team?: number;
+    // This player's chosen category display language (individual translation);
+    // null until they pick one. Persisted so the host can see who is ready.
+    category_locale?: string | null;
 }
 
 export interface PlayerStats {
@@ -319,6 +322,9 @@ export interface StreetViewProps {
     // Category name -> resolved hint for the active locale (preset hints), looked
     // up by name so it survives the bingo board shuffle.
     hintByCategory?: Record<string, string>;
+    // Canonical category name -> this viewer's translated label (individual
+    // translation). Empty when off; missing entries fall back to the canonical.
+    labelByCategory?: Record<string, string>;
 }
 
 export interface VotingViewProps {
@@ -334,6 +340,9 @@ export interface VotingViewProps {
     scaleVoting?: boolean;
     // Category name -> resolved hint for the active locale (preset hints).
     hintByCategory?: Record<string, string>;
+    // Canonical category name -> this viewer's translated label (individual
+    // translation). Empty when off; missing entries fall back to the canonical.
+    labelByCategory?: Record<string, string>;
 }
 
 export interface PodiumViewProps {

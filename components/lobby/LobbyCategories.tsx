@@ -126,17 +126,17 @@ const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, o
                 onDragStart={(e) => onDragStart(e, index)}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => onDrop(e, index)}
-                className={`relative flex flex-col rounded-lg border text-center min-h-[80px] overflow-hidden transition-all focus-within:border-indigo-500 focus-within:bg-slate-700
-                    ${currentValue ? 'bg-slate-700 border-slate-600 cursor-grab active:cursor-grabbing hover:bg-slate-600' : 'bg-slate-800/50 border-dashed border-slate-600/50 text-slate-500'}
-                    ${draggedIndex === index ? 'opacity-50 scale-95 border-indigo-500' : ''}
+                className={`relative flex flex-col rounded-lg text-center min-h-[80px] overflow-hidden transition-all focus-within:ring-1 focus-within:ring-indigo-500
+                    ${currentValue ? 'glass cursor-grab active:cursor-grabbing hover:brightness-125' : 'glass-inset border-dashed border-white/15 text-slate-500'}
+                    ${draggedIndex === index ? 'opacity-50 scale-95 ring-1 ring-indigo-500' : ''}
                 `}
             >
                 {/* Top part */}
-                <div className="flex w-full bg-slate-900/60 border-b border-slate-600/50 shrink-0">
+                <div className="flex w-full bg-black/20 border-b border-white/10 shrink-0">
                     <button type="button" onClick={() => onRemove(index)} disabled={!currentValue} className={`flex-1 flex justify-center items-center py-1.5 text-red-400 hover:text-red-300 transition-colors ${!currentValue ? 'opacity-0 hover:bg-transparent' : ''}`} title={t('cat.remove')}>
                         <CiCircleRemove size={18} />
                     </button>
-                    <button type="button" onClick={() => onRandomize(index)} className="flex-1 flex justify-center items-center py-1.5 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 border-l border-slate-600/50 transition-colors" title={t('cat.randomizeWord')}>
+                    <button type="button" onClick={() => onRandomize(index)} className="flex-1 flex justify-center items-center py-1.5 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 border-l border-white/10 transition-colors" title={t('cat.randomizeWord')}>
                         <CiCircleQuestion size={18} />
                     </button>
                 </div>
@@ -164,7 +164,7 @@ const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, o
 
     // LIST MODE DESIGN
     return (
-        <div className={`bg-slate-900/50 rounded-lg flex justify-between items-center border shadow-sm overflow-hidden h-[42px] focus-within:border-indigo-500 transition-colors border-slate-600`}>
+        <div className={`glass-inset rounded-lg flex justify-between items-center overflow-hidden h-[42px] focus-within:ring-1 focus-within:ring-indigo-500 transition-all`}>
             <input
                 type="text"
                 value={currentValue}
@@ -180,11 +180,11 @@ const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, o
                 className="flex-1 bg-transparent text-white outline-none placeholder:text-slate-600 font-medium px-3 py-2 h-full"
             />
 
-            <div className="flex shrink-0 border-l border-slate-700 h-full">
-                <button type="button" onClick={() => onRandomize(index)} className="text-indigo-400 hover:text-indigo-300 hover:bg-slate-800 px-4 transition-colors border-r border-slate-700 flex items-center justify-center h-full" title={t('cat.randomizeWord')}>
+            <div className="flex shrink-0 border-l border-white/10 h-full">
+                <button type="button" onClick={() => onRandomize(index)} className="text-indigo-400 hover:text-indigo-300 hover:bg-white/10 px-4 transition-colors border-r border-white/10 flex items-center justify-center h-full" title={t('cat.randomizeWord')}>
                     <CiCircleQuestion size={gameMode === 'list' ? 22 : undefined} />
                 </button>
-                <button type="button" onClick={() => onRemove(index)} className="text-red-400 hover:text-red-300 hover:bg-slate-800 px-4 transition-colors flex items-center justify-center h-full" title={t('cat.remove')}>
+                <button type="button" onClick={() => onRemove(index)} className="text-red-400 hover:text-red-300 hover:bg-white/10 px-4 transition-colors flex items-center justify-center h-full" title={t('cat.remove')}>
                     <CiCircleRemove size={gameMode === 'list' ? 22 : undefined} />
                 </button>
             </div>
@@ -718,9 +718,9 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
             )}
 
             {effectiveSource === 'ai' && (
-                <div className="py-3 border-t border-slate-700">
+                <div className="py-3 border-t border-white/10">
                     <label className="flex justify-between font-bold mb-2 text-xl text-slate-300">{t('cat.customPrompt')}</label>
-                    <textarea value={customPrompt} onChange={(e) => setCustomPrompt(e.target.value)} placeholder={isHost ? t('cat.customPromptPlaceholderHost') : t('cat.customPromptPlaceholderWaiting')} className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none" rows={2} disabled={!isHost || isGenerating} />
+                    <textarea value={customPrompt} onChange={(e) => setCustomPrompt(e.target.value)} placeholder={isHost ? t('cat.customPromptPlaceholderHost') : t('cat.customPromptPlaceholderWaiting')} className="w-full px-3 py-2 glass-inset rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" rows={2} disabled={!isHost || isGenerating} />
                 </div>
             )}
 
@@ -748,7 +748,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
 
             {isGeneratedSource && isHost && (
                 <div className="flex items-center justify-center pt-3">
-                    <button onClick={handleGenerate} disabled={!isHost || isGenerating} className={`px-4 py-2 rounded-lg font-medium transition-all ${isGenerating ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-indigo-700 text-white hover:bg-indigo-800 focus:outline-none focus:ring-2 focus:ring-indigo-500'}`}>
+                    <button onClick={handleGenerate} disabled={!isHost || isGenerating} className={`px-4 py-2 rounded-lg font-medium transition-all ${isGenerating ? 'glass-inset text-slate-500 cursor-not-allowed' : 'btn-sheen press bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-[0_10px_20px_-8px_rgba(99,102,241,0.6),inset_0_1px_0_rgba(255,255,255,0.3)] focus:outline-none focus:ring-2 focus:ring-indigo-400'}`}>
                         {isGenerating ? t('common.generating') : categoriesGenerated ? t('cat.regenerate') : t('cat.generate')}
                     </button>
                 </div>
@@ -756,12 +756,12 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
 
             {(effectiveSource === 'manual' || (isGeneratedSource && categoriesGenerated)) && (
                 <>
-                    <h3 className={`text-xl font-bold mb-4 text-slate-300 flex justify-between items-center transition-all ${effectiveSource === 'manual' && showSourceSwitcher ? 'pt-4 border-t border-slate-700' : ''}`}>
+                    <h3 className={`text-xl font-bold mb-4 text-slate-300 flex justify-between items-center transition-all ${effectiveSource === 'manual' && showSourceSwitcher ? 'pt-4 border-t border-white/10' : ''}`}>
                         <span>{t('cat.title')}</span>
                         <div className="flex items-center">
-                            <span className={`text-sm font-normal ${filledCategoryCount === 0 || (gameMode === 'bingo' && filledCategoryCount < gridSize * gridSize) ? 'text-red-400' : 'text-slate-400'} bg-slate-900 px-3 py-1 rounded-full`}>{gameMode === 'bingo' ? `${Math.min(filledCategoryCount, gridSize * gridSize)} / ${gridSize * gridSize}` : t('cat.wordsCount', { count: filledCategoryCount })}</span>
+                            <span className={`text-sm font-normal ${filledCategoryCount === 0 || (gameMode === 'bingo' && filledCategoryCount < gridSize * gridSize) ? 'text-red-400' : 'text-slate-400'} glass-inset px-3 py-1 rounded-full`}>{gameMode === 'bingo' ? `${Math.min(filledCategoryCount, gridSize * gridSize)} / ${gridSize * gridSize}` : t('cat.wordsCount', { count: filledCategoryCount })}</span>
                             {isHost && (
-                                <button type="button" onClick={clearCategories} className="text-xs font-bold text-slate-400 bg-slate-800 hover:bg-slate-700 hover:text-white px-3 py-1 rounded-full ml-2 transition-colors">
+                                <button type="button" onClick={clearCategories} className="glass press text-xs font-bold text-slate-400 hover:text-white px-3 py-1 rounded-full ml-2 transition-colors">
                                     {t('cat.clear')}
                                 </button>
                             )}
@@ -770,10 +770,10 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
 
                     {isHost && (
                         <div className="grid grid-cols-2 gap-3 mb-4">
-                            <button title={t('cat.remove')} type="button" onClick={gameMode === 'bingo' ? minusOneGridSize : minusOneListCategory} disabled={gameMode === 'bingo' ? gridSize <= 2 : localCategories.length <= 0} className="flex items-center justify-center p-2 rounded-lg border border-dashed text-indigo-400 border-indigo-700 disabled:border-slate-600 disabled:text-slate-500 disabled:bg-slate-800 hover:bg-slate-700/20 transition-colors">
+                            <button title={t('cat.remove')} type="button" onClick={gameMode === 'bingo' ? minusOneGridSize : minusOneListCategory} disabled={gameMode === 'bingo' ? gridSize <= 2 : localCategories.length <= 0} className="press flex items-center justify-center p-2 rounded-lg border border-dashed text-indigo-400 border-indigo-500/50 disabled:border-white/10 disabled:text-slate-500 disabled:opacity-60 hover:bg-white/5 transition-colors">
                                 <CiCircleMinus size={24} />
                             </button>
-                            <button title={t('cat.add')} type="button" onClick={gameMode === 'bingo' ? plusOneGridSize : plusOneListCategory} disabled={gameMode === 'bingo' && gridSize >= maxGridSize} className="flex items-center justify-center p-2 rounded-lg border border-dashed text-indigo-400 border-indigo-700 disabled:border-slate-600 disabled:text-slate-500 disabled:bg-slate-800 hover:bg-slate-700/20 transition-colors">
+                            <button title={t('cat.add')} type="button" onClick={gameMode === 'bingo' ? plusOneGridSize : plusOneListCategory} disabled={gameMode === 'bingo' && gridSize >= maxGridSize} className="press flex items-center justify-center p-2 rounded-lg border border-dashed text-indigo-400 border-indigo-500/50 disabled:border-white/10 disabled:text-slate-500 disabled:opacity-60 hover:bg-white/5 transition-colors">
                                 <CiCirclePlus size={24} />
                             </button>
                         </div>
@@ -795,14 +795,14 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                                     {localCategories.map((cat, i) => (
                                         <CategoryItem key={`cat-list-${i}`} initialValue={cat} index={i} gameMode={gameMode} draggedIndex={draggedIndex} gridSize={gridSize} onSave={handleCategorySave} onRemove={removeCategoryIndex} onRandomize={randomizeSingle} onDragStart={handleDragStart} onDrop={handleDrop} />
                                     ))}
-                                    {localCategories.length === 0 && <div className="text-center text-slate-500 italic py-6 border-2 border-dashed border-slate-700 rounded-lg">{t('cat.noCategoriesHostList')}</div>}
+                                    {localCategories.length === 0 && <div className="text-center text-slate-500 italic py-6 border-2 border-dashed border-white/15 rounded-lg">{t('cat.noCategoriesHostList')}</div>}
                                 </div>
                             )}
 
                             <div className="flex flex-wrap gap-2 items-end mt-2">
                                 <div className="flex flex-1 gap-2 items-end justify-end min-w-[300px]">
                                     <Selection title={t('cat.database')} options={ENABLED_DATABASES.map((d) => ({ label: t(d.labelKey as Parameters<typeof t>[0]), value: d.key }))} value={wordSource} onChange={setWordSource} position="clean" />
-                                    <button type="button" onClick={fillUpRandom} className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 rounded-lg font-bold transition-colors whitespace-nowrap shadow-sm h-[42px]">
+                                    <button type="button" onClick={fillUpRandom} className="btn-sheen press bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-4 rounded-lg font-bold whitespace-nowrap shadow-[0_10px_20px_-8px_rgba(99,102,241,0.6),inset_0_1px_0_rgba(255,255,255,0.3)] h-[42px]">
                                         {t('cat.fillUp')}
                                     </button>
                                 </div>
@@ -819,8 +819,8 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                                     return (
                                         <div
                                             key={`view-bingo-${i}`}
-                                            className={`relative flex items-center justify-center p-2 rounded-lg border text-center min-h-[80px] [hyphens:auto] break-words transition-all
-                                            ${cat ? 'bg-slate-700 border-slate-600' : 'bg-slate-800/50 border-dashed border-slate-600/50 text-slate-500'}
+                                            className={`relative flex items-center justify-center p-2 rounded-lg text-center min-h-[80px] [hyphens:auto] break-words transition-all
+                                            ${cat ? 'glass' : 'glass-inset border-dashed border-white/15 text-slate-500'}
                                             `}
                                         >
                                             <span className={`italic w-full ${cat ? 'text-white font-medium' : 'text-slate-500'}`}>{cat || t('cat.empty')}</span>
@@ -831,17 +831,17 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                         ) : categories.length > 0 ? (
                             <ul className="mb-6 space-y-2">
                                 {categories.map((cat, i) => (
-                                    <li key={`view-list-${i}`} className="bg-slate-700 rounded-lg flex items-center border border-slate-600 italic shadow-sm overflow-hidden h-[42px]">
+                                    <li key={`view-list-${i}`} className="glass rounded-lg flex items-center italic overflow-hidden h-[42px]">
                                         <span className="break-words py-2 px-3 flex items-center text-white w-full h-full">{cat || <span className="text-slate-400">{t('cat.emptySlot')}</span>}</span>
                                     </li>
                                 ))}
                             </ul>
                         ) : (
-                            <div className="text-center text-slate-500 italic py-6 border-2 border-dashed border-slate-700 rounded-lg">{t('cat.noCategoriesPlayer')}</div>
+                            <div className="text-center text-slate-500 italic py-6 border-2 border-dashed border-white/15 rounded-lg">{t('cat.noCategoriesPlayer')}</div>
                         )}
 
                     {FEATURES.categorySuggestions && !isHost && (
-                        <div className="flex gap-2 mb-4 mt-6 pt-4 border-t border-slate-700">
+                        <div className="flex gap-2 mb-4 mt-6 pt-4 border-t border-white/10">
                             <input
                                 type="text"
                                 value={newCategory}
@@ -850,20 +850,20 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                                     if (e.key === 'Enter') handleSuggestCategory();
                                 }}
                                 placeholder={t('cat.suggestPlaceholder')}
-                                className="flex-1 p-3 rounded-lg bg-slate-900 border border-slate-600 text-white outline-none focus:border-indigo-500"
+                                className="flex-1 p-3 rounded-lg glass-inset text-white outline-none focus:ring-1 focus:ring-indigo-500"
                             />
-                            <button type="button" onClick={handleSuggestCategory} className="bg-indigo-600 hover:bg-indigo-500 px-6 rounded-lg font-bold transition-colors">
+                            <button type="button" onClick={handleSuggestCategory} className="btn-sheen press bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-6 rounded-lg font-bold shadow-[0_10px_20px_-8px_rgba(99,102,241,0.6),inset_0_1px_0_rgba(255,255,255,0.3)]">
                                 {t('cat.suggest')}
                             </button>
                         </div>
                     )}
 
                     {FEATURES.categorySuggestions && (
-                        <div className="p-4 bg-slate-800/80 rounded-xl border border-dashed border-indigo-500/50 mt-6">
+                        <div className="p-4 glass rounded-xl border-dashed border-indigo-500/40 mt-6">
                             <div className="flex items-center">
                                 <h4 className="text-xs font-bold text-indigo-400 mb-3 uppercase tracking-wider">{t('cat.suggestions')}</h4>
                                 {isHost && (
-                                    <button type="button" onClick={clearSuggestions} className="text-xs font-bold ml-auto text-slate-400 bg-slate-800 hover:bg-slate-700 hover:text-white px-3 py-1 rounded-full ml-2 transition-colors">
+                                    <button type="button" onClick={clearSuggestions} className="glass press text-xs font-bold ml-auto text-slate-400 hover:text-white px-3 py-1 rounded-full ml-2 transition-colors">
                                         {t('cat.clear')}
                                     </button>
                                 )}
@@ -873,11 +873,11 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                                     <li className="text-slate-500 italic py-2">{t('cat.noSuggestions')}</li>
                                 ) : (
                                     localSuggested.map((cat, i) => (
-                                        <li key={i} className="bg-slate-700 rounded-lg flex justify-between items-center border border-slate-600 italic shadow-sm overflow-hidden p-1 h-[42px]">
+                                        <li key={i} className="glass-inset rounded-lg flex justify-between items-center italic overflow-hidden p-1 h-[42px]">
                                             <span className="break-words py-2 px-3 flex items-center text-white">{cat}</span>
                                             {isHost && (
-                                                <div className="flex shrink-0 border-l border-slate-600">
-                                                    <button type="button" onClick={() => acceptSuggestion(cat)} className="text-green-400 hover:text-green-300 px-4 transition-colors border-r border-slate-600 flex items-center justify-center h-[42px]" title={t('cat.accept')}>
+                                                <div className="flex shrink-0 border-l border-white/10">
+                                                    <button type="button" onClick={() => acceptSuggestion(cat)} className="text-green-400 hover:text-green-300 px-4 transition-colors border-r border-white/10 flex items-center justify-center h-[42px]" title={t('cat.accept')}>
                                                         <CiCircleCheck size={30} />
                                                     </button>
                                                     <button type="button" onClick={() => rejectSuggestion(cat)} className="text-red-400 hover:text-red-300 pl-4 pr-2 transition-colors flex items-center justify-center h-[42px]" title={t('cat.reject')}>

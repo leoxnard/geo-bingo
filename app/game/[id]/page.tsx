@@ -25,7 +25,8 @@ import { shuffle } from '@/components/utils/Functions';
 import { Player } from '@/components/utils/types';
 import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
-import { categoryLanguageForLocale, CategoryLanguage, defaultCategoryLanguage, normalizeLocale, storeCategoryLanguage } from '@/lib/i18n/locales';
+import { categoryLanguageForLocale, CategoryLanguage, defaultCategoryLanguage, isLocale, Locale, normalizeLocale, storeCategoryLanguage } from '@/lib/i18n/locales';
+import { useCategoryLabels } from '@/lib/useCategoryLabels';
 
 import { getHostToken, newHostToken, clearHostToken } from '../../../lib/hostToken';
 import { adjectives, animals } from '../../../lib/names';
@@ -75,6 +76,7 @@ type GameRow = {
     categories_generated?: boolean;
     category_translations?: Record<string, string[]>;
     category_hint_translations?: Record<string, string[]>;
+    translate_categories?: boolean;
 };
 
 export default function GameRoom({ params }: { params: Promise<{ id: string }> }) {
@@ -145,6 +147,11 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [hideMiniMap, setHideMiniMap] = useState(false);
     const [aiEndGame, setAiEndGame] = useState(true);
     const [scaleVoting, setScaleVoting] = useState(false);
+    // Host toggle: let each player read the board in their own language.
+    const [translateCategories, setTranslateCategories] = useState(false);
+    // This viewer's own category display language (independent of the shared
+    // board language and of the UI locale). Persisted per device.
+    const [displayLocale, setDisplayLocale] = useState<Locale>(locale);
 
     // (Re)register this client's host capability secret with the server. Used both
     // when a player is promoted to host (a transfer DELETEs the previous secret) and
@@ -200,6 +207,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         language?: CategoryLanguage;
         difficulty?: 'default' | 'easy' | 'hard';
         categories_generated?: boolean;
+        translate_categories?: boolean;
     }) => {
         if (!isHost) return;
 
@@ -228,6 +236,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (updates.language !== undefined) setLanguage(updates.language);
         if (updates.difficulty !== undefined) setDifficulty(updates.difficulty);
         if (updates.categories_generated !== undefined) setCategoriesGenerated(updates.categories_generated);
+        if (updates.translate_categories !== undefined) setTranslateCategories(updates.translate_categories);
 
         // Background DB update: fire-and-forget without awaiting
         (async () => {
@@ -313,6 +322,40 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             updateGameModeInfo({ language: newLang });
         }
     };
+
+    // Restore this device's chosen category display language once on mount.
+    useEffect(() => {
+        const stored = localStorage.getItem('geoBingoDisplayLocale');
+        if (isLocale(stored)) setDisplayLocale(stored);
+    }, []);
+
+    // Once this player's row loads, adopt any language they already committed
+    // (the durable, cross-device source of truth).
+    useEffect(() => {
+        const mine = players.find((p) => p.id === playerId)?.category_locale;
+        if (isLocale(mine)) setDisplayLocale((cur) => (cur === mine ? cur : mine));
+    }, [players, playerId]);
+
+    // Persist the guest's pick to their row so the host can see it (and gate the
+    // start button on it). Optimistically reflect it locally right away.
+    const handleDisplayLocaleChange = useCallback(
+        (next: Locale) => {
+            setDisplayLocale(next);
+            localStorage.setItem('geoBingoDisplayLocale', next);
+            setPlayers((prev) => prev.map((p) => (p.id === playerId ? { ...p, category_locale: next } : p)));
+            void (async () => {
+                // Surface failures loudly: if this write is silently dropped (e.g. the
+                // update_player RPC hasn't been migrated to accept category_locale),
+                // the host would wait forever on a guest that looks ready locally.
+                const { data, error } = await supabase.rpc('update_player', { p_id: playerId, p_patch: { category_locale: next } });
+                if (error || (data && data.success === false)) {
+                    console.error('Failed to persist category language:', error || data?.error);
+                    toast.error(t('sidebar.languageSaveFailed'));
+                }
+            })();
+        },
+        [playerId, t],
+    );
 
     const prevLocaleRef = useRef(locale);
 
@@ -503,6 +546,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setAiEndGame(gameData.ai_end_game ?? false);
                 setExclusiveMode(gameData.exclusive_mode || false);
                 setScaleVoting(gameData.scale_voting || false);
+                setTranslateCategories(gameData.translate_categories || false);
                 setCategorySource(gameData.category_source || 'manual');
                 setGenerationRadius(gameData.generation_radius || 10);
                 setGenerationNumber(gameData.generation_number || 10);
@@ -570,7 +614,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         };
 
         const fetchPlayers = async () => {
-            const { data } = await supabase.from('players').select('id, name, bingo_board, team').eq('game_id', gameId);
+            const { data } = await supabase.from('players').select('id, name, bingo_board, team, category_locale').eq('game_id', gameId);
             if (data) {
                 setPlayers(data);
                 if (data.some((p) => p.id === currentPlayerId)) {
@@ -649,6 +693,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 if (row.ai_end_game !== undefined) setAiEndGame(row.ai_end_game);
                 if (row.exclusive_mode !== undefined) setExclusiveMode(row.exclusive_mode);
                 if (row.scale_voting !== undefined) setScaleVoting(row.scale_voting);
+                if (row.translate_categories !== undefined) setTranslateCategories(row.translate_categories);
                 if (row.category_source !== undefined) setCategorySource(row.category_source);
                 if (row.generation_radius !== undefined) setGenerationRadius(row.generation_radius);
                 if (row.generation_number !== undefined) setGenerationNumber(row.generation_number);
@@ -945,6 +990,18 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
     const hintByCategory = useMemo(() => buildHintMap(categories, categoryHintTranslations, normalizeLocale(language)), [categories, categoryHintTranslations, language]);
 
+    // Per-player category display: when the host enables individual translation,
+    // build a { canonical -> translated } label map for this viewer's chosen
+    // language. The canonical names stay the board identity; only labels change.
+    const namesToTranslate = useMemo(() => {
+        const board = players.find((p) => p.id === playerId)?.bingo_board ?? [];
+        return Array.from(new Set([...categories, ...suggestedCategories, ...board].filter((c) => c && c.trim())));
+    }, [categories, suggestedCategories, players, playerId]);
+    // The host authors and reads in the board language they picked, so they never
+    // translate — only guests get a personal display language.
+    const effectiveDisplayLocale = isHost ? normalizeLocale(language) : displayLocale;
+    const labelByCategory = useCategoryLabels(translateCategories, namesToTranslate, language, effectiveDisplayLocale, categoryTranslations, categories);
+
     const effectiveExclusiveMode = FEATURES.exclusiveCategories ? exclusiveMode : false;
     const effectiveHideMapSymbols = FEATURES.hideMapSymbols ? hideMapSymbols : false;
     const effectiveHideMiniMap = FEATURES.hideMiniMap ? hideMiniMap : false;
@@ -996,6 +1053,9 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     categoriesGenerated={categoriesGenerated}
                     notifyGameEvent={notifyGameEvent}
                     onCategoryLanguageChange={handleBoardLanguageChange}
+                    translateCategories={translateCategories}
+                    displayLocale={displayLocale}
+                    onDisplayLocaleChange={handleDisplayLocaleChange}
                 />
             );
         }
@@ -1025,13 +1085,14 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     onVoteEnd={handleVoteEndOptimistic}
                     notifyGameEvent={notifyGameEvent}
                     hintByCategory={hintByCategory}
+                    labelByCategory={labelByCategory}
                 />
             );
         }
 
         // --- VIEW 3: VOTING ---
         if (status === 'voting') {
-            return <VotingView gameId={gameId} isHost={isHost} categories={categories} playerId={playerId} players={players} teamMode={teamMode} onFinishGame={handleFinishGame} isDeveloper={apiStatus.isDeveloper} hintByCategory={hintByCategory} scaleVoting={effectiveScaleVoting} />;
+            return <VotingView gameId={gameId} isHost={isHost} categories={categories} playerId={playerId} players={players} teamMode={teamMode} onFinishGame={handleFinishGame} isDeveloper={apiStatus.isDeveloper} hintByCategory={hintByCategory} labelByCategory={labelByCategory} scaleVoting={effectiveScaleVoting} />;
         }
 
         // --- VIEW 4: PODIUM (FINISHED) ---

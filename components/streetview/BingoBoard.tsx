@@ -31,9 +31,10 @@ interface BingoBoardProps {
     handleBingoTileClick: (category: string) => void;
     jumpToLocation: (sub: Submission) => void;
     hintByCategory?: HintMap;
+    labelByCategory?: Record<string, string>;
 }
 
-export default function BingoBoard({ gridSize, myBoard, mySubmissions, otherSubmissions, exclusiveMode, allowHints, submittingCategory, inStreetView, textSizeClass, handleSubmit, handleBingoTileClick, jumpToLocation, hintByCategory = {} }: BingoBoardProps) {
+export default function BingoBoard({ gridSize, myBoard, mySubmissions, otherSubmissions, exclusiveMode, allowHints, submittingCategory, inStreetView, textSizeClass, handleSubmit, handleBingoTileClick, jumpToLocation, hintByCategory = {}, labelByCategory = {} }: BingoBoardProps) {
     const { t } = useT();
     return (
         <div className={`grid gap-2 flex-1 min-h-0 overflow-y-auto pr-1 auto-rows-fr bingo-grid-${gridSize}`}>
@@ -69,7 +70,7 @@ export default function BingoBoard({ gridSize, myBoard, mySubmissions, otherSubm
                             </div>
                         )}
 
-                        <span className={`relative z-10 ${textSizeClass} font-bold leading-tight line-clamp-3 [hyphens:auto] [word-break:break-word] mt-0 sm:mt-1 ${foundSub?.ai_verdict === false ? 'text-red-400' : foundSub ? 'drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] text-white' : isBlocked ? 'text-red-400' : 'text-white'}`}>{cat}</span>
+                        <span className={`relative z-10 ${textSizeClass} font-bold leading-tight line-clamp-3 [hyphens:auto] [word-break:break-word] mt-0 sm:mt-1 ${foundSub?.ai_verdict === false ? 'text-red-400' : foundSub ? 'drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] text-white' : isBlocked ? 'text-red-400' : 'text-white'}`}>{labelByCategory[cat] ?? cat}</span>
 
                         <div className="absolute bottom-2 w-[90%] left-[5%] h-[25%] max-h-12 hidden sm:flex flex-row justify-center gap-2 z-10">
                             {!foundSub ? (

@@ -2067,7 +2067,7 @@ DECLARE
         'category_details', 'language', 'categories_generated', 'ai_end_game',
         'ready_players', 'banned_players', 'difficulty',
         'category_translations', 'category_hint_translations', 'preset_categories',
-        'scale_voting'
+        'scale_voting', 'translate_categories'
     ];
     safe_patch jsonb;
 BEGIN
@@ -2113,6 +2113,7 @@ BEGIN
         category_hint_translations = COALESCE(safe_patch->'category_hint_translations', category_hint_translations),
         preset_categories          = COALESCE(safe_patch->'preset_categories', preset_categories),
         scale_voting          = COALESCE((safe_patch->>'scale_voting')::boolean, scale_voting),
+        translate_categories  = COALESCE((safe_patch->>'translate_categories')::boolean, translate_categories),
         ready_players         = CASE WHEN safe_patch ? 'ready_players'
                                     THEN ARRAY(SELECT jsonb_array_elements_text(safe_patch->'ready_players'))
                                     ELSE ready_players END,
@@ -2134,7 +2135,7 @@ CREATE OR REPLACE FUNCTION "public"."update_player"("p_id" "uuid", "p_patch" "js
     SET "search_path" TO 'public'
     AS $$
 DECLARE
-    allowed_keys text[] := ARRAY['name', 'score', 'bingo_board', 'team', 'path', 'game_id'];
+    allowed_keys text[] := ARRAY['name', 'score', 'bingo_board', 'team', 'path', 'game_id', 'category_locale'];
     safe_patch jsonb;
     new_game_id text;
     current_game_id text;
@@ -2162,13 +2163,10 @@ BEGIN
             RETURN jsonb_build_object('success', false, 'error', 'GAME_NOT_FOUND');
         END IF;
 
-        -- Banned players can never (re)join, even by reconnecting.
         IF p_id::text = ANY(target_banned) THEN
             RETURN jsonb_build_object('success', false, 'error', 'BANNED');
         END IF;
 
-        -- Moving INTO a different game is only allowed while it is a lobby.
-        -- (Reconnecting to the game you are already in keeps working mid-round.)
         IF new_game_id IS DISTINCT FROM current_game_id AND target_status <> 'lobby' THEN
             RETURN jsonb_build_object('success', false, 'error', 'GAME_IN_PROGRESS');
         END IF;
@@ -2180,7 +2178,8 @@ BEGIN
         bingo_board  = COALESCE(safe_patch->'bingo_board', bingo_board),
         team         = COALESCE((safe_patch->>'team')::int, team),
         path         = COALESCE(safe_patch->'path', path),
-        game_id      = COALESCE(safe_patch->>'game_id', game_id)
+        game_id      = COALESCE(safe_patch->>'game_id', game_id),
+        category_locale = COALESCE(safe_patch->>'category_locale', category_locale)
     WHERE id = p_id;
 
     IF NOT FOUND THEN
@@ -2465,7 +2464,8 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "preset_categories" "jsonb" DEFAULT '[]'::"jsonb" NOT NULL,
     "scale_voting" boolean DEFAULT false NOT NULL,
     "finished_at" timestamp with time zone,
-    "phase_started_at" timestamp with time zone
+    "phase_started_at" timestamp with time zone,
+    "translate_categories" boolean DEFAULT false NOT NULL
 );
 
 
@@ -2480,7 +2480,8 @@ CREATE TABLE IF NOT EXISTS "public"."players" (
     "bingo_board" "jsonb" DEFAULT '[]'::"jsonb",
     "team" integer DEFAULT 0,
     "path" "jsonb" DEFAULT '[]'::"jsonb",
-    "account_id" "uuid"
+    "account_id" "uuid",
+    "category_locale" "text"
 );
 
 

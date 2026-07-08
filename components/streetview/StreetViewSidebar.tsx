@@ -52,6 +52,7 @@ interface StreetViewSidebarProps {
     handleSubmit: (category: string) => void;
     jumpToLocation: (sub: Submission) => void;
     hintByCategory?: HintMap;
+    labelByCategory?: Record<string, string>;
     handleBingoTileClick: (category: string) => void;
 }
 
@@ -71,9 +72,39 @@ export default function StreetViewSidebar(props: StreetViewSidebarProps) {
             </div>
 
             {gameMode === 'list' ? (
-                <ChecklistList listLayout={props.listLayout} isPortrait={isPortrait} setGridEl={props.setGridEl} myBoard={props.myBoard} mySubmissions={props.mySubmissions} otherSubmissions={props.otherSubmissions} exclusiveMode={props.exclusiveMode} allowHints={props.allowHints} submittingCategory={props.submittingCategory} inStreetView={props.inStreetView} handleSubmit={props.handleSubmit} jumpToLocation={props.jumpToLocation} hintByCategory={props.hintByCategory} />
+                <ChecklistList
+                    listLayout={props.listLayout}
+                    isPortrait={isPortrait}
+                    setGridEl={props.setGridEl}
+                    myBoard={props.myBoard}
+                    mySubmissions={props.mySubmissions}
+                    otherSubmissions={props.otherSubmissions}
+                    exclusiveMode={props.exclusiveMode}
+                    allowHints={props.allowHints}
+                    submittingCategory={props.submittingCategory}
+                    inStreetView={props.inStreetView}
+                    handleSubmit={props.handleSubmit}
+                    jumpToLocation={props.jumpToLocation}
+                    hintByCategory={props.hintByCategory}
+                    labelByCategory={props.labelByCategory}
+                />
             ) : (
-                <BingoBoard gridSize={props.gridSize} myBoard={props.myBoard} mySubmissions={props.mySubmissions} otherSubmissions={props.otherSubmissions} exclusiveMode={props.exclusiveMode} allowHints={props.allowHints} submittingCategory={props.submittingCategory} inStreetView={props.inStreetView} textSizeClass={props.textSizeClass} handleSubmit={props.handleSubmit} handleBingoTileClick={props.handleBingoTileClick} jumpToLocation={props.jumpToLocation} hintByCategory={props.hintByCategory} />
+                <BingoBoard
+                    gridSize={props.gridSize}
+                    myBoard={props.myBoard}
+                    mySubmissions={props.mySubmissions}
+                    otherSubmissions={props.otherSubmissions}
+                    exclusiveMode={props.exclusiveMode}
+                    allowHints={props.allowHints}
+                    submittingCategory={props.submittingCategory}
+                    inStreetView={props.inStreetView}
+                    textSizeClass={props.textSizeClass}
+                    handleSubmit={props.handleSubmit}
+                    handleBingoTileClick={props.handleBingoTileClick}
+                    jumpToLocation={props.jumpToLocation}
+                    hintByCategory={props.hintByCategory}
+                    labelByCategory={props.labelByCategory}
+                />
             )}
         </div>
     );

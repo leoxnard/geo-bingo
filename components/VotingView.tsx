@@ -106,7 +106,7 @@ const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => 
     return Math.sqrt(Math.pow(lat1 - lat2, 2) + Math.pow(dLng, 2));
 };
 
-export function VotingView({ gameId, isHost, playerId, players, teamMode, onFinishGame, isDeveloper = false, hintByCategory = {}, scaleVoting = false }: VotingViewProps) {
+export function VotingView({ gameId, isHost, playerId, players, teamMode, onFinishGame, isDeveloper = false, hintByCategory = {}, labelByCategory = {}, scaleVoting = false }: VotingViewProps) {
     const { t } = useT();
     const { isNarrow } = useViewport();
     const isNarrowRef = useRef(isNarrow);
@@ -697,8 +697,11 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     }, [categoryDetails]);
 
     const labelForCategory = (name: string) => {
+        // Translate the display label (individual translation) but key the dev
+        // score off the canonical name, which is what categoryDetails stores.
+        const label = labelByCategory[name] ?? name;
         const score = categoryScoreMap.get((name || '').toLowerCase());
-        return isDeveloper && typeof score === 'number' ? `${name} (${score})` : name;
+        return isDeveloper && typeof score === 'number' ? `${label} (${score})` : label;
     };
 
     const groupedFinalPlaces = useMemo(() => {
@@ -1232,7 +1235,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                             <VotingPanel displaySub={displaySub} activeSubLatest={activeSubLatest} votingStats={votingStats} yesVotes={yesVotes} noVotes={noVotes} hypeVotes={hypeVotes} hasHyped={hasHypedActive} players={players} playerId={playerId} teamMode={teamMode} scaleVoting={scaleVoting} onVote={handleVote} onHype={handleHype} onScaleVote={handleScaleVote} />
                         ) : selectedSubmission ? (
                             <div className="max-w-xl mx-auto">
-                                <h3 className="text-xl sm:text-2xl font-black text-white mb-1 text-center truncate">{selectedSubmission.category}</h3>
+                                <h3 className="text-xl sm:text-2xl font-black text-white mb-1 text-center truncate">{labelForCategory(selectedSubmission.category)}</h3>
                                 <p className="text-sm text-indigo-300 mb-4 text-center uppercase tracking-widest font-semibold">{t('voting.submissionBy', { player: players.find((p) => p.id === selectedSubmission.player_id)?.name ?? '' })}</p>
                                 <div className="mb-4 text-center">
                                     <div className="text-sm text-slate-400 mb-2">{t('voting.votingResults')}</div>
@@ -1263,7 +1266,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                             </div>
                         ) : selectedFinalMarker ? (
                             <div className="max-w-xl mx-auto">
-                                <h3 className="text-xl sm:text-2xl font-black text-white mb-1 text-center truncate">{selectedFinalMarker.categoryNames.join(' • ')}</h3>
+                                <h3 className="text-xl sm:text-2xl font-black text-white mb-1 text-center truncate">{selectedFinalMarker.categoryNames.map(labelForCategory).join(' • ')}</h3>
                                 <p className="text-sm text-indigo-300 mb-4 text-center uppercase tracking-widest font-semibold">{t('voting.targetLocation')}</p>
                                 <button
                                     onClick={() => {

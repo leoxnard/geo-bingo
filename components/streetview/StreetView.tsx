@@ -36,7 +36,7 @@ import { isSubmissionRow } from '../utils/typeGuards';
 import { Submission, StreetViewProps, BoundaryPolygon } from '../utils/types';
 import { useViewport } from '../utils/useViewport';
 
-export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list', teamMode = 'ffa', gridSize = 3, startingPoint = 'open-world', gameBoundary = '[]', endCondition = 'timer', timeLeft, readyPlayers, players, hideMapSymbols = false, hideMiniMap = false, exclusiveMode = false, allowHints = true, aiEndGame = true, onVoteEnd, notifyGameEvent, hintByCategory = {} }: StreetViewProps) {
+export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list', teamMode = 'ffa', gridSize = 3, startingPoint = 'open-world', gameBoundary = '[]', endCondition = 'timer', timeLeft, readyPlayers, players, hideMapSymbols = false, hideMiniMap = false, exclusiveMode = false, allowHints = true, aiEndGame = true, onVoteEnd, notifyGameEvent, hintByCategory = {}, labelByCategory = {} }: StreetViewProps) {
     const { t } = useT();
     const { settings } = useSettings();
     // Latest master volume, read inside the timer-sound effect without making it
@@ -792,6 +792,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                             textSizeClass={sidebarTextSizeClass}
                             handleSubmit={handleSubmit}
                             hintByCategory={hintByCategory}
+                            labelByCategory={labelByCategory}
                         />
 
                         {/* Right: Checklist */}
@@ -826,6 +827,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                             jumpToLocation={jumpToLocation}
                             handleBingoTileClick={handleBingoTileClick}
                             hintByCategory={hintByCategory}
+                            labelByCategory={labelByCategory}
                         />
                     </div>
                 )}

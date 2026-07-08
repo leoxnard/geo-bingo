@@ -32,9 +32,10 @@ interface ChecklistListProps {
     handleSubmit: (category: string) => void;
     jumpToLocation: (sub: Submission) => void;
     hintByCategory?: HintMap;
+    labelByCategory?: Record<string, string>;
 }
 
-export default function ChecklistList({ listLayout, isPortrait, setGridEl, myBoard, mySubmissions, otherSubmissions, exclusiveMode, allowHints, submittingCategory, inStreetView, handleSubmit, jumpToLocation, hintByCategory = {} }: ChecklistListProps) {
+export default function ChecklistList({ listLayout, isPortrait, setGridEl, myBoard, mySubmissions, otherSubmissions, exclusiveMode, allowHints, submittingCategory, inStreetView, handleSubmit, jumpToLocation, hintByCategory = {}, labelByCategory = {} }: ChecklistListProps) {
     const { t } = useT();
     return (
         <div ref={setGridEl} className="flex flex-1 min-h-0 flex-col overflow-hidden">
@@ -56,7 +57,7 @@ export default function ChecklistList({ listLayout, isPortrait, setGridEl, myBoa
 
                                 <div className="relative z-10 flex items-center justify-between w-full h-full gap-1.5 min-w-0">
                                     <div className="flex items-center flex-1 min-w-0 gap-1 h-full">
-                                        <span className={`text-xs leading-tight truncate font-medium px-1 ${foundSub ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400' : 'text-white'}`}>{cat}</span>
+                                        <span className={`text-xs leading-tight truncate font-medium px-1 ${foundSub ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400' : 'text-white'}`}>{labelByCategory[cat] ?? cat}</span>
                                         {hint && (
                                             <div className="relative group flex-shrink-0 cursor-help" onClick={(e) => e.stopPropagation()}>
                                                 <FaInfoCircle className={`transition-colors ${foundSub ? 'text-white/70 hover:text-white' : 'text-slate-400 hover:text-white'}`} size={12} />
@@ -133,7 +134,7 @@ export default function ChecklistList({ listLayout, isPortrait, setGridEl, myBoa
                                 <div className="relative z-10 flex flex-col w-full">
                                     <div className="flex justify-between items-start w-full gap-1">
                                         <div className="flex items-center flex-1 min-w-0">
-                                            <span className={`text-sm truncate font-medium pb-1 ${getAiVerdictState(foundSub) === 'rejected' ? 'text-red-400' : foundSub ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400' : 'text-white'}`}>{cat}</span>
+                                            <span className={`text-sm truncate font-medium pb-1 ${getAiVerdictState(foundSub) === 'rejected' ? 'text-red-400' : foundSub ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : isBlocked ? 'text-red-400' : 'text-white'}`}>{labelByCategory[cat] ?? cat}</span>
                                             {hint && (
                                                 <div className="ml-1.5 relative group flex-shrink-0 cursor-help" onClick={(e) => e.stopPropagation()}>
                                                     <FaInfoCircle className={`transition-colors ${foundSub ? 'text-white/70 hover:text-white' : 'text-slate-400 hover:text-white'}`} size={12} />
