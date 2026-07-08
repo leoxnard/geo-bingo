@@ -73,7 +73,7 @@ interface ExitButtonProps {
 export const ExitButton = ({ onExit, style }: ExitButtonProps) => {
     const { t } = useT();
     return (
-        <button type="button" onClick={onExit} style={style} className="hidden sm:flex w-12 h-12 bg-gradient-to-br from-rose-500/80 to-red-600/75 border border-white/25 shadow-[0_16px_32px_-12px_rgba(244,63,94,0.55),inset_0_1px_0_rgba(255,255,255,0.3)] hover:brightness-125 text-white items-center justify-center rounded-md font-bold transition-transform hover:scale-105 active:scale-95" title={t('elements.exitStreetView')}>
+        <button type="button" onClick={onExit} style={style} className="flex w-12 h-12 bg-gradient-to-br from-rose-500/80 to-red-600/75 border border-white/25 shadow-[0_16px_32px_-12px_rgba(244,63,94,0.55),inset_0_1px_0_rgba(255,255,255,0.3)] hover:brightness-125 text-white items-center justify-center rounded-md font-bold transition-transform hover:scale-105 active:scale-95" title={t('elements.exitStreetView')}>
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
                 <line x1="6" y1="6" x2="18" y2="18"></line>
