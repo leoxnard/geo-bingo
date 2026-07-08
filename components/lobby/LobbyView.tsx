@@ -26,7 +26,7 @@ import LobbyCommunityPresets from './LobbyCommunityPresets';
 import LobbyMap from './LobbyMap';
 import LobbySettings from './LobbySettings';
 import LobbySidebar from './LobbySidebar';
-import { getHostToken } from '../../lib/hostToken';
+import { shuffle } from '../utils/Functions';
 import GlassAmbience from '../utils/GlassAmbience';
 import { GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from '../utils/mapUtils';
 import type { CommunityPreset } from '../utils/types';
@@ -181,7 +181,7 @@ export default function LobbyView(props: LobbyViewProps) {
         const neededCount = props.gameMode === 'bingo' ? props.gridSize * props.gridSize : props.generationNumber;
 
         const seenCategories = new Set<string>();
-        const finalCategories = props.categories
+        let finalCategories = props.categories
             .map((cat) => cat.trim())
             .filter((cat) => {
                 if (cat === '') return false;
@@ -190,15 +190,26 @@ export default function LobbyView(props: LobbyViewProps) {
                 seenCategories.add(key);
                 return true;
             });
-        if (finalCategories.length === 0) {
-            toast.error('Please add at least one valid category before starting the game.');
-            return;
+
+        // No categories set — auto-fill from the balanced dataset (in the board
+        // language) up to the number of needed spots and start straight away.
+        if (finalCategories.length === 0 && neededCount > 0) {
+            const { categoriesBalanced } = await import('../../lib/categories');
+            const pool = shuffle(categoriesBalanced[props.language] ?? categoriesBalanced.english);
+            finalCategories = pool.slice(0, neededCount);
         }
 
         if (props.gameMode === 'bingo' && finalCategories.length < neededCount) {
             toast.error(`You need at least ${neededCount} categories to start a Bingo game with a grid size of ${props.gridSize}. Please add more categories or reduce the grid size.`);
             return;
         }
+
+        // Persist the resolved categories to the game (optimistic local update +
+        // host-only DB write). This keeps the host's local `categories` state in
+        // sync so the playing view renders immediately — the auto-filled list is
+        // never round-tripped through Realtime before we flip to `playing` — and
+        // lets late joiners generate their board from `games.categories`.
+        props.updateGameModeInfo({ categories: finalCategories });
 
         // Bingo Board Generation Logic
         if (props.gameMode === 'bingo') {
@@ -208,18 +219,12 @@ export default function LobbyView(props: LobbyViewProps) {
                 const results = await Promise.all(props.players.map((p) => props.supabase.rpc('update_player', { p_id: p.id, p_patch: { bingo_board: board } })));
                 const failure = results.find((r) => r.error);
                 if (failure?.error) throw failure.error;
+                // Reflect the freshly-assigned board in local state so the host's
+                // board renders at once instead of empty tiles until Realtime lands.
+                props.setPlayers((prev) => prev.map((p) => ({ ...p, bingo_board: board })));
             } catch (err) {
                 const errorMessage = err instanceof Error ? err.message : 'Unknown database error';
                 toast.error(`Board Generation Failed: ${errorMessage}`);
-                return;
-            }
-        } else {
-            try {
-                const { error } = await props.supabase.rpc('update_game_settings', { p_game_id: props.gameId, p_host_id: getHostToken(props.gameId), p_patch: { categories: finalCategories } });
-                if (error) throw error;
-            } catch (err) {
-                const errorMessage = err instanceof Error ? err.message : 'Unknown database error';
-                toast.error(`Failed to update categories: ${errorMessage}`);
                 return;
             }
         }
