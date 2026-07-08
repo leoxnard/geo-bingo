@@ -258,13 +258,9 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                 sits up top with an accent until chosen. */}
             {props.translateCategories && !props.isHost && (
                 <div className={`p-5 rounded-2xl h-fit transition-all ${iHaveSetLanguage ? 'glass' : 'glass border border-indigo-400/50 shadow-[0_0_34px_-8px_rgba(99,102,241,0.65)]'}`}>
-                    <h2 className="flex items-center gap-2 text-lg font-bold text-slate-100 mb-1">
-                        <span aria-hidden>🌐</span>
-                        {iHaveSetLanguage ? t('sidebar.myCategoryLanguage') : t('sidebar.chooseLanguagePrompt')}
-                    </h2>
+                    <h2 className="flex items-center gap-2 text-lg font-bold text-slate-100 mb-1">{iHaveSetLanguage ? t('sidebar.myCategoryLanguage') : t('sidebar.chooseLanguagePrompt')}</h2>
                     <p className="text-xs text-slate-400 mb-4">{t('sidebar.chooseLanguageHint')}</p>
-                    <Selection position="clean" title={t('sidebar.myCategoryLanguage')} value={iHaveSetLanguage ? props.displayLocale : '__none__'} onChange={(v) => v !== '__none__' && props.onDisplayLocaleChange(v as Locale)} options={[...(iHaveSetLanguage ? [] : [{ label: t('sidebar.selectLanguagePlaceholder'), value: '__none__' }]), ...LOCALE_CODES.map((code) => ({ label: LOCALES[code].label, value: code }))]} />
-                    {iHaveSetLanguage && <p className="mt-3 text-xs font-medium text-emerald-400">✓ {t('sidebar.languageChosen')}</p>}
+                    <Selection position="clean" stacked title={t('sidebar.myCategoryLanguage')} value={iHaveSetLanguage ? props.displayLocale : '__none__'} onChange={(v) => v !== '__none__' && props.onDisplayLocaleChange(v as Locale)} options={[...(iHaveSetLanguage ? [] : [{ label: t('sidebar.selectLanguagePlaceholder'), value: '__none__' }]), ...LOCALE_CODES.map((code) => ({ label: LOCALES[code].label, value: code }))]} />
                 </div>
             )}
 
@@ -382,19 +378,13 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                 <h2 className="text-xl font-semibold mb-6 text-slate-100 border-b border-white/10 pb-3">{t('sidebar.moreGameSettings')}</h2>
 
                 <div className="flex flex-col gap-5">
-                    <Selection position="clean" title={t('sidebar.categoryLanguage')} value={props.language} onChange={(v) => handleLanguageSelect(v as CategoryLanguage)} disabled={!props.isHost || langBusy} options={LOCALE_CODES.map((code) => ({ label: LOCALES[code].label, value: categoryLanguageForLocale(code) }))} description={langBusy ? t('common.generating') : undefined} />
-
-                    {/* Individual translation: host flips it on; guests then pick
-                        their own display language. The host reads in the board
-                        language they set above, so they get no second selector. */}
-                    <ToggleSwitch label={t('sidebar.translateIndividually')} tooltip={t('sidebar.translateIndividuallyTooltip')} checked={props.translateCategories} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ translate_categories: checked })} />
-
                     {props.isHost && (
                         <button type="button" onClick={props.onPresetClick} className="btn-sheen press w-full py-2.5 rounded-lg font-medium bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-[0_10px_20px_-8px_rgba(99,102,241,0.6),inset_0_1px_0_rgba(255,255,255,0.3)] focus:outline-none focus:ring-2 focus:ring-indigo-400">
                             {t('community.browseTitle')}
                         </button>
                     )}
-
+                    <Selection position="clean" stacked title={t('sidebar.categoryLanguage')} value={props.language} onChange={(v) => handleLanguageSelect(v as CategoryLanguage)} disabled={!props.isHost || langBusy} options={LOCALE_CODES.map((code) => ({ label: LOCALES[code].label, value: categoryLanguageForLocale(code) }))} description={langBusy ? t('common.generating') : undefined} />
+                    <ToggleSwitch label={t('sidebar.translateIndividually')} tooltip={t('sidebar.translateIndividuallyTooltip')} checked={props.translateCategories} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ translate_categories: checked })} />
                     {FEATURES.hideMapSymbols && <ToggleSwitch label={t('sidebar.hideMapSymbols')} tooltip={t('sidebar.hideMapSymbolsTooltip')} checked={props.hideMapSymbols} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ hide_map_symbols: checked })} />}
                     {FEATURES.hideMiniMap && <ToggleSwitch label={t('sidebar.hideMiniMap')} tooltip={t('sidebar.hideMiniMapTooltip')} checked={props.hideMiniMap} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ hide_minimap: checked })} />}
                     {FEATURES.aiVerifyEndGame && <ToggleSwitch label={t('sidebar.aiVerifyEndGame')} tooltip={t('sidebar.aiVerifyEndGameTooltip')} checked={props.aiEndGame} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ ai_end_game: checked })} />}

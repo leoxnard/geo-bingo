@@ -91,7 +91,6 @@ export const zh: Messages = {
     'sidebar.chooseLanguagePrompt': '选择你的语言',
     'sidebar.chooseLanguageHint': '你将以该语言查看类别。所有人选择后房主才能开始。',
     'sidebar.selectLanguagePlaceholder': '选择语言…',
-    'sidebar.languageChosen': '语言已设置——你已准备就绪。',
     'sidebar.waitingForLanguages': '正在等待所有玩家选择各自的类别语言…',
     'sidebar.languageSaveFailed': '无法保存你的语言，请重试。',
     'sidebar.hideMapSymbols': '隐藏地图标记（POI）',

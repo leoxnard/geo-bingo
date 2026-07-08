@@ -91,7 +91,6 @@ export const fr: Messages = {
     'sidebar.chooseLanguagePrompt': 'Choisis ta langue',
     'sidebar.chooseLanguageHint': 'Tu liras les catégories dans cette langue. L’hôte ne peut démarrer qu’une fois que tout le monde a choisi.',
     'sidebar.selectLanguagePlaceholder': 'Choisir une langue…',
-    'sidebar.languageChosen': 'Langue définie — tu es prêt.',
     'sidebar.waitingForLanguages': 'En attente que tous les joueurs choisissent leur langue de catégories…',
     'sidebar.languageSaveFailed': 'Impossible d’enregistrer ta langue. Réessaie.',
     'sidebar.hideMapSymbols': 'Masquer les symboles de la carte (POI)',

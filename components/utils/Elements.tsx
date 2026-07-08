@@ -46,12 +46,7 @@ interface FullscreenButtonProps {
 export const FullscreenButton = ({ isFullscreen, containerRef, setIsFullscreen }: FullscreenButtonProps) => {
     const { t } = useT();
     return (
-        <button
-            type="button"
-            onClick={() => toggleFullscreen(containerRef, setIsFullscreen)}
-            className="bg-[linear-gradient(160deg,rgba(15,23,42,0.5)_0%,rgba(15,23,42,0.4)_55%,rgba(30,27,75,0.38)_100%)] border border-white/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.19),0_20px_40px_-14px_rgba(2,6,23,0.55)] absolute top-2 right-2 z-5 hidden sm:flex w-12 h-12 hover:brightness-125 text-white items-center justify-center rounded-md font-bold transition-transform hover:scale-105 active:scale-95"
-            title={isFullscreen ? t('elements.exitFullscreen') : t('elements.enterFullscreen')}
-        >
+        <button type="button" onClick={() => toggleFullscreen(containerRef, setIsFullscreen)} className="glass-dark absolute top-2 right-2 z-5 hidden sm:flex w-12 h-12 hover:brightness-125 text-white items-center justify-center rounded-md font-bold transition-transform hover:scale-105 active:scale-95" title={isFullscreen ? t('elements.exitFullscreen') : t('elements.enterFullscreen')}>
             {isFullscreen ? (
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
@@ -364,7 +359,7 @@ export const RangeSlider = ({ classname, title, min, max, minLabel = String(min)
 // with position:fixed — a parent panel's stacking context (transform/animation
 // from the glass design) would otherwise trap any z-index and let later
 // sibling panels paint over it. Opaque background, stable scrollbar gutter.
-export const Selection = ({ classname, title, options, value, onChange, disabled, position = 'middle', description }: { classname?: string; title: string; options: { label: string; value: string }[]; value: string; onChange: (val: string) => void; disabled?: boolean; position?: 'top' | 'middle' | 'bottom' | 'clean'; description?: string }) => {
+export const Selection = ({ classname, title, options, value, onChange, disabled, position = 'middle', description, stacked = false }: { classname?: string; title: string; options: { label: string; value: string }[]; value: string; onChange: (val: string) => void; disabled?: boolean; position?: 'top' | 'middle' | 'bottom' | 'clean'; description?: string; stacked?: boolean }) => {
     const [open, setOpen] = useState(false);
     const [menuRect, setMenuRect] = useState<{ left: number; top: number; width: number } | null>(null);
     const triggerRef = useRef<HTMLButtonElement>(null);
@@ -415,10 +410,10 @@ export const Selection = ({ classname, title, options, value, onChange, disabled
         ${position === 'bottom' ? 'pt-3 border-t border-white/10' : ''}
         ${classname}`}
         >
-            <div className="flex items-center justify-between gap-4">
-                <label className="text-sm text-slate-300 flex-shrink-0">{title}</label>
+            <div className={stacked ? 'flex flex-col gap-2' : 'flex items-center justify-between gap-4'}>
+                <label className={`text-sm text-slate-300 ${stacked ? '' : 'flex-shrink-0'}`}>{title}</label>
 
-                <div className="relative w-full max-w-[200px] sm:max-w-[250px]" onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
+                <div className={`relative w-full ${stacked ? '' : 'max-w-[200px] sm:max-w-[250px]'}`} onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
                     <button
                         ref={triggerRef}
                         type="button"

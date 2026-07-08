@@ -92,7 +92,6 @@ export const en = {
     'sidebar.chooseLanguagePrompt': 'Choose your language',
     'sidebar.chooseLanguageHint': "You'll read the categories in this language. The host can only start once everyone has chosen.",
     'sidebar.selectLanguagePlaceholder': 'Select a language…',
-    'sidebar.languageChosen': "Language set — you're ready.",
     'sidebar.waitingForLanguages': 'Waiting for all players to choose their category language…',
     'sidebar.languageSaveFailed': 'Could not save your language. Please try again.',
     'sidebar.hideMapSymbols': 'Hide Map Symbols (POIs)',

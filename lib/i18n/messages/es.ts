@@ -91,7 +91,6 @@ export const es: Messages = {
     'sidebar.chooseLanguagePrompt': 'Elige tu idioma',
     'sidebar.chooseLanguageHint': 'Verás las categorías en este idioma. El anfitrión solo puede empezar cuando todos hayan elegido.',
     'sidebar.selectLanguagePlaceholder': 'Selecciona un idioma…',
-    'sidebar.languageChosen': 'Idioma establecido: estás listo.',
     'sidebar.waitingForLanguages': 'Esperando a que todos los jugadores elijan su idioma de categorías…',
     'sidebar.languageSaveFailed': 'No se pudo guardar tu idioma. Inténtalo de nuevo.',
     'sidebar.hideMapSymbols': 'Ocultar símbolos del mapa (POI)',
