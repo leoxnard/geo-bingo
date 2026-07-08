@@ -26,6 +26,7 @@ import { FaArrowLeft, FaCaretDown, FaCaretRight, FaExclamationTriangle, FaInfoCi
 import LobbyMap from '@/components/lobby/LobbyMap';
 import { getStreetViewImageUrl } from '@/components/streetview/streetViewHelpers';
 import { RangeSlider } from '@/components/utils/Elements';
+import GlassAmbience from '@/components/utils/GlassAmbience';
 import { countDrawnBoundaries, GOOGLE_MAPS_LIBRARIES } from '@/components/utils/mapUtils';
 import type { BoundaryPolygon, CommunityCategory, PresetSeed, PresetSettings } from '@/components/utils/types';
 import { createPreset, getPreset, updatePreset } from '@/lib/community';
@@ -221,7 +222,7 @@ export default function CommunityBuilder() {
                     <img src={getStreetViewImageUrl(viewpoint, 120)} alt="" className="w-full h-full object-cover" />
                 </button>
             ) : (
-                <div className="w-14 h-14 rounded-lg shrink-0 bg-slate-900 border border-dashed border-amber-700/50 flex items-center justify-center text-center text-[9px] font-bold uppercase text-amber-400 px-1">{t('community.needsSpot')}</div>
+                <div className="w-14 h-14 rounded-lg shrink-0 glass-inset border border-dashed border-amber-500/40 flex items-center justify-center text-center text-[9px] font-bold uppercase text-amber-400 px-1">{t('community.needsSpot')}</div>
             )}
             <div className="flex-1 min-w-0 flex flex-col gap-1.5">
                 <div className="flex items-center gap-2">
@@ -254,11 +255,11 @@ export default function CommunityBuilder() {
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                     {(submissionsByCategory[name]?.length ?? 0) > 0 && (
-                        <button type="button" onClick={() => setPickerCategory(name)} className="text-[11px] font-bold uppercase px-2 py-1 rounded-md bg-slate-700 hover:bg-slate-600 text-slate-200">
+                        <button type="button" onClick={() => setPickerCategory(name)} className="glass press text-[11px] font-bold uppercase px-2 py-1 rounded-md text-slate-200 hover:text-white">
                             {t('community.fromGame')}
                         </button>
                     )}
-                    <button type="button" onClick={() => takeSnapshot(name)} className="text-[11px] font-bold uppercase px-2 py-1 rounded-md bg-slate-700 hover:bg-slate-600 text-slate-200">
+                    <button type="button" onClick={() => takeSnapshot(name)} className="glass press text-[11px] font-bold uppercase px-2 py-1 rounded-md text-slate-200 hover:text-white">
                         {t('community.replaceLocation')}
                     </button>
                 </div>
@@ -349,7 +350,8 @@ export default function CommunityBuilder() {
     const stepTitles = [t('community.step1Title'), t('community.step2Title'), t('community.step3Title')]; // step3Title = Publish (step 2 in 0-indexed)
 
     return (
-        <main className="h-dvh flex flex-col bg-slate-950 text-white">
+        <main className="relative h-dvh flex flex-col overflow-hidden bg-slate-950 text-white">
+            <GlassAmbience drifters={false} />
             {/* Header / stepper */}
             <header className="flex items-center gap-3 py-3 pl-4 pr-16 border-b border-white/10 shrink-0">
                 <button type="button" onClick={() => (step === 0 ? router.push('/community') : setStep((s) => s - 1))} className="text-slate-400 hover:text-white p-1" aria-label={t('community.back')}>
@@ -361,7 +363,7 @@ export default function CommunityBuilder() {
                 </div>
                 <div className="hidden sm:flex gap-1.5">
                     {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
-                        <span key={i} className={`h-2 w-2 rounded-full ${i <= step ? 'bg-indigo-500' : 'bg-slate-700'}`} />
+                        <span key={i} className={`h-2 w-2 rounded-full ${i <= step ? 'bg-indigo-500' : 'bg-white/15'}`} />
                     ))}
                 </div>
                 <OptionsButton />
@@ -561,7 +563,7 @@ export default function CommunityBuilder() {
                         </div>
                         <p className="text-sm text-slate-300">{t('community.startWarnBody')}</p>
                         <div className="flex gap-2 justify-end">
-                            <button type="button" onClick={() => setPendingStart(null)} className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold uppercase text-sm">
+                            <button type="button" onClick={() => setPendingStart(null)} className="px-4 py-2 rounded-xl glass press text-white font-bold uppercase text-sm">
                                 {t('common.cancel')}
                             </button>
                             <button type="button" onClick={acknowledgeStart} className="px-4 py-2 rounded-xl btn-sheen press bg-gradient-to-r from-indigo-500 to-violet-500 text-white font-bold uppercase text-sm">
@@ -586,7 +588,7 @@ export default function CommunityBuilder() {
                                     setRenaming(null);
                                     setRenameHintValue('');
                                 }}
-                                className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold uppercase text-sm"
+                                className="px-4 py-2 rounded-xl glass press text-white font-bold uppercase text-sm"
                             >
                                 {t('common.cancel')}
                             </button>
@@ -610,7 +612,7 @@ export default function CommunityBuilder() {
                                 </button>
                             ))}
                         </div>
-                        <button type="button" onClick={() => setPickerCategory(null)} className="self-end px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold uppercase text-sm">
+                        <button type="button" onClick={() => setPickerCategory(null)} className="self-end px-4 py-2 rounded-xl glass press text-white font-bold uppercase text-sm">
                             {t('common.cancel')}
                         </button>
                     </div>
