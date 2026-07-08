@@ -162,9 +162,20 @@ const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, o
         );
     }
 
-    // LIST MODE DESIGN
+    // LIST MODE DESIGN — mirror the bingo card treatment: a raised edge-lit glass
+    // card when filled, a recessed dashed well when empty, with drag + press
+    // feedback, kept in a compact horizontal row.
     return (
-        <div className={`glass-inset rounded-lg flex justify-between items-center overflow-hidden h-[42px] focus-within:ring-1 focus-within:ring-indigo-500 transition-all`}>
+        <div
+            draggable
+            onDragStart={(e) => onDragStart(e, index)}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => onDrop(e, index)}
+            className={`relative flex justify-between items-center rounded-lg overflow-hidden h-[42px] transition-all focus-within:ring-1 focus-within:ring-indigo-500
+                ${currentValue ? 'glass cursor-grab active:cursor-grabbing hover:brightness-125' : 'glass-inset border-dashed border-white/15'}
+                ${draggedIndex === index ? 'opacity-50 scale-95 ring-1 ring-indigo-500' : ''}
+            `}
+        >
             <input
                 type="text"
                 value={currentValue}
@@ -177,10 +188,10 @@ const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, o
                     if (e.key === 'Enter') e.currentTarget.blur();
                 }}
                 placeholder={t('cat.emptyCategoryInput')}
-                className="flex-1 bg-transparent text-white outline-none placeholder:text-slate-600 font-medium px-3 py-2 h-full"
+                className="flex-1 bg-transparent text-white outline-none placeholder:text-slate-500/50 italic font-medium px-3 py-2 h-full"
             />
 
-            <div className="flex shrink-0 border-l border-white/10 h-full">
+            <div className="flex shrink-0 border-l border-white/10 h-full bg-black/20">
                 <button type="button" onClick={() => onRandomize(index)} className="text-indigo-400 hover:text-indigo-300 hover:bg-white/10 px-4 transition-colors border-r border-white/10 flex items-center justify-center h-full" title={t('cat.randomizeWord')}>
                     <CiCircleQuestion size={gameMode === 'list' ? 22 : undefined} />
                 </button>
