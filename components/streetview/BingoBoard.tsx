@@ -38,7 +38,7 @@ export default function BingoBoard({ gridSize, myBoard, mySubmissions, otherSubm
     const { t } = useT();
     return (
         <div className={`grid gap-2 flex-1 min-h-0 overflow-y-auto pr-1 auto-rows-fr bingo-grid-${gridSize}`}>
-            {myBoard.map((cat) => {
+            {myBoard.map((cat, i) => {
                 const foundSub = mySubmissions.find((s) => s.category === cat);
                 const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some((s) => s.category === cat);
                 const hint = allowHints ? resolveHint(cat, hintByCategory) : null;
@@ -46,7 +46,7 @@ export default function BingoBoard({ gridSize, myBoard, mySubmissions, otherSubm
 
                 return (
                     <div
-                        key={cat}
+                        key={`${i}-${cat}`}
                         title={isBlocked ? t('sv.claimedByTeam') : foundSub?.ai_verdict === false ? t('sv.aiCouldNotVerify') : foundSub?.ai_verdict === true ? `${t('sv.aiVerified')} ✓` : undefined}
                         onClick={() => handleBingoTileClick(cat)}
                         className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-center items-center text-center pb-2 sm:pb-12 ${foundSub ? 'text-white border-white/25 shadow-md' : isBlocked ? 'glass-inset !border-red-500 opacity-60' : 'glass hover:brightness-125'} ${foundSub?.ai_verdict === false ? '!border-red-500' : foundSub?.ai_verdict === true ? '!border-green-500' : ''}`}

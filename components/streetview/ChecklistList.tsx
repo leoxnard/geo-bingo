@@ -42,14 +42,14 @@ export default function ChecklistList({ listLayout, isPortrait, setGridEl, myBoa
             {listLayout === 'compact' ? (
                 // Compact List View
                 <ul className={`flex flex-col flex-1 min-h-0 overflow-y-auto p-2 ${isPortrait ? '' : 'sm:p-0'}`} style={{ gap: COMPACT_GAP }}>
-                    {myBoard.map((cat) => {
+                    {myBoard.map((cat, i) => {
                         const foundSub = mySubmissions.find((s) => s.category === cat);
                         const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some((s) => s.category === cat);
                         const hint = allowHints ? resolveHint(cat, hintByCategory) : null;
                         const streetViewImageUrl = foundSub ? getStreetViewImageUrl(foundSub) : '';
 
                         return (
-                            <li key={cat} style={{ minHeight: COMPACT_MIN, maxHeight: COMPACT_MAX }} className={`relative p-1.5 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 flex-1 w-full ${foundSub ? 'shadow-md border-white/25' : isBlocked ? 'glass-inset !border-red-500 opacity-60' : 'glass hover:brightness-125'} ${foundSub?.ai_verdict === false ? '!border-red-500' : foundSub?.ai_verdict === true ? '!border-green-500' : ''}`}>
+                            <li key={`${i}-${cat}`} style={{ minHeight: COMPACT_MIN, maxHeight: COMPACT_MAX }} className={`relative p-1.5 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 flex-1 w-full ${foundSub ? 'shadow-md border-white/25' : isBlocked ? 'glass-inset !border-red-500 opacity-60' : 'glass hover:brightness-125'} ${foundSub?.ai_verdict === false ? '!border-red-500' : foundSub?.ai_verdict === true ? '!border-green-500' : ''}`}>
                                 <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
                                     {foundSub && <img src={streetViewImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />}
                                     {foundSub && <div className="absolute inset-0 bg-black/50 z-0"></div>}
@@ -117,14 +117,14 @@ export default function ChecklistList({ listLayout, isPortrait, setGridEl, myBoa
             ) : (
                 // Regular View
                 <ul className="flex flex-col flex-1 min-h-0 overflow-y-auto p-2 sm:p-0" style={{ gap: ROOMY_GAP }}>
-                    {myBoard.map((cat) => {
+                    {myBoard.map((cat, i) => {
                         const foundSub = mySubmissions.find((s) => s.category === cat);
                         const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some((s) => s.category === cat);
                         const hint = allowHints ? resolveHint(cat, hintByCategory) : null;
                         const streetViewImageUrl = foundSub ? getStreetViewImageUrl(foundSub) : '';
 
                         return (
-                            <li key={cat} style={{ minHeight: ROOMY_MIN, maxHeight: ROOMY_MAX }} className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-between flex-1 w-full ${foundSub ? 'shadow-md border-white/25' : isBlocked ? 'glass-inset !border-red-500 opacity-60' : 'glass hover:brightness-125'} ${foundSub?.ai_verdict === false ? '!border-red-500' : foundSub?.ai_verdict === true ? '!border-green-500' : ''}`}>
+                            <li key={`${i}-${cat}`} style={{ minHeight: ROOMY_MIN, maxHeight: ROOMY_MAX }} className={`relative p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-between flex-1 w-full ${foundSub ? 'shadow-md border-white/25' : isBlocked ? 'glass-inset !border-red-500 opacity-60' : 'glass hover:brightness-125'} ${foundSub?.ai_verdict === false ? '!border-red-500' : foundSub?.ai_verdict === true ? '!border-green-500' : ''}`}>
                                 <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
                                     {foundSub && <img src={streetViewImageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />}
                                     {foundSub && <div className="absolute inset-0 bg-black/50 z-0"></div>}

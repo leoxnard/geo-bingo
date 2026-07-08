@@ -122,7 +122,7 @@ export default function StreetViewMapPanel(props: StreetViewMapPanelProps) {
             {isFullscreen && (
                 <div ref={panelRef} className={`absolute z-10 top-0 left-0 bottom-0 h-full glass-dark border-r border-white/10 transition-transform duration-300 ease-out ${fsPanelOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                     <ul className={`h-full grid grid-cols-1 auto-rows-min p-1 gap-1.5 overflow-y-auto place-content-center justify-items-stretch ${fsPanelOpen ? '' : 'pointer-events-none'}`}>
-                        {myBoard.map((cat) => {
+                        {myBoard.map((cat, i) => {
                             const foundSub = mySubmissions.find((s) => s.category === cat);
                             const isBlocked = exclusiveMode && !foundSub && otherSubmissions.some((s) => s.category === cat);
                             const hint = allowHints ? resolveHint(cat, hintByCategory || {}) : null;
@@ -131,7 +131,7 @@ export default function StreetViewMapPanel(props: StreetViewMapPanelProps) {
 
                             return (
                                 <li
-                                    key={cat}
+                                    key={`${i}-${cat}`}
                                     role="button"
                                     tabIndex={0}
                                     onKeyDown={(e) => {
