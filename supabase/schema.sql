@@ -246,6 +246,27 @@ $$;
 ALTER FUNCTION "public"."admin_delete_daily_challenge"("p_date" "date") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."admin_delete_pool_word"("p_id" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+    IF NOT public.am_i_daily_admin() THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_ADMIN');
+    END IF;
+
+    DELETE FROM word_pool WHERE id = p_id;
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_FOUND');
+    END IF;
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."admin_delete_pool_word"("p_id" "uuid") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."admin_edit_daily_candidate"("p_id" "uuid", "p_category" "text", "p_translations" "jsonb" DEFAULT NULL::"jsonb") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -324,6 +345,51 @@ $$;
 
 
 ALTER FUNCTION "public"."admin_edit_daily_challenge"("p_date" "date", "p_category" "text", "p_translations" "jsonb", "p_clear_attempts" boolean) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."admin_edit_pool_word"("p_id" "uuid", "p_word" "text" DEFAULT NULL::"text", "p_language" "text" DEFAULT NULL::"text", "p_translations" "jsonb" DEFAULT NULL::"jsonb") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    new_word text;
+BEGIN
+    IF NOT public.am_i_daily_admin() THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_ADMIN');
+    END IF;
+
+    IF p_word IS NOT NULL THEN
+        new_word := btrim(p_word);
+        IF char_length(new_word) NOT BETWEEN 1 AND 80 THEN
+            RETURN jsonb_build_object('success', false, 'error', 'BAD_WORD');
+        END IF;
+    END IF;
+    IF p_language IS NOT NULL AND p_language NOT IN ('german', 'english', 'spanish', 'french', 'chinese') THEN
+        RETURN jsonb_build_object('success', false, 'error', 'BAD_LANGUAGE');
+    END IF;
+
+    BEGIN
+        UPDATE word_pool
+        SET word = coalesce(new_word, word),
+            word_norm = lower(coalesce(new_word, word)),
+            language = coalesce(p_language, language),
+            translations = CASE WHEN jsonb_typeof(p_translations) = 'object' THEN p_translations ELSE translations END
+        WHERE id = p_id;
+    EXCEPTION WHEN unique_violation THEN
+        -- The (word, language) pair already exists as another row; the admin
+        -- deletes one copy instead (counter merging is a later enhancement).
+        RETURN jsonb_build_object('success', false, 'error', 'DUPLICATE');
+    END;
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_FOUND');
+    END IF;
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."admin_edit_pool_word"("p_id" "uuid", "p_word" "text", "p_language" "text", "p_translations" "jsonb") OWNER TO "postgres";
 
 SET default_tablespace = '';
 
@@ -405,6 +471,50 @@ $$;
 
 
 ALTER FUNCTION "public"."admin_list_daily_challenges"("p_limit" integer) OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."word_pool" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "word" "text" NOT NULL,
+    "word_norm" "text" NOT NULL,
+    "language" "text" DEFAULT 'english'::"text" NOT NULL,
+    "translations" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "status" "text" DEFAULT 'pending'::"text" NOT NULL,
+    "games_count" integer DEFAULT 0 NOT NULL,
+    "found_count" integer DEFAULT 0 NOT NULL,
+    "import_count" integer DEFAULT 0 NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "reviewed_at" timestamp with time zone,
+    "reviewed_by" "text",
+    CONSTRAINT "word_pool_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'approved'::"text", 'rejected'::"text"]))),
+    CONSTRAINT "word_pool_word_check" CHECK ((("char_length"("word") >= 1) AND ("char_length"("word") <= 80)))
+);
+
+
+ALTER TABLE "public"."word_pool" OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."admin_list_pool_words"("p_status" "text" DEFAULT NULL::"text", "p_language" "text" DEFAULT NULL::"text", "p_search" "text" DEFAULT NULL::"text") RETURNS SETOF "public"."word_pool"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+    IF NOT public.am_i_daily_admin() THEN
+        RETURN;
+    END IF;
+
+    RETURN QUERY
+    SELECT * FROM word_pool w
+    WHERE (p_status IS NULL OR w.status = p_status)
+      AND (p_language IS NULL OR w.language = p_language)
+      AND (p_search IS NULL OR btrim(p_search) = '' OR w.word_norm ILIKE '%' || lower(btrim(p_search)) || '%')
+    ORDER BY w.created_at DESC
+    LIMIT 1000;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."admin_list_pool_words"("p_status" "text", "p_language" "text", "p_search" "text") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."admin_reorder_daily_candidates"("p_ids" "uuid"[]) RETURNS "jsonb"
@@ -492,6 +602,36 @@ $$;
 ALTER FUNCTION "public"."admin_replace_daily_challenge"("p_date" "date") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."admin_review_pool_word"("p_id" "uuid", "p_action" "text", "p_translations" "jsonb" DEFAULT NULL::"jsonb") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+    IF NOT public.am_i_daily_admin() THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_ADMIN');
+    END IF;
+    IF p_action NOT IN ('approved', 'rejected') THEN
+        RETURN jsonb_build_object('success', false, 'error', 'BAD_ACTION');
+    END IF;
+
+    UPDATE word_pool
+    SET status = p_action,
+        reviewed_at = now(),
+        reviewed_by = auth.jwt() ->> 'email',
+        translations = CASE WHEN jsonb_typeof(p_translations) = 'object' THEN p_translations ELSE translations END
+    WHERE id = p_id;
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_FOUND');
+    END IF;
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."admin_review_pool_word"("p_id" "uuid", "p_action" "text", "p_translations" "jsonb") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."admin_run_daily_scheduler"() RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -506,6 +646,42 @@ $$;
 
 
 ALTER FUNCTION "public"."admin_run_daily_scheduler"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."admin_set_pool_word_translations"("p_items" "jsonb") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    updated int;
+BEGIN
+    IF NOT public.am_i_daily_admin() THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_ADMIN');
+    END IF;
+    IF p_items IS NULL OR jsonb_typeof(p_items) <> 'array' OR jsonb_array_length(p_items) > 100 THEN
+        RETURN jsonb_build_object('success', false, 'error', 'BAD_ITEMS');
+    END IF;
+
+    WITH cleaned AS (
+        SELECT (elem ->> 'id')::uuid AS id, elem -> 'translations' AS tr
+        FROM jsonb_array_elements(p_items) AS t(elem)
+        WHERE jsonb_typeof(elem -> 'translations') = 'object'
+    ),
+    upd AS (
+        UPDATE word_pool w
+        SET translations = cleaned.tr
+        FROM cleaned
+        WHERE w.id = cleaned.id
+        RETURNING 1
+    )
+    SELECT count(*) INTO updated FROM upd;
+
+    RETURN jsonb_build_object('success', true, 'updated', updated);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."admin_set_pool_word_translations"("p_items" "jsonb") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."am_i_daily_admin"() RETURNS boolean
@@ -1370,6 +1546,111 @@ $$;
 ALTER FUNCTION "public"."harvest_daily_candidates"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."harvest_pool_words"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+    src_language text;
+    word_status text;
+BEGIN
+    BEGIN
+        -- Nearby-source boards name hyper-local features; never harvest them.
+        IF NEW.category_source IN ('nearbyPlaces', 'nearbyStreetView') THEN
+            RETURN NEW;
+        END IF;
+
+        -- Once per round (a rematch re-stamps phase_started_at, so it passes).
+        IF NEW.words_harvested_at IS NOT NULL
+           AND NEW.phase_started_at IS NOT NULL
+           AND NEW.words_harvested_at >= NEW.phase_started_at THEN
+            RETURN NEW;
+        END IF;
+
+        -- Quality gates: a real round, actually played out.
+        -- Elapsed time is measured from the playing transition and includes
+        -- voting time (there is no voting_started_at column) — acceptable,
+        -- the admin queue is the real gate.
+        IF NEW.phase_started_at IS NULL
+           OR now() - NEW.phase_started_at
+              < LEAST(make_interval(secs => coalesce(NEW.time_limit, 600)), interval '5 minutes') THEN
+            RETURN NEW;
+        END IF;
+        IF (SELECT count(*) FROM players WHERE game_id = NEW.id) < 2 THEN
+            RETURN NEW;
+        END IF;
+        IF (SELECT count(DISTINCT lower(btrim(w)))
+            FROM jsonb_array_elements_text(coalesce(NEW.categories, '[]'::jsonb)) AS t(w)
+            WHERE btrim(w) <> '') < 4 THEN
+            RETURN NEW;
+        END IF;
+        IF NOT EXISTS (
+            SELECT 1 FROM submissions s
+            WHERE s.game_id = NEW.id AND public.submission_is_valid(s.votes)
+        ) THEN
+            RETURN NEW;
+        END IF;
+
+        src_language := coalesce(nullif(NEW.language, ''), 'english');
+        -- Only manually-typed words need admin review; AI words are pre-vetted
+        -- by generation + this round's quality gates.
+        word_status := CASE WHEN NEW.category_source = 'ai' THEN 'approved' ELSE 'pending' END;
+
+        INSERT INTO word_pool (word, word_norm, language, status, games_count, found_count)
+        SELECT DISTINCT ON (lower(btrim(w)))
+            btrim(w),
+            lower(btrim(w)),
+            src_language,
+            word_status,
+            1,
+            CASE WHEN EXISTS (
+                SELECT 1 FROM submissions s
+                WHERE s.game_id = NEW.id
+                  AND lower(btrim(s.category)) = lower(btrim(w))
+                  AND public.submission_is_valid(s.votes)
+            ) THEN 1 ELSE 0 END
+        FROM jsonb_array_elements_text(NEW.categories) AS t(w)
+        WHERE btrim(w) <> '' AND char_length(btrim(w)) <= 80
+        ORDER BY lower(btrim(w))
+        ON CONFLICT (word_norm, language) DO UPDATE
+        SET games_count = word_pool.games_count + 1,
+            found_count = word_pool.found_count + EXCLUDED.found_count;
+
+        -- Plain column update — does not re-fire the UPDATE OF status triggers.
+        UPDATE games SET words_harvested_at = now() WHERE id = NEW.id;
+    EXCEPTION WHEN OTHERS THEN
+        -- harvesting is best-effort; swallow any error so the game flow is unaffected
+        NULL;
+    END;
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."harvest_pool_words"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."import_pool_words"("p_ids" "uuid"[]) RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+    IF p_ids IS NULL OR array_length(p_ids, 1) IS NULL OR array_length(p_ids, 1) > 50 THEN
+        RETURN jsonb_build_object('success', false, 'error', 'BAD_IDS');
+    END IF;
+
+    UPDATE word_pool
+    SET import_count = import_count + 1
+    WHERE status = 'approved' AND id = ANY (p_ids);
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."import_pool_words"("p_ids" "uuid"[]) OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."is_valid_host"("p_game_id" "text", "p_token" "text") RETURNS boolean
     LANGUAGE "sql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -1902,6 +2183,25 @@ $$;
 
 
 ALTER FUNCTION "public"."set_username"("p_username" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."submission_is_valid"("p_votes" "jsonb") RETURNS boolean
+    LANGUAGE "sql" IMMUTABLE
+    AS $$
+    SELECT CASE
+        WHEN count(*) FILTER (WHERE jsonb_typeof(value) = 'boolean') > 0
+            THEN count(*) FILTER (WHERE value = to_jsonb(true)) * 2
+                 > count(*) FILTER (WHERE jsonb_typeof(value) = 'boolean')
+        WHEN count(*) FILTER (WHERE jsonb_typeof(value) = 'number') > 0
+            THEN (avg((value #>> '{}')::numeric) FILTER (WHERE jsonb_typeof(value) = 'number')) >= 6
+        ELSE false
+    END
+    FROM jsonb_each(coalesce(p_votes, '{}'::jsonb))
+    WHERE key NOT LIKE 'hype:%' AND key <> 'host_continued';
+$$;
+
+
+ALTER FUNCTION "public"."submission_is_valid"("p_votes" "jsonb") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."submit_daily_attempt"("p_date" "date", "p_device_id" "text", "p_duration_ms" bigint, "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_ai_reason" "text" DEFAULT NULL::"text") RETURNS "jsonb"
@@ -2465,7 +2765,8 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "scale_voting" boolean DEFAULT false NOT NULL,
     "finished_at" timestamp with time zone,
     "phase_started_at" timestamp with time zone,
-    "translate_categories" boolean DEFAULT false NOT NULL
+    "translate_categories" boolean DEFAULT false NOT NULL,
+    "words_harvested_at" timestamp with time zone
 );
 
 
@@ -2623,6 +2924,16 @@ ALTER TABLE ONLY "public"."submissions"
 
 
 
+ALTER TABLE ONLY "public"."word_pool"
+    ADD CONSTRAINT "word_pool_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."word_pool"
+    ADD CONSTRAINT "word_pool_word_norm_language_key" UNIQUE ("word_norm", "language");
+
+
+
 CREATE INDEX "account_game_results_account_idx" ON "public"."account_game_results" USING "btree" ("account_id", "finished_at" DESC);
 
 
@@ -2683,7 +2994,19 @@ CREATE INDEX "submissions_player_id_idx" ON "public"."submissions" USING "btree"
 
 
 
+CREATE INDEX "word_pool_status_created_idx" ON "public"."word_pool" USING "btree" ("status", "created_at");
+
+
+
+CREATE INDEX "word_pool_status_imports_idx" ON "public"."word_pool" USING "btree" ("status", "import_count" DESC);
+
+
+
 CREATE OR REPLACE TRIGGER "harvest_daily_candidates_trg" AFTER UPDATE OF "status" ON "public"."games" FOR EACH ROW WHEN ((("new"."status" = 'finished'::"text") AND ("old"."status" IS DISTINCT FROM 'finished'::"text"))) EXECUTE FUNCTION "public"."harvest_daily_candidates"();
+
+
+
+CREATE OR REPLACE TRIGGER "harvest_pool_words_trg" AFTER UPDATE OF "status" ON "public"."games" FOR EACH ROW WHEN ((("new"."status" = 'finished'::"text") AND ("old"."status" IS DISTINCT FROM 'finished'::"text"))) EXECUTE FUNCTION "public"."harvest_pool_words"();
 
 
 
@@ -2803,6 +3126,10 @@ CREATE POLICY "Insert players only into open lobbies" ON "public"."players" FOR 
 
 
 
+CREATE POLICY "Public read approved pool words" ON "public"."word_pool" FOR SELECT USING (("status" = 'approved'::"text"));
+
+
+
 CREATE POLICY "Public read profiles" ON "public"."profiles" FOR SELECT USING (true);
 
 
@@ -2876,6 +3203,9 @@ ALTER TABLE "public"."profiles" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."submissions" ENABLE ROW LEVEL SECURITY;
 
 
+ALTER TABLE "public"."word_pool" ENABLE ROW LEVEL SECURITY;
+
+
 GRANT USAGE ON SCHEMA "public" TO "postgres";
 GRANT USAGE ON SCHEMA "public" TO "anon";
 GRANT USAGE ON SCHEMA "public" TO "authenticated";
@@ -2925,6 +3255,12 @@ GRANT ALL ON FUNCTION "public"."admin_delete_daily_challenge"("p_date" "date") T
 
 
 
+GRANT ALL ON FUNCTION "public"."admin_delete_pool_word"("p_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."admin_delete_pool_word"("p_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."admin_delete_pool_word"("p_id" "uuid") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."admin_edit_daily_candidate"("p_id" "uuid", "p_category" "text", "p_translations" "jsonb") TO "anon";
 GRANT ALL ON FUNCTION "public"."admin_edit_daily_candidate"("p_id" "uuid", "p_category" "text", "p_translations" "jsonb") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."admin_edit_daily_candidate"("p_id" "uuid", "p_category" "text", "p_translations" "jsonb") TO "service_role";
@@ -2934,6 +3270,12 @@ GRANT ALL ON FUNCTION "public"."admin_edit_daily_candidate"("p_id" "uuid", "p_ca
 GRANT ALL ON FUNCTION "public"."admin_edit_daily_challenge"("p_date" "date", "p_category" "text", "p_translations" "jsonb", "p_clear_attempts" boolean) TO "anon";
 GRANT ALL ON FUNCTION "public"."admin_edit_daily_challenge"("p_date" "date", "p_category" "text", "p_translations" "jsonb", "p_clear_attempts" boolean) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."admin_edit_daily_challenge"("p_date" "date", "p_category" "text", "p_translations" "jsonb", "p_clear_attempts" boolean) TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."admin_edit_pool_word"("p_id" "uuid", "p_word" "text", "p_language" "text", "p_translations" "jsonb") TO "anon";
+GRANT ALL ON FUNCTION "public"."admin_edit_pool_word"("p_id" "uuid", "p_word" "text", "p_language" "text", "p_translations" "jsonb") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."admin_edit_pool_word"("p_id" "uuid", "p_word" "text", "p_language" "text", "p_translations" "jsonb") TO "service_role";
 
 
 
@@ -2955,6 +3297,18 @@ GRANT ALL ON FUNCTION "public"."admin_list_daily_challenges"("p_limit" integer) 
 
 
 
+GRANT ALL ON TABLE "public"."word_pool" TO "anon";
+GRANT ALL ON TABLE "public"."word_pool" TO "authenticated";
+GRANT ALL ON TABLE "public"."word_pool" TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."admin_list_pool_words"("p_status" "text", "p_language" "text", "p_search" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."admin_list_pool_words"("p_status" "text", "p_language" "text", "p_search" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."admin_list_pool_words"("p_status" "text", "p_language" "text", "p_search" "text") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."admin_reorder_daily_candidates"("p_ids" "uuid"[]) TO "anon";
 GRANT ALL ON FUNCTION "public"."admin_reorder_daily_candidates"("p_ids" "uuid"[]) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."admin_reorder_daily_candidates"("p_ids" "uuid"[]) TO "service_role";
@@ -2967,9 +3321,21 @@ GRANT ALL ON FUNCTION "public"."admin_replace_daily_challenge"("p_date" "date") 
 
 
 
+GRANT ALL ON FUNCTION "public"."admin_review_pool_word"("p_id" "uuid", "p_action" "text", "p_translations" "jsonb") TO "anon";
+GRANT ALL ON FUNCTION "public"."admin_review_pool_word"("p_id" "uuid", "p_action" "text", "p_translations" "jsonb") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."admin_review_pool_word"("p_id" "uuid", "p_action" "text", "p_translations" "jsonb") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."admin_run_daily_scheduler"() TO "anon";
 GRANT ALL ON FUNCTION "public"."admin_run_daily_scheduler"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."admin_run_daily_scheduler"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."admin_set_pool_word_translations"("p_items" "jsonb") TO "anon";
+GRANT ALL ON FUNCTION "public"."admin_set_pool_word_translations"("p_items" "jsonb") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."admin_set_pool_word_translations"("p_items" "jsonb") TO "service_role";
 
 
 
@@ -3139,6 +3505,18 @@ GRANT ALL ON FUNCTION "public"."harvest_daily_candidates"() TO "service_role";
 
 
 
+GRANT ALL ON FUNCTION "public"."harvest_pool_words"() TO "anon";
+GRANT ALL ON FUNCTION "public"."harvest_pool_words"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."harvest_pool_words"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."import_pool_words"("p_ids" "uuid"[]) TO "anon";
+GRANT ALL ON FUNCTION "public"."import_pool_words"("p_ids" "uuid"[]) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."import_pool_words"("p_ids" "uuid"[]) TO "service_role";
+
+
+
 REVOKE ALL ON FUNCTION "public"."is_valid_host"("p_game_id" "text", "p_token" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."is_valid_host"("p_game_id" "text", "p_token" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."is_valid_host"("p_game_id" "text", "p_token" "text") TO "authenticated";
@@ -3251,6 +3629,12 @@ GRANT ALL ON FUNCTION "public"."set_submission_ai_verdict"("p_id" "uuid", "p_pla
 GRANT ALL ON FUNCTION "public"."set_username"("p_username" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."set_username"("p_username" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_username"("p_username" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."submission_is_valid"("p_votes" "jsonb") TO "anon";
+GRANT ALL ON FUNCTION "public"."submission_is_valid"("p_votes" "jsonb") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."submission_is_valid"("p_votes" "jsonb") TO "service_role";
 
 
 
