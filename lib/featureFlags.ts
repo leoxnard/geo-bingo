@@ -63,6 +63,16 @@ export const FEATURES = {
     /** Let non-host players suggest categories (and show the suggestions panel). */
     categorySuggestions: true,
 
+    /**
+     * Community word pool: the lobby "Explore" overlay for browsing words
+     * harvested from finished games (hosts add, non-hosts suggest) and the
+     * /admin/words review page. Off → the Explore button and the admin route
+     * disappear. Note: the SQL harvest trigger keeps collecting words either
+     * way (compile-time flags can't reach Postgres) — harmless, since
+     * unapproved words are invisible and the pool simply goes unused.
+     */
+    exploreWords: true,
+
     // ── Daily Challenge ──────────────────────────────────────────────────────
 
     /**
