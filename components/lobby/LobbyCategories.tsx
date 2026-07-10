@@ -15,6 +15,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import toast from 'react-hot-toast';
 import { CiCirclePlus, CiCircleMinus, CiCircleRemove, CiCircleCheck, CiCircleQuestion } from 'react-icons/ci';
+import { FaCompass } from 'react-icons/fa';
 
 import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
@@ -22,6 +23,7 @@ import { CategoryLanguage } from '@/lib/i18n/locales';
 import { useSounds } from '@/lib/sound/SoundProvider';
 
 import { generateAICategories } from './AICategories';
+import ExploreWords from './ExploreWords';
 import { generateNearbyPlaceCategories } from './NearbyPlaceCategories';
 import { generateNearbyStreetViewCategories } from './NearbyStreetViewCategories';
 import { getHostToken } from '../../lib/hostToken';
@@ -265,6 +267,9 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
     // AI Generation state
     const [customPrompt, setCustomPrompt] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
+
+    // Community word pool overlay
+    const [showExplore, setShowExplore] = useState(false);
 
     const isPendingSyncRef = useRef(false);
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -729,6 +734,52 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
         }
     };
 
+    // Host path for the Explore overlay: drop the word into the first empty
+    // slot (else append), mirroring fillUpRandom's board semantics. Returns
+    // false only when a bingo grid has no room left.
+    const addExploreWord = (word: string): boolean => {
+        if (!isHost) return false;
+        const trimmed = word.trim();
+        if (!trimmed) return false;
+        // Already on the board (any casing) counts as done — nothing to save.
+        if (localCategories.some((c) => normalizeCat(c ?? '') === normalizeCat(trimmed))) return true;
+
+        const updated = [...localCategories];
+        const emptyIdx = updated.findIndex((c) => (c ?? '').trim() === '');
+        if (emptyIdx >= 0) {
+            updated[emptyIdx] = trimmed;
+        } else if (gameMode === 'bingo' && updated.length >= gridSize * gridSize) {
+            return false;
+        } else {
+            updated.push(trimmed);
+        }
+        queueDBSave(updated);
+        return true;
+    };
+
+    // Non-host path for the Explore overlay: same RPC and toasts as the manual
+    // suggestion input, deduped against the board and existing suggestions.
+    const suggestExploreWord = async (word: string): Promise<boolean> => {
+        const trimmed = word.trim();
+        if (isHost || !trimmed) return false;
+        if (localCategories.some((c) => normalizeCat(c ?? '') === normalizeCat(trimmed))) {
+            toast.error(t('cat.toastAlreadyExists'));
+            return false;
+        }
+        if (localSuggested.some((c) => normalizeCat(c ?? '') === normalizeCat(trimmed))) {
+            toast.error(t('cat.toastAlreadySuggested'));
+            return false;
+        }
+        const { data, error } = await supabase.rpc('player_suggest_category', { p_game_id: gameId, p_player_id: playerId, p_category: trimmed });
+        if (error || (data && data.success === false)) {
+            if (data?.error === 'ALREADY_SUGGESTED') toast.error(t('cat.toastAlreadySuggested'));
+            else toast.error(t('cat.toastFailedSuggestion'));
+            return false;
+        }
+        toast.success(t('cat.toastSuggestionSent'));
+        return true;
+    };
+
     const minusOneGridSize = () => {
         if (gridSize > 2) {
             updateGameModeInfo({ grid_size: gridSize - 1 });
@@ -843,6 +894,11 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
 
                             <div className="flex flex-wrap gap-2 items-end mt-2">
                                 <div className="flex flex-1 gap-2 items-end justify-end min-w-[300px]">
+                                    {FEATURES.exploreWords && (
+                                        <button type="button" onClick={() => setShowExplore(true)} className="glass press flex items-center gap-2 text-slate-300 hover:text-white px-4 rounded-lg font-bold whitespace-nowrap h-[42px] transition-colors" title={t('explore.title')}>
+                                            <FaCompass /> {t('explore.button')}
+                                        </button>
+                                    )}
                                     <Selection title={t('cat.database')} options={ENABLED_DATABASES.map((d) => ({ label: t(d.labelKey as Parameters<typeof t>[0]), value: d.key }))} value={wordSource} onChange={setWordSource} position="clean" />
                                     <button type="button" onClick={fillUpRandom} className="btn-sheen press bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-4 rounded-lg font-bold whitespace-nowrap shadow-[0_10px_20px_-8px_rgba(99,102,241,0.6),inset_0_1px_0_rgba(255,255,255,0.3)] h-[42px]">
                                         {t('cat.fillUp')}
@@ -897,6 +953,12 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                             <button type="button" onClick={handleSuggestCategory} className="btn-sheen press bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-6 rounded-lg font-bold shadow-[0_10px_20px_-8px_rgba(99,102,241,0.6),inset_0_1px_0_rgba(255,255,255,0.3)]">
                                 {t('cat.suggest')}
                             </button>
+                            {FEATURES.exploreWords && (
+                                <button type="button" onClick={() => setShowExplore(true)} className="glass press flex items-center gap-2 text-slate-300 hover:text-white px-4 rounded-lg font-bold transition-colors" title={t('explore.title')}>
+                                    <FaCompass />
+                                    <span className="hidden sm:inline">{t('explore.button')}</span>
+                                </button>
+                            )}
                         </div>
                     )}
 
@@ -935,6 +997,8 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                     )}
                 </>
             )}
+
+            {FEATURES.exploreWords && <ExploreWords isOpen={showExplore} onClose={() => setShowExplore(false)} isHost={isHost} language={language} boardWords={localCategories} suggestedWords={localSuggested} onAddWord={addExploreWord} onSuggestWord={suggestExploreWord} />}
         </div>
     );
 }
