@@ -10,10 +10,11 @@ language and master audio volume. Adding a new option later means adding one row
 here (and a field in SettingsProvider) — account / language / volume are
 independent rows, not a fixed set.
 
-Position is `fixed` to the viewport top-right by default so it lands in exactly
-the same spot on every page regardless of that page's layout (overridable via
-`className`). Pairing fixed with `scrollbar-gutter: stable` on <html> (globals.css)
-keeps it from shifting when a scrollbar appears. The dropdown stays mounted while
+Position is `absolute` to the top-right by default, so it sits at the top-right
+of its (relative) page container and scrolls away with the content rather than
+staying pinned to the viewport (overridable via `className`). `scrollbar-gutter:
+stable` on <html> (globals.css) keeps it from shifting when a scrollbar appears.
+Every host surface wraps it in a `relative` container. The dropdown stays mounted while
 closed (just hidden) so the account section is already loaded the instant the
 menu is opened — no flash of an empty account row.
 ================================================================================
@@ -32,7 +33,7 @@ import { useT } from '@/lib/i18n/I18nProvider';
 import { LOCALE_CODES, LOCALES } from '@/lib/i18n/locales';
 import { useSettings } from '@/lib/settings/SettingsProvider';
 
-export default function OptionsButton({ className = 'fixed top-3 right-3 z-[1000]', onRenamed }: { className?: string; onRenamed?: () => void }) {
+export default function OptionsButton({ className = 'absolute top-3 right-3 z-[1000]', onRenamed }: { className?: string; onRenamed?: () => void }) {
     const { t, locale, setLocale } = useT();
     const { settings, setSetting } = useSettings();
     const { user } = useUser();
