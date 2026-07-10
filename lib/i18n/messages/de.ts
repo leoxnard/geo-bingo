@@ -206,6 +206,7 @@ export const de: Messages = {
     'cat.toastSetStartingPoint': 'Setze einen Startpunkt auf der Karte, bevor du generierst.',
     'cat.toastInvalidStartingPoint': 'Ungültiger Startpunkt.',
     'cat.toastOnlyFound': 'Nur {found} Kategorien gefunden, benötigt werden {need}. Versuche einen größeren Radius oder weniger Kategorien.',
+    'cat.toastBoardFull': 'Das Board ist bereits voll. Entferne zuerst Kategorien, um neue zu generieren.',
     'cat.toastGenerationFailed': 'Generierung fehlgeschlagen',
     'cat.toastDuplicate': '„{value}“ existiert bereits!',
     'cat.toastAlreadyExists': 'Diese Kategorie existiert bereits!',

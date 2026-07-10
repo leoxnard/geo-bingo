@@ -206,6 +206,7 @@ export const es: Messages = {
     'cat.toastSetStartingPoint': 'Establece un punto de partida en el mapa antes de generar.',
     'cat.toastInvalidStartingPoint': 'Punto de partida no válido.',
     'cat.toastOnlyFound': 'Solo se encontraron {found} categorías, se necesitan {need}. Prueba un radio mayor o menos categorías.',
+    'cat.toastBoardFull': 'El tablero ya está lleno. Elimina algunas categorías antes de generar nuevas.',
     'cat.toastGenerationFailed': 'La generación falló',
     'cat.toastDuplicate': '¡«{value}» ya existe!',
     'cat.toastAlreadyExists': '¡Esta categoría ya existe!',

@@ -206,6 +206,7 @@ export const zh: Messages = {
     'cat.toastSetStartingPoint': '生成前请在地图上设置起点。',
     'cat.toastInvalidStartingPoint': '起点无效。',
     'cat.toastOnlyFound': '只找到 {found} 个类别，需要 {need} 个。请尝试更大的半径或更少的类别。',
+    'cat.toastBoardFull': '棋盘已满。请先移除一些类别，再生成新的类别。',
     'cat.toastGenerationFailed': '生成失败',
     'cat.toastDuplicate': '“{value}”已存在！',
     'cat.toastAlreadyExists': '该类别已存在！',

@@ -1,8 +1,24 @@
 import { callGemini, withModelFallback } from '../utils/geminiClient';
 import { BingoCategory } from '../utils/types';
 
-export const generateAICategories = async (customPrompt: string, requiredCount: number, language: string): Promise<BingoCategory[]> => {
+export const generateAICategories = async (customPrompt: string, requiredCount: number, language: string, excludeCategories: string[] = []): Promise<BingoCategory[]> => {
     try {
+        // Categories already in the game (stacked generations) — the model must
+        // spend its whole quota on genuinely new items.
+        const exclusionBlock = excludeCategories.length
+            ? `
+ALREADY IN THE GAME — do NOT output any of these, nor close variants or translations of them:
+${excludeCategories.map((c) => `- ${c}`).join('\n')}
+`
+            : '';
+
+        // A per-call random key plus an explicit instruction keeps repeat runs of
+        // the same prompt from converging on the same obvious picks.
+        const varietyBlock = `
+RANDOMIZATION (variation key: ${Math.random().toString(36).slice(2, 10)}):
+Every run must be a fresh draw. Do not default to the most obvious/common picks — mix in less predictable but still clearly identifiable items, so two runs with this prompt never return the same list.
+`;
+
         const prompt = customPrompt.trim()
             ? `
 Act as a hyper-specific Google Street View Bingo Generator. 
@@ -22,7 +38,7 @@ Constraint Checklist:
 3. Strictly NO commentary: Do not explain why you chose these.
 4. NO MARKDOWN: No formatting, bold, italic, or code blocks.
 5. Output Format: Return ONLY a raw JSON array of strings.
-
+${exclusionBlock}${varietyBlock}
 REQUIRED JSON FORMAT (EXACT):
 ["item 1", "item 2", "item 3"]`
             : `
@@ -45,11 +61,13 @@ Constraints:
 - NO FORMATTING: No markdown, bold, italic, code blocks, or any styling.
 
 Output Format: Return ONLY a raw JSON array of strings. No markdown, no preamble, no explanations, no formatting.
-
+${exclusionBlock}${varietyBlock}
 REQUIRED JSON TEMPLATE (EXACT):
 ["category 1", "category 2", "category 3"]`;
 
-        const aiResponse = await withModelFallback(async (model) => {
+        // Structure validation happens INSIDE the fallback so an empty/broken reply
+        // from a weaker model falls through to the next model instead of failing.
+        const aiText = await withModelFallback(async (model) => {
             const res = await callGemini(model, {
                 contents: [
                     {
@@ -60,23 +78,21 @@ REQUIRED JSON TEMPLATE (EXACT):
                         ],
                     },
                 ],
+                generationConfig: { temperature: 1.25 },
             });
             if (!res.ok) {
                 const errorBody = await res.json().catch(() => ({}));
                 throw new Error(`Gemini API error with model ${model}: ${errorBody.error?.message || 'Unknown AI error'}`);
             }
-            return res;
+            const data = await res.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (typeof text !== 'string' || !text.trim()) {
+                console.error('Invalid AI response structure:', data);
+                throw new Error(`Invalid AI response structure from model ${model}`);
+            }
+            return text;
         });
 
-        const data = await aiResponse.json();
-        console.log('AI API Response:', JSON.stringify(data, null, 2));
-
-        if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
-            console.error('Invalid AI response structure:', data);
-            throw new Error(`Invalid AI response structure: ${JSON.stringify(data)}`);
-        }
-
-        const aiText = data.candidates[0].content.parts[0].text;
         let categories: string[];
 
         try {
@@ -130,6 +146,11 @@ REQUIRED JSON TEMPLATE (EXACT):
                     .join(' ');
             })
             .filter((cat, index, arr) => arr.indexOf(cat) === index);
+
+        // Drop anything the model returned despite the exclusion list, BEFORE the
+        // requiredCount cap — so duplicates don't eat slots of the new batch.
+        const excludedSet = new Set(excludeCategories.map((c) => c.trim().toLowerCase()));
+        categories = categories.filter((cat) => !excludedSet.has(cat.toLowerCase()));
 
         if (categories.length === 0) {
             throw new Error('AI generated no valid categories');

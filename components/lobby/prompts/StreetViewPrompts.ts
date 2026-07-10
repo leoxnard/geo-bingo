@@ -1,16 +1,29 @@
-export const getPromptForStreetViewCategories = (validImagesLength: number, difficulty: 'default' | 'easy' | 'hard', language: string): string => {
+export const getPromptForStreetViewCategories = (validImagesLength: number, difficulty: 'default' | 'easy' | 'hard', language: string, minCount: number, exclude: string[] = []): string => {
     if (difficulty === 'easy') {
-        return easyGermanStreetViewPrompt(validImagesLength, language);
+        return easyGermanStreetViewPrompt(validImagesLength, language, minCount, exclude);
     }
     if (difficulty === 'hard') {
-        return hardStreetViewPrompt(validImagesLength, language);
+        return hardStreetViewPrompt(validImagesLength, language, minCount, exclude);
     }
-    return defaultStreetViewPrompt(validImagesLength, language);
+    return defaultStreetViewPrompt(validImagesLength, language, minCount, exclude);
 };
 
-const defaultStreetViewPrompt = (validImagesLength: number, language: string): string =>
+// Shared quota/uniqueness/variety rules. Without an explicit quota the model
+// under-delivers ("quality over quantity" alone reads as permission to return
+// very few items), and without the cross-image uniqueness rule homogeneous
+// areas (old towns) collapse to a handful of categories after deduping.
+const quotaAndVarietyBlock = (minCount: number, exclude: string[]): string => {
+    const taken = exclude.map((e) => e.trim()).filter(Boolean);
+    return `### QUOTA, UNIQUENESS & VARIETY
+- Across ALL images combined you must return at least ${minCount} UNIQUE categories (more is fine if they are genuinely visible). Work through every image — do not stop early.
+- NEVER assign the same (or a near-identical) categoryName to two different images. If a feature is already named for another image, pick that image's next-most-interesting feature instead.
+- If the top-tier targets run out before the quota is met, fill the remainder with solid, fair second-tier targets at honest lower scores — a fair ordinary target beats a missing one. Banned/filler items stay banned.
+- Randomize your picks: when several equally good candidates exist in an image, prefer the less obvious one. Two runs over similar images should not produce identical lists.${taken.length ? `\n- ALREADY TAKEN — these categories are already in the game. Do NOT output any of them, nor trivial variants or translations of them:\n${taken.map((e) => `  - ${e}`).join('\n')}` : ''}`;
+};
+
+const defaultStreetViewPrompt = (validImagesLength: number, language: string, minCount: number, exclude: string[]): string =>
     `You are the Game Master for "GeoBingo", a scavenger hunt where players walk around in real life and photograph things they spot in Google Street View.
-Your job: from the ${validImagesLength} Street View images below (each tagged with an "Image ID"), pick out the details that would make a player grin and say "oh, I have to find THAT one." Quality over quantity — a few great, fair, surprising targets beat a long list of filler.
+Your job: from the ${validImagesLength} Street View images below (each tagged with an "Image ID"), pick out the details that would make a player grin and say "oh, I have to find THAT one." Prefer great, fair, surprising targets over filler — but you still have a quota to fill (see below).
 
 A great GeoBingo target is THREE things at once:
 1. UNMISTAKABLY VISIBLE — you can point to it in the image right now. No guessing, no "probably there", no things hidden inside buildings or off-frame.
@@ -47,6 +60,8 @@ Think in terms of these flavors (these are INSPIRATION, not a checklist — only
 - Scan each image and aim for 3–5 genuinely good targets. "Don't pad" means: don't add boring generic things just to reach a number. It does NOT mean return fewer good things — if 5 interesting targets are clearly visible, return all 5. Only skip items that are truly generic/banned.
 - Prefer variety across the whole set: don't return ten variations of the same idea. A spread of vehicles, architecture, street life, animals, and curiosities makes the best board.
 
+${quotaAndVarietyBlock(minCount, exclude)}
+
 ### SCORING (1–100) — be honest, this is how the best targets float to the top
 - 85–100: Clearly visible AND genuinely fun & characterful AND realistically findable (e.g. a street musician, a vintage car, a church clock tower, a readable brand sign, a statue, a striking mural, an animal).
 - 55–84: Solid and clearly visible, a bit more ordinary but still a fair, satisfying hunt (e.g. a specific shop type like Schuhladen/Bäckerei/Apotheke, a fountain, an interesting balcony, a tram, a bold awning, an overturned bicycle, a person pushing a bicycle).
@@ -65,7 +80,7 @@ Respond EXCLUSIVELY with a valid JSON array in this exact format, no markdown, n
   }
 ]`;
 
-const hardStreetViewPrompt = (validImagesLength: number, language: string): string =>
+const hardStreetViewPrompt = (validImagesLength: number, language: string, minCount: number, exclude: string[]): string =>
     `You are the Game Master for "GeoBingo" on HARD mode — a challenge for sharp-eyed players who want difficult, hyper-specific targets to track down.
 Your job: from the ${validImagesLength} Street View images (each tagged with an "Image ID"), pick out SPECIFIC, DETAILED, and HARD-TO-SPOT things. On hard mode, niche, precise, and small is exactly what you want — the opposite of broad and easy.
 
@@ -81,6 +96,8 @@ Your job: from the ${validImagesLength} Street View images (each tagged with an 
 - Name it in 1 to 3 words, in ${language}.
 - Only avoid the truly bland and ever-present (a plain "Auto", an unremarkable "Fenster" or "Tür" with nothing special). Everything more specific or smaller is welcome.
 - No spatial/positional descriptions ("stacked", "next to", "in the background").
+
+${quotaAndVarietyBlock(minCount, exclude)}
 
 ### SCORING (1-100) — reward specificity, detail, and difficulty
 - 85-100: A specific, legible brand/logo, OR a small precise hard-to-spot detail that a sharp-eyed player would be proud to find (e.g. a readable niche brand sign, an ornate door knocker, a carved facade date, a specific architectural ornament).
@@ -100,7 +117,7 @@ Respond EXCLUSIVELY with a valid JSON array in this exact format, no markdown, n
   }
 ]`;
 
-const easyGermanStreetViewPrompt = (validImagesLength: number, language: string): string =>
+const easyGermanStreetViewPrompt = (validImagesLength: number, language: string, minCount: number, exclude: string[]): string =>
     `You are the Game Master for the game "GeoBingo."
 Your mission: Find things in the following Street View images that players can easily spot and photograph while walking around in real life.
 
@@ -114,6 +131,8 @@ Rules:
 - Avoid generic categories that appear in almost every single image (e.g., "Tür", "Fenster", "Auto" are too simple).
 - Avoid architectural jargon that players don't know by name (e.g., "Erker", "Eckerker", "Giebel", "Gesims"). Use an everyday word for what's visible, or skip it.
 - Ensure it is clear what is being sought (e.g., "Koffer" instead of "Samsonite").
+
+${quotaAndVarietyBlock(minCount, exclude)}
 
 Scoring (1-100):
 Rate each identified feature based on how easy it is to find and how clearly visible it is:

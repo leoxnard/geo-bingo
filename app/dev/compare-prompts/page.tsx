@@ -133,7 +133,7 @@ export default function ComparePromptsPage() {
                 DIFFICULTIES.map(async (difficulty) => {
                     const started = performance.now();
                     try {
-                        const prompt = getPromptForStreetViewCategories(1, difficulty, language);
+                        const prompt = getPromptForStreetViewCategories(1, difficulty, language, 3);
                         const parts = [{ text: prompt }, { text: 'Bild-ID: img_0' }, { inlineData: { mimeType: 'image/jpeg', data: base64 } }];
 
                         let aiResponse: Response | undefined;

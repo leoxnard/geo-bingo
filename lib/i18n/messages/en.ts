@@ -207,6 +207,7 @@ export const en = {
     'cat.toastSetStartingPoint': 'Set a starting point on the map before generating.',
     'cat.toastInvalidStartingPoint': 'Invalid starting point.',
     'cat.toastOnlyFound': 'Only {found} categories found, need {need}. Try a larger radius or fewer categories.',
+    'cat.toastBoardFull': 'The board is already full. Remove some categories first to generate new ones.',
     'cat.toastGenerationFailed': 'Generation failed',
     'cat.toastDuplicate': '"{value}" already exists!',
     'cat.toastAlreadyExists': 'This category already exists!',

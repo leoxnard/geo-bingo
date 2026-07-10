@@ -269,6 +269,9 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
     const isPendingSyncRef = useRef(false);
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
     const echoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    // Accumulates category_details across stacked generations — VotingView looks
+    // details up by name, so replacing them would strip earlier batches' map pins.
+    const generatedDetailsRef = useRef<BingoCategory[]>([]);
 
     const DAILY_AI_LIMIT = 3;
 
@@ -309,8 +312,23 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
     const filledCategoryCount = localCategories.filter((c) => c && c.trim()).length;
     const isGeneratedSource = effectiveSource === 'ai' || effectiveSource === 'nearbyPlaces' || effectiveSource === 'nearbyStreetView';
 
+    const normalizeCat = (s: string) => s.trim().toLowerCase();
+
     const handleGenerate = async () => {
         if (!isHost || !isGeneratedSource) return;
+
+        // Stacking: a new generation adds to what's already there instead of
+        // replacing it. Bingo boards are fixed-size, so we only fill the remaining
+        // slots; lists grow by another full batch per run.
+        const existingActive = localCategories.map((c) => (c || '').trim()).filter(Boolean);
+        const existingSuggested = localSuggested.map((c) => (c || '').trim()).filter(Boolean);
+        const newNeeded = gameMode === 'bingo' ? gridSize * gridSize - existingActive.length : localGenerationNumber;
+
+        if (newNeeded <= 0) {
+            play('denied');
+            toast.error(t('cat.toastBoardFull'));
+            return;
+        }
 
         if (!isDeveloper) {
             const currentCount = parseInt(localStorage.getItem('geoBingoPromptCount') || '0', 10);
@@ -341,34 +359,47 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
             }
         }
 
-        // The host-chosen number is the size of the active (top-K) list.
-        const activeCount = gameMode === 'bingo' ? gridSize * gridSize : localGenerationNumber;
-
         setIsGenerating(true);
         const loadingToast = toast.loading(categorySource === 'nearbyStreetView' ? t('cat.loadingStreetView') : t('cat.loadingGenerating'));
 
         try {
+            // Tell the generators what's already taken so they don't burn their
+            // quota on duplicates of earlier batches.
+            const exclusions = [...existingActive, ...existingSuggested];
+
             let pool: BingoCategory[];
             if (categorySource === 'nearbyStreetView') {
-                pool = await generateNearbyStreetViewCategories(startPos!, generationRadius, activeCount, difficulty, language);
+                pool = await generateNearbyStreetViewCategories(startPos!, generationRadius, newNeeded, difficulty, language, exclusions);
             } else if (categorySource === 'nearbyPlaces') {
-                pool = await generateNearbyPlaceCategories(startPos!, generationRadius, activeCount + SUGGESTION_BUFFER, difficulty, language);
+                pool = await generateNearbyPlaceCategories(startPos!, generationRadius, newNeeded + SUGGESTION_BUFFER, difficulty, language);
             } else {
-                pool = await generateAICategories(customPrompt, activeCount + SUGGESTION_BUFFER, language);
+                pool = await generateAICategories(customPrompt, newNeeded + SUGGESTION_BUFFER, language, exclusions);
             }
+
+            // Safety net: drop anything that still collides with existing entries
+            // (the prompts exclude them, but models occasionally slip).
+            const taken = new Set(exclusions.map(normalizeCat));
+            pool = pool.filter((c) => c.categoryName && !taken.has(normalizeCat(c.categoryName)));
 
             toast.dismiss(loadingToast);
 
             // Fewer than requested? Still keep everything we generated (the host can
             // top it up manually) and just warn — don't discard the whole batch.
-            if (pool.length < activeCount) {
-                toast.error(t('cat.toastOnlyFound', { found: pool.length, need: activeCount }));
+            if (pool.length < newNeeded) {
+                toast.error(t('cat.toastOnlyFound', { found: pool.length, need: newNeeded }));
             } else {
                 toast.success(t('cat.generatedSuccess'));
             }
 
-            const active = pool.slice(0, activeCount).map((c) => c.categoryName);
-            const rest = pool.slice(activeCount).map((c) => c.categoryName);
+            const freshNames = pool.map((c) => c.categoryName);
+            const active = [...existingActive, ...freshNames.slice(0, newNeeded)];
+            // New leftovers first (freshly ranked), then the surviving old suggestions.
+            const rest = [...freshNames.slice(newNeeded), ...existingSuggested];
+
+            // Merge this batch's details into the accumulated set (keyed by name).
+            const detailByName = new Map<string, BingoCategory>();
+            [...generatedDetailsRef.current, ...pool].forEach((c) => detailByName.set(normalizeCat(c.categoryName), c));
+            generatedDetailsRef.current = Array.from(detailByName.values());
 
             // Show the generated lists instantly, then push them through the lobby's
             // optimistic state path (not a bare RPC). This keeps the parent's
@@ -381,7 +412,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
             updateGameModeInfo({
                 categories: active,
                 suggested_categories: rest,
-                category_details: pool,
+                category_details: generatedDetailsRef.current,
                 categories_generated: true,
                 category_source: 'manual',
             });
