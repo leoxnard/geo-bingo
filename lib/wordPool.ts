@@ -92,18 +92,32 @@ export async function registerWordImports(ids: string[]): Promise<void> {
 }
 
 /**
- * Translate a word into every category language (Gemini primary, DeepL
+ * Translate words into every category language (Gemini primary, DeepL
  * fallback — same pipeline as daily-challenge categories), keyed by the
  * category-language words the word_pool.translations column uses.
  */
+export async function translatePoolWords(words: string[]): Promise<PoolWordTranslations[]> {
+    const byLocale = await translateCategories(words);
+    return byLocale.map((m) => {
+        const out: PoolWordTranslations = {};
+        for (const code of LOCALE_CODES) {
+            const v = m?.[code];
+            if (typeof v === 'string' && v.trim()) out[LOCALES[code].aiName] = v.trim();
+        }
+        return out;
+    });
+}
+
 export async function translatePoolWord(word: string): Promise<PoolWordTranslations> {
-    const [byLocale] = await translateCategories([word]);
-    const out: PoolWordTranslations = {};
-    for (const code of LOCALE_CODES) {
-        const v = byLocale?.[code];
-        if (typeof v === 'string' && v.trim()) out[LOCALES[code].aiName] = v.trim();
-    }
-    return out;
+    return (await translatePoolWords([word]))[0];
+}
+
+/** True when the word already has a non-empty text for every category language. */
+export function isFullyTranslated(w: PoolWord): boolean {
+    return LOCALE_CODES.every((code) => {
+        const lang = LOCALES[code].aiName;
+        return !!(w.translations?.[lang]?.trim() || (w.language === lang && w.word.trim()));
+    });
 }
 
 // ── Admin (daily-challenge admin allow-list) ─────────────────────────────────
