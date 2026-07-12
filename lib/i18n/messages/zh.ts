@@ -15,6 +15,7 @@ export const zh: Messages = {
     'common.waitingForHost': '等待房主...',
     'common.generating': '生成中...',
     'common.host': '房主',
+    'common.close': '关闭',
     'common.yes': '是',
     'common.no': '否',
 
@@ -225,6 +226,8 @@ export const zh: Messages = {
     'game.failedSaveSettings': '保存设置失败',
     'game.kicked': '你已被踢出此房间。',
     'game.banned': '你已被此房间封禁。',
+    'game.playerJoined': '{player} 加入了。',
+    'game.playerLeft': '{player} 已离线。',
     'game.alreadyStarted': '此游戏已经开始。',
     'game.couldNotJoin': '无法加入此游戏。',
     'game.noLongerHost': '你不再是房主。',
@@ -278,6 +281,10 @@ export const zh: Messages = {
     'voting.backToBoard': '返回游戏板',
     'voting.targetLocation': '目标位置',
     'voting.errorVote': '提交投票时出错。',
+    'voting.acceptVotes': '采纳当前投票并继续',
+    'voting.playerOffline': '离线，未投票：{player}',
+    'voting.offlineHostHint': '{player} 已离线——你可以采纳当前投票以继续。',
+    'players.panelTitle': '玩家',
 
     // ---- voting panel ----
     'votingPanel.singlePlayer': '单人投票 - 无需投票',
@@ -414,6 +421,18 @@ export const zh: Messages = {
     'explore.loadError': '无法加载词库。',
 
     // ---- word pool admin ----
+    // ---- admin hub ----
+    'admin.title': '管理',
+    'admin.subtitle': '内部整理与导出工具。',
+    'admin.noTools': '未启用任何管理工具。',
+    'admin.daily.title': '每日挑战',
+    'admin.daily.desc': '整理每日挑战候选池与排期队列。',
+    'admin.words.title': '词库',
+    'admin.words.desc': '审核并编辑从对局中收集的社区词库。',
+    'admin.presets.title': '边界预设',
+    'admin.presets.desc': '绘制边界区域并导出为 JSON。',
+
+    // ---- word pool admin ----
     'words.admin.title': '词库 — 管理',
     'words.admin.pending': '待审核',
     'words.admin.approved': '已通过',
@@ -428,6 +447,11 @@ export const zh: Messages = {
     'words.admin.sortFound': '找到次数',
     'words.admin.sortAlpha': 'A–Z',
     'words.admin.approve': '通过',
+    'words.admin.approveAll': '全部通过（{count}）',
+    'words.admin.approveAllConfirm': '通过全部 {count} 个待审核词？',
+    'words.admin.approvingAll': '正在通过 {count} 个词…',
+    'words.admin.approvedAll': '已通过 {count} 个词。',
+    'words.admin.approveAllPartial': '已通过 {total} 个词中的 {done} 个 — {failed} 个失败。',
     'words.admin.reject': '拒绝',
     'words.admin.edit': '编辑',
     'words.admin.save': '保存',

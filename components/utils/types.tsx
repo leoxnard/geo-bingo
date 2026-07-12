@@ -325,6 +325,13 @@ export interface StreetViewProps {
     // Canonical category name -> this viewer's translated label (individual
     // translation). Empty when off; missing entries fall back to the canonical.
     labelByCategory?: Record<string, string>;
+    // Host-only player panel (kick/ban/make-host) available during play.
+    isHost?: boolean;
+    onlinePlayers?: string[];
+    gameHostId?: string;
+    kickPlayer?: (id: string) => Promise<void> | void;
+    banPlayer?: (id: string) => Promise<void> | void;
+    makeHost?: (id: string) => Promise<void> | void;
 }
 
 export interface VotingViewProps {
@@ -343,6 +350,14 @@ export interface VotingViewProps {
     // Canonical category name -> this viewer's translated label (individual
     // translation). Empty when off; missing entries fall back to the canonical.
     labelByCategory?: Record<string, string>;
+    // Presence ids of players with a live connection, used to flag players who
+    // left so the host isn't waiting on their votes; also feeds the player panel.
+    onlinePlayers?: string[];
+    // Host-only player panel (kick/ban/make-host).
+    gameHostId?: string;
+    kickPlayer?: (id: string) => Promise<void> | void;
+    banPlayer?: (id: string) => Promise<void> | void;
+    makeHost?: (id: string) => Promise<void> | void;
 }
 
 export interface PodiumViewProps {

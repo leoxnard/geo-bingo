@@ -581,7 +581,14 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                 return { ...b, points, isComplete };
             })
             .filter((b) => b.points.length > 0); // drop the area entirely once empty
-        commitBoundaryChange(newBoundaries);
+        // See handleRemoveGroup: don't leave a lingering "forbid everything, allow
+        // nowhere" default behind once the last drawn area is gone.
+        if (newBoundaries.length === 0 && worldDefault === 'forbid') {
+            setWorldDefault('allow');
+            commitBoundaryChange(newBoundaries, { worldDefault: 'allow' });
+        } else {
+            commitBoundaryChange(newBoundaries);
+        }
     };
 
     const handleDrop = (dropIndex: number) => {
@@ -705,7 +712,16 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     const handleRemoveGroup = (key: string) => {
         setSelectedPreset('');
         const newBoundaries = draftBoundaries.filter((b) => b.id !== key && b.groupId !== key);
-        commitBoundaryChange(newBoundaries);
+        // Removing the last allowed area while the world default is 'forbid' would
+        // leave "forbid everything, allow nowhere" — an unplayable config that also
+        // persists into the next game (same row on play-again). Reset to 'allow',
+        // matching the "Reset areas" button.
+        if (newBoundaries.length === 0 && worldDefault === 'forbid') {
+            setWorldDefault('allow');
+            commitBoundaryChange(newBoundaries, { worldDefault: 'allow' });
+        } else {
+            commitBoundaryChange(newBoundaries);
+        }
         if (activeBoundaryId === key) setSelectedBoundaryId(null);
     };
 

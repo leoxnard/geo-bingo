@@ -30,13 +30,14 @@ import { useAiVerify } from './useAiVerify';
 import { useStreetViewPath } from './useStreetViewPath';
 import { useSubmissionsRealtime } from './useSubmissionsRealtime';
 import { supabase } from '../../lib/supabase';
+import PlayerManagementPanel from '../game/PlayerManagementPanel';
 import { calculateBingoCounter, getBingoLineSubmissions, getDistance } from '../utils/Functions';
 import { GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from '../utils/mapUtils';
 import { isSubmissionRow } from '../utils/typeGuards';
 import { Submission, StreetViewProps, BoundaryPolygon } from '../utils/types';
 import { useViewport } from '../utils/useViewport';
 
-export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list', teamMode = 'ffa', gridSize = 3, startingPoint = 'open-world', gameBoundary = '[]', endCondition = 'timer', timeLeft, readyPlayers, players, hideMapSymbols = false, hideMiniMap = false, exclusiveMode = false, allowHints = true, aiEndGame = true, onVoteEnd, notifyGameEvent, hintByCategory = {}, labelByCategory = {} }: StreetViewProps) {
+export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list', teamMode = 'ffa', gridSize = 3, startingPoint = 'open-world', gameBoundary = '[]', endCondition = 'timer', timeLeft, readyPlayers, players, hideMapSymbols = false, hideMiniMap = false, exclusiveMode = false, allowHints = true, aiEndGame = true, onVoteEnd, notifyGameEvent, hintByCategory = {}, labelByCategory = {}, isHost, onlinePlayers = [], gameHostId, kickPlayer, banPlayer, makeHost }: StreetViewProps) {
     const { t } = useT();
     const { settings } = useSettings();
     // Latest master volume, read inside the timer-sound effect without making it
@@ -60,6 +61,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
     const [mainMapInstance, setMainMapInstance] = useState<google.maps.Map | null>(null);
     const mainMapDotRef = useRef<google.maps.Marker | null>(null);
     const [showCoverage, setShowCoverage] = useState(false);
+    const [showPlayers, setShowPlayers] = useState(false);
     const coverageLayerRef = useRef<google.maps.StreetViewCoverageLayer | null>(null);
 
     const streetViewRef = useRef<google.maps.StreetViewPanorama | null>(null);
@@ -747,6 +749,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
 
     return (
         <div className="overflow-hidden p-4 bg-slate-950 flex flex-col">
+            <PlayerManagementPanel open={showPlayers} onClose={() => setShowPlayers(false)} players={players} onlinePlayers={onlinePlayers} playerId={playerId} gameHostId={gameHostId} kickPlayer={kickPlayer} banPlayer={banPlayer} makeHost={makeHost} />
             {/* Header (portrait only) */}
             {isPortrait && <RoundControls variant="portrait" isNarrow={isNarrow} timeLeft={timeLeft} aiEndGame={aiEndGame} isBingoFirstWithAi={isBingoFirstWithAi} handleAiVerifyAndEnd={handleAiVerifyAndEnd} allCategoriesFilled={allCategoriesFilled} isVerifying={isVerifying} handleVoteEndRound={handleVoteEndRound} hasVotedToEnd={hasVotedToEnd} aiVerificationSuccess={aiVerificationSuccess} readyPlayers={readyPlayers} votesNeeded={votesNeeded} />}
 
@@ -793,6 +796,9 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                             handleSubmit={handleSubmit}
                             hintByCategory={hintByCategory}
                             labelByCategory={labelByCategory}
+                            isHost={isHost}
+                            showPlayers={showPlayers}
+                            onTogglePlayers={() => setShowPlayers((v) => !v)}
                         />
 
                         {/* Right: Checklist */}

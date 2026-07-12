@@ -15,6 +15,7 @@ export const de: Messages = {
     'common.waitingForHost': 'Warten auf Host...',
     'common.generating': 'Generiere...',
     'common.host': 'Host',
+    'common.close': 'Schließen',
     'common.yes': 'Ja',
     'common.no': 'Nein',
 
@@ -225,6 +226,8 @@ export const de: Messages = {
     'game.failedSaveSettings': 'Einstellungen konnten nicht gespeichert werden',
     'game.kicked': 'Du wurdest aus dieser Lobby gekickt.',
     'game.banned': 'Du wurdest aus dieser Lobby gebannt.',
+    'game.playerJoined': '{player} ist beigetreten.',
+    'game.playerLeft': '{player} ist offline gegangen.',
     'game.alreadyStarted': 'Dieses Spiel hat bereits begonnen.',
     'game.couldNotJoin': 'Beitritt zu diesem Spiel nicht möglich.',
     'game.noLongerHost': 'Du bist nicht mehr der Host.',
@@ -278,6 +281,10 @@ export const de: Messages = {
     'voting.backToBoard': 'Zurück zum Board',
     'voting.targetLocation': 'Zielort',
     'voting.errorVote': 'Fehler beim Abstimmen.',
+    'voting.acceptVotes': 'Stimmen übernehmen & weiter',
+    'voting.playerOffline': 'Offline, stimmt nicht ab: {player}',
+    'voting.offlineHostHint': '{player} ist offline – du kannst die aktuellen Stimmen übernehmen und fortfahren.',
+    'players.panelTitle': 'Spieler',
 
     // ---- voting panel ----
     'votingPanel.singlePlayer': 'Einzelspieler-Abstimmung – keine Stimmen nötig',
@@ -414,6 +421,18 @@ export const de: Messages = {
     'explore.loadError': 'Wortpool konnte nicht geladen werden.',
 
     // ---- word pool admin ----
+    // ---- admin hub ----
+    'admin.title': 'Admin',
+    'admin.subtitle': 'Interne Kuratierungs- und Export-Tools.',
+    'admin.noTools': 'Keine Admin-Tools aktiviert.',
+    'admin.daily.title': 'Tägliche Challenge',
+    'admin.daily.desc': 'Kandidaten-Pool und geplante Warteschlange der täglichen Challenge kuratieren.',
+    'admin.words.title': 'Wortpool',
+    'admin.words.desc': 'Den aus Spielen gesammelten Community-Wortpool prüfen und bearbeiten.',
+    'admin.presets.title': 'Grenz-Vorlagen',
+    'admin.presets.desc': 'Grenzgebiete zeichnen und als JSON exportieren.',
+
+    // ---- word pool admin ----
     'words.admin.title': 'Wortpool — Admin',
     'words.admin.pending': 'Ausstehend',
     'words.admin.approved': 'Freigegeben',
@@ -428,6 +447,11 @@ export const de: Messages = {
     'words.admin.sortFound': 'Gefunden',
     'words.admin.sortAlpha': 'A–Z',
     'words.admin.approve': 'Freigeben',
+    'words.admin.approveAll': 'Alle freigeben ({count})',
+    'words.admin.approveAllConfirm': 'Alle {count} ausstehenden Wörter freigeben?',
+    'words.admin.approvingAll': 'Gebe {count} Wörter frei…',
+    'words.admin.approvedAll': '{count} Wörter freigegeben.',
+    'words.admin.approveAllPartial': '{done} von {total} Wörtern freigegeben — {failed} fehlgeschlagen.',
     'words.admin.reject': 'Ablehnen',
     'words.admin.edit': 'Bearbeiten',
     'words.admin.save': 'Speichern',

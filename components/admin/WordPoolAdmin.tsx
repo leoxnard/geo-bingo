@@ -20,7 +20,7 @@ translations (auto-approved AI words the harvest trigger stored untranslated).
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import toast from 'react-hot-toast';
-import { FaCheck, FaPen, FaTimes, FaTrash } from 'react-icons/fa';
+import { FaCheck, FaPen, FaSpinner, FaTimes, FaTrash } from 'react-icons/fa';
 
 import AccountButton from '@/components/account/AccountButton';
 import AuthGate from '@/components/community/AuthGate';
@@ -99,6 +99,7 @@ function PoolEditor() {
     const [sort, setSort] = useState<AdminSort>('new');
     const [editing, setEditing] = useState<{ id: string; word: string; language: CategoryLanguage } | null>(null);
     const [busyId, setBusyId] = useState<string | null>(null);
+    const [bulkBusy, setBulkBusy] = useState(false);
     // The backfill sweep tries each row at most once per page visit, so a
     // failing translation service can't loop.
     const sweptIdsRef = useRef<Set<string>>(new Set());
@@ -176,6 +177,49 @@ function PoolEditor() {
             await load();
         } finally {
             setBusyId(null);
+        }
+    };
+
+    // Approve every pending word in the current view (respects the active language
+    // and search filters). Reuses the per-word approve flow, but batch-translates
+    // all untranslated words in a single call first so approval stays fast.
+    const approveAll = async (words: PoolWord[]) => {
+        const pending = words.filter((w) => w.status === 'pending');
+        if (pending.length === 0 || bulkBusy) return;
+        if (!window.confirm(t('words.admin.approveAllConfirm', { count: pending.length }))) return;
+
+        setBulkBusy(true);
+        const loadingToast = toast.loading(t('words.admin.approvingAll', { count: pending.length }));
+        try {
+            // One translation round for every word still missing a full set; a
+            // failure just leaves those words usable in their source language.
+            const needTranslation = pending.filter((w) => !isFullyTranslated(w));
+            const translationById = new Map<string, PoolWordTranslations>();
+            if (needTranslation.length > 0) {
+                try {
+                    const maps = await translatePoolWords(needTranslation.map((w) => w.word));
+                    needTranslation.forEach((w, i) => translationById.set(w.id, maps[i]));
+                } catch {
+                    toast.error(t('words.admin.translateFailed'));
+                }
+            }
+
+            let failed = 0;
+            for (const w of pending) {
+                try {
+                    const res = await adminReviewPoolWord(w.id, 'approved', translationById.get(w.id) ?? null);
+                    if (!res.success) failed++;
+                } catch {
+                    failed++;
+                }
+            }
+
+            toast.dismiss(loadingToast);
+            if (failed === 0) toast.success(t('words.admin.approvedAll', { count: pending.length }));
+            else toast.error(t('words.admin.approveAllPartial', { done: pending.length - failed, total: pending.length, failed }));
+            await load();
+        } finally {
+            setBulkBusy(false);
         }
     };
 
@@ -296,13 +340,20 @@ function PoolEditor() {
                 ))}
             </div>
 
+            {/* Bulk approve — only meaningful while looking at the pending queue */}
+            {tab === 'pending' && visible.length > 0 && (
+                <button type="button" onClick={() => approveAll(visible)} disabled={bulkBusy} className="flex items-center justify-center gap-2 self-start rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-bold text-white transition-colors hover:bg-emerald-500 disabled:opacity-50">
+                    {bulkBusy ? <FaSpinner className="animate-spin" size={12} /> : <FaCheck size={12} />} {t('words.admin.approveAll', { count: visible.length })}
+                </button>
+            )}
+
             {/* Words */}
             {visible.length === 0 ? (
                 <p className="text-sm text-slate-400">{t('words.admin.empty')}</p>
             ) : (
                 <div className="flex flex-col gap-2">
                     {visible.map((w) => (
-                        <WordRow key={w.id} w={w} busy={busyId === w.id} editing={editing?.id === w.id ? editing : null} onEditChange={setEditing} onStartEdit={() => setEditing({ id: w.id, word: w.word, language: w.language })} onSaveEdit={saveEdit} onCancelEdit={() => setEditing(null)} onReview={review} onDelete={remove} />
+                        <WordRow key={w.id} w={w} busy={busyId === w.id || bulkBusy} editing={editing?.id === w.id ? editing : null} onEditChange={setEditing} onStartEdit={() => setEditing({ id: w.id, word: w.word, language: w.language })} onSaveEdit={saveEdit} onCancelEdit={() => setEditing(null)} onReview={review} onDelete={remove} />
                     ))}
                 </div>
             )}

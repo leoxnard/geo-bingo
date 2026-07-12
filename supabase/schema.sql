@@ -979,6 +979,8 @@ CREATE OR REPLACE FUNCTION "public"."delete_player"("p_id" "uuid", "p_host_id" "
     AS $$
 DECLARE
     target_game_id text;
+    remaining      int;
+    ready_here     int;
 BEGIN
     SELECT game_id INTO target_game_id FROM players WHERE id = p_id;
     IF target_game_id IS NULL THEN
@@ -988,7 +990,26 @@ BEGIN
     IF NOT public.is_valid_host(target_game_id, p_host_id) THEN
         RETURN jsonb_build_object('success', false, 'error', 'NOT_HOST');
     END IF;
+
     DELETE FROM players WHERE id = p_id;
+
+    -- Keep the ready set consistent with who is actually still here.
+    UPDATE games SET ready_players = array_remove(COALESCE(ready_players, '{}'::text[]), p_id::text)
+    WHERE id = target_game_id;
+
+    -- If everyone remaining already voted to end the round, advance to voting
+    -- (resetting the voting cursor, like the vote RPCs do).
+    SELECT count(*) INTO remaining FROM players WHERE game_id = target_game_id;
+    SELECT count(*) INTO ready_here
+    FROM players p
+    WHERE p.game_id = target_game_id
+      AND p.id::text = ANY (COALESCE((SELECT ready_players FROM games WHERE id = target_game_id), '{}'::text[]));
+
+    IF remaining > 0 AND ready_here >= remaining THEN
+        UPDATE games SET status = 'voting', voting_round_index = 0, voting_active_sub_id = NULL
+        WHERE id = target_game_id AND status = 'playing';
+    END IF;
+
     RETURN jsonb_build_object('success', true);
 END;
 $$;
@@ -1674,7 +1695,7 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'error', 'NOT_A_PLAYER');
     END IF;
 
-    UPDATE games SET status = 'voting'
+    UPDATE games SET status = 'voting', voting_round_index = 0, voting_active_sub_id = NULL
     WHERE id = p_game_id AND status = 'playing';
 
     -- If the game wasn't in 'playing' the UPDATE matches zero rows; that's
@@ -1753,7 +1774,8 @@ BEGIN
     SELECT count(*)::int INTO total_players FROM players WHERE game_id = p_game_id;
 
     IF array_length(new_ready, 1) >= total_players THEN
-        UPDATE games SET ready_players = new_ready, status = 'voting'
+        UPDATE games SET ready_players = new_ready, status = 'voting',
+            voting_round_index = 0, voting_active_sub_id = NULL
         WHERE id = p_game_id AND status = 'playing';
     ELSE
         UPDATE games SET ready_players = new_ready WHERE id = p_game_id;
@@ -2128,7 +2150,9 @@ BEGIN
     UPDATE games
     SET status = p_status,
         phase_started_at = CASE WHEN p_status = 'playing' AND status IS DISTINCT FROM 'playing' THEN now() ELSE phase_started_at END,
-        finished_at = CASE WHEN p_status = 'finished' THEN now() ELSE finished_at END
+        finished_at = CASE WHEN p_status = 'finished' THEN now() ELSE finished_at END,
+        voting_round_index = CASE WHEN p_status IN ('voting', 'lobby') THEN 0 ELSE voting_round_index END,
+        voting_active_sub_id = CASE WHEN p_status IN ('voting', 'lobby') THEN NULL ELSE voting_active_sub_id END
     WHERE id = p_game_id;
     RETURN jsonb_build_object('success', true);
 END;
@@ -2183,6 +2207,26 @@ $$;
 
 
 ALTER FUNCTION "public"."set_username"("p_username" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."set_voting_cursor"("p_game_id" "text", "p_host_id" "text", "p_round_index" integer, "p_active_sub_id" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+    IF NOT public.is_valid_host(p_game_id, p_host_id) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_HOST');
+    END IF;
+    UPDATE games
+    SET voting_round_index = p_round_index,
+        voting_active_sub_id = p_active_sub_id
+    WHERE id = p_game_id;
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."set_voting_cursor"("p_game_id" "text", "p_host_id" "text", "p_round_index" integer, "p_active_sub_id" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."submission_is_valid"("p_votes" "jsonb") RETURNS boolean
@@ -2766,7 +2810,9 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "finished_at" timestamp with time zone,
     "phase_started_at" timestamp with time zone,
     "translate_categories" boolean DEFAULT false NOT NULL,
-    "words_harvested_at" timestamp with time zone
+    "words_harvested_at" timestamp with time zone,
+    "voting_round_index" integer DEFAULT 0 NOT NULL,
+    "voting_active_sub_id" "uuid"
 );
 
 
@@ -3629,6 +3675,12 @@ GRANT ALL ON FUNCTION "public"."set_submission_ai_verdict"("p_id" "uuid", "p_pla
 GRANT ALL ON FUNCTION "public"."set_username"("p_username" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."set_username"("p_username" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_username"("p_username" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."set_voting_cursor"("p_game_id" "text", "p_host_id" "text", "p_round_index" integer, "p_active_sub_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."set_voting_cursor"("p_game_id" "text", "p_host_id" "text", "p_round_index" integer, "p_active_sub_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."set_voting_cursor"("p_game_id" "text", "p_host_id" "text", "p_round_index" integer, "p_active_sub_id" "uuid") TO "service_role";
 
 
 

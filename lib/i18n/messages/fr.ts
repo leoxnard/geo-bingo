@@ -15,6 +15,7 @@ export const fr: Messages = {
     'common.waitingForHost': "En attente de l'hôte...",
     'common.generating': 'Génération...',
     'common.host': 'Hôte',
+    'common.close': 'Fermer',
     'common.yes': 'Oui',
     'common.no': 'Non',
 
@@ -225,6 +226,8 @@ export const fr: Messages = {
     'game.failedSaveSettings': 'Impossible d’enregistrer les paramètres',
     'game.kicked': 'Tu as été exclu de ce salon.',
     'game.banned': 'Tu as été banni de ce salon.',
+    'game.playerJoined': '{player} a rejoint.',
+    'game.playerLeft': '{player} s’est déconnecté.',
     'game.alreadyStarted': 'Cette partie a déjà commencé.',
     'game.couldNotJoin': 'Impossible de rejoindre cette partie.',
     'game.noLongerHost': 'Tu n’es plus l’hôte.',
@@ -278,6 +281,10 @@ export const fr: Messages = {
     'voting.backToBoard': 'Retour à la grille',
     'voting.targetLocation': 'Emplacement cible',
     'voting.errorVote': 'Erreur lors de l’envoi du vote.',
+    'voting.acceptVotes': 'Valider les votes et continuer',
+    'voting.playerOffline': 'Hors ligne, ne vote pas : {player}',
+    'voting.offlineHostHint': '{player} est hors ligne — tu peux valider les votes actuels pour continuer.',
+    'players.panelTitle': 'Joueurs',
 
     // ---- voting panel ----
     'votingPanel.singlePlayer': 'Vote en solo - aucun vote nécessaire',
@@ -414,6 +421,18 @@ export const fr: Messages = {
     'explore.loadError': 'Impossible de charger la réserve de mots.',
 
     // ---- word pool admin ----
+    // ---- admin hub ----
+    'admin.title': 'Admin',
+    'admin.subtitle': 'Outils internes de curation et d’export.',
+    'admin.noTools': 'Aucun outil d’administration activé.',
+    'admin.daily.title': 'Défi quotidien',
+    'admin.daily.desc': 'Gérer la réserve de candidats du défi quotidien et la file programmée.',
+    'admin.words.title': 'Réserve de mots',
+    'admin.words.desc': 'Vérifier et modifier la réserve de mots de la communauté collectée dans les parties.',
+    'admin.presets.title': 'Modèles de zones',
+    'admin.presets.desc': 'Dessiner des zones et les exporter en JSON.',
+
+    // ---- word pool admin ----
     'words.admin.title': 'Réserve de mots — Admin',
     'words.admin.pending': 'En attente',
     'words.admin.approved': 'Approuvés',
@@ -428,6 +447,11 @@ export const fr: Messages = {
     'words.admin.sortFound': 'Trouvés',
     'words.admin.sortAlpha': 'A–Z',
     'words.admin.approve': 'Approuver',
+    'words.admin.approveAll': 'Tout approuver ({count})',
+    'words.admin.approveAllConfirm': 'Approuver les {count} mots en attente ?',
+    'words.admin.approvingAll': 'Approbation de {count} mots…',
+    'words.admin.approvedAll': '{count} mots approuvés.',
+    'words.admin.approveAllPartial': '{done} mots sur {total} approuvés — {failed} en échec.',
     'words.admin.reject': 'Rejeter',
     'words.admin.edit': 'Modifier',
     'words.admin.save': 'Enregistrer',

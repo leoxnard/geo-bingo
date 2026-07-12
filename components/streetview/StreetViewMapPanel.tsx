@@ -12,7 +12,7 @@ passed in so the parent can keep its effects and listeners in one place.
 */
 
 import { GoogleMap, Polygon, StreetViewPanorama } from '@react-google-maps/api';
-import { FaChevronLeft } from 'react-icons/fa';
+import { FaChevronLeft, FaUsers } from 'react-icons/fa';
 import { GoMoveToStart } from 'react-icons/go';
 
 import { useT } from '@/lib/i18n/I18nProvider';
@@ -61,6 +61,10 @@ interface StreetViewMapPanelProps {
     handleSubmit: (category: string) => void;
     hintByCategory?: HintMap;
     labelByCategory?: Record<string, string>;
+    // Host-only player panel toggle, sat with the map controls.
+    isHost?: boolean;
+    showPlayers?: boolean;
+    onTogglePlayers?: () => void;
 }
 
 export default function StreetViewMapPanel(props: StreetViewMapPanelProps) {
@@ -118,6 +122,12 @@ export default function StreetViewMapPanel(props: StreetViewMapPanelProps) {
             {!isMobileLandscape && <FullscreenButton isFullscreen={isFullscreen} containerRef={containerRef} setIsFullscreen={setIsFullscreen} />}
 
             {!inStreetView && <CoverageToggleButton active={showCoverage} onClick={() => setShowCoverage((v) => !v)} className="absolute top-16 right-2 z-5 hidden sm:flex" />}
+
+            {props.isHost && (
+                <button type="button" onClick={props.onTogglePlayers} title={t('players.panelTitle')} className={`glass-dark absolute top-32 right-2 z-5 flex h-12 w-12 items-center justify-center rounded-md font-bold transition-transform hover:scale-105 hover:brightness-125 active:scale-95 ${props.showPlayers ? 'text-indigo-400' : 'text-white'}`}>
+                    <FaUsers size={18} />
+                </button>
+            )}
 
             {isFullscreen && (
                 <div ref={panelRef} className={`absolute z-10 top-0 left-0 bottom-0 h-full glass-dark border-r border-white/10 transition-transform duration-300 ease-out ${fsPanelOpen ? 'translate-x-0' : '-translate-x-full'}`}>

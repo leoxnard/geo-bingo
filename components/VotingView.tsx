@@ -10,14 +10,16 @@ Features yellow submission markers and blue category markers on completed tracks
 ================================================================================
 */
 
-import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, Fragment } from 'react';
 
 import { GoogleMap, useJsApiLoader, Polyline, MarkerF, StreetViewPanorama, Circle, OverlayViewF, OverlayView } from '@react-google-maps/api';
 import toast from 'react-hot-toast';
-import { FaInfoCircle } from 'react-icons/fa';
+import { FaInfoCircle, FaUsers } from 'react-icons/fa';
 
+import { getHostToken } from '@/lib/hostToken';
 import { useT } from '@/lib/i18n/I18nProvider';
 
+import PlayerManagementPanel from './game/PlayerManagementPanel';
 import { supabase } from '../lib/supabase';
 import { resolveHint } from './streetview/streetViewHelpers';
 import { GeoBingoLogo } from './utils/Elements';
@@ -100,13 +102,17 @@ interface BingoCategory {
     }[];
 }
 
+// Street View throws on a NaN/undefined heading, pitch or zoom (some submissions
+// carry null pov fields). Coerce to a safe finite value before touching the pano.
+const finiteOr = (v: number | null | undefined, fallback: number) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
+
 const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => {
     let dLng = Math.abs(lng1 - lng2);
     if (dLng > 180) dLng = 360 - dLng;
     return Math.sqrt(Math.pow(lat1 - lat2, 2) + Math.pow(dLng, 2));
 };
 
-export function VotingView({ gameId, isHost, playerId, players, teamMode, onFinishGame, isDeveloper = false, hintByCategory = {}, labelByCategory = {}, scaleVoting = false }: VotingViewProps) {
+export function VotingView({ gameId, isHost, playerId, players, teamMode, onFinishGame, isDeveloper = false, hintByCategory = {}, labelByCategory = {}, scaleVoting = false, onlinePlayers = [], gameHostId, kickPlayer, banPlayer, makeHost }: VotingViewProps) {
     const { t } = useT();
     const { isNarrow } = useViewport();
     const isNarrowRef = useRef(isNarrow);
@@ -132,6 +138,16 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
     const [isPaused, setIsPaused] = useState(false);
     const [isLineComplete, setIsLineComplete] = useState(false);
+
+    // Authoritative voting cursor, persisted on the games row and written only by
+    // the host. `voting_active_sub_id` is the submission everyone is voting on
+    // right now (null = round start / host still animating toward the first card).
+    // Non-hosts render whatever this names; the host publishes it as its own
+    // replay animation reaches each card. This is what keeps every device on the
+    // same submission and lets a reloading player resume mid-round.
+    const [cursorSubId, setCursorSubId] = useState<string | null>(null);
+    const hostRestoredRef = useRef(false);
+    const [showPlayers, setShowPlayers] = useState(false);
 
     const [activeSubmission, setActiveSubmission] = useState<Submission | null>(null);
     const [lastActiveSub, setLastActiveSub] = useState<Submission | null>(null);
@@ -290,8 +306,8 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         const pano = streetViewPanoramaRef.current;
         if (pano && displaySub) {
             pano.setPosition({ lat: displaySub.lat, lng: displaySub.lng });
-            pano.setPov({ heading: displaySub.heading, pitch: displaySub.pitch });
-            pano.setZoom(displaySub.zoom || 3);
+            pano.setPov({ heading: finiteOr(displaySub.heading, 0), pitch: finiteOr(displaySub.pitch, 0) });
+            pano.setZoom(finiteOr(displaySub.zoom, 3));
         }
     }, [displaySub, selectedSubmission, selectedFinalMarker]);
 
@@ -303,28 +319,77 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         return gameCategories.slice(0, gameMode === 'list' ? gameCategories.length : gridSize * gridSize);
     }, [roundPlayers, gameCategories, gridSize, gameMode]);
 
+    // Players still in the game right now. playersWithPaths is fetched once on
+    // mount, so intersect with the live `players` prop — otherwise a kicked player
+    // keeps inflating the eligible-voter count and voting never auto-advances.
+    const currentPlayerIds = useMemo(() => new Set(players.map((p) => p.id)), [players]);
+
     const votingStats = useMemo(() => {
         let isComplete = false;
         let cast = 0;
         let eligibleCount = 0;
         if (activeSubLatest) {
             const votesMap = activeSubLatest.votes || {};
-            // Hype is an extra, optional cheer — it doesn't count as casting a yes/no
-            // vote, so it must not advance the round-completion tally.
-            const actualVotes = Object.keys(votesMap).filter((k) => k !== 'host_continued' && !k.startsWith(HYPE_PREFIX));
-            cast = actualVotes.length;
-
-            const eligibleVoters = playersWithPaths.filter((p) => (teamMode === 'teams' ? p.team !== roundTeam : !roundPlayerIds.has(p.id)));
+            const eligibleVoters = playersWithPaths.filter((p) => currentPlayerIds.has(p.id) && (teamMode === 'teams' ? p.team !== roundTeam : !roundPlayerIds.has(p.id)));
             eligibleCount = eligibleVoters.length;
+            // A voter's yes/no/scale vote is stored under their plain id (hype cheers
+            // use the `hype:` prefix and don't count), so a present id key = a vote cast.
+            cast = eligibleVoters.filter((p) => Object.prototype.hasOwnProperty.call(votesMap, p.id)).length;
             isComplete = cast >= eligibleCount || eligibleCount === 0;
         }
         return { isComplete, cast, eligibleCount };
-    }, [activeSubLatest, playersWithPaths, roundTeam, roundPlayerIds, teamMode]);
+    }, [activeSubLatest, playersWithPaths, currentPlayerIds, roundTeam, roundPlayerIds, teamMode]);
+
+    // Eligible voters for the active card who haven't voted AND have no live
+    // connection — i.e. people who left. They keep the tally from completing, so
+    // we surface them (and nudge the host to accept) rather than auto-dropping them.
+    const offlineBlockers = useMemo(() => {
+        if (!activeSubLatest) return [] as PlayerWithPaths[];
+        const votesMap = activeSubLatest.votes || {};
+        const eligible = playersWithPaths.filter((p) => currentPlayerIds.has(p.id) && (teamMode === 'teams' ? p.team !== roundTeam : !roundPlayerIds.has(p.id)));
+        return eligible.filter((p) => !Object.prototype.hasOwnProperty.call(votesMap, p.id) && !onlinePlayers.includes(p.id));
+    }, [activeSubLatest, playersWithPaths, currentPlayerIds, teamMode, roundTeam, roundPlayerIds, onlinePlayers]);
+
+    // Nudge the host once per card when an offline player is blocking completion.
+    const offlineToastedSubRef = useRef<string | null>(null);
+    useEffect(() => {
+        if (!isHost || !activeSubLatest || offlineBlockers.length === 0) return;
+        if (offlineToastedSubRef.current === activeSubLatest.id) return;
+        offlineToastedSubRef.current = activeSubLatest.id;
+        toast(t('voting.offlineHostHint', { player: offlineBlockers.map((p) => p.name).join(', ') }));
+    }, [isHost, activeSubLatest, offlineBlockers, t]);
+
+    // Advance to a round and wipe the replay back to its start. Mirrors the old
+    // 'next_player' broadcast handler. Called from the two places a round change
+    // originates — the realtime games callback and the host's Next-Player click —
+    // never from an effect (React flags cascading setState there). Deduping on the
+    // current round stops the host resetting twice when its own cursor write echoes.
+    // Declared above the realtime subscription so the compiler is happy for the
+    // once-created channel callback to read the latest version through applyRoundRef.
+    const applyRoundIndex = (idx: number) => {
+        if (currentRoundIndex === idx) return;
+        setCurrentRoundIndex(idx);
+        setActiveSubmission(null);
+        // Close any manually-opened Street View so the next player starts on the map.
+        setIsStreetViewVisible(false);
+        setSelectedSubmission(null);
+        setSelectedFinalMarker(null);
+        setIsPaused(false);
+        setIsLineComplete(false);
+        shownSubIdsRef.current.clear();
+        setShownSubIds(new Set());
+        animationProgressRef.current = 0;
+        if (progressBarRef.current) progressBarRef.current.style.transform = `scale${isNarrowRef.current ? 'X' : 'Y'}(0)`;
+    };
+    const applyRoundRef = useRef(applyRoundIndex);
+    useEffect(() => {
+        applyRoundRef.current = applyRoundIndex;
+    });
 
     // Data Fetching
     useEffect(() => {
         const fetchData = async () => {
-            const { data: gData } = await supabase.from('games').select('categories, grid_size, game_mode, category_details, generation_radius, starting_point, category_source, preset_categories').eq('id', gameId).single();
+            const { data: gData } = await supabase.from('games').select('categories, grid_size, game_mode, category_details, generation_radius, starting_point, category_source, preset_categories, voting_round_index, voting_active_sub_id').eq('id', gameId).single();
 
             if (gData) {
                 setGameCategories(gData.categories || []);
@@ -335,6 +400,12 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                 setCategorySource(gData.category_source || 'manual');
                 setStartingPoint(gData.starting_point !== 'open-world' && gData.category_source !== 'manual' ? JSON.parse(gData.starting_point) : null);
                 if (Array.isArray(gData.preset_categories)) setPresetPositions(gData.preset_categories);
+                // Seed the cursor so a mid-voting reload resumes on the current
+                // round/card instead of restarting the replay from player one.
+                // Seed the round directly (not via applyRoundIndex) so a mid-voting
+                // reload lands on the current round without wiping the restored card.
+                setCurrentRoundIndex(gData.voting_round_index ?? 0);
+                setCursorSubId(gData.voting_active_sub_id ?? null);
             }
 
             const { data: subData } = await supabase.from('submissions').select('*').eq('game_id', gameId);
@@ -363,25 +434,27 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                     setSubmissions((prev) => prev.map((s) => (s.id === payload.new.id ? { ...s, votes: payload.new.votes } : s)));
                 },
             )
-            .on('broadcast', { event: 'next_player' }, (payload) => {
-                setActiveSubmission(null);
-                // Close any manually-opened Street View so the next player starts on the map.
-                setIsStreetViewVisible(false);
-                setSelectedSubmission(null);
-                setSelectedFinalMarker(null);
-                setIsPaused(false);
-                setIsLineComplete(false);
-                shownSubIdsRef.current.clear();
-                setShownSubIds(new Set());
-                animationProgressRef.current = 0;
-                if (progressBarRef.current) progressBarRef.current.style.transform = `scale${isNarrowRef.current ? 'X' : 'Y'}(0)`;
-
-                setCurrentRoundIndex(payload.payload.index);
-            })
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'games',
+                    filter: `id=eq.${gameId}`,
+                },
+                (payload) => {
+                    // The voting cursor is the single source of truth for round +
+                    // active card. Round changes are picked up here (replacing the
+                    // old 'next_player' broadcast) and reset the replay via
+                    // applyRoundIndex (a subscription callback, so setState is fine).
+                    const g = payload.new as { voting_round_index?: number; voting_active_sub_id?: string | null };
+                    if (typeof g.voting_round_index === 'number') applyRoundRef.current(g.voting_round_index);
+                    setCursorSubId(g.voting_active_sub_id ?? null);
+                },
+            )
             .subscribe();
-        // NOTE: no 'finish_game' broadcast handler here — it duplicated the host's
-        // DB write on every receiver (now blocked by the host-only set_game_status
-        // RPC). The page-level games subscription already re-renders to PodiumView.
+        // NOTE: no 'finish_game' handler — finishing is driven by the page-level
+        // games status subscription, which re-renders straight to PodiumView.
 
         return () => {
             supabase.removeChannel(channel);
@@ -452,6 +525,55 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
     const allRoundPoints = useMemo(() => roundData.flatMap((pd) => pd.rawPath), [roundData]);
 
+    // Host-only: publish the authoritative cursor. p_host_id carries the host
+    // capability token (see set_voting_cursor), read straight from localStorage.
+    const writeCursor = useCallback(
+        (roundIndex: number, subId: string | null) => {
+            if (!isHost) return;
+            supabase.rpc('set_voting_cursor', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_round_index: roundIndex, p_active_sub_id: subId }).then(({ error }) => {
+                if (error) console.error(error);
+            });
+        },
+        [isHost, gameId],
+    );
+
+    // Paint every teammate's path + moving marker at a shared 0..1 progress.
+    const drawAtProgress = useCallback(
+        (progress: number) => {
+            for (const pd of roundData) {
+                const { currentPoint, partialPath } = computePartial(pd, progress);
+                const pl = polylineRefs.current.get(pd.player.id);
+                const mk = movingMarkerRefs.current.get(pd.player.id);
+                if (pl) pl.setPath(partialPath);
+                if (mk && currentPoint) mk.setPosition(currentPoint);
+            }
+            animationProgressRef.current = progress;
+            if (progressBarRef.current) progressBarRef.current.style.transform = `scale${isNarrowRef.current ? 'X' : 'Y'}(${progress})`;
+        },
+        [roundData],
+    );
+
+    // Jump the replay directly onto a submission (used to follow the host's cursor
+    // on non-host devices and to restore a reloaded device). Everything up to and
+    // including this card counts as already shown.
+    const snapToSub = useCallback(
+        (sub: Submission) => {
+            const target = allSubProgressions.find((sp) => sp.sub.id === sub.id);
+            const p = target?.progress ?? animationProgressRef.current;
+            allSubProgressions.forEach((sp) => {
+                if (sp.progress <= p) shownSubIdsRef.current.add(sp.sub.id);
+            });
+            shownSubIdsRef.current.add(sub.id);
+            setShownSubIds(new Set(shownSubIdsRef.current));
+            drawAtProgress(p);
+            setActiveSubmission(sub);
+            setLastActiveSub(sub);
+            setIsLineComplete(false);
+            setIsPaused(true);
+        },
+        [allSubProgressions, drawAtProgress],
+    );
+
     // Map Init — frame the entire round so every teammate's path stays visible.
     useEffect(() => {
         if (!mapInstance || allRoundPoints.length === 0) return;
@@ -481,7 +603,11 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
     // Animation Loop — drives every teammate's path off one shared, normalized
     // progress. The map is framed to the whole round up front (no per-frame recenter).
+    // Only the host runs the replay: as it reaches each card it publishes the cursor,
+    // and every other device follows that cursor (see the non-host effect below).
+    // This is what stops one device from racing ahead to the next submission.
     useEffect(() => {
+        if (!isHost) return;
         if (!mapInstance || isPaused || isLineComplete || roundData.length === 0) return;
         if (!roundData.some((pd) => pd.rawPath.length > 0)) return;
 
@@ -514,6 +640,8 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                 setShownSubIds(new Set(shownSubIdsRef.current));
                 progress = crossedSub.progress;
                 hitSub = true;
+                // Publish this card so every other device votes on it too.
+                writeCursor(currentRoundIndex, crossedSub.sub.id);
             }
 
             animationProgressRef.current = progress;
@@ -541,7 +669,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
         rAFRef.current = requestAnimationFrame(animate);
         return () => cancelAnimationFrame(rAFRef.current);
-    }, [isPaused, isLineComplete, mapInstance, roundData, allSubProgressions, calculatedDuration, isNarrow]);
+    }, [isHost, isPaused, isLineComplete, mapInstance, roundData, allSubProgressions, calculatedDuration, isNarrow, writeCursor, currentRoundIndex]);
 
     // On completion, re-fit so all teammate paths are framed together.
     useEffect(() => {
@@ -552,7 +680,11 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         }
     }, [isLineComplete, mapInstance, allRoundPoints]);
 
+    // Host-only auto-advance: once everyone present has voted, resume the replay,
+    // which surfaces (and publishes) the next card. Non-hosts never advance on
+    // their own tally — they follow the published cursor instead.
     useEffect(() => {
+        if (!isHost) return;
         let timeoutId: ReturnType<typeof setTimeout>;
 
         if (votingStats.isComplete && activeSubLatest && isPaused) {
@@ -562,7 +694,29 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
             }, 100);
         }
         return () => clearTimeout(timeoutId);
-    }, [votingStats.isComplete, activeSubLatest, isPaused]);
+    }, [isHost, votingStats.isComplete, activeSubLatest, isPaused]);
+
+    // Non-host follow: render whatever submission the host's cursor names. A null
+    // cursor means the round just started (host still animating toward the first
+    // card) — nothing to show yet. Also restores a reloaded non-host onto the
+    // current card. The host takes its cursor from its own replay, so it skips this.
+    useEffect(() => {
+        if (isHost || !isDataLoaded || !cursorSubId) return;
+        if (activeSubmission?.id === cursorSubId) return;
+        const sub = submissions.find((s) => s.id === cursorSubId);
+        if (!sub || !roundPlayerIds.has(sub.player_id)) return;
+        snapToSub(sub);
+    }, [isHost, isDataLoaded, cursorSubId, submissions, roundPlayerIds, activeSubmission, snapToSub]);
+
+    // Host restore-on-reload (once): if the host reloads mid-voting, jump its
+    // replay to the persisted card instead of replaying from the round's start.
+    useEffect(() => {
+        if (!isHost || hostRestoredRef.current || !isDataLoaded) return;
+        hostRestoredRef.current = true;
+        if (!cursorSubId) return;
+        const sub = submissions.find((s) => s.id === cursorSubId);
+        if (sub && roundPlayerIds.has(sub.player_id)) snapToSub(sub);
+    }, [isHost, isDataLoaded, cursorSubId, submissions, roundPlayerIds, snapToSub]);
 
     const handleVote = async (sub: Submission, voteIsYes: boolean) => {
         const newVotes = { ...sub.votes, [playerId]: voteIsYes };
@@ -618,39 +772,24 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     const handleNextPlayer = () => {
         if (currentRoundIndex < rounds.length - 1) {
             const nextIndex = currentRoundIndex + 1;
-
-            setActiveSubmission(null);
-            // Close any manually-opened Street View so the next player starts on the map.
-            setIsStreetViewVisible(false);
-            setSelectedSubmission(null);
-            setSelectedFinalMarker(null);
-            setIsPaused(false);
-            setIsLineComplete(false);
-            shownSubIdsRef.current.clear();
-            setShownSubIds(new Set());
-            animationProgressRef.current = 0;
-            if (progressBarRef.current) progressBarRef.current.style.transform = `scale${isNarrow ? 'X' : 'Y'}(0)`;
-
-            setCurrentRoundIndex(nextIndex);
-
-            supabase
-                .channel(`voting-journey-${gameId}`)
-                .httpSend('next_player', { index: nextIndex })
-                .catch(() => {});
+            // Reset + advance locally so the host doesn't wait on the round-trip, then
+            // publish so every other device advances via the games subscription.
+            applyRoundIndex(nextIndex);
+            writeCursor(nextIndex, null);
         } else {
-            supabase
-                .channel(`voting-journey-${gameId}`)
-                .httpSend('finish_game', {})
-                .catch(() => {});
             onFinishGame();
         }
     };
 
+    // Host force-advance: accept whatever votes the current card has and move on,
+    // without waiting for everyone. Resuming surfaces + publishes the next card,
+    // exactly like the auto-advance path.
+    const handleAcceptVotes = () => {
+        setActiveSubmission(null);
+        setIsPaused(false);
+    };
+
     const handleSkipToPodium = () => {
-        supabase
-            .channel(`voting-journey-${gameId}`)
-            .httpSend('finish_game', {})
-            .catch(() => {});
         onFinishGame();
     };
 
@@ -931,10 +1070,10 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
             return {
                 position: { lat: selectedSubmission.lat, lng: selectedSubmission.lng },
                 pov: {
-                    heading: selectedSubmission.heading,
-                    pitch: selectedSubmission.pitch,
+                    heading: finiteOr(selectedSubmission.heading, 0),
+                    pitch: finiteOr(selectedSubmission.pitch, 0),
                 },
-                zoom: selectedSubmission.zoom || 3,
+                zoom: finiteOr(selectedSubmission.zoom, 3),
                 visible: true,
                 addressControl: false,
                 showRoadLabels: false,
@@ -972,8 +1111,8 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         if (displaySub) {
             return {
                 position: { lat: displaySub.lat, lng: displaySub.lng },
-                pov: { heading: displaySub.heading, pitch: displaySub.pitch },
-                zoom: displaySub.zoom || 3,
+                pov: { heading: finiteOr(displaySub.heading, 0), pitch: finiteOr(displaySub.pitch, 0) },
+                zoom: finiteOr(displaySub.zoom, 3),
                 visible: true,
                 addressControl: false,
                 showRoadLabels: false,
@@ -1029,6 +1168,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
     return (
         <div className={`flex ${isNarrow ? 'flex-col' : 'flex-row'} h-[100dvh] w-screen overflow-hidden bg-slate-950`}>
+            <PlayerManagementPanel open={showPlayers} onClose={() => setShowPlayers(false)} players={players} onlinePlayers={onlinePlayers} playerId={playerId} gameHostId={gameHostId} kickPlayer={kickPlayer} banPlayer={banPlayer} makeHost={makeHost} />
             {/* Left Panel (Map) */}
             <div className={`relative ${isNarrow ? 'w-full h-1/2' : 'w-1/2 h-full'} z-10 flex-shrink-0`}>
                 <GoogleMap onLoad={(map) => setMapInstance(map)} mapContainerClassName="w-full h-full" options={currentMapOptions}>
@@ -1139,10 +1279,22 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                         </div>
                     </div>
 
-                    {isHost && currentRoundIndex < rounds.length - 1 && (
-                        <button type="button" onClick={handleSkipToPodium} className="btn-sheen press pointer-events-auto font-bold px-6 py-3 rounded-xl bg-gradient-to-r from-rose-500 to-red-500 text-white shadow-[0_14px_28px_-10px_rgba(244,63,94,0.6),inset_0_1px_0_rgba(255,255,255,0.3)]">
-                            {t('voting.skip')}
-                        </button>
+                    {isHost && (
+                        <div className="flex flex-col items-end gap-2">
+                            <button type="button" onClick={() => setShowPlayers((v) => !v)} title={t('players.panelTitle')} className={`glass-dark press pointer-events-auto flex h-12 w-12 items-center justify-center rounded-md ${showPlayers ? 'text-indigo-400' : 'text-white'}`}>
+                                <FaUsers size={18} />
+                            </button>
+                            {activeSubLatest && (
+                                <button type="button" onClick={handleAcceptVotes} className="btn-sheen press pointer-events-auto font-bold px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-[0_14px_28px_-10px_rgba(99,102,241,0.6),inset_0_1px_0_rgba(255,255,255,0.3)]">
+                                    {t('voting.acceptVotes')}
+                                </button>
+                            )}
+                            {currentRoundIndex < rounds.length - 1 && (
+                                <button type="button" onClick={handleSkipToPodium} className="btn-sheen press pointer-events-auto font-bold px-6 py-3 rounded-xl bg-gradient-to-r from-rose-500 to-red-500 text-white shadow-[0_14px_28px_-10px_rgba(244,63,94,0.6),inset_0_1px_0_rgba(255,255,255,0.3)]">
+                                    {t('voting.skip')}
+                                </button>
+                            )}
+                        </div>
                     )}
                 </div>
 
@@ -1232,7 +1384,10 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
                     <div className="glass-dark w-full !border-x-0 !border-b-0 border-t !border-t-indigo-400/40 rounded-none p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-20">
                         {displaySub && !selectedSubmission && !selectedFinalMarker ? (
-                            <VotingPanel displaySub={displaySub} activeSubLatest={activeSubLatest} votingStats={votingStats} yesVotes={yesVotes} noVotes={noVotes} hypeVotes={hypeVotes} hasHyped={hasHypedActive} players={players} playerId={playerId} teamMode={teamMode} scaleVoting={scaleVoting} onVote={handleVote} onHype={handleHype} onScaleVote={handleScaleVote} />
+                            <>
+                                <VotingPanel displaySub={displaySub} activeSubLatest={activeSubLatest} votingStats={votingStats} yesVotes={yesVotes} noVotes={noVotes} hypeVotes={hypeVotes} hasHyped={hasHypedActive} players={players} playerId={playerId} teamMode={teamMode} scaleVoting={scaleVoting} onVote={handleVote} onHype={handleHype} onScaleVote={handleScaleVote} />
+                                {offlineBlockers.length > 0 && <p className="mt-3 text-center text-xs font-semibold text-orange-300">{t('voting.playerOffline', { player: offlineBlockers.map((p) => p.name).join(', ') })}</p>}
+                            </>
                         ) : selectedSubmission ? (
                             <div className="max-w-xl mx-auto">
                                 <h3 className="text-xl sm:text-2xl font-black text-white mb-1 text-center truncate">{labelForCategory(selectedSubmission.category)}</h3>

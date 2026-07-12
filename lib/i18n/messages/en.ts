@@ -16,6 +16,7 @@ export const en = {
     'common.waitingForHost': 'Waiting for host...',
     'common.generating': 'Generating...',
     'common.host': 'Host',
+    'common.close': 'Close',
     'common.yes': 'Yes',
     'common.no': 'No',
 
@@ -226,6 +227,8 @@ export const en = {
     'game.failedSaveSettings': 'Failed to save settings',
     'game.kicked': 'You have been kicked from this lobby.',
     'game.banned': 'You have been banned from this lobby.',
+    'game.playerJoined': '{player} joined.',
+    'game.playerLeft': '{player} went offline.',
     'game.alreadyStarted': 'This game has already started.',
     'game.couldNotJoin': 'Could not join this game.',
     'game.noLongerHost': 'You are no longer the host.',
@@ -279,6 +282,10 @@ export const en = {
     'voting.backToBoard': 'Back to Board',
     'voting.targetLocation': 'Target Location',
     'voting.errorVote': 'Error submitting vote.',
+    'voting.acceptVotes': 'Accept votes & continue',
+    'voting.playerOffline': 'Offline, not voting: {player}',
+    'voting.offlineHostHint': '{player} is offline — you can accept the current votes to continue.',
+    'players.panelTitle': 'Players',
 
     // ---- voting panel ----
     'votingPanel.singlePlayer': 'Single Player Vote - No votes needed',
@@ -414,6 +421,17 @@ export const en = {
     'explore.empty': 'No words here yet. Play games to grow the pool!',
     'explore.loadError': 'Could not load the word pool.',
 
+    // ---- admin hub ----
+    'admin.title': 'Admin',
+    'admin.subtitle': 'Internal curation and export tools.',
+    'admin.noTools': 'No admin tools are enabled.',
+    'admin.daily.title': 'Daily Challenge',
+    'admin.daily.desc': 'Curate the daily-challenge candidate pool and scheduled queue.',
+    'admin.words.title': 'Word Pool',
+    'admin.words.desc': 'Review and edit the community word pool harvested from games.',
+    'admin.presets.title': 'Boundary Presets',
+    'admin.presets.desc': 'Draw boundary areas and export them as JSON.',
+
     // ---- word pool admin ----
     'words.admin.title': 'Word Pool — Admin',
     'words.admin.pending': 'Pending',
@@ -429,6 +447,11 @@ export const en = {
     'words.admin.sortFound': 'Found',
     'words.admin.sortAlpha': 'A–Z',
     'words.admin.approve': 'Approve',
+    'words.admin.approveAll': 'Approve all ({count})',
+    'words.admin.approveAllConfirm': 'Approve all {count} pending words?',
+    'words.admin.approvingAll': 'Approving {count} words…',
+    'words.admin.approvedAll': 'Approved {count} words.',
+    'words.admin.approveAllPartial': 'Approved {done} of {total} words — {failed} failed.',
     'words.admin.reject': 'Reject',
     'words.admin.edit': 'Edit',
     'words.admin.save': 'Save',

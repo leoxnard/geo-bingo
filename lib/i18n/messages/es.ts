@@ -15,6 +15,7 @@ export const es: Messages = {
     'common.waitingForHost': 'Esperando al anfitrión...',
     'common.generating': 'Generando...',
     'common.host': 'Anfitrión',
+    'common.close': 'Cerrar',
     'common.yes': 'Sí',
     'common.no': 'No',
 
@@ -225,6 +226,8 @@ export const es: Messages = {
     'game.failedSaveSettings': 'No se pudieron guardar los ajustes',
     'game.kicked': 'Has sido expulsado de esta sala.',
     'game.banned': 'Has sido baneado de esta sala.',
+    'game.playerJoined': '{player} se ha unido.',
+    'game.playerLeft': '{player} se ha desconectado.',
     'game.alreadyStarted': 'Esta partida ya ha comenzado.',
     'game.couldNotJoin': 'No se pudo unir a esta partida.',
     'game.noLongerHost': 'Ya no eres el anfitrión.',
@@ -278,6 +281,10 @@ export const es: Messages = {
     'voting.backToBoard': 'Volver al tablero',
     'voting.targetLocation': 'Ubicación objetivo',
     'voting.errorVote': 'Error al enviar el voto.',
+    'voting.acceptVotes': 'Aceptar votos y continuar',
+    'voting.playerOffline': 'Sin conexión, no vota: {player}',
+    'voting.offlineHostHint': '{player} está sin conexión: puedes aceptar los votos actuales para continuar.',
+    'players.panelTitle': 'Jugadores',
 
     // ---- voting panel ----
     'votingPanel.singlePlayer': 'Voto en solitario - no se necesitan votos',
@@ -414,6 +421,18 @@ export const es: Messages = {
     'explore.loadError': 'No se pudo cargar el fondo de palabras.',
 
     // ---- word pool admin ----
+    // ---- admin hub ----
+    'admin.title': 'Admin',
+    'admin.subtitle': 'Herramientas internas de curación y exportación.',
+    'admin.noTools': 'No hay herramientas de administración activadas.',
+    'admin.daily.title': 'Desafío diario',
+    'admin.daily.desc': 'Cura el fondo de candidatos del desafío diario y la cola programada.',
+    'admin.words.title': 'Fondo de palabras',
+    'admin.words.desc': 'Revisa y edita el fondo de palabras de la comunidad recogido de las partidas.',
+    'admin.presets.title': 'Plantillas de límites',
+    'admin.presets.desc': 'Dibuja áreas de límites y expórtalas como JSON.',
+
+    // ---- word pool admin ----
     'words.admin.title': 'Fondo de palabras — Admin',
     'words.admin.pending': 'Pendientes',
     'words.admin.approved': 'Aprobadas',
@@ -428,6 +447,11 @@ export const es: Messages = {
     'words.admin.sortFound': 'Encontradas',
     'words.admin.sortAlpha': 'A–Z',
     'words.admin.approve': 'Aprobar',
+    'words.admin.approveAll': 'Aprobar todo ({count})',
+    'words.admin.approveAllConfirm': '¿Aprobar las {count} palabras pendientes?',
+    'words.admin.approvingAll': 'Aprobando {count} palabras…',
+    'words.admin.approvedAll': '{count} palabras aprobadas.',
+    'words.admin.approveAllPartial': '{done} de {total} palabras aprobadas — {failed} fallaron.',
     'words.admin.reject': 'Rechazar',
     'words.admin.edit': 'Editar',
     'words.admin.save': 'Guardar',

@@ -821,6 +821,23 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         playersRef.current = players;
     }, [players]);
 
+    // Once the game has left the lobby, toast the host when a player drops off or
+    // reconnects (in the lobby the sidebar already shows presence live). Kicked
+    // players are removed from `players`, so they don't produce a "left" toast.
+    const prevOnlineRef = useRef<string[] | null>(null);
+    useEffect(() => {
+        if (!isHost || status === 'lobby') {
+            prevOnlineRef.current = onlinePlayers;
+            return;
+        }
+        const prev = prevOnlineRef.current;
+        prevOnlineRef.current = onlinePlayers;
+        if (prev === null) return; // first reading after leaving the lobby — set baseline
+        const nameFor = (id: string) => players.find((p) => p.id === id)?.name ?? '';
+        onlinePlayers.filter((id) => !prev.includes(id) && players.some((p) => p.id === id)).forEach((id) => toast(t('game.playerJoined', { player: nameFor(id) })));
+        prev.filter((id) => !onlinePlayers.includes(id) && players.some((p) => p.id === id)).forEach((id) => toast(t('game.playerLeft', { player: nameFor(id) })));
+    }, [onlinePlayers, status, isHost, players, t]);
+
     useEffect(() => {
         if (!gameLoaded) return;
         if (status === 'lobby') {
@@ -1086,13 +1103,19 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     notifyGameEvent={notifyGameEvent}
                     hintByCategory={hintByCategory}
                     labelByCategory={labelByCategory}
+                    isHost={isHost}
+                    onlinePlayers={onlinePlayers}
+                    gameHostId={gameHostId}
+                    kickPlayer={kickPlayer}
+                    banPlayer={banPlayer}
+                    makeHost={makeHost}
                 />
             );
         }
 
         // --- VIEW 3: VOTING ---
         if (status === 'voting') {
-            return <VotingView gameId={gameId} isHost={isHost} categories={categories} playerId={playerId} players={players} teamMode={teamMode} onFinishGame={handleFinishGame} isDeveloper={apiStatus.isDeveloper} hintByCategory={hintByCategory} labelByCategory={labelByCategory} scaleVoting={effectiveScaleVoting} />;
+            return <VotingView gameId={gameId} isHost={isHost} categories={categories} playerId={playerId} players={players} teamMode={teamMode} onFinishGame={handleFinishGame} isDeveloper={apiStatus.isDeveloper} hintByCategory={hintByCategory} labelByCategory={labelByCategory} scaleVoting={effectiveScaleVoting} onlinePlayers={onlinePlayers} gameHostId={gameHostId} kickPlayer={kickPlayer} banPlayer={banPlayer} makeHost={makeHost} />;
         }
 
         // --- VIEW 4: PODIUM (FINISHED) ---
