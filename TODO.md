@@ -1,0 +1,1 @@
+[ ] fix view reset while being in voring view and I moved in street view to inspect the current submission and another player vored on it. Then the position and view directionand zoom resets.

@@ -60,6 +60,5 @@ graphify-out/
 
 AGENTS.md
 CLAUDE.md
-TODO.md
-PLAN.md
-CODE_REVIEW.md
+
+*_ignore.*
