@@ -371,7 +371,7 @@ export default function PodiumView({ gameId, isHost, teamMode, playerId }: Podiu
     if (loading)
         return (
             <div className="relative min-h-screen flex flex-col items-center p-4 bg-slate-950 text-white overflow-hidden">
-                <GlassAmbience />
+                <GlassAmbience alpha={0.3} />
                 <div className="w-full max-w-6xl mx-auto flex flex-col items-center text-white relative z-10">
                     <div className="w-full flex md:mb-4">
                         <div className="flex items-center gap-4">
