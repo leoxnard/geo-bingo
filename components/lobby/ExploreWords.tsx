@@ -20,9 +20,9 @@ import { FaArrowLeft, FaBullseye, FaCheck, FaDownload, FaGamepad, FaTimes } from
 
 import { useT } from '@/lib/i18n/I18nProvider';
 import type { CategoryLanguage } from '@/lib/i18n/locales';
-import { difficultyOf, displayWordFor, findRateOf, listPoolWords, registerWordImports, type PoolDifficulty, type PoolWord } from '@/lib/wordPool';
+import { displayWordFor, findRateOf, listPoolWords, registerWordImports, type PoolWord } from '@/lib/wordPool';
 
-import { Selection, ToggleSwitch } from '../utils/Elements';
+import { ToggleSwitch } from '../utils/Elements';
 
 type ExploreSort = 'imports' | 'played' | 'found' | 'findRate' | 'new' | 'alpha';
 
@@ -56,7 +56,6 @@ export default function ExploreWords({ isOpen, onClose, isHost, language, boardW
     const [loadFailed, setLoadFailed] = useState(false);
     const [search, setSearch] = useState('');
     const [sort, setSort] = useState<ExploreSort>('imports');
-    const [difficulty, setDifficulty] = useState<'any' | PoolDifficulty>('any');
     const [foundOnly, setFoundOnly] = useState(false);
     const [hideAdded, setHideAdded] = useState(false);
     const [busyId, setBusyId] = useState<string | null>(null);
@@ -100,7 +99,6 @@ export default function ExploreWords({ isOpen, onClose, isHost, language, boardW
             if (q && !name.toLowerCase().includes(q)) return false;
             if (foundOnly && w.found_count < 1) return false;
             if (hideAdded && boardSet.has(norm(name))) return false;
-            if (difficulty !== 'any' && difficultyOf(w) !== difficulty) return false;
             return true;
         });
 
@@ -137,7 +135,7 @@ export default function ExploreWords({ isOpen, onClose, isHost, language, boardW
             break;
         }
         return filtered;
-    }, [words, language, search, sort, difficulty, foundOnly, hideAdded, boardSet]);
+    }, [words, language, search, sort, foundOnly, hideAdded, boardSet]);
 
     const countImport = (id: string) => {
         if (countedIdsRef.current.has(id)) return;
@@ -199,19 +197,6 @@ export default function ExploreWords({ isOpen, onClose, isHost, language, boardW
                         </div>
 
                         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-                            <Selection
-                                title={t('explore.difficulty')}
-                                options={[
-                                    { label: t('explore.difficultyAny'), value: 'any' },
-                                    { label: t('explore.difficultyEasy'), value: 'easy' },
-                                    { label: t('explore.difficultyMedium'), value: 'medium' },
-                                    { label: t('explore.difficultyHard'), value: 'hard' },
-                                ]}
-                                value={difficulty}
-                                onChange={(val) => setDifficulty(val as 'any' | PoolDifficulty)}
-                                position="clean"
-                                classname="min-w-[220px]"
-                            />
                             <ToggleSwitch checked={foundOnly} onChange={setFoundOnly} label={t('explore.filterFound')} />
                             <ToggleSwitch checked={hideAdded} onChange={setHideAdded} label={t('explore.filterHideAdded')} />
                         </div>

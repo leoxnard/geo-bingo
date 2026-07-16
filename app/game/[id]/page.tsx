@@ -23,6 +23,7 @@ import { buildHintMap } from '@/components/streetview/streetViewHelpers';
 import { ErrorBoundary } from '@/components/utils/ErrorBoundary';
 import { shuffle } from '@/components/utils/Functions';
 import { Player } from '@/components/utils/types';
+import type { CategoryVoteModes, VotingMode } from '@/components/utils/votes';
 import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { categoryLanguageForLocale, CategoryLanguage, defaultCategoryLanguage, isLocale, Locale, normalizeLocale, storeCategoryLanguage } from '@/lib/i18n/locales';
@@ -67,10 +68,10 @@ type GameRow = {
     hide_minimap?: boolean;
     ai_end_game?: boolean;
     exclusive_mode?: boolean;
-    scale_voting?: boolean;
+    voting_mode?: VotingMode;
+    category_vote_modes?: CategoryVoteModes;
     category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
     generation_radius?: number;
-    generation_number?: number;
     language?: CategoryLanguage;
     difficulty?: 'default' | 'easy' | 'hard';
     categories_generated?: boolean;
@@ -102,7 +103,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [timeLimit, setTimeLimit] = useState(600);
     const [categorySource, setCategorySource] = useState<'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView'>('manual');
     const [generationRadius, setGenerationRadius] = useState<number>(10); // in 100m
-    const [generationNumber, setGenerationNumber] = useState<number>(10);
     const [difficulty, setDifficulty] = useState<'default' | 'easy' | 'hard'>('default');
     const [categoriesGenerated, setCategoriesGenerated] = useState<boolean>(false);
     const [apiStatus, setApiStatus] = useState({ aiEnabled: false, mapsEnabled: false, isDeveloper: false });
@@ -146,7 +146,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [hideMapSymbols, setHideMapSymbols] = useState(false);
     const [hideMiniMap, setHideMiniMap] = useState(false);
     const [aiEndGame, setAiEndGame] = useState(true);
-    const [scaleVoting, setScaleVoting] = useState(false);
+    const [votingMode, setVotingMode] = useState<VotingMode>('yes_no');
+    const [categoryVoteModes, setCategoryVoteModes] = useState<CategoryVoteModes>({});
     // Host toggle: let each player read the board in their own language.
     const [translateCategories, setTranslateCategories] = useState(false);
     // This viewer's own category display language (independent of the shared
@@ -200,10 +201,10 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         hide_minimap?: boolean;
         ai_end_game?: boolean;
         exclusive_mode?: boolean;
-        scale_voting?: boolean;
+        voting_mode?: VotingMode;
+        category_vote_modes?: CategoryVoteModes;
         category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
         generation_radius?: number;
-        generation_number?: number;
         language?: CategoryLanguage;
         difficulty?: 'default' | 'easy' | 'hard';
         categories_generated?: boolean;
@@ -229,10 +230,10 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (updates.hide_minimap !== undefined) setHideMiniMap(updates.hide_minimap);
         if (updates.ai_end_game !== undefined) setAiEndGame(updates.ai_end_game);
         if (updates.exclusive_mode !== undefined) setExclusiveMode(updates.exclusive_mode);
-        if (updates.scale_voting !== undefined) setScaleVoting(updates.scale_voting);
+        if (updates.voting_mode !== undefined) setVotingMode(updates.voting_mode);
+        if (updates.category_vote_modes !== undefined) setCategoryVoteModes(updates.category_vote_modes);
         if (updates.category_source !== undefined) setCategorySource(updates.category_source);
         if (updates.generation_radius !== undefined) setGenerationRadius(updates.generation_radius);
-        if (updates.generation_number !== undefined) setGenerationNumber(updates.generation_number);
         if (updates.language !== undefined) setLanguage(updates.language);
         if (updates.difficulty !== undefined) setDifficulty(updates.difficulty);
         if (updates.categories_generated !== undefined) setCategoriesGenerated(updates.categories_generated);
@@ -427,7 +428,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 let seedGameMode: string | null = null;
                 let seedGridSize: number | null = null;
                 let seedTimeLimit: number | null = null;
-                let seedSettings: { hideMiniMap?: boolean; hideMapSymbols?: boolean; exclusiveMode?: boolean; aiEndGame?: boolean; endCondition?: string; scaleVoting?: boolean } = {};
+                let seedSettings: { hideMiniMap?: boolean; hideMapSymbols?: boolean; exclusiveMode?: boolean; aiEndGame?: boolean; endCondition?: string; scaleVoting?: boolean; votingMode?: VotingMode } = {};
                 let seedCategoryTranslations: Record<string, string[]> = {};
                 let seedCategoryHintTranslations: Record<string, string[]> = {};
                 let seedPresetPositions: { categoryName: string; lat: number; lng: number }[] = [];
@@ -472,10 +473,9 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     hide_map_symbols: seedSettings.hideMapSymbols ?? false,
                     ai_end_game: seedSettings.aiEndGame ?? false,
                     exclusive_mode: seedSettings.exclusiveMode ?? false,
-                    scale_voting: seedSettings.scaleVoting ?? false,
+                    voting_mode: seedSettings.votingMode ?? (seedSettings.scaleVoting ? 'scale' : 'yes_no'),
                     category_source: 'manual',
                     generation_radius: 10,
-                    generation_number: 10,
                     language: defaultCategoryLanguage(locale),
                     categories_generated: false,
                 };
@@ -507,7 +507,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     setHideMiniMap(newGameData.hide_minimap);
                     setAiEndGame(newGameData.ai_end_game);
                     setExclusiveMode(newGameData.exclusive_mode);
-                    setScaleVoting(newGameData.scale_voting);
+                    setVotingMode(newGameData.voting_mode);
                     setLanguage(newGameData.language as CategoryLanguage);
                     setCategoryTranslations(seedCategoryTranslations);
                     setCategoryHintTranslations(seedCategoryHintTranslations);
@@ -545,11 +545,11 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setHideMiniMap(gameData.hide_minimap || false);
                 setAiEndGame(gameData.ai_end_game ?? false);
                 setExclusiveMode(gameData.exclusive_mode || false);
-                setScaleVoting(gameData.scale_voting || false);
+                setVotingMode(gameData.voting_mode || 'yes_no');
+                setCategoryVoteModes(gameData.category_vote_modes || {});
                 setTranslateCategories(gameData.translate_categories || false);
                 setCategorySource(gameData.category_source || 'manual');
                 setGenerationRadius(gameData.generation_radius || 10);
-                setGenerationNumber(gameData.generation_number || 10);
                 setLanguage(gameData.language || 'german');
                 setCategoryTranslations(gameData.category_translations || {});
                 setCategoryHintTranslations(gameData.category_hint_translations || {});
@@ -692,11 +692,11 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 if (row.hide_minimap !== undefined) setHideMiniMap(row.hide_minimap);
                 if (row.ai_end_game !== undefined) setAiEndGame(row.ai_end_game);
                 if (row.exclusive_mode !== undefined) setExclusiveMode(row.exclusive_mode);
-                if (row.scale_voting !== undefined) setScaleVoting(row.scale_voting);
+                if (row.voting_mode !== undefined) setVotingMode(row.voting_mode);
+                if (row.category_vote_modes !== undefined) setCategoryVoteModes(row.category_vote_modes);
                 if (row.translate_categories !== undefined) setTranslateCategories(row.translate_categories);
                 if (row.category_source !== undefined) setCategorySource(row.category_source);
                 if (row.generation_radius !== undefined) setGenerationRadius(row.generation_radius);
-                if (row.generation_number !== undefined) setGenerationNumber(row.generation_number);
                 if (row.language !== undefined) setLanguage(row.language);
                 if (row.difficulty !== undefined) setDifficulty(row.difficulty);
                 if (row.categories_generated !== undefined) setCategoriesGenerated(row.categories_generated);
@@ -1024,7 +1024,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const effectiveHideMiniMap = FEATURES.hideMiniMap ? hideMiniMap : false;
     const effectiveAiEndGame = FEATURES.aiVerifyEndGame ? aiEndGame : false;
     // Scale voting is a list-mode-only feature; a bingo game never rates 0–10.
-    const effectiveScaleVoting = FEATURES.scaleVoting && scaleVoting && gameMode === 'list';
+    // Scale/mixed are list-mode-only; a bingo game always votes yes/no.
+    const effectiveVotingMode: VotingMode = FEATURES.scaleVoting && gameMode === 'list' ? votingMode : 'yes_no';
 
     const selectView = () => {
         // --- VIEW 1: LOBBY ---
@@ -1046,7 +1047,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     suggestedCategories={suggestedCategories}
                     gameId={gameId}
                     players={players}
-                    scaleVoting={scaleVoting}
+                    votingMode={votingMode}
+                    categoryVoteModes={categoryVoteModes}
                     onlinePlayers={onlinePlayers}
                     playerId={playerId}
                     gameHostId={gameHostId}
@@ -1064,7 +1066,6 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     aiEnabled={apiStatus.aiEnabled}
                     isDeveloper={apiStatus.isDeveloper}
                     generationRadius={generationRadius}
-                    generationNumber={generationNumber}
                     language={language}
                     difficulty={difficulty}
                     categoriesGenerated={categoriesGenerated}
@@ -1115,7 +1116,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
         // --- VIEW 3: VOTING ---
         if (status === 'voting') {
-            return <VotingView gameId={gameId} isHost={isHost} categories={categories} playerId={playerId} players={players} teamMode={teamMode} onFinishGame={handleFinishGame} isDeveloper={apiStatus.isDeveloper} hintByCategory={hintByCategory} labelByCategory={labelByCategory} scaleVoting={effectiveScaleVoting} onlinePlayers={onlinePlayers} gameHostId={gameHostId} kickPlayer={kickPlayer} banPlayer={banPlayer} makeHost={makeHost} />;
+            return <VotingView gameId={gameId} isHost={isHost} categories={categories} playerId={playerId} players={players} teamMode={teamMode} onFinishGame={handleFinishGame} isDeveloper={apiStatus.isDeveloper} hintByCategory={hintByCategory} labelByCategory={labelByCategory} votingMode={effectiveVotingMode} categoryVoteModes={categoryVoteModes} onlinePlayers={onlinePlayers} gameHostId={gameHostId} kickPlayer={kickPlayer} banPlayer={banPlayer} makeHost={makeHost} />;
         }
 
         // --- VIEW 4: PODIUM (FINISHED) ---

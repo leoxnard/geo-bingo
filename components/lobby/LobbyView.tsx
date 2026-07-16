@@ -21,6 +21,7 @@ import toast from 'react-hot-toast';
 import { CategoryLanguage, Locale, normalizeLocale } from '@/lib/i18n/locales';
 import OptionsButton from '@/lib/settings/OptionsButton';
 
+import { AI_TARGET_CATEGORIES } from './AICategories';
 import LobbyCategories from './LobbyCategories';
 import LobbyCommunityPresets from './LobbyCommunityPresets';
 import LobbyMap from './LobbyMap';
@@ -30,6 +31,7 @@ import { shuffle } from '../utils/Functions';
 import GlassAmbience from '../utils/GlassAmbience';
 import { GOOGLE_MAPS_LIBRARIES, isLocationAllowed } from '../utils/mapUtils';
 import type { CommunityPreset } from '../utils/types';
+import type { CategoryVoteModes, VotingMode } from '../utils/votes';
 
 interface Player {
     id: string;
@@ -52,7 +54,8 @@ interface LobbyViewProps {
     gridSize: number;
     timeLimit: number;
     exclusiveMode: boolean;
-    scaleVoting: boolean;
+    votingMode: VotingMode;
+    categoryVoteModes: CategoryVoteModes;
     categories: string[];
     suggestedCategories: string[];
     gameId: string;
@@ -74,7 +77,6 @@ interface LobbyViewProps {
     aiEnabled: boolean;
     isDeveloper: boolean;
     generationRadius: number;
-    generationNumber: number;
     language: CategoryLanguage;
     difficulty: 'default' | 'easy' | 'hard';
     categoriesGenerated: boolean;
@@ -178,7 +180,7 @@ export default function LobbyView(props: LobbyViewProps) {
             console.error('Unexpected error while clearing paths:', err);
         }
 
-        const neededCount = props.gameMode === 'bingo' ? props.gridSize * props.gridSize : props.generationNumber;
+        const neededCount = props.gameMode === 'bingo' ? props.gridSize * props.gridSize : AI_TARGET_CATEGORIES;
 
         const seenCategories = new Set<string>();
         let finalCategories = props.categories
@@ -253,7 +255,7 @@ export default function LobbyView(props: LobbyViewProps) {
 
             <div className="relative flex flex-col lg:flex-row gap-4 sm:gap-6 w-full max-w-5xl">
                 <div className="flex-1 gap-4 sm:gap-6 flex flex-col">
-                    <LobbySettings isHost={props.isHost} gameMode={props.gameMode} teamMode={props.teamMode} gridSize={props.gridSize} timeLimit={props.timeLimit} endCondition={props.endCondition} exclusiveMode={props.exclusiveMode} scaleVoting={props.scaleVoting} updateGameModeInfo={props.updateGameModeInfo} />
+                    <LobbySettings isHost={props.isHost} gameMode={props.gameMode} teamMode={props.teamMode} gridSize={props.gridSize} timeLimit={props.timeLimit} endCondition={props.endCondition} exclusiveMode={props.exclusiveMode} votingMode={props.votingMode} updateGameModeInfo={props.updateGameModeInfo} />
 
                     <LobbyMap isHost={props.isHost} isLoaded={isLoaded} startingPoint={props.startingPoint} gameBoundary={props.gameBoundary} generationRadius={props.categorySource !== 'manual' ? props.generationRadius : undefined} updateGameModeInfo={props.updateGameModeInfo} />
 
@@ -275,8 +277,10 @@ export default function LobbyView(props: LobbyViewProps) {
                         categorySource={props.categorySource}
                         aiEnabled={props.aiEnabled}
                         isDeveloper={props.isDeveloper}
+                        gameBoundary={props.gameBoundary}
+                        votingMode={props.votingMode}
+                        categoryVoteModes={props.categoryVoteModes}
                         generationRadius={props.generationRadius}
-                        generationNumber={props.generationNumber}
                         difficulty={props.difficulty}
                         categoriesGenerated={props.categoriesGenerated}
                     />

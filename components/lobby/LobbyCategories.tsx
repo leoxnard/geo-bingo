@@ -15,22 +15,25 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import toast from 'react-hot-toast';
 import { CiCirclePlus, CiCircleMinus, CiCircleRemove, CiCircleCheck, CiCircleQuestion } from 'react-icons/ci';
-import { FaCompass } from 'react-icons/fa';
+import { FaCompass, FaFileExport, FaFileImport, FaRegThumbsUp, FaSlidersH } from 'react-icons/fa';
 
 import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { CategoryLanguage } from '@/lib/i18n/locales';
 import { useSounds } from '@/lib/sound/SoundProvider';
 
-import { generateAICategories } from './AICategories';
+import { AI_MAX_CATEGORIES, AI_TARGET_CATEGORIES, generateAICategories } from './AICategories';
+import { downloadTextFile, parseCategoryFile, toCsv } from './categoryFile';
 import ExploreWords from './ExploreWords';
 import { generateNearbyPlaceCategories } from './NearbyPlaceCategories';
 import { generateNearbyStreetViewCategories } from './NearbyStreetViewCategories';
+import { buildPromptContext, hasPromptContext } from './promptContext';
 import { getHostToken } from '../../lib/hostToken';
-import { RangeSlider, MultiToggleButton, Selection } from '../utils/Elements';
+import { RangeSlider, MultiToggleButton, Selection, ToggleSwitch } from '../utils/Elements';
 import { shuffle } from '../utils/Functions';
 import type { BingoCategory } from '../utils/types';
 import { useViewport } from '../utils/useViewport';
+import { isScaleCategory, normalizeCategoryKey, type CategoryVoteModes, type VotingMode } from '../utils/votes';
 
 type CategorySource = 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
 
@@ -61,14 +64,17 @@ interface CategoryItemProps {
     gameMode: string;
     draggedIndex: number | null;
     gridSize: number;
+    /** This category's vote type in mixed mode; null when the game is not mixed. */
+    voteMode: 'yes_no' | 'scale' | null;
     onSave: (index: number, val: string) => boolean;
     onRemove: (index: number) => void;
     onRandomize: (index: number) => void;
+    onToggleVoteMode: (index: number) => void;
     onDragStart: (e: React.DragEvent, index: number) => void;
     onDrop: (e: React.DragEvent, index: number) => void;
 }
 
-const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, onSave, onRemove, onRandomize, onDragStart, onDrop }: CategoryItemProps) => {
+const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, voteMode, onSave, onRemove, onRandomize, onToggleVoteMode, onDragStart, onDrop }: CategoryItemProps) => {
     const { t } = useT();
     const [val, setVal] = useState(initialValue || '');
     const [isDirty, setIsDirty] = useState(false);
@@ -165,17 +171,12 @@ const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, o
     }
 
     // LIST MODE DESIGN — mirror the bingo card treatment: a raised edge-lit glass
-    // card when filled, a recessed dashed well when empty, with drag + press
-    // feedback, kept in a compact horizontal row.
+    // card when filled, a recessed dashed well when empty, kept in a compact
+    // horizontal row. Reordering is bingo-only, so list rows are not draggable.
     return (
         <div
-            draggable
-            onDragStart={(e) => onDragStart(e, index)}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => onDrop(e, index)}
             className={`relative flex justify-between items-center rounded-lg overflow-hidden h-[42px] transition-all focus-within:ring-1 focus-within:ring-indigo-500
-                ${currentValue ? 'glass cursor-grab active:cursor-grabbing hover:brightness-125' : 'glass-inset border-dashed border-white/15'}
-                ${draggedIndex === index ? 'opacity-50 scale-95 ring-1 ring-indigo-500' : ''}
+                ${currentValue ? 'glass hover:brightness-125' : 'glass-inset border-dashed border-white/15'}
             `}
         >
             <input
@@ -197,6 +198,19 @@ const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, o
                 <button type="button" onClick={() => onRandomize(index)} className="text-indigo-400 hover:text-indigo-300 hover:bg-white/10 px-4 transition-colors border-r border-white/10 flex items-center justify-center h-full" title={t('cat.randomizeWord')}>
                     <CiCircleQuestion size={gameMode === 'list' ? 22 : undefined} />
                 </button>
+                {/* Mixed mode only: flip this one category between yes/no and 0–10. */}
+                {voteMode !== null && (
+                    <button
+                        type="button"
+                        onClick={() => onToggleVoteMode(index)}
+                        disabled={!currentValue}
+                        className={`px-4 transition-colors border-r border-white/10 flex items-center justify-center h-full hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent ${voteMode === 'scale' ? 'text-fuchsia-400 hover:text-fuchsia-300 bg-fuchsia-500/10' : 'text-slate-400 hover:text-white'}`}
+                        title={voteMode === 'scale' ? t('cat.voteModeScale') : t('cat.voteModeYesNo')}
+                        aria-label={voteMode === 'scale' ? t('cat.voteModeScale') : t('cat.voteModeYesNo')}
+                    >
+                        {voteMode === 'scale' ? <FaSlidersH size={15} /> : <FaRegThumbsUp size={15} />}
+                    </button>
+                )}
                 <button type="button" onClick={() => onRemove(index)} className="text-red-400 hover:text-red-300 hover:bg-white/10 px-4 transition-colors flex items-center justify-center h-full" title={t('cat.remove')}>
                     <CiCircleRemove size={gameMode === 'list' ? 22 : undefined} />
                 </button>
@@ -215,9 +229,9 @@ interface LobbyCategoriesProps {
         categories?: string[];
         suggested_categories?: string[];
         category_details?: unknown;
+        category_vote_modes?: CategoryVoteModes;
         category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
         generation_radius?: number;
-        generation_number?: number;
         difficulty?: 'default' | 'easy' | 'hard';
         categories_generated?: boolean;
         language?: CategoryLanguage;
@@ -240,22 +254,23 @@ interface LobbyCategoriesProps {
     supabase: SupabaseClient;
     maxGridSize: number;
     startingPoint: string;
+    gameBoundary: string;
+    votingMode: VotingMode;
+    categoryVoteModes: CategoryVoteModes;
     categorySource: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
     aiEnabled: boolean;
     isDeveloper?: boolean;
     generationRadius: number;
-    generationNumber: number;
     difficulty: 'default' | 'easy' | 'hard';
     categoriesGenerated: boolean;
 }
 
-export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, language, gridSize, categories, suggestedCategories, gameId, playerId, supabase, maxGridSize, startingPoint, categorySource, aiEnabled, isDeveloper, generationRadius, generationNumber, difficulty, categoriesGenerated }: LobbyCategoriesProps) {
+export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, language, gridSize, categories, suggestedCategories, gameId, playerId, supabase, maxGridSize, startingPoint, gameBoundary, votingMode, categoryVoteModes, categorySource, aiEnabled, isDeveloper, generationRadius, difficulty, categoriesGenerated }: LobbyCategoriesProps) {
     const { t } = useT();
     const { play } = useSounds();
     const [newCategory, setNewCategory] = useState('');
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [localRadius, setLocalRadius] = useState(generationRadius);
-    const [localGenerationNumber, setLocalGenerationNumber] = useState(generationNumber);
     const [localGridSize, setLocalGridSize] = useState(gridSize);
     const { isNarrow } = useViewport();
 
@@ -267,10 +282,13 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
     // AI Generation state
     const [customPrompt, setCustomPrompt] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
+    // Opt-in: feed the play area (start address + named preset boundaries) to the prompt.
+    const [useLocationContext, setUseLocationContext] = useState(false);
 
     // Community word pool overlay
     const [showExplore, setShowExplore] = useState(false);
 
+    const importInputRef = useRef<HTMLInputElement>(null);
     const isPendingSyncRef = useRef(false);
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
     const echoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -307,8 +325,6 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
         }
     }, [suggestedCategories]);
 
-    const SUGGESTION_BUFFER = 12;
-
     // A source disabled by a feature flag is treated as manual, so a stale/preset
     // value never leaves the lobby stuck on a hidden source.
     const effectiveSource: CategorySource = ENABLED_SOURCES.includes(categorySource) ? categorySource : 'manual';
@@ -316,6 +332,9 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
     // Count only non-empty slots — empty/cleared entries should not inflate the counter.
     const filledCategoryCount = localCategories.filter((c) => c && c.trim()).length;
     const isGeneratedSource = effectiveSource === 'ai' || effectiveSource === 'nearbyPlaces' || effectiveSource === 'nearbyStreetView';
+    const locationContextAvailable = hasPromptContext(startingPoint, gameBoundary);
+    // The per-category vote switch only means anything in mixed mode, which is list-only.
+    const showPerCategoryVoteMode = FEATURES.scaleVoting && votingMode === 'mixed' && gameMode === 'list';
 
     const normalizeCat = (s: string) => s.trim().toLowerCase();
 
@@ -323,13 +342,14 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
         if (!isHost || !isGeneratedSource) return;
 
         // Stacking: a new generation adds to what's already there instead of
-        // replacing it. Bingo boards are fixed-size, so we only fill the remaining
-        // slots; lists grow by another full batch per run.
+        // replacing it. Bingo boards are fixed-size, so only the free slots can
+        // take new categories and the rest of the batch lands in suggestions;
+        // lists grow to fit the whole batch.
         const existingActive = localCategories.map((c) => (c || '').trim()).filter(Boolean);
         const existingSuggested = localSuggested.map((c) => (c || '').trim()).filter(Boolean);
-        const newNeeded = gameMode === 'bingo' ? gridSize * gridSize - existingActive.length : localGenerationNumber;
+        const freeSlots = gameMode === 'bingo' ? gridSize * gridSize - existingActive.length : Infinity;
 
-        if (newNeeded <= 0) {
+        if (freeSlots <= 0) {
             play('denied');
             toast.error(t('cat.toastBoardFull'));
             return;
@@ -372,34 +392,42 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
             // quota on duplicates of earlier batches.
             const exclusions = [...existingActive, ...existingSuggested];
 
+            // The AI source sizes its own batch; the nearby sources still need a
+            // target to budget their pano/place scans against, so they get the
+            // same aim the AI prompt uses.
             let pool: BingoCategory[];
             if (categorySource === 'nearbyStreetView') {
-                pool = await generateNearbyStreetViewCategories(startPos!, generationRadius, newNeeded, difficulty, language, exclusions);
+                pool = await generateNearbyStreetViewCategories(startPos!, generationRadius, AI_TARGET_CATEGORIES, difficulty, language, exclusions);
             } else if (categorySource === 'nearbyPlaces') {
-                pool = await generateNearbyPlaceCategories(startPos!, generationRadius, newNeeded + SUGGESTION_BUFFER, difficulty, language);
+                pool = await generateNearbyPlaceCategories(startPos!, generationRadius, AI_TARGET_CATEGORIES, difficulty, language);
             } else {
-                pool = await generateAICategories(customPrompt, newNeeded + SUGGESTION_BUFFER, language, exclusions);
+                const contextBlock = useLocationContext && locationContextAvailable ? await buildPromptContext(startingPoint, gameBoundary) : '';
+                pool = await generateAICategories(customPrompt, language, exclusions, contextBlock);
             }
 
             // Safety net: drop anything that still collides with existing entries
-            // (the prompts exclude them, but models occasionally slip).
+            // (the prompts exclude them, but models occasionally slip), then hold
+            // every source to the same ceiling.
             const taken = new Set(exclusions.map(normalizeCat));
-            pool = pool.filter((c) => c.categoryName && !taken.has(normalizeCat(c.categoryName)));
+            pool = pool.filter((c) => c.categoryName && !taken.has(normalizeCat(c.categoryName))).slice(0, AI_MAX_CATEGORIES);
 
             toast.dismiss(loadingToast);
 
-            // Fewer than requested? Still keep everything we generated (the host can
-            // top it up manually) and just warn — don't discard the whole batch.
-            if (pool.length < newNeeded) {
-                toast.error(t('cat.toastOnlyFound', { found: pool.length, need: newNeeded }));
+            const freshNames = pool.map((c) => c.categoryName);
+            // Bingo takes only what fits and pushes the remainder to suggestions;
+            // a list absorbs the whole batch, so nothing is diverted.
+            const accepted = Math.min(freshNames.length, freeSlots);
+            const active = [...existingActive, ...freshNames.slice(0, accepted)];
+            // New leftovers first (freshly ranked), then the surviving old suggestions.
+            const rest = [...freshNames.slice(accepted), ...existingSuggested];
+
+            // Only bingo has a count to fall short of — warn when the grid is still
+            // not full, but keep the batch either way so the host can top it up.
+            if (gameMode === 'bingo' && freshNames.length < freeSlots) {
+                toast.error(t('cat.toastOnlyFound', { found: freshNames.length, need: freeSlots }));
             } else {
                 toast.success(t('cat.generatedSuccess'));
             }
-
-            const freshNames = pool.map((c) => c.categoryName);
-            const active = [...existingActive, ...freshNames.slice(0, newNeeded)];
-            // New leftovers first (freshly ranked), then the surviving old suggestions.
-            const rest = [...freshNames.slice(newNeeded), ...existingSuggested];
 
             // Merge this batch's details into the accumulated set (keyed by name).
             const detailByName = new Map<string, BingoCategory>();
@@ -453,7 +481,6 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
         if (!isHost) return;
         updateGameModeInfo({
             generation_radius: localRadius,
-            generation_number: localGenerationNumber,
             grid_size: localGridSize,
         });
     };
@@ -606,6 +633,86 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
         } catch (err) {
             console.error(err);
         }
+    };
+
+    // Import: fills empty slots first, then grows the list (bingo stops at the
+    // grid limit). Existing categories are never overwritten.
+    const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        // Reset first so picking the same file twice in a row still fires onChange.
+        e.target.value = '';
+        if (!file || !isHost) return;
+
+        let parsed: string[];
+        try {
+            parsed = parseCategoryFile(await file.text());
+        } catch {
+            toast.error(t('cat.toastImportFailed'));
+            return;
+        }
+
+        if (parsed.length === 0) {
+            play('denied');
+            toast.error(t('cat.toastImportEmpty'));
+            return;
+        }
+
+        const updated = [...localCategories];
+        const existing = new Set(updated.map((c) => normalizeCat(c ?? '')).filter(Boolean));
+        const limit = gameMode === 'bingo' ? gridSize * gridSize : Infinity;
+        let added = 0;
+        let skipped = 0;
+
+        for (const cat of parsed) {
+            if (existing.has(normalizeCat(cat))) {
+                skipped++;
+                continue;
+            }
+            const emptyIdx = updated.findIndex((c) => (c ?? '').trim() === '');
+            if (emptyIdx >= 0) {
+                updated[emptyIdx] = cat;
+            } else if (updated.length < limit) {
+                updated.push(cat);
+            } else {
+                skipped++;
+                continue;
+            }
+            existing.add(normalizeCat(cat));
+            added++;
+        }
+
+        if (added === 0) {
+            play('denied');
+            toast.error(t('cat.toastImportNothingAdded'));
+            return;
+        }
+        queueDBSave(updated);
+        toast.success(skipped > 0 ? t('cat.toastImportedWithSkips', { added, skipped }) : t('cat.toastImported', { added }));
+    };
+
+    // Mixed mode: flip one category between yes/no and scale. Only scale entries
+    // are stored, so switching back to the yes/no default drops the key entirely.
+    const toggleCategoryVoteMode = (index: number) => {
+        if (!isHost) return;
+        const name = (localCategories[index] || '').trim();
+        if (!name) return;
+
+        const key = normalizeCategoryKey(name);
+        const next: CategoryVoteModes = { ...categoryVoteModes };
+        if (next[key] === 'scale') delete next[key];
+        else next[key] = 'scale';
+
+        updateGameModeInfo({ category_vote_modes: next });
+    };
+
+    const handleExportFile = () => {
+        const cats = localCategories.map((c) => (c || '').trim()).filter(Boolean);
+        if (cats.length === 0) {
+            play('denied');
+            toast.error(t('cat.toastExportEmpty'));
+            return;
+        }
+        downloadTextFile('geo-bingo-categories.csv', toCsv(cats));
     };
 
     const clearCategories = () => {
@@ -814,6 +921,13 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                 <div className="py-3 border-t border-white/10">
                     <label className="flex justify-between font-bold mb-2 text-xl text-slate-300">{t('cat.customPrompt')}</label>
                     <textarea value={customPrompt} onChange={(e) => setCustomPrompt(e.target.value)} placeholder={isHost ? t('cat.customPromptPlaceholderHost') : t('cat.customPromptPlaceholderWaiting')} className="w-full px-3 py-2 glass-inset rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" rows={2} disabled={!isHost || isGenerating} />
+                    {/* Only offered when the map actually has context to give: a starting
+                        point, or boundaries that came from a named preset. */}
+                    {locationContextAvailable && (
+                        <div className="mt-3">
+                            <ToggleSwitch checked={useLocationContext} onChange={setUseLocationContext} disabled={!isHost || isGenerating} label={t('cat.useLocationContext')} tooltip={t('cat.useLocationContextDesc')} />
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -833,7 +947,8 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                         isHost={isHost}
                         description={difficulty === 'easy' ? t('cat.difficultyDescEasy') : difficulty === 'default' ? t('cat.difficultyDescDefault') : difficulty === 'hard' ? t('cat.difficultyDescHard') : ''}
                     />
-                    {gameMode === 'list' ? <RangeSlider title={t('cat.numberOfCategories')} min={1} max={25} value={localGenerationNumber} disabled={!isHost} onChange={(val) => setLocalGenerationNumber(val)} onCommit={handleCommit} /> : <RangeSlider title={t('cat.gridSize')} min={1} max={6} value={localGridSize} disabled={!isHost} onChange={(val) => setLocalGridSize(val)} onCommit={handleCommit} />}
+                    {/* List generation is self-sizing (the AI picks its own batch), so only bingo still needs a count. */}
+                    {gameMode === 'bingo' && <RangeSlider title={t('cat.gridSize')} min={1} max={6} value={localGridSize} disabled={!isHost} onChange={(val) => setLocalGridSize(val)} onCommit={handleCommit} />}
                 </>
             )}
 
@@ -880,19 +995,28 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                                         length: Math.max(gridSize * gridSize, localCategories.length),
                                     }).map((_, i) => {
                                         if (i >= gridSize * gridSize) return null;
-                                        return <CategoryItem key={`cat-bingo-${i}`} initialValue={localCategories[i] || ''} index={i} gameMode={gameMode} draggedIndex={draggedIndex} gridSize={gridSize} onSave={handleCategorySave} onRemove={removeCategoryIndex} onRandomize={randomizeSingle} onDragStart={handleDragStart} onDrop={handleDrop} />;
+                                        return <CategoryItem key={`cat-bingo-${i}`} initialValue={localCategories[i] || ''} index={i} gameMode={gameMode} draggedIndex={draggedIndex} gridSize={gridSize} voteMode={null} onToggleVoteMode={toggleCategoryVoteMode} onSave={handleCategorySave} onRemove={removeCategoryIndex} onRandomize={randomizeSingle} onDragStart={handleDragStart} onDrop={handleDrop} />;
                                     })}
                                 </div>
                             ) : (
                                 <div className="flex flex-col gap-2 mb-6">
                                     {localCategories.map((cat, i) => (
-                                        <CategoryItem key={`cat-list-${i}`} initialValue={cat} index={i} gameMode={gameMode} draggedIndex={draggedIndex} gridSize={gridSize} onSave={handleCategorySave} onRemove={removeCategoryIndex} onRandomize={randomizeSingle} onDragStart={handleDragStart} onDrop={handleDrop} />
+                                        <CategoryItem key={`cat-list-${i}`} initialValue={cat} index={i} gameMode={gameMode} draggedIndex={draggedIndex} gridSize={gridSize} voteMode={showPerCategoryVoteMode ? (isScaleCategory(votingMode, categoryVoteModes, cat) ? 'scale' : 'yes_no') : null} onToggleVoteMode={toggleCategoryVoteMode} onSave={handleCategorySave} onRemove={removeCategoryIndex} onRandomize={randomizeSingle} onDragStart={handleDragStart} onDrop={handleDrop} />
                                     ))}
                                     {localCategories.length === 0 && <div className="text-center text-slate-500 italic py-6 border-2 border-dashed border-white/15 rounded-lg">{t('cat.noCategoriesHostList')}</div>}
                                 </div>
                             )}
 
                             <div className="flex flex-wrap gap-2 items-end mt-2">
+                                {/* Icon-only by design — these sit beside the labelled primary actions. */}
+                                <input ref={importInputRef} type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain" onChange={handleImportFile} className="hidden" />
+                                <button type="button" onClick={() => importInputRef.current?.click()} className="glass press flex items-center justify-center text-slate-300 hover:text-white w-[42px] h-[42px] rounded-lg shrink-0 transition-colors" title={t('cat.importTitle')} aria-label={t('cat.importTitle')}>
+                                    <FaFileImport size={15} />
+                                </button>
+                                <button type="button" onClick={handleExportFile} className="glass press flex items-center justify-center text-slate-300 hover:text-white w-[42px] h-[42px] rounded-lg shrink-0 transition-colors" title={t('cat.exportTitle')} aria-label={t('cat.exportTitle')}>
+                                    <FaFileExport size={15} />
+                                </button>
+
                                 <div className="flex flex-1 gap-2 items-end justify-end min-w-[300px]">
                                     {FEATURES.exploreWords && (
                                         <button type="button" onClick={() => setShowExplore(true)} className="glass press flex items-center gap-2 text-slate-300 hover:text-white px-4 rounded-lg font-bold whitespace-nowrap h-[42px] transition-colors" title={t('explore.title')}>
@@ -964,10 +1088,10 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
 
                     {FEATURES.categorySuggestions && (
                         <div className="p-4 glass rounded-xl border-dashed border-indigo-500/40 mt-6">
-                            <div className="flex items-center">
-                                <h4 className="text-xs font-bold text-indigo-400 mb-3 uppercase tracking-wider">{t('cat.suggestions')}</h4>
+                            <div className="flex items-center justify-between gap-2 mb-3">
+                                <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">{t('cat.suggestions')}</h4>
                                 {isHost && (
-                                    <button type="button" onClick={clearSuggestions} className="glass press text-xs font-bold ml-auto text-slate-400 hover:text-white px-3 py-1 rounded-full ml-2 transition-colors">
+                                    <button type="button" onClick={clearSuggestions} className="glass press shrink-0 text-xs font-bold text-slate-400 hover:text-white px-3 py-1 rounded-full transition-colors">
                                         {t('cat.clear')}
                                     </button>
                                 )}

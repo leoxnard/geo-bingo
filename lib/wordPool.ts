@@ -59,17 +59,6 @@ export function findRateOf(w: PoolWord): number | null {
     return w.games_count > 0 ? w.found_count / w.games_count : null;
 }
 
-export type PoolDifficulty = 'easy' | 'medium' | 'hard';
-
-/** Difficulty bucket from the find rate; null while there is no data yet. */
-export function difficultyOf(w: PoolWord): PoolDifficulty | null {
-    const rate = findRateOf(w);
-    if (rate === null) return null;
-    if (rate >= 0.6) return 'easy';
-    if (rate >= 0.25) return 'medium';
-    return 'hard';
-}
-
 /**
  * All approved pool words (RLS hides pending/rejected rows), one pool for
  * every language. Filtering, sorting and search happen client-side over the

@@ -1,7 +1,18 @@
 import { callGemini, withModelFallback } from '../utils/geminiClient';
 import { BingoCategory } from '../utils/types';
 
-export const generateAICategories = async (customPrompt: string, requiredCount: number, language: string, excludeCategories: string[] = []): Promise<BingoCategory[]> => {
+// The generator picks its own batch size rather than taking a host-set count:
+// it aims for AI_TARGET_CATEGORIES and only goes up to AI_MAX_CATEGORIES when it
+// has that many genuinely good, findable items. The cap is also enforced
+// client-side below, since models routinely overshoot an instructed limit.
+export const AI_MAX_CATEGORIES = 20;
+export const AI_TARGET_CATEGORIES = 15;
+
+const COUNT_DIRECTIVE = `
+HOW MANY: Decide the count yourself based on quality, not a fixed quota. Aim for about ${AI_TARGET_CATEGORIES} categories. Never return more than ${AI_MAX_CATEGORIES}. Only approach ${AI_MAX_CATEGORIES} if every item is genuinely distinct and clearly findable; if the theme is narrow, return fewer excellent categories instead of padding the list with weak, obscure or repetitive ones. Quality outranks quantity.
+`;
+
+export const generateAICategories = async (customPrompt: string, language: string, excludeCategories: string[] = [], contextBlock = ''): Promise<BingoCategory[]> => {
     try {
         // Categories already in the game (stacked generations) — the model must
         // spend its whole quota on genuinely new items.
@@ -23,9 +34,9 @@ Every run must be a fresh draw. Do not default to the most obvious/common picks 
             ? `
 Act as a hyper-specific Google Street View Bingo Generator. 
 
-MAIN DIRECTIVE: 
-You must generate exactly ${requiredCount} ${language} bingo categories that are strictly and exclusively themed around: "${customPrompt}". 
-
+MAIN DIRECTIVE:
+You must generate ${language} bingo categories that are strictly and exclusively themed around: "${customPrompt}".
+${COUNT_DIRECTIVE}
 Contextual Rules:
 - VISIBILITY: Items must be visible from a camera mounted on top of a car.
 - SCALE: If the prompt specifies a size (e.g., "small objects"), ensure the items are still identifiable in a standard compressed GSV image (e.g., "doorbell", "padlock", "street name sign").
@@ -38,14 +49,14 @@ Constraint Checklist:
 3. Strictly NO commentary: Do not explain why you chose these.
 4. NO MARKDOWN: No formatting, bold, italic, or code blocks.
 5. Output Format: Return ONLY a raw JSON array of strings.
-${exclusionBlock}${varietyBlock}
+${contextBlock}${exclusionBlock}${varietyBlock}
 REQUIRED JSON FORMAT (EXACT):
 ["item 1", "item 2", "item 3"]`
             : `
-Act as an expert Geo-Bingo game designer generating a general-purpose, globally playable game set. 
+Act as an expert Geo-Bingo game designer generating a${contextBlock ? ' location-aware' : ' general-purpose, globally playable'} game set.
 
-Your objective is to generate exactly ${requiredCount} ${language} unique, identifiable bingo categories suitable for Google Street View anywhere in the world.
-
+Your objective is to generate ${language} unique, identifiable bingo categories suitable for Google Street View ${contextBlock ? 'within the play area described below' : 'anywhere in the world'}.
+${COUNT_DIRECTIVE}
 Key Requirement: DIVERSITY. You must provide a balanced mixture of items from the following four domains. Do not overload the list with only one type of item (e.g., do not provide 10 different colors of cars).
 
 THE FOUR DOMAINS (Select roughly equally from these):
@@ -61,7 +72,7 @@ Constraints:
 - NO FORMATTING: No markdown, bold, italic, code blocks, or any styling.
 
 Output Format: Return ONLY a raw JSON array of strings. No markdown, no preamble, no explanations, no formatting.
-${exclusionBlock}${varietyBlock}
+${contextBlock}${exclusionBlock}${varietyBlock}
 REQUIRED JSON TEMPLATE (EXACT):
 ["category 1", "category 2", "category 3"]`;
 
@@ -148,7 +159,7 @@ REQUIRED JSON TEMPLATE (EXACT):
             .filter((cat, index, arr) => arr.indexOf(cat) === index);
 
         // Drop anything the model returned despite the exclusion list, BEFORE the
-        // requiredCount cap — so duplicates don't eat slots of the new batch.
+        // cap — so duplicates don't eat slots of the new batch.
         const excludedSet = new Set(excludeCategories.map((c) => c.trim().toLowerCase()));
         categories = categories.filter((cat) => !excludedSet.has(cat.toLowerCase()));
 
@@ -156,9 +167,7 @@ REQUIRED JSON TEMPLATE (EXACT):
             throw new Error('AI generated no valid categories');
         }
 
-        // Cap at the requested pool size so an over-eager model doesn't flood the
-        // suggestions list (the lobby splits this into active top-K + suggestions).
-        const bingoCategories: BingoCategory[] = categories.slice(0, requiredCount).map((category) => ({
+        const bingoCategories: BingoCategory[] = categories.slice(0, AI_MAX_CATEGORIES).map((category) => ({
             categoryName: category,
             matchedPlaces: [],
         }));
