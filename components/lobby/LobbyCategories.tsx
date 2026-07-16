@@ -14,8 +14,8 @@ import React, { useState, useEffect, useRef } from 'react';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import toast from 'react-hot-toast';
-import { CiCirclePlus, CiCircleMinus, CiCircleRemove, CiCircleCheck, CiCircleQuestion } from 'react-icons/ci';
-import { FaCompass, FaFileExport, FaFileImport, FaRegThumbsUp, FaSlidersH } from 'react-icons/fa';
+import { CiCirclePlus, CiCircleMinus, CiCircleRemove, CiCircleCheck, CiCircleQuestion, CiImport, CiExport } from 'react-icons/ci';
+import { FaCompass } from 'react-icons/fa';
 
 import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
@@ -29,7 +29,7 @@ import { generateNearbyPlaceCategories } from './NearbyPlaceCategories';
 import { generateNearbyStreetViewCategories } from './NearbyStreetViewCategories';
 import { buildPromptContext, hasPromptContext } from './promptContext';
 import { getHostToken } from '../../lib/hostToken';
-import { RangeSlider, MultiToggleButton, Selection, ToggleSwitch } from '../utils/Elements';
+import { RangeSlider, MultiToggleButton, Selection, ToggleSwitch, MaskIcon } from '../utils/Elements';
 import { shuffle } from '../utils/Functions';
 import type { BingoCategory } from '../utils/types';
 import { useViewport } from '../utils/useViewport';
@@ -140,8 +140,8 @@ const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, v
                 `}
             >
                 {/* Top part */}
-                <div className="flex w-full bg-black/20 border-b border-white/10 shrink-0">
-                    <button type="button" onClick={() => onRemove(index)} disabled={!currentValue} className={`flex-1 flex justify-center items-center py-1.5 text-red-400 hover:text-red-300 transition-colors ${!currentValue ? 'opacity-0 hover:bg-transparent' : ''}`} title={t('cat.remove')}>
+                <div className="flex w-full bg-white/[0.04] border-b border-white/10 shrink-0">
+                    <button type="button" onClick={() => onRemove(index)} disabled={!currentValue} className={`flex-1 flex justify-center items-center py-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors ${!currentValue ? 'opacity-0 hover:bg-transparent' : ''}`} title={t('cat.remove')}>
                         <CiCircleRemove size={18} />
                     </button>
                     <button type="button" onClick={() => onRandomize(index)} className="flex-1 flex justify-center items-center py-1.5 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 border-l border-white/10 transition-colors" title={t('cat.randomizeWord')}>
@@ -175,7 +175,7 @@ const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, v
     // horizontal row. Reordering is bingo-only, so list rows are not draggable.
     return (
         <div
-            className={`relative flex justify-between items-center rounded-lg overflow-hidden h-[42px] transition-all focus-within:ring-1 focus-within:ring-indigo-500
+            className={`group relative flex items-center gap-1 rounded-xl overflow-hidden h-[46px] pr-1.5 transition-all focus-within:ring-1 focus-within:ring-indigo-500
                 ${currentValue ? 'glass hover:brightness-125' : 'glass-inset border-dashed border-white/15'}
             `}
         >
@@ -191,28 +191,30 @@ const CategoryItem = ({ initialValue, index, gameMode, draggedIndex, gridSize, v
                     if (e.key === 'Enter') e.currentTarget.blur();
                 }}
                 placeholder={t('cat.emptyCategoryInput')}
-                className="flex-1 bg-transparent text-white outline-none placeholder:text-slate-500/50 italic font-medium px-3 py-2 h-full"
+                className="flex-1 min-w-0 bg-transparent text-white outline-none placeholder:text-slate-500/50 italic font-medium px-4 h-full"
             />
 
-            <div className="flex shrink-0 border-l border-white/10 h-full bg-black/20">
-                <button type="button" onClick={() => onRandomize(index)} className="text-indigo-400 hover:text-indigo-300 hover:bg-white/10 px-4 transition-colors border-r border-white/10 flex items-center justify-center h-full" title={t('cat.randomizeWord')}>
-                    <CiCircleQuestion size={gameMode === 'list' ? 22 : undefined} />
-                </button>
+            {/* Floating edge-lit icon buttons — softer and airier than a solid tray. */}
+            <div className="flex shrink-0 items-center gap-1">
+                {/* <button type="button" onClick={() => onRandomize(index)} className="flex items-center justify-center h-9 w-9 rounded-lg text-indigo-400 hover:text-indigo-300 hover:bg-white/10 hover:scale-105 active:scale-95 transition-all" title={t('cat.randomizeWord')}>
+                    <CiCircleQuestion size={22} />
+                </button> */}
                 {/* Mixed mode only: flip this one category between yes/no and 0–10. */}
                 {voteMode !== null && (
                     <button
                         type="button"
                         onClick={() => onToggleVoteMode(index)}
                         disabled={!currentValue}
-                        className={`px-4 transition-colors border-r border-white/10 flex items-center justify-center h-full hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent ${voteMode === 'scale' ? 'text-fuchsia-400 hover:text-fuchsia-300 bg-fuchsia-500/10' : 'text-slate-400 hover:text-white'}`}
+                        className={'flex items-center justify-center h-9 w-9 rounded-lg transition-all hover:bg-white/10 hover:scale-105 active:scale-95 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:scale-100 text-slate-400 hover:text-white'}
                         title={voteMode === 'scale' ? t('cat.voteModeScale') : t('cat.voteModeYesNo')}
                         aria-label={voteMode === 'scale' ? t('cat.voteModeScale') : t('cat.voteModeYesNo')}
                     >
-                        {voteMode === 'scale' ? <FaSlidersH size={15} /> : <FaRegThumbsUp size={15} />}
+                        {/* {voteMode === 'scale' ? <FaSlidersH size={14} /> : <FaRegThumbsUp size={14} />} */}
+                        <MaskIcon name={voteMode === 'scale' ? 'lines.measurement.horizontal.aligned.bottom' : 'hand.thumbsdown.hand.thumbsup'} className="h-5 w-5" />
                     </button>
                 )}
-                <button type="button" onClick={() => onRemove(index)} className="text-red-400 hover:text-red-300 hover:bg-white/10 px-4 transition-colors flex items-center justify-center h-full" title={t('cat.remove')}>
-                    <CiCircleRemove size={gameMode === 'list' ? 22 : undefined} />
+                <button type="button" onClick={() => onRemove(index)} className="flex items-center justify-center h-9 w-9 rounded-lg text-red-400 hover:text-red-300 hover:bg-white/10 hover:scale-105 active:scale-95 transition-all" title={t('cat.remove')}>
+                    <CiCircleRemove size={22} />
                 </button>
             </div>
         </div>
@@ -1007,24 +1009,28 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                                 </div>
                             )}
 
-                            <div className="flex flex-wrap gap-2 items-end mt-2">
-                                {/* Icon-only by design — these sit beside the labelled primary actions. */}
-                                <input ref={importInputRef} type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain" onChange={handleImportFile} className="hidden" />
-                                <button type="button" onClick={() => importInputRef.current?.click()} className="glass press flex items-center justify-center text-slate-300 hover:text-white w-[42px] h-[42px] rounded-lg shrink-0 transition-colors" title={t('cat.importTitle')} aria-label={t('cat.importTitle')}>
-                                    <FaFileImport size={15} />
-                                </button>
-                                <button type="button" onClick={handleExportFile} className="glass press flex items-center justify-center text-slate-300 hover:text-white w-[42px] h-[42px] rounded-lg shrink-0 transition-colors" title={t('cat.exportTitle')} aria-label={t('cat.exportTitle')}>
-                                    <FaFileExport size={15} />
-                                </button>
-
-                                <div className="flex flex-1 gap-2 items-end justify-end min-w-[300px]">
+                            {/* Stacks into two rows on mobile so nothing squeezes; single inline row on sm+. */}
+                            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 mt-2 sm:items-end">
+                                {/* Icon utilities + Explore — Explore grows to fill the icon row on mobile. */}
+                                <div className="flex gap-2 items-center">
+                                    <input ref={importInputRef} type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain" onChange={handleImportFile} className="hidden" />
+                                    <button type="button" onClick={() => importInputRef.current?.click()} className="glass press flex items-center justify-center text-slate-300 hover:text-white w-[42px] h-[42px] rounded-lg shrink-0 transition-colors" title={t('cat.importTitle')} aria-label={t('cat.importTitle')}>
+                                        <CiImport size={15} />
+                                    </button>
+                                    <button type="button" onClick={handleExportFile} className="glass press flex items-center justify-center text-slate-300 hover:text-white w-[42px] h-[42px] rounded-lg shrink-0 transition-colors" title={t('cat.exportTitle')} aria-label={t('cat.exportTitle')}>
+                                        <CiExport size={15} />
+                                    </button>
                                     {FEATURES.exploreWords && (
-                                        <button type="button" onClick={() => setShowExplore(true)} className="glass press flex items-center gap-2 text-slate-300 hover:text-white px-4 rounded-lg font-bold whitespace-nowrap h-[42px] transition-colors" title={t('explore.title')}>
+                                        <button type="button" onClick={() => setShowExplore(true)} className="glass press flex flex-1 sm:flex-none min-w-0 items-center justify-center gap-2 text-slate-300 hover:text-white px-4 rounded-lg font-bold whitespace-nowrap h-[42px] transition-colors" title={t('explore.title')}>
                                             <FaCompass /> {t('explore.button')}
                                         </button>
                                     )}
+                                </div>
+
+                                {/* Database picker + primary Fill Up — full width on its own row on mobile. */}
+                                <div className="flex flex-1 gap-2 items-end justify-end min-w-0">
                                     <Selection title={t('cat.database')} options={ENABLED_DATABASES.map((d) => ({ label: t(d.labelKey as Parameters<typeof t>[0]), value: d.key }))} value={wordSource} onChange={setWordSource} position="clean" />
-                                    <button type="button" onClick={fillUpRandom} className="btn-sheen press bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-4 rounded-lg font-bold whitespace-nowrap shadow-[0_10px_20px_-8px_rgba(99,102,241,0.6),inset_0_1px_0_rgba(255,255,255,0.3)] h-[42px]">
+                                    <button type="button" onClick={fillUpRandom} className="btn-sheen press bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-4 rounded-lg font-bold whitespace-nowrap shadow-[0_10px_20px_-8px_rgba(99,102,241,0.6),inset_0_1px_0_rgba(255,255,255,0.3)] h-[42px] shrink-0">
                                         {t('cat.fillUp')}
                                     </button>
                                 </div>
@@ -1053,8 +1059,8 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                         ) : categories.length > 0 ? (
                             <ul className="mb-6 space-y-2">
                                 {categories.map((cat, i) => (
-                                    <li key={`view-list-${i}`} className="glass rounded-lg flex items-center italic overflow-hidden h-[42px]">
-                                        <span className="break-words py-2 px-3 flex items-center text-white w-full h-full">{cat || <span className="text-slate-400">{t('cat.emptySlot')}</span>}</span>
+                                    <li key={`view-list-${i}`} className="glass rounded-xl flex items-center italic overflow-hidden h-[46px]">
+                                        <span className="break-words px-4 flex items-center text-white w-full h-full">{cat || <span className="text-slate-400">{t('cat.emptySlot')}</span>}</span>
                                     </li>
                                 ))}
                             </ul>

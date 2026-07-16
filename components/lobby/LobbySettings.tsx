@@ -101,7 +101,7 @@ export default function LobbySettings({ isHost, gameMode, teamMode, timeLimit, e
                     options={[
                         { value: 'yes_no' as const, label: t('settings.yesNoVoting'), icon: 'hand.thumbsdown.hand.thumbsup' },
                         { value: 'scale' as const, label: t('settings.scaleVoting'), icon: 'lines.measurement.horizontal.aligned.bottom' },
-                        { value: 'mixed' as const, label: t('settings.mixedVoting'), icon: 'rectangle.grid.1x3' },
+                        { value: 'mixed' as const, label: t('settings.mixedVoting'), icon: 'square.and.pencil' },
                     ]}
                     activeValue={votingMode}
                     onChange={(val) => updateGameModeInfo({ voting_mode: val })}
