@@ -15,7 +15,8 @@ import { useEffect, useState } from 'react';
 import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
 
-import { ToggleButton, RangeSlider } from '../utils/Elements';
+import { ToggleButton, MultiToggleButton, RangeSlider } from '../utils/Elements';
+import type { VotingMode } from '../utils/votes';
 
 interface LobbySettingsProps {
     isHost: boolean;
@@ -25,11 +26,11 @@ interface LobbySettingsProps {
     timeLimit: number;
     endCondition: 'first_bingo' | 'timer';
     exclusiveMode: boolean;
-    scaleVoting: boolean;
-    updateGameModeInfo: (updates: { game_mode?: string; team_mode?: string; time_limit?: number; grid_size?: number; end_condition?: 'first_bingo' | 'timer'; exclusive_mode?: boolean; scale_voting?: boolean }) => void;
+    votingMode: VotingMode;
+    updateGameModeInfo: (updates: { game_mode?: string; team_mode?: string; time_limit?: number; grid_size?: number; end_condition?: 'first_bingo' | 'timer'; exclusive_mode?: boolean; voting_mode?: VotingMode }) => void;
 }
 
-export default function LobbySettings({ isHost, gameMode, teamMode, timeLimit, endCondition, exclusiveMode, scaleVoting, updateGameModeInfo }: LobbySettingsProps) {
+export default function LobbySettings({ isHost, gameMode, teamMode, timeLimit, endCondition, exclusiveMode, votingMode, updateGameModeInfo }: LobbySettingsProps) {
     const { t } = useT();
     const [localTimeLimit, setLocalTimeLimit] = useState(timeLimit / 60);
 
@@ -93,20 +94,22 @@ export default function LobbySettings({ isHost, gameMode, teamMode, timeLimit, e
                 />
             )}
 
-            {/* Scale Voting (list mode only) — rate 0–10 instead of yes/no/hype. */}
+            {/* Voting mode (list mode only): yes/no+hype, 0–10 ratings, or per-category. */}
             {FEATURES.scaleVoting && gameMode === 'list' && (
-                <ToggleButton
+                <MultiToggleButton
                     title={t('settings.votingMode')}
-                    active={scaleVoting === false ? 'left' : 'right'}
-                    labelLeft={t('settings.yesNoVoting')}
-                    labelRight={t('settings.scaleVoting')}
-                    iconLeft="hand.thumbsdown.hand.thumbsup"
-                    iconRight="lines.measurement.horizontal.aligned.bottom"
-                    onClick={(val: 'left' | 'right') => updateGameModeInfo({ scale_voting: val === 'right' })}
+                    options={[
+                        { value: 'yes_no' as const, label: t('settings.yesNoVoting') },
+                        { value: 'scale' as const, label: t('settings.scaleVoting') },
+                        { value: 'mixed' as const, label: t('settings.mixedVoting') },
+                    ]}
+                    activeValue={votingMode}
+                    onChange={(val) => updateGameModeInfo({ voting_mode: val })}
                     disabled={!isHost}
                     isHost={isHost}
                     position="middle"
-                    description={scaleVoting === false ? t('settings.votingModeDescYesNo') : t('settings.votingModeDescScale')}
+                    sizeRatios={[1.2, 1, 1]}
+                    description={votingMode === 'yes_no' ? t('settings.votingModeDescYesNo') : votingMode === 'scale' ? t('settings.votingModeDescScale') : t('settings.votingModeDescMixed')}
                 />
             )}
 

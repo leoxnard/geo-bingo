@@ -26,7 +26,7 @@ import { supabase } from '../lib/supabase';
 import { GeoBingoLogo } from './utils/Elements';
 import GlassAmbience from './utils/GlassAmbience';
 import { GameFind, ScoreEntity, PlayerStats, PodiumViewProps } from './utils/types';
-import { tallyVotes, tallyScale } from './utils/votes';
+import { isScaleCategory, mixedScaleScore, tallyVotes, tallyScale, type CategoryVoteModes, type VotingMode } from './utils/votes';
 
 // Each hype a submission receives is worth this many bonus points to its owner.
 const HYPE_POINT_VALUE = 0.5;
@@ -38,7 +38,7 @@ export default function PodiumView({ gameId, isHost, teamMode, playerId }: Podiu
     const [loading, setLoading] = useState(true);
     const [gameMode, setGameMode] = useState<string>('list');
     const [endCondition, setEndCondition] = useState<string>('');
-    const [scaleVoting, setScaleVoting] = useState(false);
+    const [votingMode, setVotingMode] = useState<VotingMode>('yes_no');
     const [animPhase, setAnimPhase] = useState(0);
     const [windowDim, setWindowDim] = useState({ width: 0, height: 0 });
     // Records this player's result exactly once per mount; the RPC is also
@@ -80,16 +80,17 @@ export default function PodiumView({ gameId, isHost, teamMode, playerId }: Podiu
 
     useEffect(() => {
         const fetchResults = async () => {
-            const { data: game } = await supabase.from('games').select('game_mode, grid_size, end_condition, scale_voting').eq('id', gameId).single();
+            const { data: game } = await supabase.from('games').select('game_mode, grid_size, end_condition, voting_mode, category_vote_modes').eq('id', gameId).single();
             const { data: players } = await supabase.from('players').select('id, name, bingo_board, team').eq('game_id', gameId);
             const { data: submissions } = await supabase.from('submissions').select('*').eq('game_id', gameId);
 
             const fetchedGameMode = game?.game_mode || 'list';
             setGameMode(fetchedGameMode);
             setEndCondition(game?.end_condition || '');
-            // Scale voting is a list-mode-only mode; never treat a bingo game as scaled.
-            const isScaleVoting = !!game?.scale_voting && fetchedGameMode === 'list';
-            setScaleVoting(isScaleVoting);
+            // Scale and mixed are list-mode-only; never treat a bingo game as either.
+            const votingMode: VotingMode = fetchedGameMode === 'list' ? ((game?.voting_mode as VotingMode) ?? 'yes_no') : 'yes_no';
+            const categoryVoteModes: CategoryVoteModes = (game?.category_vote_modes as CategoryVoteModes) ?? {};
+            setVotingMode(votingMode);
             const gridSize = game?.grid_size || 3;
 
             if (players && submissions) {
@@ -147,19 +148,28 @@ export default function PodiumView({ gameId, isHost, teamMode, playerId }: Podiu
                     const validCategories: string[] = [];
                     const rejectedCategories: string[] = [];
 
-                    // Scale voting: a player's score is the sum of every rating their
-                    // submissions received. No yes/no threshold, hype, or bingo lines.
-                    if (isScaleVoting) {
-                        entitySubs.forEach((sub) => {
+                    // Each submission scores by ITS category's vote type, which only
+                    // varies in mixed mode; the other two modes resolve every category
+                    // the same way.
+                    entitySubs.forEach((sub) => {
+                        if (isScaleCategory(votingMode, categoryVoteModes, sub.category)) {
+                            // Rated 0–10: no yes/no threshold, hype, or bingo lines.
                             const { sum, count } = tallyScale(sub.votes);
                             scaleTotal += sum;
                             scaleCount += count;
-                            if (count > 0) ratedSubs++;
-                        });
-                        score = scaleTotal;
-                    }
+                            if (count > 0) {
+                                ratedSubs++;
+                                // A rated find is still a find. Pure scale reports these
+                                // through ratedSubs instead, so only mixed needs the list.
+                                if (votingMode === 'mixed') validCategories.push(sub.category);
+                            }
+                            // Pure scale scores the raw rating sum. Mixed normalizes to
+                            // avg/10, so a perfect 10 is worth exactly one approved
+                            // yes/no find rather than swamping it.
+                            score += votingMode === 'mixed' ? mixedScaleScore(sub.votes) : sum;
+                            return;
+                        }
 
-                    entitySubs.forEach((sub) => {
                         const { yes: subYes, no: subNo, hype: subHype } = tallyVotes(sub.votes);
 
                         totalYes += subYes;
@@ -179,6 +189,10 @@ export default function PodiumView({ gameId, isHost, teamMode, playerId }: Podiu
                             }
                         }
                     });
+
+                    // Mixed scores are fractional (avg/10); keep them presentable
+                    // without touching the exact .5 steps the other modes produce.
+                    score = Math.round(score * 100) / 100;
 
                     let bingoCount = 0;
                     const gridStatus: number[] = [];
@@ -273,7 +287,7 @@ export default function PodiumView({ gameId, isHost, teamMode, playerId }: Podiu
                         id: entity.id,
                         name: entity.name,
                         score,
-                        totalFound: isScaleVoting ? ratedSubs : validCategories.length,
+                        totalFound: votingMode === 'scale' ? ratedSubs : validCategories.length,
                         bingos: bingoCount,
                         communityApproval,
                         totalYes,
@@ -330,7 +344,9 @@ export default function PodiumView({ gameId, isHost, teamMode, playerId }: Podiu
                         submissions
                             .filter((s) => s.player_id === playerId)
                             .forEach((sub) => {
-                                const approved = isScaleVoting
+                                // A rated submission counts as approved — there is no
+                                // reject in a 0–10 category, only a low score.
+                                const approved = isScaleCategory(votingMode, categoryVoteModes, sub.category)
                                     ? tallyScale(sub.votes).count > 0
                                     : (() => {
                                         const { yes, no } = tallyVotes(sub.votes);
@@ -551,7 +567,7 @@ export default function PodiumView({ gameId, isHost, teamMode, playerId }: Podiu
                                         </div>
 
                                         {/* Stats Grid */}
-                                        {scaleVoting ? (
+                                        {votingMode === 'scale' ? (
                                             <div className="grid grid-cols-3 gap-3">
                                                 {/* Total rating (= score) */}
                                                 <div className="bg-white/5 p-3 rounded-xl flex flex-col items-center h-full">

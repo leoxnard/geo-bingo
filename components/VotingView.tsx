@@ -27,7 +27,7 @@ import GlassAmbience from './utils/GlassAmbience';
 import { mapOptions, GOOGLE_MAPS_LIBRARIES } from './utils/mapUtils';
 import { VotingViewProps, Submission, PathPoint } from './utils/types';
 import { useViewport } from './utils/useViewport';
-import { hasHyped, tallyVotes, tallyScale, HYPE_PREFIX } from './utils/votes';
+import { hasHyped, isScaleCategory, tallyVotes, tallyScale, HYPE_PREFIX } from './utils/votes';
 import { VotingPanel } from './voting/VotingPanel';
 
 const MAX_ANIMATION_DURATION = 8000;
@@ -112,7 +112,7 @@ const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => 
     return Math.sqrt(Math.pow(lat1 - lat2, 2) + Math.pow(dLng, 2));
 };
 
-export function VotingView({ gameId, isHost, playerId, players, teamMode, onFinishGame, isDeveloper = false, hintByCategory = {}, labelByCategory = {}, scaleVoting = false, onlinePlayers = [], gameHostId, kickPlayer, banPlayer, makeHost }: VotingViewProps) {
+export function VotingView({ gameId, isHost, playerId, players, teamMode, onFinishGame, isDeveloper = false, hintByCategory = {}, labelByCategory = {}, votingMode = 'yes_no', categoryVoteModes = {}, onlinePlayers = [], gameHostId, kickPlayer, banPlayer, makeHost }: VotingViewProps) {
     const { t } = useT();
     const { isNarrow } = useViewport();
     const isNarrowRef = useRef(isNarrow);
@@ -1385,7 +1385,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                     <div className="glass-dark w-full !border-x-0 !border-b-0 border-t !border-t-indigo-400/40 rounded-none p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-20">
                         {displaySub && !selectedSubmission && !selectedFinalMarker ? (
                             <>
-                                <VotingPanel displaySub={displaySub} activeSubLatest={activeSubLatest} votingStats={votingStats} yesVotes={yesVotes} noVotes={noVotes} hypeVotes={hypeVotes} hasHyped={hasHypedActive} players={players} playerId={playerId} teamMode={teamMode} scaleVoting={scaleVoting} onVote={handleVote} onHype={handleHype} onScaleVote={handleScaleVote} />
+                                <VotingPanel displaySub={displaySub} activeSubLatest={activeSubLatest} votingStats={votingStats} yesVotes={yesVotes} noVotes={noVotes} hypeVotes={hypeVotes} hasHyped={hasHypedActive} players={players} playerId={playerId} teamMode={teamMode} scaleVoting={isScaleCategory(votingMode, categoryVoteModes, displaySub.category)} onVote={handleVote} onHype={handleHype} onScaleVote={handleScaleVote} />
                                 {offlineBlockers.length > 0 && <p className="mt-3 text-center text-xs font-semibold text-orange-300">{t('voting.playerOffline', { player: offlineBlockers.map((p) => p.name).join(', ') })}</p>}
                             </>
                         ) : selectedSubmission ? (
@@ -1395,7 +1395,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                                 <div className="mb-4 text-center">
                                     <div className="text-sm text-slate-400 mb-2">{t('voting.votingResults')}</div>
                                     <div className="flex gap-4 justify-center">
-                                        {scaleVoting ? (
+                                        {isScaleCategory(votingMode, categoryVoteModes, selectedSubmission.category) ? (
                                             <>
                                                 <div className="text-indigo-300 font-bold">{t('voting.avgLabel', { value: tallyScale(selectedSubmission.votes).avg.toFixed(1) })}</div>
                                                 <div className="text-indigo-400 font-bold">{t('voting.scaleSumLabel', { sum: tallyScale(selectedSubmission.votes).sum })}</div>
@@ -1467,7 +1467,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
                             if (sub) {
                                 if (isReached) {
-                                    if (scaleVoting) {
+                                    if (isScaleCategory(votingMode, categoryVoteModes, category)) {
                                         const { avg, count } = tallyScale(sub.votes);
                                         if (count > 0) {
                                             scalePercent = (avg / 10) * 100;
@@ -1490,7 +1490,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
                             return (
                                 <div key={`${currentRoundIndex}-${idx}`} className={`relative rounded-xl overflow-hidden flex items-center justify-center border-2 transition-colors duration-500 ${tileClass}`}>
-                                    {scaleVoting ? (
+                                    {isScaleCategory(votingMode, categoryVoteModes, category) ? (
                                         <div className="absolute left-0 top-0 bottom-0 bg-indigo-500/30 transition-all duration-700 ease-out" style={{ width: `${scalePercent}%` }}></div>
                                     ) : (
                                         <>

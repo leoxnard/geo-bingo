@@ -2411,11 +2411,11 @@ DECLARE
         'category_details', 'language', 'categories_generated', 'ai_end_game',
         'ready_players', 'banned_players', 'difficulty',
         'category_translations', 'category_hint_translations', 'preset_categories',
-        'scale_voting', 'translate_categories'
+        'scale_voting', 'translate_categories',
+        'voting_mode', 'category_vote_modes'
     ];
     safe_patch jsonb;
 BEGIN
-    -- p_host_id carries the host capability TOKEN, not a player id.
     IF NOT public.is_valid_host(p_game_id, p_host_id) THEN
         RETURN jsonb_build_object('success', false, 'error', 'NOT_HOST');
     END IF;
@@ -2426,6 +2426,10 @@ BEGIN
 
     IF safe_patch IS NULL OR safe_patch = '{}'::jsonb THEN
         RETURN jsonb_build_object('success', false, 'error', 'NO_VALID_KEYS');
+    END IF;
+
+    IF safe_patch ? 'voting_mode' AND NOT (safe_patch->>'voting_mode' IN ('yes_no', 'scale', 'mixed')) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'INVALID_VOTING_MODE');
     END IF;
 
     UPDATE games SET
@@ -2458,6 +2462,8 @@ BEGIN
         preset_categories          = COALESCE(safe_patch->'preset_categories', preset_categories),
         scale_voting          = COALESCE((safe_patch->>'scale_voting')::boolean, scale_voting),
         translate_categories  = COALESCE((safe_patch->>'translate_categories')::boolean, translate_categories),
+        voting_mode           = COALESCE(safe_patch->>'voting_mode', voting_mode),
+        category_vote_modes   = COALESCE(safe_patch->'category_vote_modes', category_vote_modes),
         ready_players         = CASE WHEN safe_patch ? 'ready_players'
                                     THEN ARRAY(SELECT jsonb_array_elements_text(safe_patch->'ready_players'))
                                     ELSE ready_players END,
@@ -2812,7 +2818,10 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "translate_categories" boolean DEFAULT false NOT NULL,
     "words_harvested_at" timestamp with time zone,
     "voting_round_index" integer DEFAULT 0 NOT NULL,
-    "voting_active_sub_id" "uuid"
+    "voting_active_sub_id" "uuid",
+    "voting_mode" "text" DEFAULT 'yes_no'::"text" NOT NULL,
+    "category_vote_modes" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    CONSTRAINT "games_voting_mode_check" CHECK (("voting_mode" = ANY (ARRAY['yes_no'::"text", 'scale'::"text", 'mixed'::"text"])))
 );
 
 

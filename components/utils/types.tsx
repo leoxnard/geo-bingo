@@ -13,6 +13,8 @@ Provides type safety across the entire application.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 
+import type { CategoryVoteModes, VotingMode } from './votes';
+
 export type GameStatus = 'lobby' | 'playing' | 'voting' | 'finished';
 
 export type PathPoint = { lat: number; lng: number; timestamp: number };
@@ -110,6 +112,8 @@ export interface PresetSettings {
     exclusiveMode?: boolean;
     aiEndGame?: boolean;
     endCondition?: 'timer' | 'first_bingo';
+    votingMode?: VotingMode;
+    /** @deprecated Superseded by votingMode; still read so older presets import correctly. */
     scaleVoting?: boolean;
 }
 
@@ -343,8 +347,9 @@ export interface VotingViewProps {
     teamMode: 'ffa' | 'teams';
     onFinishGame: () => Promise<void> | void;
     isDeveloper?: boolean;
-    // Rate submissions 0–10 instead of yes/no/hype (list mode only).
-    scaleVoting?: boolean;
+    // How submissions are voted on (list mode only); 'mixed' resolves per category.
+    votingMode?: VotingMode;
+    categoryVoteModes?: CategoryVoteModes;
     // Category name -> resolved hint for the active locale (preset hints).
     hintByCategory?: Record<string, string>;
     // Canonical category name -> this viewer's translated label (individual

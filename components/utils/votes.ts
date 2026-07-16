@@ -16,6 +16,45 @@ host sentinel never counts.
 
 export const HYPE_PREFIX = 'hype:';
 
+/**
+ * How a game collects votes:
+ *   yes_no — every category is approve/reject (+ optional hype)
+ *   scale  — every category is rated 0–10, no hype
+ *   mixed  — per category, chosen by the host; yes/no unless switched to scale
+ * List mode only; a bingo game is always yes_no.
+ */
+export type VotingMode = 'yes_no' | 'scale' | 'mixed';
+
+/**
+ * The per-category overrides for `mixed`, keyed by normalized category name.
+ * Only scale categories are stored — an absent key means yes/no, so the default
+ * costs nothing and a renamed category safely falls back to yes/no.
+ */
+export type CategoryVoteModes = Record<string, 'scale'>;
+
+/** Categories are matched case/whitespace-insensitively, as elsewhere in the lobby. */
+export function normalizeCategoryKey(category: string): string {
+    return category.trim().toLowerCase();
+}
+
+/** Whether this specific category is rated 0–10 rather than voted yes/no. */
+export function isScaleCategory(votingMode: VotingMode, categoryVoteModes: CategoryVoteModes | null | undefined, category: string): boolean {
+    if (votingMode === 'scale') return true;
+    if (votingMode !== 'mixed') return false;
+    return categoryVoteModes?.[normalizeCategoryKey(category ?? '')] === 'scale';
+}
+
+/**
+ * Points a scale-rated category contributes in `mixed`, normalized so a perfect
+ * 10/10 equals exactly one approved yes/no find. Without this the raw rating sum
+ * would dwarf the 1-point yes/no categories and decide the game on its own.
+ * Unrated submissions score 0.
+ */
+export function mixedScaleScore(votes: VoteMap): number {
+    const { avg, count } = tallyScale(votes);
+    return count > 0 ? avg / 10 : 0;
+}
+
 export interface VoteTally {
     yes: number;
     no: number;

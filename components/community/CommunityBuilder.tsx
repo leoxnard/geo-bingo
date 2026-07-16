@@ -330,7 +330,7 @@ export default function CommunityBuilder() {
                 difficulty,
                 gameMode: (useBingo ? 'bingo' : 'list') as 'bingo' | 'list',
                 gridSize: bingoGrid ?? 3,
-                settings: { ...settings, endCondition: useBingo ? (settings.endCondition ?? 'timer') : 'timer', scaleVoting: useBingo ? false : (settings.scaleVoting ?? false) },
+                settings: { ...settings, endCondition: useBingo ? (settings.endCondition ?? 'timer') : 'timer', votingMode: useBingo ? 'yes_no' : (settings.votingMode ?? 'yes_no') },
                 categoryHintTranslations: finalized.hintTranslations,
             };
             const res = editId ? await updatePreset(editId, payload) : await createPreset({ ...payload, authorName: displayNameFor(user) });
@@ -474,9 +474,10 @@ export default function CommunityBuilder() {
                                 <div>
                                     <label className="text-xs text-slate-400 font-bold uppercase mb-1 block">{t('settings.votingMode')}</label>
                                     <div className="flex gap-2">
-                                        {([false, true] as const).map((sv) => (
-                                            <button key={String(sv)} type="button" onClick={() => setSetting('scaleVoting', sv)} className={`flex-1 py-2 rounded-lg text-sm font-bold uppercase transition-colors ${(settings.scaleVoting ?? false) === sv ? 'bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3)]' : 'glass text-slate-300 hover:text-white'}`}>
-                                                {sv ? t('settings.scaleVoting') : t('settings.yesNoVoting')}
+                                        {/* Mixed is a per-category, per-game choice, so a preset only carries the two board-wide modes. */}
+                                        {(['yes_no', 'scale'] as const).map((vm) => (
+                                            <button key={vm} type="button" onClick={() => setSetting('votingMode', vm)} className={`flex-1 py-2 rounded-lg text-sm font-bold uppercase transition-colors ${(settings.votingMode ?? 'yes_no') === vm ? 'bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3)]' : 'glass text-slate-300 hover:text-white'}`}>
+                                                {vm === 'scale' ? t('settings.scaleVoting') : t('settings.yesNoVoting')}
                                             </button>
                                         ))}
                                     </div>
