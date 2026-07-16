@@ -221,6 +221,8 @@ export type ToggleOption<T extends string | number> = {
     value: T;
     label: string;
     shortLabel?: string;
+    /** Optional /public/icons glyph rendered above the label (see MaskIcon). */
+    icon?: string;
 };
 
 interface MultiToggleButtonProps<T extends string | number> {
@@ -316,7 +318,14 @@ export const MultiToggleButton = <T extends string | number>({ classname = '', o
                                 style={!isGrid ? { flex: ratios[index] } : undefined}
                                 title={option.label}
                             >
-                                {option.label}
+                                {option.icon ? (
+                                    <span className="flex flex-col items-center justify-center gap-1">
+                                        <MaskIcon name={option.icon} className="h-6 w-full" />
+                                        <span className="max-w-full overflow-hidden text-ellipsis">{option.label}</span>
+                                    </span>
+                                ) : (
+                                    option.label
+                                )}
                             </button>
                         );
                     })}
