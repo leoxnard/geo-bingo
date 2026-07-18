@@ -2412,7 +2412,7 @@ DECLARE
         'ready_players', 'banned_players', 'difficulty',
         'category_translations', 'category_hint_translations', 'preset_categories',
         'scale_voting', 'translate_categories',
-        'voting_mode', 'category_vote_modes'
+        'voting_mode', 'category_vote_modes', 'require_twitch'
     ];
     safe_patch jsonb;
 BEGIN
@@ -2464,6 +2464,7 @@ BEGIN
         translate_categories  = COALESCE((safe_patch->>'translate_categories')::boolean, translate_categories),
         voting_mode           = COALESCE(safe_patch->>'voting_mode', voting_mode),
         category_vote_modes   = COALESCE(safe_patch->'category_vote_modes', category_vote_modes),
+        require_twitch        = COALESCE((safe_patch->>'require_twitch')::boolean, require_twitch),
         ready_players         = CASE WHEN safe_patch ? 'ready_players'
                                     THEN ARRAY(SELECT jsonb_array_elements_text(safe_patch->'ready_players'))
                                     ELSE ready_players END,
@@ -2478,6 +2479,20 @@ $$;
 
 
 ALTER FUNCTION "public"."update_game_settings"("p_game_id" "text", "p_host_id" "text", "p_patch" "jsonb") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."current_user_has_twitch"() RETURNS boolean
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM "auth"."identities"
+        WHERE "user_id" = "auth"."uid"() AND "provider" = 'twitch'
+    );
+$$;
+
+
+ALTER FUNCTION "public"."current_user_has_twitch"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."update_player"("p_id" "uuid", "p_patch" "jsonb") RETURNS "jsonb"
@@ -2821,6 +2836,7 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "voting_active_sub_id" "uuid",
     "voting_mode" "text" DEFAULT 'yes_no'::"text" NOT NULL,
     "category_vote_modes" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "require_twitch" boolean DEFAULT false NOT NULL,
     CONSTRAINT "games_voting_mode_check" CHECK (("voting_mode" = ANY (ARRAY['yes_no'::"text", 'scale'::"text", 'mixed'::"text"])))
 );
 
@@ -3177,7 +3193,7 @@ CREATE POLICY "Allow public read submissions" ON "public"."submissions" FOR SELE
 
 CREATE POLICY "Insert players only into open lobbies" ON "public"."players" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."games"
-  WHERE (("games"."id" = "players"."game_id") AND ("games"."status" = 'lobby'::"text")))));
+  WHERE (("games"."id" = "players"."game_id") AND ("games"."status" = 'lobby'::"text") AND (("games"."require_twitch" = false) OR ("players"."id" = "games"."host_id") OR "public"."current_user_has_twitch"())))));
 
 
 
@@ -3576,6 +3592,12 @@ REVOKE ALL ON FUNCTION "public"."is_valid_host"("p_game_id" "text", "p_token" "t
 GRANT ALL ON FUNCTION "public"."is_valid_host"("p_game_id" "text", "p_token" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."is_valid_host"("p_game_id" "text", "p_token" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."is_valid_host"("p_game_id" "text", "p_token" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."current_user_has_twitch"() TO "anon";
+GRANT ALL ON FUNCTION "public"."current_user_has_twitch"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."current_user_has_twitch"() TO "service_role";
 
 
 

@@ -93,6 +93,16 @@ export const FEATURES = {
     playerProfiles: true,
 
     /**
+     * Twitch account linking: "Continue with Twitch" on the sign-in surface and a
+     * "Connect Twitch" action on the account page, plus a host lobby setting that
+     * only lets Twitch-linked players join (enforced client-side and in the
+     * players INSERT RLS policy). Requires the Twitch provider enabled in the
+     * Supabase dashboard. Off → all Twitch UI and the lobby toggle disappear;
+     * the server column stays false so nothing is gated.
+     */
+    twitchAuth: true,
+
+    /**
      * Invite a friend straight into the current lobby. The invitee gets a realtime
      * toast with a Join button plus an invitations button next to the options gear.
      * Requires an account, so it also implies playerProfiles. Off → the lobby
