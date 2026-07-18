@@ -148,6 +148,9 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     const [cursorSubId, setCursorSubId] = useState<string | null>(null);
     const hostRestoredRef = useRef(false);
     const [showPlayers, setShowPlayers] = useState(false);
+    // Skip-to-podium needs a confirm step: it ends voting for everyone and jumps
+    // straight to the results, discarding any not-yet-voted subjects.
+    const [showSkipConfirm, setShowSkipConfirm] = useState(false);
 
     const [activeSubmission, setActiveSubmission] = useState<Submission | null>(null);
     const [lastActiveSub, setLastActiveSub] = useState<Submission | null>(null);
@@ -1218,6 +1221,33 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     return (
         <div className={`flex ${isNarrow ? 'flex-col' : 'flex-row'} h-[100dvh] w-screen overflow-hidden bg-slate-950`}>
             <PlayerManagementPanel open={showPlayers} onClose={() => setShowPlayers(false)} players={players} onlinePlayers={onlinePlayers} playerId={playerId} gameHostId={gameHostId} kickPlayer={kickPlayer} banPlayer={banPlayer} makeHost={makeHost} />
+
+            {/* Skip-to-podium confirmation: ending voting early is destructive, so
+                warn before jumping to the results. */}
+            {showSkipConfirm && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-6 animate-in fade-in duration-200" role="dialog" aria-modal="true" onClick={() => setShowSkipConfirm(false)}>
+                    <div className="glass-dark w-full max-w-md rounded-3xl p-8 ring-1 ring-rose-400/40 shadow-[0_0_50px_rgba(244,63,94,0.35)] animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+                        <h2 className="text-2xl font-black uppercase text-rose-300 mb-3 text-center tracking-wide">{t('voting.skipConfirmTitle')}</h2>
+                        <p className="text-slate-300 text-center mb-8 leading-relaxed">{t('voting.skipConfirmBody')}</p>
+                        <div className="flex gap-3">
+                            <button type="button" onClick={() => setShowSkipConfirm(false)} className="glass press flex-1 py-3 rounded-xl font-bold uppercase text-sm text-slate-300 hover:text-white transition-colors">
+                                {t('common.cancel')}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowSkipConfirm(false);
+                                    handleSkipToPodium();
+                                }}
+                                className="btn-sheen press flex-1 py-3 rounded-xl font-black uppercase text-sm bg-gradient-to-r from-rose-500 to-red-600 text-white shadow-[0_14px_28px_-10px_rgba(244,63,94,0.65),inset_0_1px_0_rgba(255,255,255,0.3)]"
+                            >
+                                {t('voting.skipConfirmButton')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Left Panel (Map) */}
             <div className={`relative ${isNarrow ? 'w-full h-1/2' : 'w-1/2 h-full'} z-10 flex-shrink-0`}>
                 <GoogleMap onLoad={(map) => setMapInstance(map)} mapContainerClassName="w-full h-full" options={currentMapOptions}>
@@ -1339,8 +1369,8 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                                 </button>
                             )}
                             {currentRoundIndex < rounds.length - 1 && (
-                                <button type="button" onClick={handleSkipToPodium} className="btn-sheen press pointer-events-auto font-bold px-6 py-3 rounded-xl bg-gradient-to-r from-rose-500 to-red-500 text-white shadow-[0_14px_28px_-10px_rgba(244,63,94,0.6),inset_0_1px_0_rgba(255,255,255,0.3)]">
-                                    {t('voting.skip')}
+                                <button type="button" onClick={() => setShowSkipConfirm(true)} title={t('voting.skipTitle')} className="btn-sheen press pointer-events-auto font-bold px-6 py-3 rounded-xl bg-gradient-to-r from-rose-500 to-red-500 text-white shadow-[0_14px_28px_-10px_rgba(244,63,94,0.6),inset_0_1px_0_rgba(255,255,255,0.3)]">
+                                    {t('voting.skipTitle')}
                                 </button>
                             )}
                         </div>
