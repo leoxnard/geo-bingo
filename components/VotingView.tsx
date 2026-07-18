@@ -299,8 +299,11 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
     const displaySub = activeSubLatest || lastActiveSub;
 
-    // Re-apply the active submission's exact viewpoint each time a new one surfaces,
-    // instead of keeping the previous submission's manual pan/zoom.
+    // Re-apply the active submission's exact viewpoint each time a NEW one surfaces,
+    // instead of keeping the previous submission's manual pan/zoom. Keyed on the
+    // submission id (not the object) so an incoming vote — which produces a fresh
+    // displaySub object with the same location/POV — never yanks the camera back
+    // while the local user is looking around.
     useEffect(() => {
         if (selectedSubmission || selectedFinalMarker) return;
         const pano = streetViewPanoramaRef.current;
@@ -309,7 +312,8 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
             pano.setPov({ heading: finiteOr(displaySub.heading, 0), pitch: finiteOr(displaySub.pitch, 0) });
             pano.setZoom(finiteOr(displaySub.zoom, 3));
         }
-    }, [displaySub, selectedSubmission, selectedFinalMarker]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [displaySub?.id, selectedSubmission, selectedFinalMarker]);
 
     const currentBoard = useMemo(() => {
         const board = roundPlayers[0]?.bingo_board;
@@ -1165,7 +1169,12 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
             };
         }
         return undefined;
-    }, [displaySub, optimalHeading, selectedFinalMarker, selectedSubmission]);
+        // Keyed on the displayed submission's IDENTITY (its location/POV are fixed
+        // per id), not the object reference — otherwise an incoming vote rebuilds
+        // this options object and @react-google-maps re-applies it, resetting the
+        // local user's camera. See the reset effect above.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [displaySub?.id, optimalHeading, selectedFinalMarker, selectedSubmission]);
 
     const panoramaKey = selectedSubmission?.id ? `submission-${selectedSubmission.id}` : selectedFinalMarker ? `final-${selectedFinalMarker.lat}-${selectedFinalMarker.lng}-${selectedFinalMarker.categoryNames.join('|')}` : displaySub?.id ? `display-${displaySub.id}` : 'default';
 
