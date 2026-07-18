@@ -73,6 +73,7 @@ interface LobbyViewProps {
     hideMapSymbols: boolean;
     hideMiniMap: boolean;
     aiEndGame: boolean;
+    requireTwitch: boolean;
     categorySource: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
     aiEnabled: boolean;
     isDeveloper: boolean;
@@ -305,6 +306,7 @@ export default function LobbyView(props: LobbyViewProps) {
                     hideMapSymbols={props.hideMapSymbols}
                     hideMiniMap={props.hideMiniMap}
                     aiEndGame={props.aiEndGame}
+                    requireTwitch={props.requireTwitch}
                     language={props.language}
                     updateGameModeInfo={props.updateGameModeInfo}
                     onCategoryLanguageChange={props.onCategoryLanguageChange}

@@ -51,6 +51,7 @@ interface LobbySidebarProps {
     hideMapSymbols: boolean;
     hideMiniMap: boolean;
     aiEndGame: boolean;
+    requireTwitch: boolean;
     language: CategoryLanguage;
     updateGameModeInfo: (updates: Record<string, unknown>) => void;
     onCategoryLanguageChange?: (newLanguage: CategoryLanguage) => Promise<void>;
@@ -388,6 +389,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                     {FEATURES.hideMapSymbols && <ToggleSwitch label={t('sidebar.hideMapSymbols')} tooltip={t('sidebar.hideMapSymbolsTooltip')} checked={props.hideMapSymbols} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ hide_map_symbols: checked })} />}
                     {FEATURES.hideMiniMap && <ToggleSwitch label={t('sidebar.hideMiniMap')} tooltip={t('sidebar.hideMiniMapTooltip')} checked={props.hideMiniMap} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ hide_minimap: checked })} />}
                     {FEATURES.aiVerifyEndGame && <ToggleSwitch label={t('sidebar.aiVerifyEndGame')} tooltip={t('sidebar.aiVerifyEndGameTooltip')} checked={props.aiEndGame} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ ai_end_game: checked })} />}
+                    {FEATURES.twitchAuth && FEATURES.playerProfiles && <ToggleSwitch label={t('sidebar.requireTwitch')} tooltip={t('sidebar.requireTwitchTooltip')} checked={props.requireTwitch} disabled={!props.isHost} onChange={(checked) => props.updateGameModeInfo({ require_twitch: checked })} />}
                     {!props.isHost && <p className="text-xs text-slate-500 pt-4 border-t border-white/10 text-center">{t('sidebar.onlyHostCanChange')}</p>}
                 </div>
             </div>
