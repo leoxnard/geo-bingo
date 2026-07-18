@@ -20,6 +20,7 @@ import { useJsApiLoader } from '@react-google-maps/api';
 import toast from 'react-hot-toast';
 
 import { useT } from '@/lib/i18n/I18nProvider';
+import { getLastMapPoint, setLastMapPoint } from '@/lib/lastMapPoint';
 import { useSettings } from '@/lib/settings/SettingsProvider';
 
 import RoundControls from './RoundControls';
@@ -72,6 +73,9 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
     const [measuredPanelWidth, setMeasuredPanelWidth] = useState<number>(0);
     const lastValidPositionRef = useRef<google.maps.LatLng | null>(null);
     const lastValidPanoRef = useRef<string | null>(null);
+    // Restored once on mount from localStorage (client-only, see lib/lastMapPoint.ts) so the
+    // "you are here" dot on the main map survives a reload instead of vanishing.
+    const [restoredMapPoint] = useState(() => getLastMapPoint(gameId, playerId));
     const isRevertingRef = useRef(false);
     const { pathRef, recordPoint, flushNow: flushPathNow } = useStreetViewPath(playerId);
 
@@ -260,7 +264,10 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                 visible: !inStreetView,
             });
 
-            const initialPos = panoInstance.getPosition();
+            // Fresh page load: the panorama has no live position yet, so fall back to the
+            // last point restored from localStorage (see restoredMapPoint) purely to keep
+            // showing the dot — this does not move the panorama itself.
+            const initialPos = panoInstance.getPosition() || (restoredMapPoint ? new google.maps.LatLng(restoredMapPoint.lat, restoredMapPoint.lng) : null);
             if (initialPos) mainMapDotRef.current.setPosition(initialPos);
 
             const positionListener = panoInstance.addListener('position_changed', () => {
@@ -278,7 +285,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                 }
             };
         }
-    }, [mainMapInstance, panoInstance, startingPoint, inStreetView]);
+    }, [mainMapInstance, panoInstance, startingPoint, inStreetView, restoredMapPoint]);
 
     useEffect(() => {
         if (mainMapDotRef.current) {
@@ -388,6 +395,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                     lastValidPanoRef.current = pano.getPano();
 
                     recordPoint(pos.lat(), pos.lng());
+                    setLastMapPoint(gameId, playerId, { lat: pos.lat(), lng: pos.lng() });
                 } else {
                     isRevertingRef.current = true;
                     toast(t('sv.toastEdgeOfArea'));
@@ -415,7 +423,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                 }
             });
         },
-        [startingPoint, gameBoundary, recordPoint, t],
+        [startingPoint, gameBoundary, recordPoint, t, gameId, playerId],
     );
 
     const onUnmount = useCallback(() => {
