@@ -12,9 +12,12 @@ children. Voting and browsing never mount this — they use the device id instea
 
 import { useState } from 'react';
 
+import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { supabase } from '@/lib/supabase';
+import { signInWithTwitch } from '@/lib/twitch';
 
+import TwitchButton from './TwitchButton';
 import { useUser } from './useUser';
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
@@ -57,6 +60,15 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
                 <h2 className="text-xl font-bold text-indigo-400">{t('community.signInTitle')}</h2>
                 <p className="text-sm text-slate-400 mt-1">{t('community.signInDesc')}</p>
             </div>
+
+            {FEATURES.twitchAuth && stage === 'email' && (
+                <>
+                    <TwitchButton label={t('twitch.continueWith')} onClick={() => signInWithTwitch()} />
+                    <div className="flex items-center gap-3 text-xs font-medium uppercase text-slate-500">
+                        <span className="h-px flex-1 bg-white/10" /> {t('twitch.or')} <span className="h-px flex-1 bg-white/10" />
+                    </div>
+                </>
+            )}
 
             {stage === 'email' ? (
                 <form onSubmit={sendCode} className="flex flex-col gap-3">
