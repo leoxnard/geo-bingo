@@ -60,7 +60,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
     const [minimapInstance, setMinimapInstance] = useState<google.maps.Map | null>(null);
     const [mainMapInstance, setMainMapInstance] = useState<google.maps.Map | null>(null);
     const mainMapDotRef = useRef<google.maps.Marker | null>(null);
-    const [showCoverage, setShowCoverage] = useState(false);
+    const [showCoverage, setShowCoverage] = useState(true);
     const [showPlayers, setShowPlayers] = useState(false);
     const coverageLayerRef = useRef<google.maps.StreetViewCoverageLayer | null>(null);
 

@@ -124,7 +124,7 @@ export default function StreetViewMapPanel(props: StreetViewMapPanelProps) {
             {!inStreetView && <CoverageToggleButton active={showCoverage} onClick={() => setShowCoverage((v) => !v)} className="absolute top-16 right-2 z-5 hidden sm:flex" />}
 
             {props.isHost && (
-                <button type="button" onClick={props.onTogglePlayers} title={t('players.panelTitle')} className={`glass-dark absolute top-32 right-2 z-5 flex h-12 w-12 items-center justify-center rounded-md font-bold transition-transform hover:scale-105 hover:brightness-125 active:scale-95 ${props.showPlayers ? 'text-indigo-400' : 'text-white'}`}>
+                <button type="button" onClick={props.onTogglePlayers} title={t('players.panelTitle')} className={`glass-dark absolute top-2 right-16 z-5 hidden sm:flex h-12 w-12 items-center justify-center rounded-md font-bold transition-transform hover:scale-105 hover:brightness-125 active:scale-95 ${props.showPlayers ? 'text-indigo-400' : 'text-white'}`}>
                     <FaUsers size={18} />
                 </button>
             )}
