@@ -382,8 +382,12 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         if (progressBarRef.current) progressBarRef.current.style.transform = `scale${isNarrowRef.current ? 'X' : 'Y'}(0)`;
     };
     const applyRoundRef = useRef(applyRoundIndex);
+    // The realtime channel is created once (keyed on gameId), so its callbacks read
+    // the live host status through a ref rather than a stale closure.
+    const isHostRef = useRef(isHost);
     useEffect(() => {
         applyRoundRef.current = applyRoundIndex;
+        isHostRef.current = isHost;
     });
 
     // Data Fetching
@@ -420,6 +424,23 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         };
         fetchData();
 
+        // Catch-up refetch of the authoritative voting state (cursor + votes).
+        // Postgres changes missed while the websocket was down are NOT replayed on
+        // reconnect, so without this a device that blipped offline (mobile tab
+        // backgrounded, flaky wifi) stays frozen on a stale card — the reported
+        // "voting cursor didn't advance / stuck on the category list" desync. The
+        // host is the cursor's sole writer, so it only refreshes votes here and
+        // keeps driving its own replay; non-hosts re-adopt the published cursor.
+        const resyncVotingState = async () => {
+            const [{ data: gData }, { data: subData }] = await Promise.all([supabase.from('games').select('voting_round_index, voting_active_sub_id').eq('id', gameId).single(), supabase.from('submissions').select('*').eq('game_id', gameId)]);
+            if (subData) setSubmissions(subData);
+            if (gData && !isHostRef.current) {
+                if (typeof gData.voting_round_index === 'number') applyRoundRef.current(gData.voting_round_index);
+                setCursorSubId(gData.voting_active_sub_id ?? null);
+            }
+        };
+
+        let channelDropped = false;
         const channel = supabase
             .channel(`voting-journey-${gameId}`)
             .on(
@@ -452,12 +473,31 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                     setCursorSubId(g.voting_active_sub_id ?? null);
                 },
             )
-            .subscribe();
+            .subscribe((channelStatus) => {
+                if (channelStatus === 'SUBSCRIBED') {
+                    // Only refetch after an actual drop — the first SUBSCRIBED is
+                    // already covered by fetchData().
+                    if (channelDropped) {
+                        channelDropped = false;
+                        void resyncVotingState();
+                    }
+                } else if (channelStatus === 'CHANNEL_ERROR' || channelStatus === 'TIMED_OUT' || channelStatus === 'CLOSED') {
+                    channelDropped = true;
+                }
+            });
         // NOTE: no 'finish_game' handler — finishing is driven by the page-level
         // games status subscription, which re-renders straight to PodiumView.
 
+        // Belt-and-suspenders for mobile: a backgrounded tab often silently drops
+        // the socket without emitting CLOSED; re-sync when it becomes visible again.
+        const onVisible = () => {
+            if (document.visibilityState === 'visible') void resyncVotingState();
+        };
+        document.addEventListener('visibilitychange', onVisible);
+
         return () => {
             supabase.removeChannel(channel);
+            document.removeEventListener('visibilitychange', onVisible);
         };
     }, [gameId]);
 
