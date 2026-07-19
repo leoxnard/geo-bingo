@@ -167,6 +167,10 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     const animationProgressRef = useRef(0);
     const lastTimeRef = useRef(0);
     const shownSubIdsRef = useRef<Set<string>>(new Set());
+    // Game-wide voted-on tally, unlike shownSubIdsRef which is cleared every round
+    // — powers the overall "X of Y submissions voted" progress counter.
+    const allShownSubIdsRef = useRef<Set<string>>(new Set());
+    const [allShownSubIds, setAllShownSubIds] = useState<Set<string>>(new Set());
     const rAFRef = useRef(0);
     const markersRef = useRef<Map<string, google.maps.Marker>>(new Map());
     const streetViewPanoramaRef = useRef<google.maps.StreetViewPanorama | null>(null);
@@ -611,10 +615,15 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
             const target = allSubProgressions.find((sp) => sp.sub.id === sub.id);
             const p = target?.progress ?? animationProgressRef.current;
             allSubProgressions.forEach((sp) => {
-                if (sp.progress <= p) shownSubIdsRef.current.add(sp.sub.id);
+                if (sp.progress <= p) {
+                    shownSubIdsRef.current.add(sp.sub.id);
+                    allShownSubIdsRef.current.add(sp.sub.id);
+                }
             });
             shownSubIdsRef.current.add(sub.id);
+            allShownSubIdsRef.current.add(sub.id);
             setShownSubIds(new Set(shownSubIdsRef.current));
+            setAllShownSubIds(new Set(allShownSubIdsRef.current));
             drawAtProgress(p);
             setActiveSubmission(sub);
             setLastActiveSub(sub);
@@ -684,10 +693,12 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
             if (crossedSub) {
                 shownSubIdsRef.current.add(crossedSub.sub.id);
+                allShownSubIdsRef.current.add(crossedSub.sub.id);
                 setActiveSubmission(crossedSub.sub);
                 setLastActiveSub(crossedSub.sub);
                 setIsPaused(true);
                 setShownSubIds(new Set(shownSubIdsRef.current));
+                setAllShownSubIds(new Set(allShownSubIdsRef.current));
                 progress = crossedSub.progress;
                 hitSub = true;
                 // Publish this card so every other device votes on it too.
@@ -1209,6 +1220,16 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     const hypeVotes = activeSubLatest ? activeTally.hype : 0;
     const hasHypedActive = activeSubLatest ? hasHyped(activeSubLatest.votes, playerId) : false;
 
+    // Subtle voting-progress counter: how many submissions across the WHOLE game
+    // have surfaced for voting so far vs. the total that will. Only submissions
+    // belonging to players with a recorded path ever get a card (see roundData),
+    // so total excludes any that couldn't be replayed. `allShownSubIds` is kept
+    // in sync on every device (host replay + non-host cursor follow) and, unlike
+    // `shownSubIds`, is never reset between rounds — so it works for spectators
+    // too and tracks progress across every player, not just the current one.
+    const gameSubTotal = submissions.reduce((n, s) => n + (playersWithPaths.some((p) => p.id === s.player_id) ? 1 : 0), 0);
+    const gameSubDone = allShownSubIds.size;
+
     const totalCategories = currentBoard?.length || 0;
     let columns = 1;
     let rows = 1;
@@ -1379,6 +1400,19 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                         </div>
                     )}
                 </div>
+
+                {/* Subtle submission-progress counter: X of Y submissions across the
+                    whole game surfaced for voting so far. */}
+                {gameSubTotal > 0 && (
+                    <div className="glass-dark absolute bottom-6 left-6 z-10 flex items-center gap-3 rounded-full px-4 py-2.5 pointer-events-none animate-in fade-in duration-300">
+                        <div className="h-1 w-20 overflow-hidden rounded-full bg-white/15">
+                            <div className="h-full rounded-full bg-indigo-400/90 transition-[width] duration-500 ease-out" style={{ width: `${(gameSubDone / gameSubTotal) * 100}%` }} />
+                        </div>
+                        <span className="text-xs font-bold tabular-nums text-slate-300">
+                            {gameSubDone}/{gameSubTotal}
+                        </span>
+                    </div>
+                )}
 
                 {isLineComplete && !activeSubLatest && (
                     <div className="glass-dark absolute bottom-6 left-1/2 -translate-x-1/2 z-40 p-6 rounded-2xl ring-1 ring-indigo-400/40 shadow-[0_0_50px_rgba(79,70,229,0.4)] w-[350px] text-center animate-in zoom-in-90 duration-300">
