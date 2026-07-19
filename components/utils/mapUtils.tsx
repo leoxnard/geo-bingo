@@ -257,3 +257,79 @@ export function isLocationAllowed(point: Point, gameBoundary: string): boolean {
         return true;
     }
 }
+
+// ---- place search → real boundary polygons ----
+
+// A trimmed OSM Nominatim result as returned by /api/geocode. Carries the real
+// administrative-boundary geometry (GeoJSON Polygon/MultiPolygon) plus a bbox
+// fallback for places that have no polygon (e.g. a single point of interest).
+export interface GeoPlaceResult {
+    osmId: string;
+    label: string;
+    name: string;
+    type: string;
+    boundingbox?: [string, string, string, string]; // [south, north, west, east] (strings, per Nominatim)
+    geojson: { type: 'Polygon' | 'MultiPolygon'; coordinates: number[][][] | number[][][][] } | null;
+}
+
+// GeoJSON rings are [lng, lat] and closed (last vertex repeats the first). Our
+// boundary points are {lat,lng} and the polygon renderer/point-in-polygon test
+// close implicitly, so drop the duplicate closing vertex.
+function ringToPoints(ring: number[][]): { lat: number; lng: number }[] {
+    const pts = ring.map(([lng, lat]) => ({ lat, lng }));
+    if (pts.length > 1) {
+        const a = pts[0];
+        const b = pts[pts.length - 1];
+        if (a.lat === b.lat && a.lng === b.lng) pts.pop();
+    }
+    return pts;
+}
+
+// Convert a geocoded place into boundary zones sharing one groupId (so the lobby
+// treats them as a single named area). A Polygon/MultiPolygon outer ring becomes
+// an 'allow' zone; interior rings (holes, e.g. an enclave) become 'forbid' zones
+// layered after the allows so the last-wins evaluation excludes them. Places with
+// no polygon fall back to an 'allow' rectangle built from the bounding box.
+export function geoResultToBoundaries(result: GeoPlaceResult, groupId: string): { id: string; groupId: string; type: 'allow' | 'forbid'; points: { lat: number; lng: number }[]; name: string; isComplete: true }[] {
+    const allows: { lat: number; lng: number }[][] = [];
+    const forbids: { lat: number; lng: number }[][] = [];
+
+    if (result.geojson) {
+        // Polygon: coordinates = Ring[]. MultiPolygon: coordinates = Polygon[] = Ring[][].
+        const polygons: number[][][][] = result.geojson.type === 'MultiPolygon' ? (result.geojson.coordinates as number[][][][]) : [result.geojson.coordinates as number[][][]];
+
+        polygons.forEach((poly) => {
+            poly.forEach((ring, ringIdx) => {
+                const points = ringToPoints(ring);
+                if (points.length < 3) return;
+                if (ringIdx === 0) allows.push(points);
+                else forbids.push(points);
+            });
+        });
+    }
+
+    // Fallback: no usable polygon → rectangle from the bounding box.
+    if (allows.length === 0 && result.boundingbox && result.boundingbox.length === 4) {
+        const [south, north, west, east] = result.boundingbox.map(Number);
+        if ([south, north, west, east].every((n) => Number.isFinite(n))) {
+            allows.push([
+                { lat: south, lng: west },
+                { lat: south, lng: east },
+                { lat: north, lng: east },
+                { lat: north, lng: west },
+            ]);
+        }
+    }
+
+    const name = result.name || result.label;
+    const ordered = [...allows.map((points) => ({ points, type: 'allow' as const })), ...forbids.map((points) => ({ points, type: 'forbid' as const }))];
+
+    return ordered.map((zone, i) => ({
+        id: `${groupId}_${i}`,
+        groupId,
+        type: zone.type,
+        points: zone.points,
+        name,
+        isComplete: true as const,
+    }));
+}

@@ -14,12 +14,12 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, Fra
 
 import { GoogleMap, PolygonF, MarkerF, OverlayView, OverlayViewF, CircleF, PolylineF, RectangleF } from '@react-google-maps/api';
 import { createPortal } from 'react-dom';
-import { FaPlus, FaTimes, FaCaretDown, FaCaretRight, FaUndo } from 'react-icons/fa';
+import { FaPlus, FaTimes, FaCaretDown, FaCaretRight, FaUndo, FaSearchLocation, FaSpinner } from 'react-icons/fa';
 
 import { useT } from '@/lib/i18n/I18nProvider';
 
 import { MaskIcon } from '../utils/Elements';
-import { insertPoint, insertPointPhase1, mapOptions, WORLD_DEFAULT_ID, parseWorldDefault } from '../utils/mapUtils';
+import { insertPoint, insertPointPhase1, mapOptions, WORLD_DEFAULT_ID, parseWorldDefault, geoResultToBoundaries, GeoPlaceResult } from '../utils/mapUtils';
 import { BoundaryPolygon } from '../utils/types';
 
 const DEFAULT_CENTER = { lat: 20, lng: 0 };
@@ -73,6 +73,18 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [selectedPreset, setSelectedPreset] = useState<string>('');
     const [searchTerm, setSearchTerm] = useState('');
+
+    // ---- live place search (real OSM administrative boundaries) ----
+    const [placeSearch, setPlaceSearch] = useState('');
+    const [placeResults, setPlaceResults] = useState<GeoPlaceResult[]>([]);
+    const [placeLoading, setPlaceLoading] = useState(false);
+    const [placeErrored, setPlaceErrored] = useState(false);
+    const [placeMenuOpen, setPlaceMenuOpen] = useState(false);
+    const placeDropdownRef = useRef<HTMLDivElement>(null);
+    const placeMenuRef = useRef<HTMLDivElement>(null);
+    const [placeMenuRect, setPlaceMenuRect] = useState<{ left: number; top: number; width: number } | null>(null);
+    const placeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const placeAbortRef = useRef<AbortController | null>(null);
     const [optimisticGameBoundary, setOptimisticGameBoundary] = useState(gameBoundary);
     const optimisticGameBoundaryRef = useRef(gameBoundary);
     const pendingWritesRef = useRef<Set<string>>(new Set());
@@ -658,6 +670,103 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         }
     };
 
+    // Debounced live geocode: fetch real OSM boundaries for the typed place. The
+    // proxy (/api/geocode) sets Nominatim's required User-Agent server-side.
+    useEffect(() => {
+        const q = placeSearch.trim();
+        if (placeDebounceRef.current) clearTimeout(placeDebounceRef.current);
+        if (q.length < 2) {
+            setPlaceResults([]);
+            setPlaceLoading(false);
+            setPlaceErrored(false);
+            return;
+        }
+        setPlaceLoading(true);
+        setPlaceErrored(false);
+        placeDebounceRef.current = setTimeout(() => {
+            placeAbortRef.current?.abort();
+            const controller = new AbortController();
+            placeAbortRef.current = controller;
+            fetch(`/api/geocode?q=${encodeURIComponent(q)}&lang=${locale}`, { signal: controller.signal })
+                .then((res) => res.json())
+                .then((data: { results?: GeoPlaceResult[]; error?: string }) => {
+                    if (controller.signal.aborted) return;
+                    setPlaceResults(Array.isArray(data.results) ? data.results : []);
+                    setPlaceErrored(Boolean(data.error));
+                    setPlaceLoading(false);
+                })
+                .catch((err: unknown) => {
+                    if (controller.signal.aborted || (err as { name?: string })?.name === 'AbortError') return;
+                    setPlaceResults([]);
+                    setPlaceErrored(true);
+                    setPlaceLoading(false);
+                });
+        }, 450);
+        return () => {
+            if (placeDebounceRef.current) clearTimeout(placeDebounceRef.current);
+        };
+    }, [placeSearch, locale]);
+
+    useEffect(() => () => placeAbortRef.current?.abort(), []);
+
+    // Close the place-search menu on outside click.
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            const target = event.target as Node;
+            if (placeDropdownRef.current?.contains(target) || placeMenuRef.current?.contains(target)) return;
+            setPlaceMenuOpen(false);
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Anchor the portaled place-search menu to its input (see the preset menu comment).
+    useLayoutEffect(() => {
+        if (!placeMenuOpen) return;
+        const rect = placeDropdownRef.current?.getBoundingClientRect();
+        if (rect) setPlaceMenuRect({ left: rect.left, top: rect.bottom, width: rect.width });
+    }, [placeMenuOpen, placeResults, placeLoading, placeErrored]);
+
+    useEffect(() => {
+        if (!placeMenuOpen) return;
+        const onScroll = (e: Event) => {
+            if (placeMenuRef.current?.contains(e.target as Node)) return;
+            setPlaceMenuOpen(false);
+        };
+        const onResize = () => setPlaceMenuOpen(false);
+        window.addEventListener('scroll', onScroll, true);
+        window.addEventListener('resize', onResize);
+        return () => {
+            window.removeEventListener('scroll', onScroll, true);
+            window.removeEventListener('resize', onResize);
+        };
+    }, [placeMenuOpen]);
+
+    // Add the real boundary of a searched place as a new named area, then frame it.
+    // Everything outside the searched area is forbidden by default (the intent of
+    // "play inside Munich"); interior holes are carried as forbid zones by the
+    // converter, which the last-wins evaluation already respects.
+    const handleSelectPlace = (result: GeoPlaceResult) => {
+        const groupId = Date.now().toString();
+        const newBoundaries = geoResultToBoundaries(result, groupId);
+        if (newBoundaries.length === 0) return;
+
+        const combined: BoundaryPolygon[] = [...draftBoundaries, ...newBoundaries];
+        setWorldDefault('forbid');
+        commitBoundaryChange(combined, { worldDefault: 'forbid' });
+        setSelectedBoundaryId(groupId);
+        setSelectedPreset('');
+        setPlaceMenuOpen(false);
+        setPlaceSearch('');
+        setPlaceResults([]);
+
+        if (mapInstance) {
+            const bounds = new google.maps.LatLngBounds();
+            newBoundaries.forEach((b) => b.points.forEach((p) => bounds.extend(p)));
+            if (!bounds.isEmpty()) mapInstance.fitBounds(bounds);
+        }
+    };
+
     const handlePresetChange = (presetKey: string) => {
         setSelectedPreset(presetKey);
         if (!presetKey) return;
@@ -1020,6 +1129,65 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                             >
                                 {t('map.resetStartingPoint')}
                             </button>
+                        </div>
+
+                        {/* Live place search: real OSM administrative boundaries (e.g. "Munich"). */}
+                        <div className="flex flex-wrap items-center justify-start gap-3 text-sm">
+                            <div ref={placeDropdownRef} className="relative w-full sm:min-w-[280px] sm:flex-1">
+                                <span className="block text-xs text-slate-400 mb-1">{t('map.searchPlaceLabel')}</span>
+                                <div className="w-full bg-slate-900 border border-slate-700 hover:border-slate-500 focus-within:border-indigo-500 rounded-lg flex items-center transition-colors">
+                                    <span className="pl-3 text-slate-400">
+                                        <FaSearchLocation size={14} />
+                                    </span>
+                                    <input
+                                        type="text"
+                                        placeholder={t('map.searchPlacePlaceholder')}
+                                        value={placeSearch}
+                                        onChange={(e) => {
+                                            setPlaceSearch(e.target.value);
+                                            setPlaceMenuOpen(true);
+                                        }}
+                                        onFocus={() => setPlaceMenuOpen(true)}
+                                        className="w-full bg-transparent px-3 py-2 text-slate-200 outline-none placeholder:text-slate-400 text-sm"
+                                    />
+                                    {placeLoading && (
+                                        <span className="pr-3 text-slate-400">
+                                            <FaSpinner className="animate-spin" size={14} />
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-[11px] text-slate-500 mt-1">{t('map.searchPlaceHint')}</p>
+
+                                {/* Results — portaled above every panel, see menuRef comment */}
+                                {placeMenuOpen &&
+                                    placeMenuRect &&
+                                    createPortal(
+                                        <div ref={placeMenuRef} style={{ left: placeMenuRect.left, top: placeMenuRect.top, width: placeMenuRect.width }} className="fixed z-[9999] pt-1">
+                                            <div className="bg-slate-900 border border-white/15 rounded-lg shadow-[0_20px_40px_-14px_rgba(2,6,23,0.75)] py-1 max-h-64 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                                                {placeLoading ? (
+                                                    <div className="px-4 py-2 text-slate-400 text-sm flex items-center gap-2">
+                                                        <FaSpinner className="animate-spin" size={12} /> {t('map.searchPlaceSearching')}
+                                                    </div>
+                                                ) : placeErrored ? (
+                                                    <div className="px-4 py-2 text-red-400 text-sm italic">{t('map.searchPlaceError')}</div>
+                                                ) : placeResults.length > 0 ? (
+                                                    placeResults.map((r) => (
+                                                        <div key={r.osmId} onMouseDown={(e) => e.preventDefault()} onClick={() => handleSelectPlace(r)} className="px-4 py-2 cursor-pointer text-sm transition-colors text-slate-300 hover:bg-indigo-600/50 hover:text-white">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-medium text-slate-100 truncate">{r.name}</span>
+                                                                {r.type && <span className="text-[10px] uppercase tracking-wide text-slate-500 shrink-0">{r.type.replace(/_/g, ' ')}</span>}
+                                                            </div>
+                                                            <div className="text-[11px] text-slate-500 truncate">{r.label}</div>
+                                                        </div>
+                                                    ))
+                                                ) : placeSearch.trim().length >= 2 ? (
+                                                    <div className="px-4 py-2 text-slate-500 text-sm italic">{t('map.searchPlaceNoResults')}</div>
+                                                ) : null}
+                                            </div>
+                                        </div>,
+                                        document.body,
+                                    )}
+                            </div>
                         </div>
 
                         <div className="flex flex-wrap items-center justify-start gap-3 text-sm">
