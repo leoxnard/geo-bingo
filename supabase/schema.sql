@@ -2412,7 +2412,7 @@ DECLARE
         'ready_players', 'banned_players', 'difficulty',
         'category_translations', 'category_hint_translations', 'preset_categories',
         'scale_voting', 'translate_categories',
-        'voting_mode', 'category_vote_modes'
+        'voting_mode', 'category_vote_modes', 'anonymous_voting'
     ];
     safe_patch jsonb;
 BEGIN
@@ -2464,6 +2464,7 @@ BEGIN
         translate_categories  = COALESCE((safe_patch->>'translate_categories')::boolean, translate_categories),
         voting_mode           = COALESCE(safe_patch->>'voting_mode', voting_mode),
         category_vote_modes   = COALESCE(safe_patch->'category_vote_modes', category_vote_modes),
+        anonymous_voting      = COALESCE((safe_patch->>'anonymous_voting')::boolean, anonymous_voting),
         ready_players         = CASE WHEN safe_patch ? 'ready_players'
                                     THEN ARRAY(SELECT jsonb_array_elements_text(safe_patch->'ready_players'))
                                     ELSE ready_players END,
@@ -2821,6 +2822,7 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "voting_active_sub_id" "uuid",
     "voting_mode" "text" DEFAULT 'yes_no'::"text" NOT NULL,
     "category_vote_modes" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "anonymous_voting" boolean DEFAULT false NOT NULL,
     CONSTRAINT "games_voting_mode_check" CHECK (("voting_mode" = ANY (ARRAY['yes_no'::"text", 'scale'::"text", 'mixed'::"text"])))
 );
 

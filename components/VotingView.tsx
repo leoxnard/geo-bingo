@@ -112,7 +112,7 @@ const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => 
     return Math.sqrt(Math.pow(lat1 - lat2, 2) + Math.pow(dLng, 2));
 };
 
-export function VotingView({ gameId, isHost, playerId, players, teamMode, onFinishGame, isDeveloper = false, hintByCategory = {}, labelByCategory = {}, votingMode = 'yes_no', categoryVoteModes = {}, onlinePlayers = [], gameHostId, kickPlayer, banPlayer, makeHost }: VotingViewProps) {
+export function VotingView({ gameId, isHost, playerId, players, teamMode, onFinishGame, isDeveloper = false, hintByCategory = {}, labelByCategory = {}, votingMode = 'yes_no', categoryVoteModes = {}, anonymousVoting = false, onlinePlayers = [], gameHostId, kickPlayer, banPlayer, makeHost }: VotingViewProps) {
     const { t } = useT();
     const { isNarrow } = useViewport();
     const isNarrowRef = useRef(isNarrow);
@@ -226,7 +226,10 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     const roundPlayers = useMemo(() => currentRound?.players ?? [], [currentRound]);
     const roundPlayerIds = useMemo(() => new Set(roundPlayers.map((p) => p.id)), [roundPlayers]);
     const roundTeam = currentRound?.team;
-    const roundLabel = useMemo(() => roundPlayers.map((p) => p.name).join(' & '), [roundPlayers]);
+    // Anonymous voting: never reveal whose journey/submission is on screen. The
+    // replay path still shows, just not the name behind it.
+    const playerLabel = useCallback((name: string) => (anonymousVoting ? t('voting.anonymousPlayer') : name), [anonymousVoting, t]);
+    const roundLabel = useMemo(() => (anonymousVoting ? t('voting.anonymousPlayer') : roundPlayers.map((p) => p.name).join(' & ')), [roundPlayers, anonymousVoting, t]);
 
     const activeSubLatest = useMemo(() => {
         if (activeSubmission && roundPlayerIds.has(activeSubmission.player_id)) {
@@ -1347,7 +1350,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                                     {roundData.map((pd, index) => (
                                         <Fragment key={pd.player.id}>
                                             {/* Player name in their specific color */}
-                                            <span style={{ color: pd.color }}>{pd.player.name}</span>
+                                            <span style={{ color: pd.color }}>{playerLabel(pd.player.name)}</span>
 
                                             {/* Separators in the default text color */}
                                             {index < roundData.length - 2 ? ', ' : index === roundData.length - 2 ? ' and ' : ''}
@@ -1470,7 +1473,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                         ) : selectedSubmission ? (
                             <div className="max-w-xl mx-auto">
                                 <h3 className="text-xl sm:text-2xl font-black text-white mb-1 text-center truncate">{labelForCategory(selectedSubmission.category)}</h3>
-                                <p className="text-sm text-indigo-300 mb-4 text-center uppercase tracking-widest font-semibold">{t('voting.submissionBy', { player: players.find((p) => p.id === selectedSubmission.player_id)?.name ?? '' })}</p>
+                                <p className="text-sm text-indigo-300 mb-4 text-center uppercase tracking-widest font-semibold">{t('voting.submissionBy', { player: playerLabel(players.find((p) => p.id === selectedSubmission.player_id)?.name ?? '') })}</p>
                                 <div className="mb-4 text-center">
                                     <div className="text-sm text-slate-400 mb-2">{t('voting.votingResults')}</div>
                                     <div className="flex gap-4 justify-center">
