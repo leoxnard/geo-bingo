@@ -11,7 +11,7 @@ Sets up HTML structure and CSS imports for entire app.
 import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Metadata, Viewport } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Geist_Mono } from 'next/font/google';
 import './globals.css';
 
 import { GameInvitesProvider } from '@/components/invites/GameInvitesProvider';
@@ -21,14 +21,12 @@ import { I18nProvider } from '@/lib/i18n/I18nProvider';
 import { SettingsProvider } from '@/lib/settings/SettingsProvider';
 import { SoundProvider } from '@/lib/sound/SoundProvider';
 
-const geistSans = Geist({
-    variable: '--font-geist-sans',
-    subsets: ['latin'],
-});
-
+// Mono is only used off the landing page (lobby codes, daily timers), so it is
+// wired via its CSS variable but not preloaded — it loads on demand where needed.
 const geistMono = Geist_Mono({
     variable: '--font-geist-mono',
     subsets: ['latin'],
+    preload: false,
 });
 
 const SITE_TITLE = 'Geo BingBong — Free Multiplayer Street View Bingo';
@@ -89,7 +87,7 @@ export default async function RootLayout({
     const locale = await getServerLocale();
 
     return (
-        <html lang={locale} className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+        <html lang={locale} className={`${geistMono.variable} h-full antialiased`}>
             <body className="min-h-full flex flex-col">
                 <I18nProvider initialLocale={locale}>
                     <SettingsProvider>
