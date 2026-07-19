@@ -889,6 +889,20 @@ $$;
 ALTER FUNCTION "public"."create_community_preset"("p_name" "text", "p_description" "text", "p_author_name" "text", "p_categories" "jsonb", "p_boundaries" "jsonb", "p_starting_point" "text", "p_recommended_time" integer, "p_difficulty" "text", "p_game_mode" "text", "p_grid_size" integer, "p_settings" "jsonb", "p_icon" "text", "p_category_translations" "jsonb", "p_title_translations" "jsonb", "p_description_translations" "jsonb", "p_category_hint_translations" "jsonb") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."current_user_has_twitch"() RETURNS boolean
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM auth.identities
+        WHERE user_id = auth.uid() AND provider = 'twitch'
+    );
+$$;
+
+
+ALTER FUNCTION "public"."current_user_has_twitch"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."daily_caller_name"() RETURNS "text"
     LANGUAGE "sql" STABLE
     AS $$
@@ -1708,8 +1722,6 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'error', 'BANNED');
     END IF;
 
-    -- Rejoin: this player already belongs to the game (refresh / reconnect).
-    -- Keep it idempotent so we never create a duplicate row.
     IF EXISTS (SELECT 1 FROM players WHERE id = p_player_id AND game_id = p_game_id) THEN
         UPDATE players SET
             name        = COALESCE(NULLIF(p_name, ''), name),
@@ -1723,14 +1735,10 @@ BEGIN
         RETURN jsonb_build_object('success', true, 'rejoined', true);
     END IF;
 
-    -- New registration. A finished game is spectate-only: no row, but no error.
     IF target_status = 'finished' THEN
         RETURN jsonb_build_object('success', true, 'spectator', true);
     END IF;
 
-    -- Twitch gate: if the host requires a linked Twitch account, only the host
-    -- and players who linked Twitch may register. Existing members (rejoin path
-    -- above) are unaffected, so flipping the flag never ejects anyone.
     IF target_require_twitch
         AND p_player_id::text IS DISTINCT FROM target_host_id
         AND NOT public.current_user_has_twitch() THEN
@@ -2553,20 +2561,6 @@ $$;
 ALTER FUNCTION "public"."update_game_settings"("p_game_id" "text", "p_host_id" "text", "p_patch" "jsonb") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."current_user_has_twitch"() RETURNS boolean
-    LANGUAGE "sql" STABLE SECURITY DEFINER
-    SET "search_path" TO 'public'
-    AS $$
-    SELECT EXISTS (
-        SELECT 1 FROM "auth"."identities"
-        WHERE "user_id" = "auth"."uid"() AND "provider" = 'twitch'
-    );
-$$;
-
-
-ALTER FUNCTION "public"."current_user_has_twitch"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."update_player"("p_id" "uuid", "p_patch" "jsonb") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -2908,8 +2902,8 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "voting_active_sub_id" "uuid",
     "voting_mode" "text" DEFAULT 'yes_no'::"text" NOT NULL,
     "category_vote_modes" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
-    "anonymous_voting" boolean DEFAULT false NOT NULL,
     "require_twitch" boolean DEFAULT false NOT NULL,
+    "anonymous_voting" boolean DEFAULT false NOT NULL,
     CONSTRAINT "games_voting_mode_check" CHECK (("voting_mode" = ANY (ARRAY['yes_no'::"text", 'scale'::"text", 'mixed'::"text"])))
 );
 
@@ -3518,6 +3512,12 @@ GRANT ALL ON FUNCTION "public"."create_community_preset"("p_name" "text", "p_des
 
 
 
+GRANT ALL ON FUNCTION "public"."current_user_has_twitch"() TO "anon";
+GRANT ALL ON FUNCTION "public"."current_user_has_twitch"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."current_user_has_twitch"() TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."daily_caller_name"() TO "anon";
 GRANT ALL ON FUNCTION "public"."daily_caller_name"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."daily_caller_name"() TO "service_role";
@@ -3671,12 +3671,6 @@ GRANT ALL ON FUNCTION "public"."is_valid_host"("p_game_id" "text", "p_token" "te
 GRANT ALL ON FUNCTION "public"."join_game"("p_game_id" "text", "p_player_id" "uuid", "p_name" "text", "p_account_id" "uuid", "p_bingo_board" "jsonb") TO "anon";
 GRANT ALL ON FUNCTION "public"."join_game"("p_game_id" "text", "p_player_id" "uuid", "p_name" "text", "p_account_id" "uuid", "p_bingo_board" "jsonb") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."join_game"("p_game_id" "text", "p_player_id" "uuid", "p_name" "text", "p_account_id" "uuid", "p_bingo_board" "jsonb") TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."current_user_has_twitch"() TO "anon";
-GRANT ALL ON FUNCTION "public"."current_user_has_twitch"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."current_user_has_twitch"() TO "service_role";
 
 
 
