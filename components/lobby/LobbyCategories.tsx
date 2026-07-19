@@ -290,6 +290,15 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
     // Community word pool overlay
     const [showExplore, setShowExplore] = useState(false);
 
+    // Import options overlay: parsed words pending confirmation + how many to take
+    const [importPending, setImportPending] = useState<string[] | null>(null);
+    const [importCount, setImportCount] = useState(1);
+    const [importShuffle, setImportShuffle] = useState(false);
+
+    // Import overlay: paste a list or load a file before parsing
+    const [showImport, setShowImport] = useState(false);
+    const [pasteText, setPasteText] = useState('');
+
     const importInputRef = useRef<HTMLInputElement>(null);
     const isPendingSyncRef = useRef(false);
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -637,27 +646,61 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
         }
     };
 
-    // Import: fills empty slots first, then grows the list (bingo stops at the
-    // grid limit). Existing categories are never overwritten.
+    // Parse raw text (from a file or a paste), then let the host pick how many
+    // words to take (and whether to shuffle) before committing — long lists
+    // rarely fit as-is. Returns false when nothing usable was found.
+    const openImportOptions = (text: string): boolean => {
+        let parsed: string[];
+        try {
+            parsed = parseCategoryFile(text);
+        } catch {
+            toast.error(t('cat.toastImportFailed'));
+            return false;
+        }
+
+        if (parsed.length === 0) {
+            play('denied');
+            toast.error(t('cat.toastImportEmpty'));
+            return false;
+        }
+
+        setImportPending(parsed);
+        setImportCount(parsed.length);
+        setImportShuffle(false);
+        // Hand off to the count/shuffle step.
+        setShowImport(false);
+        setPasteText('');
+        return true;
+    };
+
     const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         // Reset first so picking the same file twice in a row still fires onChange.
         e.target.value = '';
         if (!file || !isHost) return;
 
-        let parsed: string[];
+        let text: string;
         try {
-            parsed = parseCategoryFile(await file.text());
+            text = await file.text();
         } catch {
             toast.error(t('cat.toastImportFailed'));
             return;
         }
+        openImportOptions(text);
+    };
 
-        if (parsed.length === 0) {
-            play('denied');
-            toast.error(t('cat.toastImportEmpty'));
-            return;
-        }
+    const handlePasteImport = () => {
+        if (!isHost) return;
+        openImportOptions(pasteText);
+    };
+
+    // Fills empty slots first, then grows the list (bingo stops at the grid
+    // limit). Existing categories are never overwritten.
+    const applyImport = () => {
+        if (!importPending) return;
+
+        const ordered = importShuffle ? shuffle(importPending) : importPending;
+        const selected = ordered.slice(0, importCount);
 
         const updated = [...localCategories];
         const existing = new Set(updated.map((c) => normalizeCat(c ?? '')).filter(Boolean));
@@ -665,7 +708,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
         let added = 0;
         let skipped = 0;
 
-        for (const cat of parsed) {
+        for (const cat of selected) {
             if (existing.has(normalizeCat(cat))) {
                 skipped++;
                 continue;
@@ -682,6 +725,8 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
             existing.add(normalizeCat(cat));
             added++;
         }
+
+        setImportPending(null);
 
         if (added === 0) {
             play('denied');
@@ -1014,7 +1059,7 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
                                 {/* Icon utilities + Explore — Explore grows to fill the icon row on mobile. */}
                                 <div className="flex gap-2 items-center">
                                     <input ref={importInputRef} type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain" onChange={handleImportFile} className="hidden" />
-                                    <button type="button" onClick={() => importInputRef.current?.click()} className="glass press flex items-center justify-center text-slate-300 hover:text-white w-[42px] h-[42px] rounded-lg shrink-0 transition-colors" title={t('cat.importTitle')} aria-label={t('cat.importTitle')}>
+                                    <button type="button" onClick={() => setShowImport(true)} className="glass press flex items-center justify-center text-slate-300 hover:text-white w-[42px] h-[42px] rounded-lg shrink-0 transition-colors" title={t('cat.importTitle')} aria-label={t('cat.importTitle')}>
                                         <CiImport size={15} />
                                     </button>
                                     <button type="button" onClick={handleExportFile} className="glass press flex items-center justify-center text-slate-300 hover:text-white w-[42px] h-[42px] rounded-lg shrink-0 transition-colors" title={t('cat.exportTitle')} aria-label={t('cat.exportTitle')}>
@@ -1129,6 +1174,62 @@ export default function LobbyCategories({ updateGameModeInfo, isHost, gameMode, 
             )}
 
             {FEATURES.exploreWords && <ExploreWords isOpen={showExplore} onClose={() => setShowExplore(false)} isHost={isHost} language={language} boardWords={localCategories} suggestedWords={localSuggested} onAddWord={addExploreWord} onSuggestWord={suggestExploreWord} />}
+
+            {showImport && (
+                <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setShowImport(false)}>
+                    <div className="glass-dark rounded-2xl w-full max-w-md p-6 flex flex-col gap-5" onClick={(e) => e.stopPropagation()}>
+                        <div>
+                            <h3 className="text-lg font-bold text-white">{t('cat.importOverlayTitle')}</h3>
+                            <p className="text-sm text-slate-400 mt-1">{t('cat.pasteDesc')}</p>
+                        </div>
+
+                        <textarea value={pasteText} onChange={(e) => setPasteText(e.target.value)} rows={8} placeholder={t('cat.pastePlaceholder')} className="w-full p-3 rounded-lg glass-inset text-white outline-none placeholder:text-slate-500 focus:ring-1 focus:ring-indigo-500 resize-none" autoFocus />
+
+                        <div className="flex items-center gap-3 text-xs uppercase tracking-wide text-slate-500">
+                            <span className="h-px flex-1 bg-white/10" />
+                            {t('cat.importOr')}
+                            <span className="h-px flex-1 bg-white/10" />
+                        </div>
+
+                        <button type="button" onClick={() => importInputRef.current?.click()} className="glass press flex items-center justify-center gap-2 text-slate-300 hover:text-white px-4 rounded-lg font-bold h-[42px]">
+                            <CiImport size={18} /> {t('cat.importLoadFile')}
+                        </button>
+
+                        <div className="flex gap-2 justify-end">
+                            <button type="button" onClick={() => setShowImport(false)} className="glass press text-slate-300 hover:text-white px-4 rounded-lg font-bold h-[42px]">
+                                {t('common.cancel')}
+                            </button>
+                            <button type="button" onClick={handlePasteImport} disabled={!pasteText.trim()} className="btn-sheen press bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-4 rounded-lg font-bold shadow-[0_10px_20px_-8px_rgba(99,102,241,0.6),inset_0_1px_0_rgba(255,255,255,0.3)] h-[42px] disabled:opacity-50">
+                                {t('cat.pasteContinue')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {importPending && (
+                <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setImportPending(null)}>
+                    <div className="glass-dark rounded-2xl w-full max-w-md p-6 flex flex-col gap-5" onClick={(e) => e.stopPropagation()}>
+                        <div>
+                            <h3 className="text-lg font-bold text-white">{t('cat.importOptionsTitle')}</h3>
+                            <p className="text-sm text-slate-400 mt-1">{t('cat.importFound', { count: importPending.length })}</p>
+                        </div>
+
+                        <RangeSlider title={t('cat.importCount')} min={1} max={importPending.length} value={importCount} displayValue={String(importCount)} onChange={setImportCount} onCommit={() => {}} position="middle" />
+
+                        <ToggleSwitch checked={importShuffle} onChange={setImportShuffle} label={t('cat.importShuffle')} tooltip={t('cat.importShuffleDesc')} />
+
+                        <div className="flex gap-2 justify-end">
+                            <button type="button" onClick={() => setImportPending(null)} className="glass press text-slate-300 hover:text-white px-4 rounded-lg font-bold h-[42px]">
+                                {t('common.cancel')}
+                            </button>
+                            <button type="button" onClick={applyImport} className="btn-sheen press bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-4 rounded-lg font-bold shadow-[0_10px_20px_-8px_rgba(99,102,241,0.6),inset_0_1px_0_rgba(255,255,255,0.3)] h-[42px]">
+                                {t('cat.importConfirm', { count: importCount })}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
