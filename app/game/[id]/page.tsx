@@ -70,6 +70,7 @@ type GameRow = {
     exclusive_mode?: boolean;
     voting_mode?: VotingMode;
     category_vote_modes?: CategoryVoteModes;
+    anonymous_voting?: boolean;
     category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
     generation_radius?: number;
     language?: CategoryLanguage;
@@ -148,6 +149,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [aiEndGame, setAiEndGame] = useState(true);
     const [votingMode, setVotingMode] = useState<VotingMode>('yes_no');
     const [categoryVoteModes, setCategoryVoteModes] = useState<CategoryVoteModes>({});
+    // Host toggle: hide the submission author's identity during the voting phase.
+    const [anonymousVoting, setAnonymousVoting] = useState(false);
     // Host toggle: let each player read the board in their own language.
     const [translateCategories, setTranslateCategories] = useState(false);
     // This viewer's own category display language (independent of the shared
@@ -203,6 +206,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         exclusive_mode?: boolean;
         voting_mode?: VotingMode;
         category_vote_modes?: CategoryVoteModes;
+        anonymous_voting?: boolean;
         category_source?: 'manual' | 'ai' | 'nearbyPlaces' | 'nearbyStreetView';
         generation_radius?: number;
         language?: CategoryLanguage;
@@ -232,6 +236,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (updates.exclusive_mode !== undefined) setExclusiveMode(updates.exclusive_mode);
         if (updates.voting_mode !== undefined) setVotingMode(updates.voting_mode);
         if (updates.category_vote_modes !== undefined) setCategoryVoteModes(updates.category_vote_modes);
+        if (updates.anonymous_voting !== undefined) setAnonymousVoting(updates.anonymous_voting);
         if (updates.category_source !== undefined) setCategorySource(updates.category_source);
         if (updates.generation_radius !== undefined) setGenerationRadius(updates.generation_radius);
         if (updates.language !== undefined) setLanguage(updates.language);
@@ -547,6 +552,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setExclusiveMode(gameData.exclusive_mode || false);
                 setVotingMode(gameData.voting_mode || 'yes_no');
                 setCategoryVoteModes(gameData.category_vote_modes || {});
+                setAnonymousVoting(gameData.anonymous_voting || false);
                 setTranslateCategories(gameData.translate_categories || false);
                 setCategorySource(gameData.category_source || 'manual');
                 setGenerationRadius(gameData.generation_radius || 10);
@@ -704,6 +710,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 if (row.exclusive_mode !== undefined) setExclusiveMode(row.exclusive_mode);
                 if (row.voting_mode !== undefined) setVotingMode(row.voting_mode);
                 if (row.category_vote_modes !== undefined) setCategoryVoteModes(row.category_vote_modes);
+                if (row.anonymous_voting !== undefined) setAnonymousVoting(row.anonymous_voting);
                 if (row.translate_categories !== undefined) setTranslateCategories(row.translate_categories);
                 if (row.category_source !== undefined) setCategorySource(row.category_source);
                 if (row.generation_radius !== undefined) setGenerationRadius(row.generation_radius);
@@ -1059,6 +1066,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     players={players}
                     votingMode={votingMode}
                     categoryVoteModes={categoryVoteModes}
+                    anonymousVoting={anonymousVoting}
                     onlinePlayers={onlinePlayers}
                     playerId={playerId}
                     gameHostId={gameHostId}
@@ -1126,7 +1134,28 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
         // --- VIEW 3: VOTING ---
         if (status === 'voting') {
-            return <VotingView gameId={gameId} isHost={isHost} categories={categories} playerId={playerId} players={players} teamMode={teamMode} onFinishGame={handleFinishGame} isDeveloper={apiStatus.isDeveloper} hintByCategory={hintByCategory} labelByCategory={labelByCategory} votingMode={effectiveVotingMode} categoryVoteModes={categoryVoteModes} onlinePlayers={onlinePlayers} gameHostId={gameHostId} kickPlayer={kickPlayer} banPlayer={banPlayer} makeHost={makeHost} />;
+            return (
+                <VotingView
+                    gameId={gameId}
+                    isHost={isHost}
+                    categories={categories}
+                    playerId={playerId}
+                    players={players}
+                    teamMode={teamMode}
+                    onFinishGame={handleFinishGame}
+                    isDeveloper={apiStatus.isDeveloper}
+                    hintByCategory={hintByCategory}
+                    labelByCategory={labelByCategory}
+                    votingMode={effectiveVotingMode}
+                    categoryVoteModes={categoryVoteModes}
+                    anonymousVoting={anonymousVoting}
+                    onlinePlayers={onlinePlayers}
+                    gameHostId={gameHostId}
+                    kickPlayer={kickPlayer}
+                    banPlayer={banPlayer}
+                    makeHost={makeHost}
+                />
+            );
         }
 
         // --- VIEW 4: PODIUM (FINISHED) ---

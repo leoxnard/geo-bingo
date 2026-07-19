@@ -112,7 +112,7 @@ const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => 
     return Math.sqrt(Math.pow(lat1 - lat2, 2) + Math.pow(dLng, 2));
 };
 
-export function VotingView({ gameId, isHost, playerId, players, teamMode, onFinishGame, isDeveloper = false, hintByCategory = {}, labelByCategory = {}, votingMode = 'yes_no', categoryVoteModes = {}, onlinePlayers = [], gameHostId, kickPlayer, banPlayer, makeHost }: VotingViewProps) {
+export function VotingView({ gameId, isHost, playerId, players, teamMode, onFinishGame, isDeveloper = false, hintByCategory = {}, labelByCategory = {}, votingMode = 'yes_no', categoryVoteModes = {}, anonymousVoting = false, onlinePlayers = [], gameHostId, kickPlayer, banPlayer, makeHost }: VotingViewProps) {
     const { t } = useT();
     const { isNarrow } = useViewport();
     const isNarrowRef = useRef(isNarrow);
@@ -148,6 +148,9 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     const [cursorSubId, setCursorSubId] = useState<string | null>(null);
     const hostRestoredRef = useRef(false);
     const [showPlayers, setShowPlayers] = useState(false);
+    // Skip-to-podium needs a confirm step: it ends voting for everyone and jumps
+    // straight to the results, discarding any not-yet-voted subjects.
+    const [showSkipConfirm, setShowSkipConfirm] = useState(false);
 
     const [activeSubmission, setActiveSubmission] = useState<Submission | null>(null);
     const [lastActiveSub, setLastActiveSub] = useState<Submission | null>(null);
@@ -223,7 +226,10 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     const roundPlayers = useMemo(() => currentRound?.players ?? [], [currentRound]);
     const roundPlayerIds = useMemo(() => new Set(roundPlayers.map((p) => p.id)), [roundPlayers]);
     const roundTeam = currentRound?.team;
-    const roundLabel = useMemo(() => roundPlayers.map((p) => p.name).join(' & '), [roundPlayers]);
+    // Anonymous voting: never reveal whose journey/submission is on screen. The
+    // replay path still shows, just not the name behind it.
+    const playerLabel = useCallback((name: string) => (anonymousVoting ? t('voting.anonymousPlayer') : name), [anonymousVoting, t]);
+    const roundLabel = useMemo(() => (anonymousVoting ? t('voting.anonymousPlayer') : roundPlayers.map((p) => p.name).join(' & ')), [roundPlayers, anonymousVoting, t]);
 
     const activeSubLatest = useMemo(() => {
         if (activeSubmission && roundPlayerIds.has(activeSubmission.player_id)) {
@@ -299,8 +305,11 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
     const displaySub = activeSubLatest || lastActiveSub;
 
-    // Re-apply the active submission's exact viewpoint each time a new one surfaces,
-    // instead of keeping the previous submission's manual pan/zoom.
+    // Re-apply the active submission's exact viewpoint each time a NEW one surfaces,
+    // instead of keeping the previous submission's manual pan/zoom. Keyed on the
+    // submission id (not the object) so an incoming vote — which produces a fresh
+    // displaySub object with the same location/POV — never yanks the camera back
+    // while the local user is looking around.
     useEffect(() => {
         if (selectedSubmission || selectedFinalMarker) return;
         const pano = streetViewPanoramaRef.current;
@@ -309,7 +318,8 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
             pano.setPov({ heading: finiteOr(displaySub.heading, 0), pitch: finiteOr(displaySub.pitch, 0) });
             pano.setZoom(finiteOr(displaySub.zoom, 3));
         }
-    }, [displaySub, selectedSubmission, selectedFinalMarker]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [displaySub?.id, selectedSubmission, selectedFinalMarker]);
 
     const currentBoard = useMemo(() => {
         const board = roundPlayers[0]?.bingo_board;
@@ -382,8 +392,12 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         if (progressBarRef.current) progressBarRef.current.style.transform = `scale${isNarrowRef.current ? 'X' : 'Y'}(0)`;
     };
     const applyRoundRef = useRef(applyRoundIndex);
+    // The realtime channel is created once (keyed on gameId), so its callbacks read
+    // the live host status through a ref rather than a stale closure.
+    const isHostRef = useRef(isHost);
     useEffect(() => {
         applyRoundRef.current = applyRoundIndex;
+        isHostRef.current = isHost;
     });
 
     // Data Fetching
@@ -420,6 +434,23 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         };
         fetchData();
 
+        // Catch-up refetch of the authoritative voting state (cursor + votes).
+        // Postgres changes missed while the websocket was down are NOT replayed on
+        // reconnect, so without this a device that blipped offline (mobile tab
+        // backgrounded, flaky wifi) stays frozen on a stale card — the reported
+        // "voting cursor didn't advance / stuck on the category list" desync. The
+        // host is the cursor's sole writer, so it only refreshes votes here and
+        // keeps driving its own replay; non-hosts re-adopt the published cursor.
+        const resyncVotingState = async () => {
+            const [{ data: gData }, { data: subData }] = await Promise.all([supabase.from('games').select('voting_round_index, voting_active_sub_id').eq('id', gameId).single(), supabase.from('submissions').select('*').eq('game_id', gameId)]);
+            if (subData) setSubmissions(subData);
+            if (gData && !isHostRef.current) {
+                if (typeof gData.voting_round_index === 'number') applyRoundRef.current(gData.voting_round_index);
+                setCursorSubId(gData.voting_active_sub_id ?? null);
+            }
+        };
+
+        let channelDropped = false;
         const channel = supabase
             .channel(`voting-journey-${gameId}`)
             .on(
@@ -452,12 +483,31 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                     setCursorSubId(g.voting_active_sub_id ?? null);
                 },
             )
-            .subscribe();
+            .subscribe((channelStatus) => {
+                if (channelStatus === 'SUBSCRIBED') {
+                    // Only refetch after an actual drop — the first SUBSCRIBED is
+                    // already covered by fetchData().
+                    if (channelDropped) {
+                        channelDropped = false;
+                        void resyncVotingState();
+                    }
+                } else if (channelStatus === 'CHANNEL_ERROR' || channelStatus === 'TIMED_OUT' || channelStatus === 'CLOSED') {
+                    channelDropped = true;
+                }
+            });
         // NOTE: no 'finish_game' handler — finishing is driven by the page-level
         // games status subscription, which re-renders straight to PodiumView.
 
+        // Belt-and-suspenders for mobile: a backgrounded tab often silently drops
+        // the socket without emitting CLOSED; re-sync when it becomes visible again.
+        const onVisible = () => {
+            if (document.visibilityState === 'visible') void resyncVotingState();
+        };
+        document.addEventListener('visibilitychange', onVisible);
+
         return () => {
             supabase.removeChannel(channel);
+            document.removeEventListener('visibilitychange', onVisible);
         };
     }, [gameId]);
 
@@ -1125,7 +1175,12 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
             };
         }
         return undefined;
-    }, [displaySub, optimalHeading, selectedFinalMarker, selectedSubmission]);
+        // Keyed on the displayed submission's IDENTITY (its location/POV are fixed
+        // per id), not the object reference — otherwise an incoming vote rebuilds
+        // this options object and @react-google-maps re-applies it, resetting the
+        // local user's camera. See the reset effect above.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [displaySub?.id, optimalHeading, selectedFinalMarker, selectedSubmission]);
 
     const panoramaKey = selectedSubmission?.id ? `submission-${selectedSubmission.id}` : selectedFinalMarker ? `final-${selectedFinalMarker.lat}-${selectedFinalMarker.lng}-${selectedFinalMarker.categoryNames.join('|')}` : displaySub?.id ? `display-${displaySub.id}` : 'default';
 
@@ -1169,6 +1224,33 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     return (
         <div className={`flex ${isNarrow ? 'flex-col' : 'flex-row'} h-[100dvh] w-screen overflow-hidden bg-slate-950`}>
             <PlayerManagementPanel open={showPlayers} onClose={() => setShowPlayers(false)} players={players} onlinePlayers={onlinePlayers} playerId={playerId} gameHostId={gameHostId} kickPlayer={kickPlayer} banPlayer={banPlayer} makeHost={makeHost} />
+
+            {/* Skip-to-podium confirmation: ending voting early is destructive, so
+                warn before jumping to the results. */}
+            {showSkipConfirm && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-6 animate-in fade-in duration-200" role="dialog" aria-modal="true" onClick={() => setShowSkipConfirm(false)}>
+                    <div className="glass-dark w-full max-w-md rounded-3xl p-8 ring-1 ring-rose-400/40 shadow-[0_0_50px_rgba(244,63,94,0.35)] animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+                        <h2 className="text-2xl font-black uppercase text-rose-300 mb-3 text-center tracking-wide">{t('voting.skipConfirmTitle')}</h2>
+                        <p className="text-slate-300 text-center mb-8 leading-relaxed">{t('voting.skipConfirmBody')}</p>
+                        <div className="flex gap-3">
+                            <button type="button" onClick={() => setShowSkipConfirm(false)} className="glass press flex-1 py-3 rounded-xl font-bold uppercase text-sm text-slate-300 hover:text-white transition-colors">
+                                {t('common.cancel')}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowSkipConfirm(false);
+                                    handleSkipToPodium();
+                                }}
+                                className="btn-sheen press flex-1 py-3 rounded-xl font-black uppercase text-sm bg-gradient-to-r from-rose-500 to-red-600 text-white shadow-[0_14px_28px_-10px_rgba(244,63,94,0.65),inset_0_1px_0_rgba(255,255,255,0.3)]"
+                            >
+                                {t('voting.skipConfirmButton')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Left Panel (Map) */}
             <div className={`relative ${isNarrow ? 'w-full h-1/2' : 'w-1/2 h-full'} z-10 flex-shrink-0`}>
                 <GoogleMap onLoad={(map) => setMapInstance(map)} mapContainerClassName="w-full h-full" options={currentMapOptions}>
@@ -1268,7 +1350,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                                     {roundData.map((pd, index) => (
                                         <Fragment key={pd.player.id}>
                                             {/* Player name in their specific color */}
-                                            <span style={{ color: pd.color }}>{pd.player.name}</span>
+                                            <span style={{ color: pd.color }}>{playerLabel(pd.player.name)}</span>
 
                                             {/* Separators in the default text color */}
                                             {index < roundData.length - 2 ? ', ' : index === roundData.length - 2 ? ' and ' : ''}
@@ -1290,8 +1372,8 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                                 </button>
                             )}
                             {currentRoundIndex < rounds.length - 1 && (
-                                <button type="button" onClick={handleSkipToPodium} className="btn-sheen press pointer-events-auto font-bold px-6 py-3 rounded-xl bg-gradient-to-r from-rose-500 to-red-500 text-white shadow-[0_14px_28px_-10px_rgba(244,63,94,0.6),inset_0_1px_0_rgba(255,255,255,0.3)]">
-                                    {t('voting.skip')}
+                                <button type="button" onClick={() => setShowSkipConfirm(true)} title={t('voting.skipTitle')} className="btn-sheen press pointer-events-auto font-bold px-6 py-3 rounded-xl bg-gradient-to-r from-rose-500 to-red-500 text-white shadow-[0_14px_28px_-10px_rgba(244,63,94,0.6),inset_0_1px_0_rgba(255,255,255,0.3)]">
+                                    {t('voting.skipTitle')}
                                 </button>
                             )}
                         </div>
@@ -1391,7 +1473,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                         ) : selectedSubmission ? (
                             <div className="max-w-xl mx-auto">
                                 <h3 className="text-xl sm:text-2xl font-black text-white mb-1 text-center truncate">{labelForCategory(selectedSubmission.category)}</h3>
-                                <p className="text-sm text-indigo-300 mb-4 text-center uppercase tracking-widest font-semibold">{t('voting.submissionBy', { player: players.find((p) => p.id === selectedSubmission.player_id)?.name ?? '' })}</p>
+                                <p className="text-sm text-indigo-300 mb-4 text-center uppercase tracking-widest font-semibold">{t('voting.submissionBy', { player: playerLabel(players.find((p) => p.id === selectedSubmission.player_id)?.name ?? '') })}</p>
                                 <div className="mb-4 text-center">
                                     <div className="text-sm text-slate-400 mb-2">{t('voting.votingResults')}</div>
                                     <div className="flex gap-4 justify-center">

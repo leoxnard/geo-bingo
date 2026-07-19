@@ -350,6 +350,8 @@ export interface VotingViewProps {
     // How submissions are voted on (list mode only); 'mixed' resolves per category.
     votingMode?: VotingMode;
     categoryVoteModes?: CategoryVoteModes;
+    // Host-set at lobby time: hide the submission author's identity during voting.
+    anonymousVoting?: boolean;
     // Category name -> resolved hint for the active locale (preset hints).
     hintByCategory?: Record<string, string>;
     // Canonical category name -> this viewer's translated label (individual
