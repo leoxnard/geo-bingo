@@ -270,6 +270,11 @@ export interface GeoPlaceResult {
     type: string;
     boundingbox?: [string, string, string, string]; // [south, north, west, east] (strings, per Nominatim)
     geojson: { type: 'Polygon' | 'MultiPolygon'; coordinates: number[][][] | number[][][][] } | null;
+    // Set only on locally-sourced fallback results: continents have no usable
+    // administrative boundary in OSM/Nominatim (no relation to return), so they are
+    // served from the bundled geo_bingo_presets.json geometry instead of geojson.
+    // When present, the caller resolves geometry from the preset, not from geojson.
+    presetKey?: string;
 }
 
 // GeoJSON rings are [lng, lat] and closed (last vertex repeats the first). Our
@@ -285,6 +290,114 @@ function ringToPoints(ring: number[][]): { lat: number; lng: number }[] {
     return pts;
 }
 
+// Real administrative polygons from Nominatim can carry hundreds-to-thousands of
+// vertices per ring — far more than the editable-boundary UI, the point-in-polygon
+// test and the realtime/DB payload can comfortably handle (dragging every vertex
+// as a handle makes the map crawl). We simplify each ring with Ramer–Douglas–Peucker:
+//   • an absolute tolerance FLOOR (≈ metres) so the vertex density scales with the
+//     shape's real size — a small enclave hole drops to a handful of points instead
+//     of staying dense just because it fits under the cap, and
+//   • MAX_RING_POINTS as an upper safety bound so a huge country stays bounded too.
+const MAX_RING_POINTS = 60;
+
+// ~0.004° ≈ 440 m. Below this, extra vertices add no meaningful precision for a
+// Street-View play area, so they're dropped regardless of the shape's size. This is
+// what makes a tiny enclave come out with few points rather than the full cap.
+const MIN_SIMPLIFY_TOLERANCE = 0.004;
+
+// Upper bound on the TOTAL vertices across every ring of one imported place. The
+// per-ring floor/cap can't help an archipelago (e.g. the Canary Islands), where each
+// island is its own ring and the counts add up. When the floor-simplified set blows
+// this budget we coarsen a shared tolerance until the whole set fits, which also
+// makes the smallest islets collapse below 3 points and drop out entirely.
+const MAX_TOTAL_POINTS = 100;
+
+// Perpendicular distance from p to the line through a–b, in degrees (planar approx,
+// which is fine for simplification at these scales — we only need relative sizes).
+function perpDistance(p: Point, a: Point, b: Point): number {
+    const dx = b.lng - a.lng;
+    const dy = b.lat - a.lat;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) return Math.hypot(p.lng - a.lng, p.lat - a.lat);
+    const t = ((p.lng - a.lng) * dx + (p.lat - a.lat) * dy) / lenSq;
+    const projX = a.lng + t * dx;
+    const projY = a.lat + t * dy;
+    return Math.hypot(p.lng - projX, p.lat - projY);
+}
+
+// Ramer–Douglas–Peucker on an open polyline (the ring with its endpoints kept).
+function simplifyRDP(points: Point[], epsilon: number): Point[] {
+    if (points.length < 3) return points;
+    let maxDist = 0;
+    let index = 0;
+    const first = points[0];
+    const last = points[points.length - 1];
+    for (let i = 1; i < points.length - 1; i++) {
+        const d = perpDistance(points[i], first, last);
+        if (d > maxDist) {
+            maxDist = d;
+            index = i;
+        }
+    }
+    if (maxDist > epsilon) {
+        const left = simplifyRDP(points.slice(0, index + 1), epsilon);
+        const right = simplifyRDP(points.slice(index), epsilon);
+        return [...left.slice(0, -1), ...right];
+    }
+    return [first, last];
+}
+
+// Simplify a ring: always apply the tolerance FLOOR (so density scales with size),
+// then, only if that still exceeds maxPoints, binary-search a coarser tolerance up
+// to the cap. Small shapes are governed by the floor, huge shapes by the cap.
+function simplifyRing(points: Point[], maxPoints: number, minTolerance: number): Point[] {
+    if (points.length < 3) return points;
+
+    const floored = simplifyRDP(points, minTolerance);
+    if (floored.length <= maxPoints) return floored;
+
+    let lo = minTolerance; // floor already exceeds the cap → only coarser from here
+    let hi = 2; // ~220 km tolerance — collapses any real ring well under the cap
+    let best = floored;
+    for (let iter = 0; iter < 24; iter++) {
+        const mid = (lo + hi) / 2;
+        const simplified = simplifyRDP(points, mid);
+        if (simplified.length > maxPoints) {
+            lo = mid; // still too many vertices → need a coarser tolerance
+        } else {
+            hi = mid; // under the cap → try to keep more detail
+            best = simplified;
+        }
+    }
+    return best;
+}
+
+// Simplify a whole set of tagged rings under a shared total-vertex budget. Each ring
+// first gets the per-ring floor+cap; if the combined count still exceeds totalBudget
+// (archipelagos) we binary-search a single coarser tolerance (>= floor) applied to
+// every ring until the total fits, dropping any ring that falls below 3 points.
+function simplifyRingSet<T extends string>(rings: { role: T; pts: Point[] }[], maxPerRing: number, floorTolerance: number, totalBudget: number): { role: T; pts: Point[] }[] {
+    const simplifyAt = (tolerance: number) => rings.map((r) => ({ role: r.role, pts: simplifyRing(r.pts, maxPerRing, tolerance) })).filter((r) => r.pts.length >= 3);
+    const totalOf = (set: { pts: Point[] }[]) => set.reduce((sum, r) => sum + r.pts.length, 0);
+
+    let best = simplifyAt(floorTolerance);
+    if (totalOf(best) <= totalBudget) return best;
+
+    let lo = floorTolerance; // floor already over budget → only coarser from here
+    let hi = 2; // ~220 km tolerance — collapses any real ring set well under budget
+    for (let iter = 0; iter < 20; iter++) {
+        const mid = (lo + hi) / 2;
+        const candidate = simplifyAt(mid);
+        if (totalOf(candidate) > totalBudget) {
+            lo = mid; // still over budget → coarsen more
+        } else {
+            hi = mid; // fits → try to keep more detail
+            best = candidate;
+        }
+    }
+    return best;
+}
+
 // Convert a geocoded place into boundary zones sharing one groupId (so the lobby
 // treats them as a single named area). A Polygon/MultiPolygon outer ring becomes
 // an 'allow' zone; interior rings (holes, e.g. an enclave) become 'forbid' zones
@@ -298,13 +411,17 @@ export function geoResultToBoundaries(result: GeoPlaceResult, groupId: string): 
         // Polygon: coordinates = Ring[]. MultiPolygon: coordinates = Polygon[] = Ring[][].
         const polygons: number[][][][] = result.geojson.type === 'MultiPolygon' ? (result.geojson.coordinates as number[][][][]) : [result.geojson.coordinates as number[][][]];
 
+        // Collect every ring tagged with its role, then simplify them together under
+        // the shared total budget (so a many-island place doesn't blow up the count).
+        const rawRings: { role: 'allow' | 'forbid'; pts: { lat: number; lng: number }[] }[] = [];
         polygons.forEach((poly) => {
             poly.forEach((ring, ringIdx) => {
-                const points = ringToPoints(ring);
-                if (points.length < 3) return;
-                if (ringIdx === 0) allows.push(points);
-                else forbids.push(points);
+                rawRings.push({ role: ringIdx === 0 ? 'allow' : 'forbid', pts: ringToPoints(ring) });
             });
+        });
+
+        simplifyRingSet(rawRings, MAX_RING_POINTS, MIN_SIMPLIFY_TOLERANCE, MAX_TOTAL_POINTS).forEach((r) => {
+            (r.role === 'allow' ? allows : forbids).push(r.pts);
         });
     }
 
