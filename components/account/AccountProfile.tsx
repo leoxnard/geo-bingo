@@ -20,9 +20,10 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { FaArrowLeft, FaCrown, FaGamepad, FaMapMarkedAlt, FaPen, FaPercentage, FaSignOutAlt, FaTrophy } from 'react-icons/fa';
+import { FaArrowLeft, FaCheck, FaCrown, FaGamepad, FaMapMarkedAlt, FaPen, FaPercentage, FaSignOutAlt, FaTrophy, FaTwitch } from 'react-icons/fa';
 
 import AuthGate from '@/components/community/AuthGate';
+import TwitchButton from '@/components/community/TwitchButton';
 import { useUser, displayNameFor } from '@/components/community/useUser';
 import DailyStats from '@/components/daily/DailyStats';
 import GlassAmbience from '@/components/utils/GlassAmbience';
@@ -34,6 +35,7 @@ import { sendFriendRequest } from '@/lib/friends';
 import { useT } from '@/lib/i18n/I18nProvider';
 import OptionsButton from '@/lib/settings/OptionsButton';
 import { supabase } from '@/lib/supabase';
+import { getTwitchLogin, linkTwitch } from '@/lib/twitch';
 
 import FriendsList from './FriendsList';
 
@@ -50,6 +52,7 @@ export default function AccountProfile() {
     const [stats, setStats] = useState<AccountStats | null>(null);
     const [history, setHistory] = useState<GameHistoryEntry[] | null>(null);
     const [friendsRefresh, setFriendsRefresh] = useState(0);
+    const [twitchLogin, setTwitchLogin] = useState<string | null>(null);
     const processedAddRef = useRef<string | null>(null);
 
     // Account management (merged from the former options-menu profile overlay).
@@ -107,6 +110,11 @@ export default function AccountProfile() {
         getMyGameHistory()
             .then((h) => alive && setHistory(h))
             .catch(() => alive && setHistory([]));
+        if (FEATURES.twitchAuth) {
+            getTwitchLogin()
+                .then((l) => alive && setTwitchLogin(l))
+                .catch(() => alive && setTwitchLogin(null));
+        }
         return () => {
             alive = false;
         };
@@ -213,6 +221,26 @@ export default function AccountProfile() {
                                     <button type="button" onClick={() => setDeleting(true)} className="ml-auto text-xs font-medium text-red-400/80 transition-colors hover:text-red-300">
                                         {t('community.deleteAccount')}
                                     </button>
+                                </div>
+                            )}
+
+                            {/* Twitch connection */}
+                            {FEATURES.twitchAuth && !renaming && !deleting && (
+                                <div className="flex flex-col gap-2 border-t border-white/10 pt-4">
+                                    {twitchLogin ? (
+                                        <div className="flex items-center gap-2.5 text-sm">
+                                            <FaTwitch className="text-[#9146ff]" size={16} />
+                                            <span className="font-bold text-white">{twitchLogin}</span>
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-bold text-emerald-300">
+                                                <FaCheck size={9} /> {t('twitch.connected')}
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <p className="text-xs text-slate-400">{t('twitch.connectHelp')}</p>
+                                            <TwitchButton label={t('twitch.connect')} onClick={() => linkTwitch(`${window.location.origin}/account`)} />
+                                        </>
+                                    )}
                                 </div>
                             )}
                         </header>

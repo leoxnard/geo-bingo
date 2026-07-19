@@ -1693,9 +1693,11 @@ CREATE OR REPLACE FUNCTION "public"."join_game"("p_game_id" "text", "p_player_id
 DECLARE
     target_status text;
     target_banned text[];
+    target_require_twitch boolean;
+    target_host_id text;
 BEGIN
-    SELECT status, COALESCE(banned_players, '{}'::text[])
-    INTO target_status, target_banned
+    SELECT status, COALESCE(banned_players, '{}'::text[]), COALESCE(require_twitch, false), host_id
+    INTO target_status, target_banned, target_require_twitch, target_host_id
     FROM games WHERE id = p_game_id;
 
     IF target_status IS NULL THEN
@@ -1724,6 +1726,15 @@ BEGIN
     -- New registration. A finished game is spectate-only: no row, but no error.
     IF target_status = 'finished' THEN
         RETURN jsonb_build_object('success', true, 'spectator', true);
+    END IF;
+
+    -- Twitch gate: if the host requires a linked Twitch account, only the host
+    -- and players who linked Twitch may register. Existing members (rejoin path
+    -- above) are unaffected, so flipping the flag never ejects anyone.
+    IF target_require_twitch
+        AND p_player_id::text IS DISTINCT FROM target_host_id
+        AND NOT public.current_user_has_twitch() THEN
+        RETURN jsonb_build_object('success', false, 'error', 'TWITCH_REQUIRED');
     END IF;
 
     INSERT INTO players (id, game_id, name, account_id, bingo_board)
@@ -2472,7 +2483,7 @@ DECLARE
         'ready_players', 'banned_players', 'difficulty',
         'category_translations', 'category_hint_translations', 'preset_categories',
         'scale_voting', 'translate_categories',
-        'voting_mode', 'category_vote_modes', 'anonymous_voting'
+        'voting_mode', 'category_vote_modes', 'anonymous_voting', 'require_twitch'
     ];
     safe_patch jsonb;
 BEGIN
@@ -2525,6 +2536,7 @@ BEGIN
         voting_mode           = COALESCE(safe_patch->>'voting_mode', voting_mode),
         category_vote_modes   = COALESCE(safe_patch->'category_vote_modes', category_vote_modes),
         anonymous_voting      = COALESCE((safe_patch->>'anonymous_voting')::boolean, anonymous_voting),
+        require_twitch        = COALESCE((safe_patch->>'require_twitch')::boolean, require_twitch),
         ready_players         = CASE WHEN safe_patch ? 'ready_players'
                                     THEN ARRAY(SELECT jsonb_array_elements_text(safe_patch->'ready_players'))
                                     ELSE ready_players END,
@@ -2539,6 +2551,20 @@ $$;
 
 
 ALTER FUNCTION "public"."update_game_settings"("p_game_id" "text", "p_host_id" "text", "p_patch" "jsonb") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."current_user_has_twitch"() RETURNS boolean
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM "auth"."identities"
+        WHERE "user_id" = "auth"."uid"() AND "provider" = 'twitch'
+    );
+$$;
+
+
+ALTER FUNCTION "public"."current_user_has_twitch"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."update_player"("p_id" "uuid", "p_patch" "jsonb") RETURNS "jsonb"
@@ -2883,6 +2909,7 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "voting_mode" "text" DEFAULT 'yes_no'::"text" NOT NULL,
     "category_vote_modes" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
     "anonymous_voting" boolean DEFAULT false NOT NULL,
+    "require_twitch" boolean DEFAULT false NOT NULL,
     CONSTRAINT "games_voting_mode_check" CHECK (("voting_mode" = ANY (ARRAY['yes_no'::"text", 'scale'::"text", 'mixed'::"text"])))
 );
 
@@ -3239,7 +3266,7 @@ CREATE POLICY "Allow public read submissions" ON "public"."submissions" FOR SELE
 
 CREATE POLICY "Insert players only into open lobbies" ON "public"."players" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."games"
-  WHERE (("games"."id" = "players"."game_id") AND ("games"."status" = 'lobby'::"text")))));
+  WHERE (("games"."id" = "players"."game_id") AND ("games"."status" = 'lobby'::"text") AND (("games"."require_twitch" = false) OR ("players"."id" = "games"."host_id") OR "public"."current_user_has_twitch"())))));
 
 
 
@@ -3644,6 +3671,12 @@ GRANT ALL ON FUNCTION "public"."is_valid_host"("p_game_id" "text", "p_token" "te
 GRANT ALL ON FUNCTION "public"."join_game"("p_game_id" "text", "p_player_id" "uuid", "p_name" "text", "p_account_id" "uuid", "p_bingo_board" "jsonb") TO "anon";
 GRANT ALL ON FUNCTION "public"."join_game"("p_game_id" "text", "p_player_id" "uuid", "p_name" "text", "p_account_id" "uuid", "p_bingo_board" "jsonb") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."join_game"("p_game_id" "text", "p_player_id" "uuid", "p_name" "text", "p_account_id" "uuid", "p_bingo_board" "jsonb") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."current_user_has_twitch"() TO "anon";
+GRANT ALL ON FUNCTION "public"."current_user_has_twitch"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."current_user_has_twitch"() TO "service_role";
 
 
 

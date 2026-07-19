@@ -15,8 +15,13 @@
 --   * a row already in this game is a rejoin/refresh (idempotent, no dup row)
 --   * a finished game is spectate-only           -> success + spectator, no row
 --   * lobby / playing / voting register the row so late joiners can play + vote
+--   * if the game requires a linked Twitch account, only the host and Twitch-
+--     linked players may register           -> TWITCH_REQUIRED
 -- The bingo board is passed in (the client shuffles it) to avoid duplicating the
 -- board-assignment logic in SQL.
+--
+-- NOTE: this references games.require_twitch and current_user_has_twitch(), which
+-- are created by 20260719_twitch_auth.sql. Apply that migration before this one.
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION "public"."join_game"("p_game_id" "text", "p_player_id" "uuid", "p_name" "text", "p_account_id" "uuid" DEFAULT NULL::"uuid", "p_bingo_board" "jsonb" DEFAULT NULL::"jsonb") RETURNS "jsonb"
@@ -26,9 +31,11 @@ CREATE OR REPLACE FUNCTION "public"."join_game"("p_game_id" "text", "p_player_id
 DECLARE
     target_status text;
     target_banned text[];
+    target_require_twitch boolean;
+    target_host_id text;
 BEGIN
-    SELECT status, COALESCE(banned_players, '{}'::text[])
-    INTO target_status, target_banned
+    SELECT status, COALESCE(banned_players, '{}'::text[]), COALESCE(require_twitch, false), host_id
+    INTO target_status, target_banned, target_require_twitch, target_host_id
     FROM games WHERE id = p_game_id;
 
     IF target_status IS NULL THEN
@@ -57,6 +64,15 @@ BEGIN
     -- New registration. A finished game is spectate-only: no row, but no error.
     IF target_status = 'finished' THEN
         RETURN jsonb_build_object('success', true, 'spectator', true);
+    END IF;
+
+    -- Twitch gate: if the host requires a linked Twitch account, only the host
+    -- and players who linked Twitch may register. Existing members (rejoin path
+    -- above) are unaffected, so flipping the flag never ejects anyone.
+    IF target_require_twitch
+        AND p_player_id::text IS DISTINCT FROM target_host_id
+        AND NOT public.current_user_has_twitch() THEN
+        RETURN jsonb_build_object('success', false, 'error', 'TWITCH_REQUIRED');
     END IF;
 
     INSERT INTO players (id, game_id, name, account_id, bingo_board)

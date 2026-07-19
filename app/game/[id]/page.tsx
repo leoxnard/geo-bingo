@@ -18,6 +18,7 @@ import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
 import NamePrompt from '@/components/game/NamePrompt';
+import TwitchGate from '@/components/game/TwitchGate';
 import LobbyView from '@/components/lobby/LobbyView';
 import { buildHintMap } from '@/components/streetview/streetViewHelpers';
 import { ErrorBoundary } from '@/components/utils/ErrorBoundary';
@@ -27,6 +28,7 @@ import type { CategoryVoteModes, VotingMode } from '@/components/utils/votes';
 import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { categoryLanguageForLocale, CategoryLanguage, defaultCategoryLanguage, isLocale, Locale, normalizeLocale, storeCategoryLanguage } from '@/lib/i18n/locales';
+import { hasTwitchLinked } from '@/lib/twitch';
 import { useCategoryLabels } from '@/lib/useCategoryLabels';
 
 import { getHostToken, newHostToken, clearHostToken } from '../../../lib/hostToken';
@@ -68,6 +70,7 @@ type GameRow = {
     hide_minimap?: boolean;
     ai_end_game?: boolean;
     exclusive_mode?: boolean;
+    require_twitch?: boolean;
     voting_mode?: VotingMode;
     category_vote_modes?: CategoryVoteModes;
     anonymous_voting?: boolean;
@@ -147,6 +150,10 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const [hideMapSymbols, setHideMapSymbols] = useState(false);
     const [hideMiniMap, setHideMiniMap] = useState(false);
     const [aiEndGame, setAiEndGame] = useState(true);
+    const [requireTwitch, setRequireTwitch] = useState(false);
+    // Set when a Twitch-gated lobby rejects this (non-host, unlinked) joiner —
+    // shows the connect-Twitch screen instead of proceeding with the join.
+    const [joinBlocked, setJoinBlocked] = useState<'twitch' | null>(null);
     const [votingMode, setVotingMode] = useState<VotingMode>('yes_no');
     const [categoryVoteModes, setCategoryVoteModes] = useState<CategoryVoteModes>({});
     // Host toggle: hide the submission author's identity during the voting phase.
@@ -204,6 +211,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         hide_minimap?: boolean;
         ai_end_game?: boolean;
         exclusive_mode?: boolean;
+        require_twitch?: boolean;
         voting_mode?: VotingMode;
         category_vote_modes?: CategoryVoteModes;
         anonymous_voting?: boolean;
@@ -234,6 +242,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
         if (updates.hide_minimap !== undefined) setHideMiniMap(updates.hide_minimap);
         if (updates.ai_end_game !== undefined) setAiEndGame(updates.ai_end_game);
         if (updates.exclusive_mode !== undefined) setExclusiveMode(updates.exclusive_mode);
+        if (updates.require_twitch !== undefined) setRequireTwitch(updates.require_twitch);
         if (updates.voting_mode !== undefined) setVotingMode(updates.voting_mode);
         if (updates.category_vote_modes !== undefined) setCategoryVoteModes(updates.category_vote_modes);
         if (updates.anonymous_voting !== undefined) setAnonymousVoting(updates.anonymous_voting);
@@ -512,6 +521,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     setHideMiniMap(newGameData.hide_minimap);
                     setAiEndGame(newGameData.ai_end_game);
                     setExclusiveMode(newGameData.exclusive_mode);
+                    setRequireTwitch(false);
                     setVotingMode(newGameData.voting_mode);
                     setLanguage(newGameData.language as CategoryLanguage);
                     setCategoryTranslations(seedCategoryTranslations);
@@ -550,6 +560,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 setHideMiniMap(gameData.hide_minimap || false);
                 setAiEndGame(gameData.ai_end_game ?? false);
                 setExclusiveMode(gameData.exclusive_mode || false);
+                setRequireTwitch(gameData.require_twitch || false);
                 setVotingMode(gameData.voting_mode || 'yes_no');
                 setCategoryVoteModes(gameData.category_vote_modes || {});
                 setAnonymousVoting(gameData.anonymous_voting || false);
@@ -578,6 +589,20 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             if (gameData.status === 'playing' && gameData.game_mode === 'bingo' && gameData.categories) {
                 const neededCount = (gameData.grid_size || 3) * (gameData.grid_size || 3);
                 bingoBoardToAssign = shuffle([...gameData.categories]).slice(0, neededCount);
+            }
+
+            // Twitch gate: a require_twitch lobby only admits players who have
+            // linked a Twitch account. The host is exempt (they set the flag).
+            // Enforced again server-side by the players INSERT RLS policy; this
+            // client check just shows a friendly connect screen instead of a
+            // silent RLS rejection. Existing members (re-joiners) are not re-gated.
+            if (!existingPlayer && FEATURES.twitchAuth && gameData.require_twitch && gameData.host_id !== currentPlayerId) {
+                const linked = await hasTwitchLinked();
+                if (!linked) {
+                    setJoinBlocked('twitch');
+                    setGameLoaded(true);
+                    return;
+                }
             }
 
             if (!existingPlayer) {
@@ -708,6 +733,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 if (row.hide_minimap !== undefined) setHideMiniMap(row.hide_minimap);
                 if (row.ai_end_game !== undefined) setAiEndGame(row.ai_end_game);
                 if (row.exclusive_mode !== undefined) setExclusiveMode(row.exclusive_mode);
+                if (row.require_twitch !== undefined) setRequireTwitch(row.require_twitch);
                 if (row.voting_mode !== undefined) setVotingMode(row.voting_mode);
                 if (row.category_vote_modes !== undefined) setCategoryVoteModes(row.category_vote_modes);
                 if (row.anonymous_voting !== undefined) setAnonymousVoting(row.anonymous_voting);
@@ -1080,6 +1106,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     hideMapSymbols={effectiveHideMapSymbols}
                     hideMiniMap={effectiveHideMiniMap}
                     aiEndGame={effectiveAiEndGame}
+                    requireTwitch={requireTwitch}
                     categorySource={categorySource}
                     aiEnabled={apiStatus.aiEnabled}
                     isDeveloper={apiStatus.isDeveloper}
@@ -1172,6 +1199,8 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 </div>
             ) : nameGate === 'prompt' ? (
                 <NamePrompt onSubmit={handleNameSubmit} />
+            ) : joinBlocked === 'twitch' ? (
+                <TwitchGate />
             ) : (
                 <ErrorBoundary key={status}>{selectView()}</ErrorBoundary>
             )}
