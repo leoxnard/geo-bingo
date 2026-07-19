@@ -28,6 +28,7 @@ import type { CategoryVoteModes, VotingMode } from '@/components/utils/votes';
 import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { categoryLanguageForLocale, CategoryLanguage, defaultCategoryLanguage, isLocale, Locale, normalizeLocale, storeCategoryLanguage } from '@/lib/i18n/locales';
+import { clearLastMapPoint } from '@/lib/lastMapPoint';
 import { hasTwitchLinked } from '@/lib/twitch';
 import { useCategoryLabels } from '@/lib/useCategoryLabels';
 
@@ -418,7 +419,12 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
 
             console.log('[GameRoom] Initializing room for gameId:', gameId, 'at', new Date().toISOString());
 
-            const [gameResponse, playerResponse] = await Promise.all([supabase.from('games').select('*').eq('id', gameId).single(), supabase.from('players').select('id, bingo_board').eq('id', currentPlayerId).single()]);
+            // Scope the membership check to THIS game: players.id is unique across all
+            // games (the session UUID), so a row left over from a previous game in this
+            // session must NOT count as "already in this game" — otherwise we'd take the
+            // update_player rejoin path (which rejects a running game with GAME_IN_PROGRESS)
+            // instead of the join_game RPC that correctly admits a late joiner.
+            const [gameResponse, playerResponse] = await Promise.all([supabase.from('games').select('*').eq('id', gameId).single(), supabase.from('players').select('id, bingo_board').eq('id', currentPlayerId).eq('game_id', gameId).maybeSingle()]);
 
             let gameData = gameResponse.data;
             const existingPlayer = playerResponse.data;
@@ -891,6 +897,13 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             import('@/components/PodiumView').catch(() => {});
         }
     }, [status, gameLoaded]);
+
+    // Entering voting ends this round's Street View exploration, so drop the
+    // breadcrumb marker — otherwise the next round's map would open already
+    // pinned at wherever this round happened to end.
+    useEffect(() => {
+        if (status === 'voting' && gameId && playerId) clearLastMapPoint(gameId, playerId);
+    }, [status, gameId, playerId]);
 
     useEffect(() => {
         if (!gameLoaded) return;

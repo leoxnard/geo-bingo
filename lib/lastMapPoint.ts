@@ -34,3 +34,15 @@ export const setLastMapPoint = (gameId: string, playerId: string, point: StoredM
         // best-effort only (private browsing / storage quota) — not critical to gameplay
     }
 };
+
+// Called when the round moves to voting: the round's marker is no longer relevant,
+// so the next round's map starts with no "you are here" point rather than the
+// previous round's last position.
+export const clearLastMapPoint = (gameId: string, playerId: string) => {
+    if (typeof window === 'undefined') return;
+    try {
+        localStorage.removeItem(key(gameId, playerId));
+    } catch {
+        // best-effort only
+    }
+};
