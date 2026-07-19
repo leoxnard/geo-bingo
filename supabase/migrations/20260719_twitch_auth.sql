@@ -57,7 +57,7 @@ CREATE POLICY "Insert players only into open lobbies" ON public.players
               AND games.status = 'lobby'
               AND (
                   games.require_twitch = false
-                  OR players.id = games.host_id
+                  OR players.id::text = games.host_id
                   OR public.current_user_has_twitch()
               )
         )

@@ -3266,7 +3266,7 @@ CREATE POLICY "Allow public read submissions" ON "public"."submissions" FOR SELE
 
 CREATE POLICY "Insert players only into open lobbies" ON "public"."players" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."games"
-  WHERE (("games"."id" = "players"."game_id") AND ("games"."status" = 'lobby'::"text") AND (("games"."require_twitch" = false) OR ("players"."id" = "games"."host_id") OR "public"."current_user_has_twitch"())))));
+  WHERE (("games"."id" = "players"."game_id") AND ("games"."status" = 'lobby'::"text") AND (("games"."require_twitch" = false) OR (("players"."id")::"text" = "games"."host_id") OR "public"."current_user_has_twitch"())))));
 
 
 
