@@ -14,7 +14,8 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, Fra
 
 import { GoogleMap, PolygonF, MarkerF, OverlayView, OverlayViewF, CircleF, PolylineF, RectangleF } from '@react-google-maps/api';
 import { createPortal } from 'react-dom';
-import { FaPlus, FaTimes, FaCaretDown, FaCaretRight, FaUndo, FaSearchLocation, FaSpinner } from 'react-icons/fa';
+import toast from 'react-hot-toast';
+import { FaPlus, FaTimes, FaUndo, FaSearchLocation, FaSpinner } from 'react-icons/fa';
 
 import { useT } from '@/lib/i18n/I18nProvider';
 
@@ -23,6 +24,14 @@ import { insertPoint, insertPointPhase1, mapOptions, WORLD_DEFAULT_ID, parseWorl
 import { BoundaryPolygon } from '../utils/types';
 
 const DEFAULT_CENTER = { lat: 20, lng: 0 };
+
+// Continents are the one gap in the live place search: OSM/Nominatim has no
+// administrative relation for them, so a search for "Europe" returns a city or
+// nothing usable. These keys resolve from the bundled geo_bingo_presets.json
+// geometry instead and are injected into the search results as a fallback. Every
+// other area (countries, states, regions, cities) now comes from the live search,
+// which is why the old preset dropdown below is commented out.
+const CONTINENT_KEYS = ['Africa', 'Antarctica', 'Asia', 'Europe', 'North_America', 'Oceania', 'South_America'];
 
 interface Point {
     lat: number;
@@ -44,24 +53,6 @@ interface LobbyMapProps {
 
 export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary, generationRadius, updateGameModeInfo, extraMarkers, hoveredCategory, centerOn, hideDescription = false }: LobbyMapProps) {
     const { t, locale } = useT();
-    const groupLabel = (key: string) => {
-        switch (key) {
-        case 'Continents':
-            return t('map.groupContinents');
-        case 'Large Cities':
-            return t('map.groupLargeCities');
-        case 'Regions & Nature':
-            return t('map.groupRegions');
-        case 'US States':
-            return t('map.groupUsStates');
-        case 'German States':
-            return t('map.groupGermanStates');
-        case 'Countries':
-            return t('map.groupCountries');
-        default:
-            return key;
-        }
-    };
     const containerRef = useRef<HTMLDivElement>(null);
     const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
     const [showCoverage, setShowCoverage] = useState(false);
@@ -71,8 +62,6 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     const prevZoomRef = useRef<number>(1);
     const prevCenterRef = useRef<google.maps.LatLngLiteral | null>(null);
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-    const [selectedPreset, setSelectedPreset] = useState<string>('');
-    const [searchTerm, setSearchTerm] = useState('');
 
     // ---- live place search (real OSM administrative boundaries) ----
     const [placeSearch, setPlaceSearch] = useState('');
@@ -98,18 +87,8 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     const [boundaryHistory, setBoundaryHistory] = useState<BoundaryHistoryEntry[]>([]);
     const HISTORY_LIMIT = 20;
 
-    // States für die Accordion / Tree-View Navigation
-    const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
-    const [highlightedIndex, setHighlightedIndex] = useState<number>(0);
-
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const dropdownRef = useRef<HTMLDivElement>(null);
-    // The menu is portaled to document.body (position:fixed): the map panel's
-    // stacking context would otherwise trap its z-index and let the categories
-    // panel — a later sibling — paint its translucent glass over the list.
-    const menuRef = useRef<HTMLDivElement>(null);
-    const [menuRect, setMenuRect] = useState<{ left: number; top: number; width: number } | null>(null);
-
+    // Preset geometry is still loaded — the continent fallback resolves from it —
+    // but the preset *dropdown* is gone; the live place search covers everything else.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [boundaryPresetsData, setBoundaryPresetsData] = useState<Record<string, any[]>>({});
     const [presetsLoading, setPresetsLoading] = useState(true);
@@ -125,40 +104,6 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         }),
         [isHost],
     );
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            const target = event.target as Node;
-            if (dropdownRef.current?.contains(target) || menuRef.current?.contains(target)) return;
-            setIsMenuOpen(false);
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
-
-    // Anchor the portaled menu to the search field. Measured on open; a page
-    // scroll or resize would leave the fixed-position menu floating detached
-    // from its trigger, so close it instead (scrolling inside the list is fine).
-    useLayoutEffect(() => {
-        if (!isMenuOpen) return;
-        const rect = dropdownRef.current?.getBoundingClientRect();
-        if (rect) setMenuRect({ left: rect.left, top: rect.bottom, width: rect.width });
-    }, [isMenuOpen]);
-
-    useEffect(() => {
-        if (!isMenuOpen) return;
-        const onScroll = (e: Event) => {
-            if (menuRef.current?.contains(e.target as Node)) return;
-            setIsMenuOpen(false);
-        };
-        const onResize = () => setIsMenuOpen(false);
-        window.addEventListener('scroll', onScroll, true);
-        window.addEventListener('resize', onResize);
-        return () => {
-            window.removeEventListener('scroll', onScroll, true);
-            window.removeEventListener('resize', onResize);
-        };
-    }, [isMenuOpen]);
 
     useEffect(() => {
         // no-store: browsers cache this static JSON aggressively; stale copies
@@ -258,42 +203,14 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         }
     };
 
-    const groupedPresets = useMemo(() => {
-        const keys = Object.keys(boundaryPresetsData).sort();
-
-        const groups: Record<string, string[]> = {
-            Continents: [],
-            'Large Cities': [],
-            'Regions & Nature': [],
-            'US States': [],
-            'German States': [],
-            Countries: [],
-        };
-
-        const continents = ['Africa', 'Antarctica', 'Asia', 'Europe', 'North_America', 'Oceania', 'South_America'];
-        const regions = ['Scandinavia', 'Balkans', 'Benelux', 'Iberia', 'Baltic_States', 'UK_and_Ireland', 'Middle_East', 'Sahara', 'Alps', 'Himalayas', 'Amazon_Basin', 'Nile_Delta', 'Patagonia', 'Central_America', 'Polynesia'];
-
-        keys.forEach((k) => {
-            // An explicit "group" on the preset's first area (set by the
-            // /admin/presets export tool) wins over the key heuristics below.
-            // Unknown group names create a new dropdown group (appended after
-            // the built-in ones; groupLabel falls back to the raw name).
-            const explicitGroup = boundaryPresetsData[k]?.[0]?.group;
-            if (typeof explicitGroup === 'string' && explicitGroup.trim()) (groups[explicitGroup] ??= []).push(k);
-            else if (continents.includes(k)) groups['Continents'].push(k);
-            else if (regions.includes(k)) groups['Regions & Nature'].push(k);
-            else if (k.startsWith('US_')) groups['US States'].push(k);
-            else if (k.startsWith('DE_')) groups['German States'].push(k);
-            else if (k.startsWith('Top_')) groups['Large Cities'].push(k);
-            else groups['Countries'].push(k);
-        });
-
-        Object.keys(groups).forEach((key) => {
-            if (groups[key].length === 0) delete groups[key];
-        });
-
-        return groups;
-    }, [boundaryPresetsData]);
+    // ── Preset dropdown (commented out) ──────────────────────────────────────────
+    // The live place search now covers countries, states, regions and cities with
+    // real OSM boundaries, so the bundled preset picker is redundant. Only the
+    // continent geometry is still used, surfaced through the search as a fallback
+    // (see continentResults / presetToBoundaries below). The old grouping logic —
+    // Continents / Large Cities / Regions & Nature / US States / German States /
+    // Countries, with the /admin/presets "group" override — is intentionally
+    // removed here along with its dropdown UI further down.
 
     // Localized preset display name: generated presets carry a "names" map
     // ({en,de,es,fr,zh}, DeepL-translated at generation time by
@@ -319,53 +236,43 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         [getDisplayName],
     );
 
-    const filteredGroups = useMemo(() => {
-        const term = searchTerm.toLowerCase();
-        const result: Record<string, string[]> = {};
+    // Continent fallback: match the typed term against the bundled continent presets
+    // and expose them as search results, since OSM has no boundary relation for them.
+    const continentResults = useCallback(
+        (term: string): GeoPlaceResult[] => {
+            const q = term.trim().toLowerCase();
+            if (!q) return [];
+            return CONTINENT_KEYS.filter((key) => Array.isArray(boundaryPresetsData[key]) && boundaryPresetsData[key].length > 0 && matchesTerm(key, q)).map((key) => ({
+                osmId: `preset:${key}`,
+                presetKey: key,
+                name: getDisplayName(key),
+                label: t('map.searchPlaceContinent'),
+                type: 'continent',
+                geojson: null,
+            }));
+        },
+        [boundaryPresetsData, matchesTerm, getDisplayName, t],
+    );
 
-        Object.entries(groupedPresets).forEach(([groupName, items]) => {
-            result[groupName] = items.filter((item) => matchesTerm(item, term));
-        });
-        return result;
-    }, [searchTerm, groupedPresets, matchesTerm]);
-
-    const groupNames = useMemo(() => Object.keys(filteredGroups), [filteredGroups]);
-
-    const visibleItems = useMemo(() => {
-        const list: {
-            type: 'group' | 'item';
-            value: string;
-            parentGroup?: string;
-        }[] = [];
-        groupNames.forEach((groupName) => {
-            list.push({ type: 'group', value: groupName });
-            if (expandedGroup === groupName) {
-                filteredGroups[groupName].forEach((item) => {
-                    list.push({ type: 'item', value: item, parentGroup: groupName });
-                });
-            }
-        });
-        return list;
-    }, [groupNames, expandedGroup, filteredGroups]);
-
-    const updateSearchAndSelection = (value: string) => {
-        setSearchTerm(value);
-        setIsMenuOpen(true);
-
-        if (value.trim() === '') return;
-
-        const term = value.toLowerCase();
-        const firstValidGroup = groupNames.find((g) => groupedPresets[g]?.some((item) => matchesTerm(item, term)));
-
-        if (!firstValidGroup) return;
-
-        setExpandedGroup(firstValidGroup);
-        const groupIndex = groupNames.findIndex((g) => g === firstValidGroup);
-        if (groupIndex !== -1) {
-            const nextIndex = Math.min(groupIndex + 1, Math.max(0, visibleItems.length - 1));
-            setHighlightedIndex(nextIndex);
-        }
-    };
+    // Build boundary zones from bundled preset geometry (the continent fallback path).
+    const presetToBoundaries = useCallback(
+        (presetKey: string, groupId: string): BoundaryPolygon[] => {
+            const presetData = boundaryPresetsData[presetKey];
+            if (!Array.isArray(presetData) || presetData.length === 0) return [];
+            const formattedName = getDisplayName(presetKey);
+            return presetData.map((area, index) => ({
+                // Preset ids are static in geo_bingo_presets.json; namespace them per
+                // application so selecting the same preset twice never collides.
+                id: `${groupId}_${area.id || index}`,
+                groupId,
+                type: (area.type || 'allow') as 'allow' | 'forbid',
+                points: area.points,
+                name: formattedName,
+                isComplete: true, // Preset polygons are already complete
+            }));
+        },
+        [boundaryPresetsData, getDisplayName],
+    );
 
     const draftBoundaries: BoundaryPolygon[] = useMemo(() => {
         const boundarySource = optimisticGameBoundary || gameBoundary;
@@ -443,7 +350,6 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
         writeBoundaryToParent(restored.boundaries);
         setWorldDefault(parseWorldDefault(restored.boundaries));
         setSelectedBoundaryId(restoredId);
-        setSelectedPreset('');
     };
 
     const handleSetWorldDefault = (next: 'allow' | 'forbid') => {
@@ -525,7 +431,6 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
 
     const handleMapClick = (e: google.maps.MapMouseEvent) => {
         if (!isHost || !e.latLng) return;
-        setSelectedPreset('');
         const newPoint = { lat: e.latLng.lat(), lng: e.latLng.lng() };
 
         const currentBoundaries = parseBoundaryString(optimisticGameBoundaryRef.current || gameBoundary);
@@ -566,8 +471,6 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     };
 
     const handleAddBoundary = (baseBoundaries: BoundaryPolygon[] = draftBoundaries) => {
-        setSelectedPreset('');
-
         const newId = Date.now().toString();
         const newBoundaries: BoundaryPolygon[] = [...baseBoundaries, { id: newId, type: 'allow' as const, points: [], isComplete: false }];
         commitBoundaryChange(newBoundaries);
@@ -605,7 +508,6 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
 
     const handleDrop = (dropIndex: number) => {
         if (draggedIndex === null || draggedIndex === dropIndex) return;
-        setSelectedPreset('');
 
         const newGroups = [...displayBoundaries];
         const [draggedGroup] = newGroups.splice(draggedIndex, 1);
@@ -619,55 +521,6 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
 
         commitBoundaryChange(newBoundaries);
         setDraggedIndex(null);
-    };
-
-    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (!isMenuOpen) {
-            if (e.key === 'ArrowDown' || e.key === 'Enter') setIsMenuOpen(true);
-            return;
-        }
-
-        const current = visibleItems[highlightedIndex];
-
-        if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            setHighlightedIndex((prev) => Math.min(prev + 1, visibleItems.length - 1));
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            setHighlightedIndex((prev) => Math.max(prev - 1, 0));
-        } else if (e.key === 'ArrowRight') {
-            e.preventDefault();
-            if (current?.type === 'group') {
-                const isEmpty = filteredGroups[current.value].length === 0;
-                if (!isEmpty && expandedGroup !== current.value) {
-                    setExpandedGroup(current.value);
-                } else if (!isEmpty) {
-                    setHighlightedIndex((prev) => Math.min(prev + 1, visibleItems.length - 1));
-                }
-            }
-        } else if (e.key === 'ArrowLeft') {
-            e.preventDefault();
-            if (current?.type === 'item') {
-                const parentIdx = visibleItems.findIndex((i) => i.type === 'group' && i.value === current.parentGroup);
-                if (parentIdx !== -1) setHighlightedIndex(parentIdx);
-            } else if (current?.type === 'group') {
-                // Ordner einklappen
-                setExpandedGroup(null);
-            }
-        } else if (e.key === 'Enter') {
-            e.preventDefault();
-            if (current?.type === 'item') {
-                handlePresetChange(current.value);
-                setSearchTerm('');
-                setIsMenuOpen(false);
-            } else if (current?.type === 'group') {
-                if (expandedGroup === current.value) setExpandedGroup(null);
-                else if (filteredGroups[current.value].length > 0) setExpandedGroup(current.value);
-            }
-        } else if (e.key === 'Escape') {
-            setIsMenuOpen(false);
-            e.currentTarget.blur();
-        }
     };
 
     // Debounced live geocode: fetch real OSM boundaries for the typed place. The
@@ -687,25 +540,33 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
             placeAbortRef.current?.abort();
             const controller = new AbortController();
             placeAbortRef.current = controller;
+            // Local continent matches are prepended to (and survive the failure of)
+            // the geocode call — they never depend on the network.
+            const locals = continentResults(q);
             fetch(`/api/geocode?q=${encodeURIComponent(q)}&lang=${locale}`, { signal: controller.signal })
                 .then((res) => res.json())
                 .then((data: { results?: GeoPlaceResult[]; error?: string }) => {
                     if (controller.signal.aborted) return;
-                    setPlaceResults(Array.isArray(data.results) ? data.results : []);
-                    setPlaceErrored(Boolean(data.error));
+                    // Nominatim DOES return a row for a continent, but with no polygon —
+                    // only a bounding box, which would import as a crude rectangle. Drop
+                    // those so the preset-backed entry above is the only continent offered.
+                    const localNames = new Set(locals.map((l) => l.name.toLowerCase()));
+                    const remote = (Array.isArray(data.results) ? data.results : []).filter((r) => r.type !== 'continent' && !localNames.has((r.name || '').toLowerCase()));
+                    setPlaceResults([...locals, ...remote]);
+                    setPlaceErrored(Boolean(data.error) && locals.length === 0);
                     setPlaceLoading(false);
                 })
                 .catch((err: unknown) => {
                     if (controller.signal.aborted || (err as { name?: string })?.name === 'AbortError') return;
-                    setPlaceResults([]);
-                    setPlaceErrored(true);
+                    setPlaceResults(locals);
+                    setPlaceErrored(locals.length === 0);
                     setPlaceLoading(false);
                 });
         }, 450);
         return () => {
             if (placeDebounceRef.current) clearTimeout(placeDebounceRef.current);
         };
-    }, [placeSearch, locale]);
+    }, [placeSearch, locale, continentResults]);
 
     useEffect(() => () => placeAbortRef.current?.abort(), []);
 
@@ -748,55 +609,41 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     // converter, which the last-wins evaluation already respects.
     const handleSelectPlace = (result: GeoPlaceResult) => {
         const groupId = Date.now().toString();
-        const newBoundaries = geoResultToBoundaries(result, groupId);
-        if (newBoundaries.length === 0) return;
+        // Continents carry a presetKey and resolve from bundled geometry; everything
+        // else converts the live OSM polygon returned by the geocode proxy.
+        const newBoundaries = result.presetKey ? presetToBoundaries(result.presetKey, groupId) : geoResultToBoundaries(result, groupId);
+
+        const closeSearch = () => {
+            setPlaceMenuOpen(false);
+            setPlaceSearch('');
+            setPlaceResults([]);
+        };
+
+        if (newBoundaries.length === 0) {
+            toast.error(t('map.searchPlaceNoBoundary', { name: result.name }));
+            closeSearch();
+            return;
+        }
+
+        // Refuse a second area with a name already in the list: duplicates render as
+        // indistinguishable rows in the priority list and stack identical polygons.
+        const newName = (newBoundaries[0].name || result.name).trim();
+        if (draftBoundaries.some((b) => (b.name || '').trim().toLowerCase() === newName.toLowerCase())) {
+            toast.error(t('map.boundaryAlreadyAdded', { name: newName }));
+            closeSearch();
+            return;
+        }
 
         const combined: BoundaryPolygon[] = [...draftBoundaries, ...newBoundaries];
         setWorldDefault('forbid');
         commitBoundaryChange(combined, { worldDefault: 'forbid' });
         setSelectedBoundaryId(groupId);
-        setSelectedPreset('');
-        setPlaceMenuOpen(false);
-        setPlaceSearch('');
-        setPlaceResults([]);
+        closeSearch();
 
         if (mapInstance) {
             const bounds = new google.maps.LatLngBounds();
             newBoundaries.forEach((b) => b.points.forEach((p) => bounds.extend(p)));
             if (!bounds.isEmpty()) mapInstance.fitBounds(bounds);
-        }
-    };
-
-    const handlePresetChange = (presetKey: string) => {
-        setSelectedPreset(presetKey);
-        if (!presetKey) return;
-
-        const presetData = boundaryPresetsData[presetKey];
-        if (presetData && presetData.length > 0) {
-            const formattedName = getDisplayName(presetKey);
-
-            const sharedGroupId = Date.now().toString();
-
-            const newBoundaries: BoundaryPolygon[] = presetData.map((area, index) => ({
-                // Preset ids are static in geo_bingo_presets.json; namespace them per
-                // application so selecting the same preset twice never collides.
-                id: `${sharedGroupId}_${area.id || index}`,
-                groupId: sharedGroupId,
-                type: (area.type || 'allow') as 'allow' | 'forbid',
-                points: area.points,
-                name: formattedName,
-                isComplete: true, // Preset polygons are already complete
-            }));
-
-            const combinedBoundaries: BoundaryPolygon[] = [...draftBoundaries, ...newBoundaries];
-            commitBoundaryChange(combinedBoundaries);
-            setSelectedBoundaryId(sharedGroupId);
-
-            if (mapInstance) {
-                const bounds = new google.maps.LatLngBounds();
-                newBoundaries.forEach((b) => b.points.forEach((p) => bounds.extend(p)));
-                mapInstance.fitBounds(bounds);
-            }
         }
     };
 
@@ -819,7 +666,6 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     }, [draftBoundaries]);
 
     const handleRemoveGroup = (key: string) => {
-        setSelectedPreset('');
         const newBoundaries = draftBoundaries.filter((b) => b.id !== key && b.groupId !== key);
         // Removing the last allowed area while the world default is 'forbid' would
         // leave "forbid everything, allow nowhere" — an unplayable config that also
@@ -835,7 +681,6 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
     };
 
     const handleToggleGroupType = (key: string) => {
-        setSelectedPreset('');
         const groupItem = draftBoundaries.find((b) => b.id === key || b.groupId === key);
         const newType: 'allow' | 'forbid' = groupItem?.type === 'allow' ? 'forbid' : 'allow';
 
@@ -1106,7 +951,6 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                                     onClick={() => {
                                         setWorldDefault('allow');
                                         commitBoundaryChange([], { worldDefault: 'allow' });
-                                        setSelectedPreset('');
                                         setSelectedBoundaryId(null);
                                     }}
                                     disabled={draftBoundaries.length === 0}
@@ -1190,95 +1034,14 @@ export default function LobbyMap({ isHost, isLoaded, startingPoint, gameBoundary
                             </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center justify-start gap-3 text-sm">
-                            <div ref={dropdownRef} className="relative min-w-[250px]">
-                                <span className="block text-xs text-slate-400 mb-1">{t('map.orSelectPreset')}</span>
-                                <div onClick={() => setIsMenuOpen(true)} className={`w-full bg-slate-900 border border-slate-700 hover:border-slate-500 rounded-lg flex items-center transition-colors cursor-text ${presetsLoading ? 'opacity-50 pointer-events-none' : ''}`}>
-                                    <input
-                                        type="text"
-                                        placeholder={selectedPreset ? getDisplayName(selectedPreset) : t('map.searchSelectPreset')}
-                                        value={searchTerm}
-                                        onChange={(e) => {
-                                            updateSearchAndSelection(e.target.value);
-                                        }}
-                                        onKeyDown={handleKeyDown}
-                                        className="w-full bg-transparent px-4 py-2 text-slate-200 outline-none placeholder:text-slate-400 text-sm"
-                                    />
-                                    <span className="pr-4 text-xs text-slate-400 pointer-events-none">
-                                        <FaCaretDown size={15} />
-                                    </span>
-                                </div>
-
-                                {/* Dropdown-Menü — portaled above every panel, see menuRef comment */}
-                                {isMenuOpen &&
-                                    menuRect &&
-                                    createPortal(
-                                        <div ref={menuRef} style={{ left: menuRect.left, top: menuRect.top, width: menuRect.width }} className="fixed z-[9999] pt-1">
-                                            <div className="bg-slate-900 border border-white/15 rounded-lg shadow-[0_20px_40px_-14px_rgba(2,6,23,0.75)] py-1 max-h-64 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                                                {visibleItems.length > 0 ? (
-                                                    visibleItems.map((item, idx) => {
-                                                        const isHighlighted = highlightedIndex === idx;
-
-                                                        if (item.type === 'group') {
-                                                            const count = filteredGroups[item.value].length;
-                                                            const isExpanded = expandedGroup === item.value;
-                                                            const isEmpty = count === 0;
-
-                                                            return (
-                                                                <div
-                                                                    key={`group-${item.value}`}
-                                                                    ref={isHighlighted ? (el) => el?.scrollIntoView({ block: 'nearest' }) : null}
-                                                                    onMouseEnter={() => setHighlightedIndex(idx)}
-                                                                    onClick={() => {
-                                                                        if (isExpanded) setExpandedGroup(null);
-                                                                        else if (!isEmpty) setExpandedGroup(item.value);
-                                                                    }}
-                                                                    className={`px-4 py-2 cursor-pointer flex justify-between items-center text-sm transition-colors select-none
-                                                                    ${isHighlighted ? 'bg-slate-700' : 'hover:bg-slate-700'}
-                                                                    ${isEmpty ? 'text-slate-500' : 'text-slate-200'}
-                                                                `}
-                                                                >
-                                                                    <span className="font-semibold">
-                                                                        {groupLabel(item.value)} <span className="text-xs font-normal opacity-50 ml-1">({count})</span>
-                                                                    </span>
-                                                                    <span className={`text-[10px] transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}>
-                                                                        <FaCaretRight size={15} />
-                                                                    </span>
-                                                                </div>
-                                                            );
-                                                        } else {
-                                                            // Item Rendering
-                                                            return (
-                                                                <div
-                                                                    key={`item-${item.value}`}
-                                                                    ref={isHighlighted ? (el) => el?.scrollIntoView({ block: 'nearest' }) : null}
-                                                                    onMouseEnter={() => setHighlightedIndex(idx)}
-                                                                    onMouseDown={(e) => {
-                                                                        e.preventDefault();
-                                                                    }}
-                                                                    onClick={() => {
-                                                                        handlePresetChange(item.value);
-                                                                        setSearchTerm('');
-                                                                        setIsMenuOpen(false);
-                                                                    }}
-                                                                    className={`pl-8 pr-4 py-2 cursor-pointer text-sm truncate transition-colors
-                                                                    ${isHighlighted ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-indigo-600/50 hover:text-white'}
-                                                                `}
-                                                                >
-                                                                    {getDisplayName(item.value)}
-                                                                </div>
-                                                            );
-                                                        }
-                                                    })
-                                                ) : (
-                                                    <div className="px-4 py-2 text-slate-500 text-sm italic">{t('map.noMatchingAreas')}</div>
-                                                )}
-                                            </div>
-                                        </div>,
-                                        document.body,
-                                    )}
-                            </div>
-                        </div>
+                        {/* Preset boundary dropdown — REMOVED.
+                            The live place search above now returns real OSM boundaries for
+                            countries, states, regions and cities, which covers every bundled
+                            preset. Continents are the sole exception (OSM has no relation for
+                            them); they are injected into the search results from
+                            geo_bingo_presets.json via continentResults()/presetToBoundaries().
+                            The preset JSON is therefore still fetched, just no longer browsable
+                            as its own grouped dropdown. */}
 
                         {displayBoundaries.length > 0 && (
                             <div className="flex flex-col gap-2 pr-2 mt-4">
