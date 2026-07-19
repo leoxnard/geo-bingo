@@ -16,6 +16,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
+import { useAccountName } from '@/components/community/useAccountName';
 import { GeoBingoLogo } from '@/components/utils/Elements';
 import { useViewport } from '@/components/utils/useViewport';
 import { FEATURES } from '@/lib/featureFlags';
@@ -42,7 +43,20 @@ export default function HomeInteractive() {
     });
     const { isNarrow } = useViewport();
 
+    // When signed in, the account username is authoritative: it fills the field,
+    // the field can't be edited here (rename lives in account settings), and a
+    // linked Twitch account locks it entirely. Guests keep the free-text name.
+    const account = useAccountName();
+    const nameLocked = account.name !== null;
+    // When locked, the field shows the account name (derived, not stored in the
+    // free-text state) so it always reflects the current account / Twitch handle.
+    const nameValue = nameLocked ? account.name! : playerName;
+
     const handleSaveName = () => {
+        if (nameLocked) {
+            localStorage.setItem('geoBingoPlayerName', account.name!);
+            return;
+        }
         const finalName = playerName.trim() || `${showBadNames ? badAdjectives[Math.floor(Math.random() * badAdjectives.length)] : adjectives[Math.floor(Math.random() * adjectives.length)]}${animals[Math.floor(Math.random() * animals.length)]}`;
         localStorage.setItem('geoBingoPlayerName', finalName);
     };
@@ -96,10 +110,22 @@ export default function HomeInteractive() {
             <div className="glass animate-fade-in-up flex w-full max-w-md flex-col gap-3 rounded-3xl p-4 md:gap-6 md:p-8" style={{ animationDelay: '0.08s' }}>
                 {/* PLAYER NAME INPUT */}
                 <div>
-                    <button type="button" className="mb-2 block text-sm font-bold tracking-wide text-slate-300 uppercase transition-colors hover:text-fuchsia-300" onClick={() => setShowBadNames(!showBadNames)}>
-                        {showBadNames ? t('home.yourBadassName') : t('home.yourName')}
-                    </button>
-                    <input type="text" placeholder={t('home.namePlaceholder')} className="glass-inset w-full rounded-xl p-4 text-lg font-medium text-white placeholder:text-slate-500 transition-shadow focus:shadow-[inset_0_2px_6px_rgba(2,6,23,0.45),0_0_0_2px_rgba(129,140,248,0.7)] focus:outline-none" value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
+                    {nameLocked ? (
+                        <span className="mb-2 block text-sm font-bold tracking-wide text-slate-300 uppercase">{t('home.yourName')}</span>
+                    ) : (
+                        <button type="button" className="mb-2 block text-sm font-bold tracking-wide text-slate-300 uppercase transition-colors hover:text-fuchsia-300" onClick={() => setShowBadNames(!showBadNames)}>
+                            {showBadNames ? t('home.yourBadassName') : t('home.yourName')}
+                        </button>
+                    )}
+                    <input type="text" readOnly={nameLocked} placeholder={t('home.namePlaceholder')} className={`glass-inset w-full rounded-xl p-4 text-lg font-medium text-white placeholder:text-slate-500 transition-shadow focus:shadow-[inset_0_2px_6px_rgba(2,6,23,0.45),0_0_0_2px_rgba(129,140,248,0.7)] focus:outline-none ${nameLocked ? 'cursor-not-allowed opacity-80' : ''}`} value={nameValue} onChange={(e) => setPlayerName(e.target.value)} />
+                    {nameLocked && (
+                        <p className="mt-2 text-xs text-slate-400">
+                            {account.twitchLocked ? t('home.nameManagedTwitch') : t('home.nameManagedAccount')}{' '}
+                            <Link href="/account" className="font-medium text-indigo-300 underline-offset-2 hover:underline">
+                                {t('home.manageInAccount')}
+                            </Link>
+                        </p>
+                    )}
                 </div>
 
                 <div className="h-px w-full bg-gradient-to-r from-transparent via-white/20 to-transparent md:my-2"></div>

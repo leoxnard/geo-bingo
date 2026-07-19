@@ -59,3 +59,22 @@ export async function hasTwitchLinked(): Promise<boolean> {
     if (error || !data?.identities) return false;
     return data.identities.some((i) => i.provider === 'twitch');
 }
+
+/**
+ * Unlink the Twitch identity from the signed-in account. Supabase enforces that an
+ * account keeps at least one login method, so we refuse locally (NEEDS_OTHER_IDENTITY)
+ * when Twitch is the only identity — the user must add email sign-in first. Also the
+ * source of the "one Twitch per account" rule: unlinking here frees the Twitch
+ * identity so it can later be linked elsewhere, while linkTwitch rejects any Twitch
+ * account already attached to a different user.
+ * Error codes: NO_IDENTITIES | NOT_LINKED | NEEDS_OTHER_IDENTITY | <supabase message>.
+ */
+export async function unlinkTwitch(): Promise<{ error?: string }> {
+    const { data, error } = await supabase.auth.getUserIdentities();
+    if (error || !data?.identities) return { error: 'NO_IDENTITIES' };
+    const twitch = data.identities.find((i) => i.provider === 'twitch');
+    if (!twitch) return { error: 'NOT_LINKED' };
+    if (data.identities.length < 2) return { error: 'NEEDS_OTHER_IDENTITY' };
+    const { error: unlinkErr } = await supabase.auth.unlinkIdentity(twitch);
+    return { error: unlinkErr?.message };
+}

@@ -16,6 +16,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import toast from 'react-hot-toast';
 import { FaRegCopy, FaCopy, FaRegEdit, FaPlus, FaRandom, FaTimes, FaEye, FaEyeSlash } from 'react-icons/fa';
 
+import { useAccountName } from '@/components/community/useAccountName';
 import InviteFriendsButton from '@/components/invites/InviteFriendsButton';
 import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
@@ -69,6 +70,10 @@ const teamNames = ['Team Alpha', 'Team Bravo', 'Team Charlie', 'Team Delta', 'Te
 
 export default function LobbySidebar(props: LobbySidebarProps) {
     const { t } = useT();
+    // Signed-in players carry their account username; renaming is only allowed in
+    // account settings, so the in-lobby edit pencil is hidden for them (and always
+    // hidden when the name is Twitch-managed). Guests keep the per-device rename.
+    const { name: accountName } = useAccountName();
     const [copiedId, setCopiedId] = useState(false);
     const [copiedLink, setCopiedLink] = useState(false);
     const [isEditingSelfName, setIsEditingSelfName] = useState(false);
@@ -213,7 +218,7 @@ export default function LobbySidebar(props: LobbySidebarProps) {
                             {p.name} {p.id === props.gameHostId ? `(${t('common.host')})` : ''}
                         </span>
                     )}
-                    {p.id === props.playerId && (
+                    {p.id === props.playerId && !accountName && (
                         <button
                             type="button"
                             title={t('sidebar.rename')}

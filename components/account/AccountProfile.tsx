@@ -35,7 +35,7 @@ import { sendFriendRequest } from '@/lib/friends';
 import { useT } from '@/lib/i18n/I18nProvider';
 import OptionsButton from '@/lib/settings/OptionsButton';
 import { supabase } from '@/lib/supabase';
-import { getTwitchLogin, linkTwitch } from '@/lib/twitch';
+import { getTwitchLogin, linkTwitch, unlinkTwitch } from '@/lib/twitch';
 
 import FriendsList from './FriendsList';
 
@@ -53,7 +53,9 @@ export default function AccountProfile() {
     const [history, setHistory] = useState<GameHistoryEntry[] | null>(null);
     const [friendsRefresh, setFriendsRefresh] = useState(0);
     const [twitchLogin, setTwitchLogin] = useState<string | null>(null);
+    const [twitchBusy, setTwitchBusy] = useState(false);
     const processedAddRef = useRef<string | null>(null);
+    const syncedTwitchNameRef = useRef<string | null>(null);
 
     // Account management (merged from the former options-menu profile overlay).
     const [renaming, setRenaming] = useState(false);
@@ -81,6 +83,26 @@ export default function AccountProfile() {
             else toast.error(t('community.nameUpdateError'));
         } finally {
             setBusy(false);
+        }
+    };
+
+    const disconnectTwitch = async () => {
+        setTwitchBusy(true);
+        try {
+            const { error } = await unlinkTwitch();
+            if (error === 'NEEDS_OTHER_IDENTITY') {
+                toast.error(t('twitch.needOtherLogin'));
+                return;
+            }
+            if (error) {
+                toast.error(t('twitch.disconnectError'));
+                return;
+            }
+            setTwitchLogin(null);
+            syncedTwitchNameRef.current = null;
+            toast.success(t('twitch.disconnected'));
+        } finally {
+            setTwitchBusy(false);
         }
     };
 
@@ -150,6 +172,28 @@ export default function AccountProfile() {
             .finally(clearParam);
     }, [addFriendId, user, router, t]);
 
+    // Surface OAuth link failures that redirect back here. The common one is trying
+    // to link a Twitch account already attached to a different geobingo account —
+    // Supabase enforces one identity per account, we just translate the message.
+    useEffect(() => {
+        const desc = params.get('error_description') || params.get('error');
+        if (!desc) return;
+        toast.error(/already|linked|exist/i.test(desc) ? t('twitch.alreadyLinkedOther') : desc);
+        router.replace('/account');
+    }, [params, router, t]);
+
+    // Keep the account-wide display name in sync with a linked Twitch handle so a
+    // Twitch user's name is their Twitch login everywhere (presets, leaderboard),
+    // not a stale email-derived name. Best-effort: a name collision (TAKEN) just
+    // leaves the old name; the ref stops us re-attempting the same handle.
+    useEffect(() => {
+        if (!user || !twitchLogin) return;
+        if (displayNameFor(user) === twitchLogin) return;
+        if (syncedTwitchNameRef.current === twitchLogin) return;
+        syncedTwitchNameRef.current = twitchLogin;
+        renameAuthor(twitchLogin).catch(() => {});
+    }, [user, twitchLogin]);
+
     const winRate = stats && stats.multiplayer_played > 0 ? `${Math.round((stats.multiplayer_won / stats.multiplayer_played) * 100)}%` : '—';
 
     return (
@@ -212,9 +256,11 @@ export default function AccountProfile() {
                                 </div>
                             ) : (
                                 <div className="flex flex-wrap items-center gap-2">
-                                    <button type="button" onClick={openRename} className="inline-flex items-center gap-2 rounded-xl glass px-4 py-2 text-sm font-bold text-white transition-colors hover:border-indigo-500">
-                                        <FaPen size={12} /> {t('account.changeUsername')}
-                                    </button>
+                                    {!twitchLogin && (
+                                        <button type="button" onClick={openRename} className="inline-flex items-center gap-2 rounded-xl glass px-4 py-2 text-sm font-bold text-white transition-colors hover:border-indigo-500">
+                                            <FaPen size={12} /> {t('account.changeUsername')}
+                                        </button>
+                                    )}
                                     <button type="button" onClick={signOut} className="inline-flex items-center gap-2 rounded-xl glass px-4 py-2 text-sm font-bold text-white transition-colors hover:border-slate-400">
                                         <FaSignOutAlt size={12} /> {t('community.signOut')}
                                     </button>
@@ -228,12 +274,18 @@ export default function AccountProfile() {
                             {FEATURES.twitchAuth && !renaming && !deleting && (
                                 <div className="flex flex-col gap-2 border-t border-white/10 pt-4">
                                     {twitchLogin ? (
-                                        <div className="flex items-center gap-2.5 text-sm">
-                                            <FaTwitch className="text-[#9146ff]" size={16} />
-                                            <span className="font-bold text-white">{twitchLogin}</span>
-                                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-bold text-emerald-300">
-                                                <FaCheck size={9} /> {t('twitch.connected')}
-                                            </span>
+                                        <div className="flex flex-col gap-2">
+                                            <div className="flex flex-wrap items-center gap-2.5 text-sm">
+                                                <FaTwitch className="text-[#9146ff]" size={16} />
+                                                <span className="font-bold text-white">{twitchLogin}</span>
+                                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-bold text-emerald-300">
+                                                    <FaCheck size={9} /> {t('twitch.connected')}
+                                                </span>
+                                                <button type="button" onClick={disconnectTwitch} disabled={twitchBusy} className="ml-auto text-xs font-medium text-red-400/80 transition-colors hover:text-red-300 disabled:opacity-50">
+                                                    {twitchBusy ? t('common.loading') : t('twitch.disconnect')}
+                                                </button>
+                                            </div>
+                                            <p className="text-xs text-slate-400">{t('twitch.nameManaged')}</p>
                                         </div>
                                     ) : (
                                         <>
