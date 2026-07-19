@@ -575,20 +575,30 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             }
 
             if (!existingPlayer) {
-                // Attribute this player to their account (if signed in) so their
-                // profile can record this game's outcome at the finished phase.
+                // Register through the SECURITY DEFINER join RPC, not a direct
+                // insert. A direct insert is blocked by RLS once the game leaves
+                // the lobby, which stranded anyone opening the link after the host
+                // started (no players row -> NOT_A_PLAYER on every claim/vote).
+                // The RPC registers the row for lobby/playing/voting, is idempotent
+                // on refresh, and treats a finished game as spectate-only.
+                // account_id attributes the player so their profile can record this
+                // game's outcome at the finished phase.
                 const accountId = FEATURES.playerProfiles ? (await supabase.auth.getUser()).data.user?.id : undefined;
-                const insertData = {
-                    id: currentPlayerId,
-                    game_id: gameId,
-                    name: playerName,
-                    ...(accountId && { account_id: accountId }),
-                    ...(bingoBoardToAssign && { bingo_board: bingoBoardToAssign }),
-                };
-                const { error: playerInsertErr } = await supabase.from('players').insert([insertData]);
-                // 23505 = this player row was already inserted by a concurrent init
-                // (strict-mode double effect); that's benign, not a failure.
-                if (playerInsertErr && playerInsertErr.code !== '23505') console.error('CRITICAL: Failed to insert player.', playerInsertErr);
+                const { data: joinRes, error: joinErr } = await supabase.rpc('join_game', {
+                    p_game_id: gameId,
+                    p_player_id: currentPlayerId,
+                    p_name: playerName,
+                    p_account_id: accountId ?? null,
+                    p_bingo_board: bingoBoardToAssign ?? null,
+                });
+                if (joinErr) {
+                    console.error('CRITICAL: Failed to join game.', joinErr);
+                } else if (joinRes && joinRes.success === false) {
+                    if (joinRes.error === 'BANNED') toast(t('game.banned'));
+                    else toast(t('game.couldNotJoin'));
+                    setTimeout(() => router.push('/'), 1500);
+                    return;
+                }
             } else {
                 const shouldAssignBoard = (!existingPlayer.bingo_board || existingPlayer.bingo_board.length === 0) && bingoBoardToAssign;
                 const updateData = {
