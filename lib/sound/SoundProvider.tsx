@@ -23,7 +23,7 @@ predate this and aren't button/moment driven, so they're intentionally left be.
 ================================================================================
 */
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import useSound from 'use-sound';
 
@@ -49,39 +49,17 @@ type PlayFn = (name: SoundName) => void;
 
 const SoundContext = createContext<PlayFn | null>(null);
 
+type Players = Partial<Record<SoundName, () => void>>;
+
 export function SoundProvider({ children }: { children: React.ReactNode }) {
     const { settings } = useSettings();
     const master = settings.volume;
 
-    // One useSound per effect (fixed set — safe to call unconditionally). Volume is
-    // reactive, so dragging the master slider re-scales live.
-    const [playClick] = useSound(SOUNDS.click.src, { volume: SOUNDS.click.volume * master, interrupt: SOUNDS.click.interrupt });
-    const [playDenied] = useSound(SOUNDS.denied.src, { volume: SOUNDS.denied.volume * master, interrupt: SOUNDS.denied.interrupt });
-    const [playTick] = useSound(SOUNDS['slider-tick'].src, { volume: SOUNDS['slider-tick'].volume * master, interrupt: SOUNDS['slider-tick'].interrupt });
-    const [playAccept] = useSound(SOUNDS['verify-accept'].src, { volume: SOUNDS['verify-accept'].volume * master });
-    const [playReject] = useSound(SOUNDS['verify-reject'].src, { volume: SOUNDS['verify-reject'].volume * master });
-    const [playCategories] = useSound(SOUNDS['categories-ready'].src, { volume: SOUNDS['categories-ready'].volume * master });
-    const [playPodium] = useSound(SOUNDS['podium-first'].src, { volume: SOUNDS['podium-first'].volume * master });
-
-    const players = useMemo(
-        () => ({
-            click: playClick,
-            denied: playDenied,
-            'slider-tick': playTick,
-            'verify-accept': playAccept,
-            'verify-reject': playReject,
-            'categories-ready': playCategories,
-            'podium-first': playPodium,
-        }),
-        [playClick, playDenied, playTick, playAccept, playReject, playCategories, playPodium],
-    );
-
-    // The document listener + consumers read the latest players through a ref so a
-    // volume change never re-registers the listener or hands out a stale closure.
-    const playersRef = useRef(players);
-    useEffect(() => {
-        playersRef.current = players;
-    }, [players]);
+    // The sound instances are not mounted until the first user gesture (see
+    // `armed` below), so nothing fetches audio on initial page load. Until then
+    // this ref is empty and `play` is a silent no-op — which is also what the
+    // browser autoplay policy would enforce anyway.
+    const playersRef = useRef<Players>({});
 
     const play = useCallback<PlayFn>(
         (name) => {
@@ -90,6 +68,21 @@ export function SoundProvider({ children }: { children: React.ReactNode }) {
         },
         [master],
     );
+
+    // Arm on the first pointer/key interaction, then mount <SoundEngine>, which is
+    // what actually instantiates the 7 useSound hooks (and downloads the .wav
+    // files). This keeps ~264 KB of audio off every page's load path.
+    const [armed, setArmed] = useState(false);
+    useEffect(() => {
+        if (armed) return;
+        const arm = () => setArmed(true);
+        window.addEventListener('pointerdown', arm, { once: true });
+        window.addEventListener('keydown', arm, { once: true });
+        return () => {
+            window.removeEventListener('pointerdown', arm);
+            window.removeEventListener('keydown', arm);
+        };
+    }, [armed]);
 
     // Global button feedback: one capture listener covers the whole tree.
     useEffect(() => {
@@ -121,7 +114,48 @@ export function SoundProvider({ children }: { children: React.ReactNode }) {
         return () => document.removeEventListener('input', onInput, true);
     }, [play]);
 
-    return <SoundContext.Provider value={play}>{children}</SoundContext.Provider>;
+    return (
+        <SoundContext.Provider value={play}>
+            {armed && <SoundEngine master={master} playersRef={playersRef} />}
+            {children}
+        </SoundContext.Provider>
+    );
+}
+
+// Owns the actual useSound instances. Mounted lazily by SoundProvider after the
+// first user gesture, so the audio files are only fetched once the user is here to
+// hear them. Populates the shared players ref; renders nothing.
+function SoundEngine({ master, playersRef }: { master: number; playersRef: React.RefObject<Players> }) {
+    // One useSound per effect (fixed set — safe to call unconditionally). Volume is
+    // reactive, so dragging the master slider re-scales live.
+    const [playClick] = useSound(SOUNDS.click.src, { volume: SOUNDS.click.volume * master, interrupt: SOUNDS.click.interrupt });
+    const [playDenied] = useSound(SOUNDS.denied.src, { volume: SOUNDS.denied.volume * master, interrupt: SOUNDS.denied.interrupt });
+    const [playTick] = useSound(SOUNDS['slider-tick'].src, { volume: SOUNDS['slider-tick'].volume * master, interrupt: SOUNDS['slider-tick'].interrupt });
+    const [playAccept] = useSound(SOUNDS['verify-accept'].src, { volume: SOUNDS['verify-accept'].volume * master });
+    const [playReject] = useSound(SOUNDS['verify-reject'].src, { volume: SOUNDS['verify-reject'].volume * master });
+    const [playCategories] = useSound(SOUNDS['categories-ready'].src, { volume: SOUNDS['categories-ready'].volume * master });
+    const [playPodium] = useSound(SOUNDS['podium-first'].src, { volume: SOUNDS['podium-first'].volume * master });
+
+    const players = useMemo<Players>(
+        () => ({
+            click: playClick,
+            denied: playDenied,
+            'slider-tick': playTick,
+            'verify-accept': playAccept,
+            'verify-reject': playReject,
+            'categories-ready': playCategories,
+            'podium-first': playPodium,
+        }),
+        [playClick, playDenied, playTick, playAccept, playReject, playCategories, playPodium],
+    );
+
+    // Consumers read the latest players through the shared ref so a volume change
+    // never hands out a stale closure.
+    useEffect(() => {
+        playersRef.current = players;
+    }, [players, playersRef]);
+
+    return null;
 }
 
 // Returns a stable `play(name)` for the special, non-button moments. Falls back to
