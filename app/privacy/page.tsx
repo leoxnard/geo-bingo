@@ -21,7 +21,7 @@ export default function PrivacyPolicy() {
                         <br />
                         Germany
                         <br />
-                        Email: geobingo@leonardsima.de
+                        Email: geobingbong@leonardsima.de
                     </p>
                 </section>
 
