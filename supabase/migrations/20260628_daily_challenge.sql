@@ -119,15 +119,14 @@ ALTER TABLE public.daily_admins               ENABLE ROW LEVEL SECURITY;
 
 -- HELPERS ---------------------------------------------------------------------
 
--- True when every non-hype boolean vote on a submission is YES (>=2 voters). Used
--- to harvest only finds the whole table agreed on.
+-- True when at least one non-hype boolean vote on a submission is YES.
+-- Used to harvest finds that got at least one approval vote.
 CREATE OR REPLACE FUNCTION public.votes_all_yes(p_votes jsonb)
 RETURNS boolean
 LANGUAGE sql
 IMMUTABLE
 AS $$
-    SELECT count(*) FILTER (WHERE key NOT LIKE 'hype:%' AND jsonb_typeof(value) = 'boolean') >= 2
-       AND count(*) FILTER (WHERE key NOT LIKE 'hype:%' AND value = to_jsonb(false)) = 0
+    SELECT count(*) FILTER (WHERE key NOT LIKE 'hype:%' AND value = to_jsonb(true)) >= 1
     FROM jsonb_each(coalesce(p_votes, '{}'::jsonb));
 $$;
 
@@ -166,8 +165,8 @@ $$;
 ALTER FUNCTION public.daily_caller_name() OWNER TO postgres;
 
 -- HARVEST (game source) -------------------------------------------------------
--- When a game transitions to 'finished', copy every unanimously-approved,
--- AI-verified, located submission into the candidate pool (deduped, never reusing
+-- When a game transitions to 'finished', copy every located submission
+-- that received at least one yes-vote into the candidate pool (deduped, never reusing
 -- a category that already exists in the pool). Best-effort: a failure here must
 -- never roll back the game's status change.
 CREATE OR REPLACE FUNCTION public.harvest_daily_candidates()
@@ -190,7 +189,6 @@ BEGIN
         FROM submissions s
         WHERE s.game_id = NEW.id
           AND s.lat IS NOT NULL AND s.lng IS NOT NULL
-          AND s.ai_verdict = true
           AND public.votes_all_yes(s.votes)
         ORDER BY lower(trim(s.category))
         ON CONFLICT (category_norm) DO NOTHING;
