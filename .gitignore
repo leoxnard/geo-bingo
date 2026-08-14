@@ -59,7 +59,6 @@ data/
 graphify-out/
 
 AGENTS.md
-CLAUDE.md
 docs/agents/*
 
 *_ignore.*
