@@ -83,10 +83,12 @@ GEMINI_API_KEY=your_gemini_api_key
 # X-Robots-Tag: noindex (see next.config.ts).
 # APP_ENV=production
 
-# Optional — self-hosted Umami analytics. Both must be set or the tracker never
-# loads, which is the normal state in local development.
+# Optional — self-hosted Umami analytics. SRC and WEBSITE_ID must both be set or
+# the tracker never loads, which is the normal state in local development.
+# DOMAINS is a comma-separated host allow-list; unset counts every host.
 # NEXT_PUBLIC_UMAMI_SRC=https://analytics.example.com/script.js
 # NEXT_PUBLIC_UMAMI_WEBSITE_ID=your_umami_website_id
+# NEXT_PUBLIC_UMAMI_DOMAINS=example.com
 
 # Optional — gates preview deployments (APP_ENV=preview) behind HTTP basic auth.
 # Has no effect in local dev or production.

@@ -20,6 +20,12 @@ values. An event that would let you single out a person does not belong here.
 export const UMAMI_SRC = process.env.NEXT_PUBLIC_UMAMI_SRC;
 export const UMAMI_WEBSITE_ID = process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID;
 
+// Comma-separated host allow-list handed to the tracker. One Umami instance
+// serves several sites, so this is what keeps a preview deploy — or a second
+// subdomain that happens to reuse the same website id — out of these stats.
+// Unset means "count every host the app is served from".
+export const UMAMI_DOMAINS = process.env.NEXT_PUBLIC_UMAMI_DOMAINS;
+
 export const isAnalyticsEnabled = Boolean(UMAMI_SRC && UMAMI_WEBSITE_ID);
 
 type EventData = Record<string, string | number | boolean>;
