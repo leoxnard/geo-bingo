@@ -13,6 +13,7 @@ auth.uid() / the admin allow-list.
 import { callGemini, withModelFallback } from '@/components/utils/geminiClient';
 import type { DailyAdminChallenge, DailyCandidate, DailyChallenge, DailyFind, DailyLeaderboardEntry, DailyRecentChallenge, DailyStats, DailyViewpoint } from '@/components/utils/types';
 
+import { track } from './analytics';
 import { getDeviceId } from './deviceId';
 import { LOCALE_CODES } from './i18n/locales';
 import { supabase } from './supabase';
@@ -222,12 +223,16 @@ export async function submitDailyAttempt(date: string, durationMs: number, view:
         p_ai_reason: aiReason,
     });
     if (error) throw error;
+    // Duration only, rounded to whole seconds — no device id, no account, no
+    // viewpoint. Enough to see whether the daily is too hard, nothing more.
+    if (data?.success !== false) track('daily_completed', { duration_s: Math.round(durationMs / 1000) });
     return data as DailyRpcResult;
 }
 
 export async function forfeitDailyAttempt(date: string): Promise<DailyRpcResult> {
     const { data, error } = await supabase.rpc('forfeit_daily_attempt', { p_date: date, p_device_id: getDeviceId() });
     if (error) throw error;
+    if (data?.success !== false) track('daily_forfeited');
     return data as DailyRpcResult;
 }
 

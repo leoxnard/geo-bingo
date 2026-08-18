@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function proxy(req: NextRequest) {
-    const isPreview = process.env.VERCEL_ENV === 'preview';
+    const isPreview = process.env.APP_ENV === 'preview';
 
     if (!isPreview) {
         return NextResponse.next();

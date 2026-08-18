@@ -8,14 +8,14 @@ Sets up HTML structure and CSS imports for entire app.
 ================================================================================
 */
 
-import { Analytics } from '@vercel/analytics/next';
-import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Metadata, Viewport } from 'next';
 import { Geist_Mono } from 'next/font/google';
 import './globals.css';
 
 import { GameInvitesProvider } from '@/components/invites/GameInvitesProvider';
+import Analytics from '@/components/utils/Analytics';
 import AppToaster from '@/components/utils/AppToaster';
+import WebVitals from '@/components/utils/WebVitals';
 import { getServerLocale } from '@/lib/i18n/getServerLocale';
 import { I18nProvider } from '@/lib/i18n/I18nProvider';
 import { SettingsProvider } from '@/lib/settings/SettingsProvider';
@@ -98,7 +98,7 @@ export default async function RootLayout({
                 </I18nProvider>
                 <AppToaster />
                 <Analytics />
-                <SpeedInsights />
+                <WebVitals />
             </body>
         </html>
     );

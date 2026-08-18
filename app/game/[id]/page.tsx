@@ -25,6 +25,7 @@ import { ErrorBoundary } from '@/components/utils/ErrorBoundary';
 import { shuffle } from '@/components/utils/Functions';
 import { Player } from '@/components/utils/types';
 import type { CategoryVoteModes, VotingMode } from '@/components/utils/votes';
+import { track } from '@/lib/analytics';
 import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { categoryLanguageForLocale, CategoryLanguage, defaultCategoryLanguage, isLocale, Locale, normalizeLocale, storeCategoryLanguage } from '@/lib/i18n/locales';
@@ -919,7 +920,14 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     const updateStatus = useCallback(
         async (nextStatus: GameStatus) => {
             const { data, error } = await withHostRetry((token) => supabase.rpc('set_game_status', { p_game_id: gameId, p_host_id: token, p_status: nextStatus }));
-            if (error || (data && data.success === false)) console.error('Error updating game status:', error || data?.error);
+            if (error || (data && data.success === false)) {
+                console.error('Error updating game status:', error || data?.error);
+                return;
+            }
+            // Single choke point for every phase change, so one event covers the
+            // whole lobby → playing → voting → finished funnel. Status only —
+            // never the game id, which would identify a specific lobby.
+            track('game_status', { status: nextStatus });
         },
         [gameId, withHostRetry],
     );

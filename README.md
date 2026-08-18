@@ -29,7 +29,8 @@ Geo BingBong is a multiplayer geolocation game that brings the fun of Bingo into
 - **AI:** [Gemini API](https://ai.google.dev/gemini) for generating dynamic categories, verifying submissions, and translating challenge labels (with automatic model fallback for rate limit resilience)
 - **Maps:** `@react-google-maps/api` & Google Maps APIs (JavaScript API, Street View Static API, Places API)
 - **Styling:** [Tailwind CSS](https://tailwindcss.com/) v4
-- **Deployment:** [Vercel](https://vercel.com/) (Analytics & Speed Insights included)
+- **Deployment:** self-hosted via [Coolify](https://coolify.io/) (Docker + Traefik), delivered through a Cloudflare Tunnel
+- **Analytics:** self-hosted [Umami](https://umami.is/) — cookieless page views, custom game events, and Core Web Vitals
 - **Security:** Postgres Row-Level Security — all writes go through `SECURITY DEFINER` RPCs that validate the caller (`host_id` / `player_id`) and whitelist the columns they may touch.
 
 ## Getting Started
@@ -77,7 +78,17 @@ GEMINI_API_KEY=your_gemini_api_key
 # DeepL as a fallback when Gemini translation is unavailable.
 # DEEPL_API_KEY=your_deepl_api_key
 
-# Optional — gates Vercel preview deployments behind HTTP basic auth.
+# Optional — which deployment this is: 'production', 'preview' or unset for local
+# dev. Unset or 'production' means the site is indexable; anything else sends
+# X-Robots-Tag: noindex (see next.config.ts).
+# APP_ENV=production
+
+# Optional — self-hosted Umami analytics. Both must be set or the tracker never
+# loads, which is the normal state in local development.
+# NEXT_PUBLIC_UMAMI_SRC=https://analytics.example.com/script.js
+# NEXT_PUBLIC_UMAMI_WEBSITE_ID=your_umami_website_id
+
+# Optional — gates preview deployments (APP_ENV=preview) behind HTTP basic auth.
 # Has no effect in local dev or production.
 # BASIC_AUTH_USER=your_preview_username
 # BASIC_AUTH_PASSWORD=your_preview_password

@@ -26,7 +26,7 @@ export default function Impressum() {
 
                 <div>
                     <h2 className="font-semibold text-lg text-slate-200 mt-2">Hosting</h2>
-                    <p className="text-slate-300 text-sm">This website is hosted by Vercel Inc., 340 S Lemon Ave #4133, Walnut, CA 91789, USA.</p>
+                    <p className="text-slate-300 text-sm">This website runs on privately operated hardware in Germany; no commercial hosting provider is involved. The domain is registered with netcup GmbH, Daimlerstraße 25, 76185 Karlsruhe, Germany. Delivery of the site is routed through Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, USA.</p>
                 </div>
 
                 <div>

@@ -19,6 +19,7 @@ import { useRouter } from 'next/navigation';
 import { useAccountName } from '@/components/community/useAccountName';
 import { GeoBingoLogo } from '@/components/utils/Elements';
 import { useViewport } from '@/components/utils/useViewport';
+import { track } from '@/lib/analytics';
 import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
 import OptionsButton from '@/lib/settings/OptionsButton';
@@ -63,6 +64,7 @@ export default function HomeInteractive() {
 
     const createGame = () => {
         handleSaveName();
+        track('game_created');
         const id = Math.random().toString(36).substring(2, 8);
         router.push(`/game/${id}`);
     };
@@ -72,6 +74,7 @@ export default function HomeInteractive() {
         const normalized = lobbyId.trim().toLowerCase();
         if (normalized !== '') {
             handleSaveName();
+            track('game_joined');
             router.push(`/game/${normalized}`);
         }
     };

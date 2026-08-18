@@ -48,7 +48,9 @@ Git hooks (husky):
 | `GEMINI_API_KEY` | yes for AI | Fallback for both tiers |
 | `GEMINI_API_KEY_FREE` / `GEMINI_API_KEY_PAID` | optional | Free tier = category generation, paid tier = verification bursts |
 | `DEEPL_API_KEY` | optional | Translation fallback in `/api/translate` |
-| `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` | optional | Gates Vercel **preview** deploys (see `proxy.ts`) |
+| `APP_ENV` | optional | `production` \| `preview` \| unset. Unset/`production` = indexable; anything else adds `X-Robots-Tag: noindex` (`next.config.ts`). Replaced `VERCEL_ENV` after the move to Coolify |
+| `NEXT_PUBLIC_UMAMI_SRC` / `NEXT_PUBLIC_UMAMI_WEBSITE_ID` | optional | Self-hosted Umami analytics. Both unset → tracker never loads and `track()` is a no-op |
+| `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` | optional | Gates **preview** deploys, i.e. `APP_ENV=preview` (see `proxy.ts`) |
 
 Never add a `NEXT_PUBLIC_` prefix to Gemini or DeepL keys — they are server-only by design and
 reach the browser only through the proxies.

@@ -32,8 +32,8 @@ function resolveKey(tier: unknown): string | undefined {
 
 export async function POST(req: NextRequest) {
     // Cap on the ACTUAL body, not the content-length header (which can be
-    // missing or lie). Vercel also enforces a platform body limit, so this is
-    // belt-and-suspenders.
+    // missing or lie). Since the move off Vercel there is no platform-level body
+    // limit behind us any more, so this check is the only one — do not relax it.
     let raw: string;
     try {
         raw = await req.text();

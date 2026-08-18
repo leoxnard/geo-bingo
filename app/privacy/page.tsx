@@ -48,14 +48,23 @@ export default function PrivacyPolicy() {
                             <strong>Community Presets:</strong> If you create a community preset while signed in, your account ID is linked to that preset as its author, enabling you to edit or delete it later.
                         </li>
                         <li>
-                            <strong>IP Addresses & Server Logs:</strong> Standard server logs are automatically created by our hosting provider (Vercel) for security and technical stability. These include your IP address, browser type, and time of access.
+                            <strong>IP Addresses &amp; Server Logs:</strong> Standard server logs are created automatically for security and technical stability. These include your IP address, browser type, and time of access. The server is operated by us on our own hardware; these logs are not passed on to any third party.
+                        </li>
+                        <li>
+                            <strong>Usage Statistics:</strong> We run our own installation of Umami, a privacy-friendly analytics tool, on the same server. It records page views, referring site, approximate country, and coarse device/browser type. It sets no cookies, hashes IP addresses instead of storing them, and cannot follow you to other websites. No data is shared with a third party.
+                        </li>
+                        <li>
+                            <strong>Performance &amp; Game Metrics:</strong> Alongside those statistics we record anonymous page-loading measurements (Core Web Vitals) and plain counters for game milestones — such as &quot;game created&quot;, &quot;round started&quot; or &quot;daily challenge completed&quot;. These carry no player names, game IDs, or any other identifier, and cannot be traced back to an individual.
                         </li>
                     </ul>
                 </section>
 
                 <section>
                     <h2 className="text-2xl font-semibold text-slate-100 mb-2">3. Local Storage & Cookies</h2>
-                    <p>We do not use tracking or advertising cookies. We use functional browser storage (LocalStorage and SessionStorage) to remember your player name, current game session, and — if you are signed in — your authentication session token (a JWT issued by Supabase Auth). You can clear this data at any time by signing out and clearing your browser data.</p>
+                    <p>
+                        We do not use tracking or advertising cookies; our own analytics works entirely without cookies. The only cookie you may receive is a strictly necessary security cookie set by Cloudflare (see section 4). Beyond that we use functional browser storage (LocalStorage and SessionStorage) to remember your player name, current game session, and — if you are signed in — your authentication session token (a JWT issued by Supabase Auth). You can clear this data at any time by
+                        signing out and clearing your browser data.
+                    </p>
                 </section>
 
                 <section>
@@ -66,7 +75,10 @@ export default function PrivacyPolicy() {
                             <strong>Supabase:</strong> We use Supabase (provided by Supabase Inc.) as our database and real-time backend. Game lobbies, player names, and session states are processed and stored on their servers to synchronize the game between players.
                         </li>
                         <li>
-                            <strong>Vercel:</strong> This website is hosted on Vercel (Vercel Inc.). Vercel processes server logs (including your IP address) to deliver and secure the site. We also use Vercel Analytics and Speed Insights, which collect aggregated, cookieless usage and performance metrics (such as page views and load times) without tracking you across other websites.
+                            <strong>netcup:</strong> Our domain is registered with netcup GmbH. They provide the domain registration only and do not process the content of your requests.
+                        </li>
+                        <li>
+                            <strong>Cloudflare:</strong> The site is delivered through Cloudflare (Cloudflare, Inc.), which acts as a proxy in front of our server and terminates the HTTPS encryption. All requests therefore pass through Cloudflare, which processes your IP address and technical request metadata to route and secure the traffic, and may set a strictly necessary security cookie (e.g. <code>__cf_bm</code>).
                         </li>
                         <li>
                             <strong>Google Maps &amp; Street View:</strong> The game embeds the Google Maps JavaScript API and Street View (provided by Google). When you load a game, Google receives technical data such as your IP address in order to deliver map tiles and Street View imagery.

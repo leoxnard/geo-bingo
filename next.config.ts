@@ -10,9 +10,13 @@ const nextConfig: NextConfig = {
     distDir: process.env.NEXT_DIST_DIR || '.next',
 
     // Add X-Robots-Tag: noindex on non-production deployments (e.g. dev branch).
-    // VERCEL_ENV is set by Vercel automatically; locally it's undefined.
+    // APP_ENV is set per deployment (Coolify env vars); it replaced VERCEL_ENV
+    // when the app moved off Vercel. The check deliberately fails *open*: an
+    // unset APP_ENV means indexable. Getting it the other way round silently
+    // de-indexed production for as long as nobody set the variable.
     async headers() {
-        if (process.env.VERCEL_ENV === 'production') return [];
+        const appEnv = process.env.APP_ENV;
+        if (!appEnv || appEnv === 'production') return [];
         return [
             {
                 source: '/:path*',
