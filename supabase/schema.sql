@@ -93,6 +93,44 @@ $$;
 ALTER FUNCTION "public"."add_friend"("p_friend_id" "uuid") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."admin_add_candidate"("p_category" "text", "p_source" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_start_lat" double precision DEFAULT NULL::double precision, "p_start_lng" double precision DEFAULT NULL::double precision, "p_boundary" "text" DEFAULT NULL::"text") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+    IF NOT public.am_i_daily_admin() THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_ADMIN');
+    END IF;
+    IF p_category IS NULL OR trim(p_category) = '' THEN
+        RETURN jsonb_build_object('success', false, 'error', 'EMPTY_CATEGORY');
+    END IF;
+    IF p_source NOT IN ('ai', 'manual') THEN
+        RETURN jsonb_build_object('success', false, 'error', 'BAD_SOURCE');
+    END IF;
+    IF (p_lat IS NULL OR p_lng IS NULL) AND (p_start_lat IS NULL OR p_start_lng IS NULL) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'MISSING_VIEW');
+    END IF;
+
+    INSERT INTO daily_challenge_candidates
+        (category, category_norm, source, lat, lng, heading, pitch, zoom, start_lat, start_lng, boundary, status, reviewed_at, reviewed_by)
+    VALUES
+        (trim(p_category), lower(trim(p_category)), p_source, p_lat, p_lng,
+         coalesce(p_heading, 0), coalesce(p_pitch, 0), coalesce(p_zoom, 1),
+         p_start_lat, p_start_lng,
+         p_boundary, 'approved', now(), auth.uid())
+    ON CONFLICT (category_norm) DO NOTHING;
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'DUPLICATE');
+    END IF;
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."admin_add_candidate"("p_category" "text", "p_source" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_start_lat" double precision, "p_start_lng" double precision, "p_boundary" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."admin_add_candidate"("p_category" "text", "p_source" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_start_lat" double precision DEFAULT NULL::double precision, "p_start_lng" double precision DEFAULT NULL::double precision, "p_boundary" "text" DEFAULT NULL::"text", "p_translations" "jsonb" DEFAULT NULL::"jsonb") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -146,17 +184,14 @@ BEGIN
     END IF;
 
     WITH cleaned AS (
-        SELECT DISTINCT ON (lower(trim(elem->>'name')))
-            trim(elem->>'name') AS cat,
-            lower(trim(elem->>'name')) AS norm,
-            CASE WHEN jsonb_typeof(elem->'translations') = 'object' THEN elem->'translations' ELSE NULL END AS tr
-        FROM jsonb_array_elements(p_items) AS t(elem)
-        WHERE trim(coalesce(elem->>'name', '')) <> ''
+        SELECT DISTINCT ON (lower(trim(v))) trim(v) AS cat, lower(trim(v)) AS norm
+        FROM jsonb_array_elements_text(p_items) AS t(v)
+        WHERE trim(v) <> ''
     ),
     ins AS (
         INSERT INTO daily_challenge_candidates
-            (category, category_norm, source, is_fallback, status, category_translations, reviewed_at, reviewed_by)
-        SELECT cat, norm, 'database', true, 'approved', tr, now(), auth.uid()
+            (category, category_norm, source, is_fallback, status, reviewed_at, reviewed_by)
+        SELECT cat, norm, 'database', true, 'approved', now(), auth.uid()
         FROM cleaned
         ON CONFLICT (category_norm) DO NOTHING
         RETURNING 1
@@ -434,7 +469,7 @@ BEGIN
     RETURN QUERY
         SELECT * FROM daily_challenge_candidates
         WHERE p_status IS NULL OR status = p_status
-        ORDER BY is_fallback, sort_order NULLS LAST, reviewed_at NULLS LAST, created_at
+        ORDER BY created_at DESC
         LIMIT 500;
 END;
 $$;
@@ -698,7 +733,7 @@ $$;
 ALTER FUNCTION "public"."am_i_daily_admin"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint DEFAULT NULL::bigint) RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint DEFAULT NULL::bigint, "p_pano_id" "text" DEFAULT NULL::"text") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
     AS $$
@@ -720,13 +755,14 @@ BEGIN
     IF existing_id IS NOT NULL THEN
         UPDATE submissions SET
             lat = p_lat, lng = p_lng, heading = p_heading, pitch = p_pitch, zoom = p_zoom,
+            pano_id = p_pano_id,
             captured_at = p_captured_at,
             ai_verdict = NULL, ai_verified_hash = NULL
         WHERE id = existing_id
         RETURNING * INTO result_sub;
     ELSE
-        INSERT INTO submissions (game_id, player_id, category, lat, lng, heading, pitch, zoom, captured_at)
-        VALUES (p_game_id, p_player_id, p_category, p_lat, p_lng, p_heading, p_pitch, p_zoom, p_captured_at)
+        INSERT INTO submissions (game_id, player_id, category, lat, lng, heading, pitch, zoom, pano_id, captured_at)
+        VALUES (p_game_id, p_player_id, p_category, p_lat, p_lng, p_heading, p_pitch, p_zoom, p_pano_id, p_captured_at)
         RETURNING * INTO result_sub;
     END IF;
 
@@ -735,10 +771,10 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint) OWNER TO "postgres";
+ALTER FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint, "p_pano_id" "text") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint DEFAULT NULL::bigint) RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint DEFAULT NULL::bigint, "p_pano_id" "text" DEFAULT NULL::"text") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
     AS $$
@@ -755,8 +791,8 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'error', 'ALREADY_CLAIMED');
     END IF;
 
-    INSERT INTO submissions (game_id, player_id, category, lat, lng, heading, pitch, zoom, captured_at)
-    VALUES (p_game_id, p_player_id, p_category, p_lat, p_lng, p_heading, p_pitch, p_zoom, p_captured_at)
+    INSERT INTO submissions (game_id, player_id, category, lat, lng, heading, pitch, zoom, pano_id, captured_at)
+    VALUES (p_game_id, p_player_id, p_category, p_lat, p_lng, p_heading, p_pitch, p_zoom, p_pano_id, p_captured_at)
     RETURNING * INTO result_sub;
 
     RETURN jsonb_build_object('success', true, 'data', row_to_json(result_sub));
@@ -764,7 +800,7 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint) OWNER TO "postgres";
+ALTER FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint, "p_pano_id" "text") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."cleanup_stale_games"() RETURNS integer
@@ -1136,14 +1172,14 @@ BEGIN
     SELECT * INTO cand FROM daily_challenge_candidates
     WHERE status = 'approved' AND is_fallback = false
       AND category_norm NOT IN (SELECT lower(trim(category)) FROM daily_challenges)
-    ORDER BY sort_order NULLS LAST, reviewed_at NULLS LAST, created_at
+    ORDER BY reviewed_at NULLS LAST, created_at
     LIMIT 1;
 
     IF cand.id IS NULL THEN
         SELECT * INTO cand FROM daily_challenge_candidates
         WHERE status = 'approved' AND is_fallback = true
           AND category_norm NOT IN (SELECT lower(trim(category)) FROM daily_challenges)
-        ORDER BY sort_order NULLS LAST, created_at
+        ORDER BY created_at
         LIMIT 1;
     END IF;
 
@@ -1151,11 +1187,15 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'error', 'NO_CANDIDATE');
     END IF;
 
+    -- The start point is ONLY ever the admin-validated one on the candidate. When
+    -- the admin didn't set one (start_lat/lng NULL), the challenge is true
+    -- open-world: the play view drops the player on a world map to navigate freely
+    -- (no forced spawn that could trap them indoors).
     INSERT INTO daily_challenges
-        (challenge_date, candidate_id, category, source, lat, lng, heading, pitch, zoom, boundary, start_lat, start_lng, category_translations)
+        (challenge_date, candidate_id, category, source, lat, lng, heading, pitch, zoom, boundary, start_lat, start_lng)
     VALUES
         (today, cand.id, cand.category, cand.source, cand.lat, cand.lng, cand.heading, cand.pitch, cand.zoom,
-         cand.boundary, cand.start_lat, cand.start_lng, cand.category_translations);
+         cand.boundary, cand.start_lat, cand.start_lng);
 
     UPDATE daily_challenge_candidates SET status = 'used' WHERE id = cand.id;
 
@@ -1210,7 +1250,6 @@ BEGIN
         'id', c.id,
         'challenge_date', c.challenge_date,
         'category', c.category,
-        'category_translations', c.category_translations,
         'source', c.source,
         'has_location', (c.lat IS NOT NULL),
         'boundary', c.boundary,
@@ -1247,12 +1286,7 @@ BEGIN
     RETURN jsonb_build_object('success', true, 'data', coalesce((
         SELECT jsonb_agg(jsonb_build_object(
             'id', a.id,
-            'name', coalesce(
-                nullif(trim(u.raw_user_meta_data->>'display_name'), ''),
-                nullif(split_part(u.email, '@', 1), ''),
-                a.player_name,
-                'Anonymous'
-            ),
+            'name', a.player_name,
             'duration_ms', a.duration_ms,
             'lat', a.found_lat, 'lng', a.found_lng,
             'heading', a.found_heading, 'pitch', a.found_pitch, 'zoom', a.found_zoom,
@@ -1260,7 +1294,6 @@ BEGIN
             'my_downvote', (a.downvoters ? p_device_id)
         ) ORDER BY a.duration_ms ASC NULLS LAST)
         FROM daily_attempts a
-        LEFT JOIN auth.users u ON u.id = a.account_id
         WHERE a.challenge_id = cid AND NOT a.removed AND a.duration_ms IS NOT NULL
     ), '[]'::jsonb));
 END;
@@ -1274,28 +1307,16 @@ CREATE OR REPLACE FUNCTION "public"."get_daily_leaderboard"("p_date" "date") RET
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
     AS $$
-DECLARE
-    uid uuid := auth.uid();
 BEGIN
     RETURN coalesce((
         SELECT jsonb_agg(jsonb_build_object(
-            'rank', rn, 'name', disp_name, 'duration_ms', duration_ms,
-            'created_at', created_at, 'mine', is_mine
+            'rank', rn, 'name', player_name, 'duration_ms', duration_ms, 'created_at', created_at
         ) ORDER BY rn)
         FROM (
-            SELECT
-                coalesce(
-                    nullif(trim(u.raw_user_meta_data->>'display_name'), ''),
-                    nullif(split_part(u.email, '@', 1), ''),
-                    a.player_name,
-                    'Anonymous'
-                ) AS disp_name,
-                a.duration_ms, a.created_at,
-                (uid IS NOT NULL AND a.account_id = uid) AS is_mine,
-                row_number() OVER (ORDER BY a.duration_ms ASC, a.created_at ASC) AS rn
+            SELECT a.player_name, a.duration_ms, a.created_at,
+                   row_number() OVER (ORDER BY a.duration_ms ASC, a.created_at ASC) AS rn
             FROM daily_attempts a
             JOIN daily_challenges dc ON dc.id = a.challenge_id
-            LEFT JOIN auth.users u ON u.id = a.account_id
             WHERE dc.challenge_date = p_date AND NOT a.removed AND a.duration_ms IS NOT NULL
         ) ranked
         WHERE rn <= 100
@@ -1524,7 +1545,6 @@ BEGIN
                 'id', dc.id,
                 'challenge_date', dc.challenge_date,
                 'category', dc.category,
-                'category_translations', dc.category_translations,
                 'source', dc.source,
                 'has_location', (dc.lat IS NOT NULL),
                 'players', (SELECT count(*) FROM daily_attempts a
@@ -1565,7 +1585,6 @@ BEGIN
         FROM submissions s
         WHERE s.game_id = NEW.id
           AND s.lat IS NOT NULL AND s.lng IS NOT NULL
-          AND s.ai_verdict = true
           AND public.votes_all_yes(s.votes)
         ORDER BY lower(trim(s.category))
         ON CONFLICT (category_norm) DO NOTHING;
@@ -1700,7 +1719,7 @@ $$;
 ALTER FUNCTION "public"."is_valid_host"("p_game_id" "text", "p_token" "text") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."join_game"("p_game_id" "text", "p_player_id" "uuid", "p_name" "text", "p_account_id" "uuid" DEFAULT NULL::"uuid", "p_bingo_board" "jsonb" DEFAULT NULL::"jsonb") RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."join_game"("p_game_id" "text", "p_player_id" "uuid", "p_name" "text", "p_account_id" "uuid" DEFAULT NULL::"uuid", "p_bingo_board" "jsonb" DEFAULT NULL::"jsonb", "p_device_id" "text" DEFAULT NULL::"text") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
     AS $$
@@ -1709,6 +1728,8 @@ DECLARE
     target_banned text[];
     target_require_twitch boolean;
     target_host_id text;
+    existing_id uuid;
+    dev text := NULLIF(btrim(coalesce(p_device_id, '')), '');
 BEGIN
     SELECT status, COALESCE(banned_players, '{}'::text[]), COALESCE(require_twitch, false), host_id
     INTO target_status, target_banned, target_require_twitch, target_host_id
@@ -1722,19 +1743,49 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'error', 'BANNED');
     END IF;
 
-    IF EXISTS (SELECT 1 FROM players WHERE id = p_player_id AND game_id = p_game_id) THEN
+    -- Who is this, really? The id the client brought is authoritative when it
+    -- already names a row in this game. Otherwise the client lost its storage,
+    -- so fall back to the account (same person, any device) and then the device
+    -- (same browser, no account). Both fallbacks are scoped to this game.
+    SELECT id INTO existing_id FROM players WHERE id = p_player_id AND game_id = p_game_id;
+
+    IF existing_id IS NULL AND p_account_id IS NOT NULL THEN
+        SELECT id INTO existing_id FROM players
+        WHERE game_id = p_game_id AND account_id = p_account_id
+        ORDER BY id LIMIT 1;
+    END IF;
+
+    IF existing_id IS NULL AND dev IS NOT NULL THEN
+        SELECT id INTO existing_id FROM players
+        WHERE game_id = p_game_id AND device_id = dev
+        ORDER BY id LIMIT 1;
+    END IF;
+
+    IF existing_id IS NOT NULL THEN
+        -- A ban is recorded against the id the host saw, which may be the
+        -- canonical row rather than the one this client brought.
+        IF existing_id::text = ANY(target_banned) THEN
+            RETURN jsonb_build_object('success', false, 'error', 'BANNED');
+        END IF;
+
+        -- Rejoin: keep every stat on the row (score, path, board, team) and only
+        -- refresh the identity material. The board is filled in only when the row
+        -- never got one, so a returning player keeps the board they played on.
         UPDATE players SET
             name        = COALESCE(NULLIF(p_name, ''), name),
             account_id  = COALESCE(account_id, p_account_id),
+            device_id   = COALESCE(device_id, dev),
             bingo_board = CASE
                 WHEN p_bingo_board IS NOT NULL AND (bingo_board IS NULL OR jsonb_array_length(bingo_board) = 0)
                     THEN p_bingo_board
                 ELSE bingo_board
             END
-        WHERE id = p_player_id;
-        RETURN jsonb_build_object('success', true, 'rejoined', true);
+        WHERE id = existing_id;
+
+        RETURN jsonb_build_object('success', true, 'rejoined', true, 'player_id', existing_id);
     END IF;
 
+    -- New registration. A finished game is spectate-only: no row, but no error.
     IF target_status = 'finished' THEN
         RETURN jsonb_build_object('success', true, 'spectator', true);
     END IF;
@@ -1745,24 +1796,25 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'error', 'TWITCH_REQUIRED');
     END IF;
 
-    INSERT INTO players (id, game_id, name, account_id, bingo_board)
-    VALUES (p_player_id, p_game_id, NULLIF(p_name, ''), p_account_id, COALESCE(p_bingo_board, '[]'::jsonb))
+    INSERT INTO players (id, game_id, name, account_id, device_id, bingo_board)
+    VALUES (p_player_id, p_game_id, NULLIF(p_name, ''), p_account_id, dev, COALESCE(p_bingo_board, '[]'::jsonb))
     ON CONFLICT (id) DO UPDATE SET
         game_id     = EXCLUDED.game_id,
         name        = COALESCE(EXCLUDED.name, players.name),
         account_id  = COALESCE(players.account_id, EXCLUDED.account_id),
+        device_id   = COALESCE(EXCLUDED.device_id, players.device_id),
         bingo_board = CASE
             WHEN EXCLUDED.bingo_board IS NOT NULL AND jsonb_array_length(EXCLUDED.bingo_board) > 0
                 THEN EXCLUDED.bingo_board
             ELSE players.bingo_board
         END;
 
-    RETURN jsonb_build_object('success', true);
+    RETURN jsonb_build_object('success', true, 'player_id', p_player_id);
 END;
 $$;
 
 
-ALTER FUNCTION "public"."join_game"("p_game_id" "text", "p_player_id" "uuid", "p_name" "text", "p_account_id" "uuid", "p_bingo_board" "jsonb") OWNER TO "postgres";
+ALTER FUNCTION "public"."join_game"("p_game_id" "text", "p_player_id" "uuid", "p_name" "text", "p_account_id" "uuid", "p_bingo_board" "jsonb", "p_device_id" "text") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."player_end_round"("p_game_id" "text", "p_player_id" "uuid") RETURNS "jsonb"
@@ -2074,6 +2126,22 @@ $$;
 ALTER FUNCTION "public"."rename_my_presets_author"("p_name" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."reset_voting_line_complete"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+    IF NEW.status IS DISTINCT FROM OLD.status AND NEW.status IN ('voting', 'lobby') THEN
+        NEW.voting_line_complete := false;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."reset_voting_line_complete"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."reveal_daily_location"("p_date" "date") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -2096,6 +2164,33 @@ $$;
 
 
 ALTER FUNCTION "public"."reveal_daily_location"("p_date" "date") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."review_daily_candidate"("p_id" "uuid", "p_decision" "text") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+    IF NOT public.am_i_daily_admin() THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_ADMIN');
+    END IF;
+    IF p_decision NOT IN ('approved', 'rejected', 'pending') THEN
+        RETURN jsonb_build_object('success', false, 'error', 'BAD_DECISION');
+    END IF;
+
+    UPDATE daily_challenge_candidates
+    SET status = p_decision, reviewed_at = now(), reviewed_by = auth.uid()
+    WHERE id = p_id AND status <> 'used';
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_FOUND_OR_USED');
+    END IF;
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."review_daily_candidate"("p_id" "uuid", "p_decision" "text") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."review_daily_candidate"("p_id" "uuid", "p_decision" "text", "p_translations" "jsonb" DEFAULT NULL::"jsonb") RETURNS "jsonb"
@@ -2269,9 +2364,26 @@ CREATE OR REPLACE FUNCTION "public"."set_username"("p_username" "text") RETURNS 
 DECLARE
     uid uuid := auth.uid();
     u   text := btrim(coalesce(p_username, ''));
+    twitch_handle text;
 BEGIN
     IF uid IS NULL THEN RETURN jsonb_build_object('success', false, 'error', 'NOT_AUTHENTICATED'); END IF;
     IF length(u) < 2 OR length(u) > 30 THEN RETURN jsonb_build_object('success', false, 'error', 'INVALID'); END IF;
+
+    SELECT coalesce(
+               identity_data ->> 'user_name',
+               identity_data ->> 'preferred_username',
+               identity_data ->> 'nickname',
+               identity_data ->> 'name'
+           )
+    INTO twitch_handle
+    FROM auth.identities
+    WHERE user_id = uid AND provider = 'twitch'
+    LIMIT 1;
+
+    IF FOUND AND lower(coalesce(twitch_handle, '')) IS DISTINCT FROM lower(u) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'TWITCH_MANAGED');
+    END IF;
+
     IF EXISTS (SELECT 1 FROM profiles WHERE lower(username) = lower(u) AND id <> uid) THEN
         RETURN jsonb_build_object('success', false, 'error', 'TAKEN');
     END IF;
@@ -2288,7 +2400,7 @@ $$;
 ALTER FUNCTION "public"."set_username"("p_username" "text") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."set_voting_cursor"("p_game_id" "text", "p_host_id" "text", "p_round_index" integer, "p_active_sub_id" "uuid") RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."set_voting_cursor"("p_game_id" "text", "p_host_id" "text", "p_round_index" integer, "p_active_sub_id" "uuid", "p_line_complete" boolean DEFAULT false) RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
     AS $$
@@ -2298,14 +2410,15 @@ BEGIN
     END IF;
     UPDATE games
     SET voting_round_index = p_round_index,
-        voting_active_sub_id = p_active_sub_id
+        voting_active_sub_id = p_active_sub_id,
+        voting_line_complete = COALESCE(p_line_complete, false)
     WHERE id = p_game_id;
     RETURN jsonb_build_object('success', true);
 END;
 $$;
 
 
-ALTER FUNCTION "public"."set_voting_cursor"("p_game_id" "text", "p_host_id" "text", "p_round_index" integer, "p_active_sub_id" "uuid") OWNER TO "postgres";
+ALTER FUNCTION "public"."set_voting_cursor"("p_game_id" "text", "p_host_id" "text", "p_round_index" integer, "p_active_sub_id" "uuid", "p_line_complete" boolean) OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."submission_is_valid"("p_votes" "jsonb") RETURNS boolean
@@ -2693,8 +2806,7 @@ ALTER FUNCTION "public"."vote_community_preset"("p_preset_id" "uuid", "p_device_
 CREATE OR REPLACE FUNCTION "public"."votes_all_yes"("p_votes" "jsonb") RETURNS boolean
     LANGUAGE "sql" IMMUTABLE
     AS $$
-    SELECT count(*) FILTER (WHERE key NOT LIKE 'hype:%' AND jsonb_typeof(value) = 'boolean') >= 2
-       AND count(*) FILTER (WHERE key NOT LIKE 'hype:%' AND value = to_jsonb(false)) = 0
+    SELECT count(*) FILTER (WHERE key NOT LIKE 'hype:%' AND value = to_jsonb(true)) >= 1
     FROM jsonb_each(coalesce(p_votes, '{}'::jsonb));
 $$;
 
@@ -2904,6 +3016,7 @@ CREATE TABLE IF NOT EXISTS "public"."games" (
     "category_vote_modes" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
     "require_twitch" boolean DEFAULT false NOT NULL,
     "anonymous_voting" boolean DEFAULT false NOT NULL,
+    "voting_line_complete" boolean DEFAULT false NOT NULL,
     CONSTRAINT "games_voting_mode_check" CHECK (("voting_mode" = ANY (ARRAY['yes_no'::"text", 'scale'::"text", 'mixed'::"text"])))
 );
 
@@ -2920,7 +3033,8 @@ CREATE TABLE IF NOT EXISTS "public"."players" (
     "team" integer DEFAULT 0,
     "path" "jsonb" DEFAULT '[]'::"jsonb",
     "account_id" "uuid",
-    "category_locale" "text"
+    "category_locale" "text",
+    "device_id" "text"
 );
 
 
@@ -2950,7 +3064,8 @@ CREATE TABLE IF NOT EXISTS "public"."submissions" (
     "votes" "jsonb" DEFAULT '{}'::"jsonb",
     "ai_verdict" boolean,
     "ai_verified_hash" "text",
-    "captured_at" bigint
+    "captured_at" bigint,
+    "pano_id" "text"
 );
 
 
@@ -3116,6 +3231,14 @@ CREATE INDEX "game_invitations_invitee_idx" ON "public"."game_invitations" USING
 
 
 
+CREATE INDEX "players_game_account_idx" ON "public"."players" USING "btree" ("game_id", "account_id");
+
+
+
+CREATE INDEX "players_game_device_idx" ON "public"."players" USING "btree" ("game_id", "device_id");
+
+
+
 CREATE INDEX "players_game_id_idx" ON "public"."players" USING "btree" ("game_id");
 
 
@@ -3137,6 +3260,10 @@ CREATE INDEX "word_pool_status_created_idx" ON "public"."word_pool" USING "btree
 
 
 CREATE INDEX "word_pool_status_imports_idx" ON "public"."word_pool" USING "btree" ("status", "import_count" DESC);
+
+
+
+CREATE OR REPLACE TRIGGER "games_reset_voting_line_complete" BEFORE UPDATE ON "public"."games" FOR EACH ROW EXECUTE FUNCTION "public"."reset_voting_line_complete"();
 
 
 
@@ -3369,6 +3496,12 @@ GRANT ALL ON FUNCTION "public"."add_friend"("p_friend_id" "uuid") TO "service_ro
 
 
 
+GRANT ALL ON FUNCTION "public"."admin_add_candidate"("p_category" "text", "p_source" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_start_lat" double precision, "p_start_lng" double precision, "p_boundary" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."admin_add_candidate"("p_category" "text", "p_source" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_start_lat" double precision, "p_start_lng" double precision, "p_boundary" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."admin_add_candidate"("p_category" "text", "p_source" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_start_lat" double precision, "p_start_lng" double precision, "p_boundary" "text") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."admin_add_candidate"("p_category" "text", "p_source" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_start_lat" double precision, "p_start_lng" double precision, "p_boundary" "text", "p_translations" "jsonb") TO "anon";
 GRANT ALL ON FUNCTION "public"."admin_add_candidate"("p_category" "text", "p_source" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_start_lat" double precision, "p_start_lng" double precision, "p_boundary" "text", "p_translations" "jsonb") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."admin_add_candidate"("p_category" "text", "p_source" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_start_lat" double precision, "p_start_lng" double precision, "p_boundary" "text", "p_translations" "jsonb") TO "service_role";
@@ -3483,15 +3616,15 @@ GRANT ALL ON FUNCTION "public"."am_i_daily_admin"() TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint) TO "anon";
-GRANT ALL ON FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint) TO "authenticated";
-GRANT ALL ON FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint) TO "service_role";
+GRANT ALL ON FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint, "p_pano_id" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint, "p_pano_id" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."claim_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint, "p_pano_id" "text") TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint) TO "anon";
-GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint) TO "authenticated";
-GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint) TO "service_role";
+GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint, "p_pano_id" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint, "p_pano_id" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."claim_exclusive_category"("p_game_id" "text", "p_player_id" "uuid", "p_category" "text", "p_lat" double precision, "p_lng" double precision, "p_heading" double precision, "p_pitch" double precision, "p_zoom" double precision, "p_captured_at" bigint, "p_pano_id" "text") TO "service_role";
 
 
 
@@ -3668,9 +3801,9 @@ GRANT ALL ON FUNCTION "public"."is_valid_host"("p_game_id" "text", "p_token" "te
 
 
 
-GRANT ALL ON FUNCTION "public"."join_game"("p_game_id" "text", "p_player_id" "uuid", "p_name" "text", "p_account_id" "uuid", "p_bingo_board" "jsonb") TO "anon";
-GRANT ALL ON FUNCTION "public"."join_game"("p_game_id" "text", "p_player_id" "uuid", "p_name" "text", "p_account_id" "uuid", "p_bingo_board" "jsonb") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."join_game"("p_game_id" "text", "p_player_id" "uuid", "p_name" "text", "p_account_id" "uuid", "p_bingo_board" "jsonb") TO "service_role";
+GRANT ALL ON FUNCTION "public"."join_game"("p_game_id" "text", "p_player_id" "uuid", "p_name" "text", "p_account_id" "uuid", "p_bingo_board" "jsonb", "p_device_id" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."join_game"("p_game_id" "text", "p_player_id" "uuid", "p_name" "text", "p_account_id" "uuid", "p_bingo_board" "jsonb", "p_device_id" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."join_game"("p_game_id" "text", "p_player_id" "uuid", "p_name" "text", "p_account_id" "uuid", "p_bingo_board" "jsonb", "p_device_id" "text") TO "service_role";
 
 
 
@@ -3734,9 +3867,21 @@ GRANT ALL ON FUNCTION "public"."rename_my_presets_author"("p_name" "text") TO "s
 
 
 
+GRANT ALL ON FUNCTION "public"."reset_voting_line_complete"() TO "anon";
+GRANT ALL ON FUNCTION "public"."reset_voting_line_complete"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."reset_voting_line_complete"() TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."reveal_daily_location"("p_date" "date") TO "anon";
 GRANT ALL ON FUNCTION "public"."reveal_daily_location"("p_date" "date") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."reveal_daily_location"("p_date" "date") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."review_daily_candidate"("p_id" "uuid", "p_decision" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."review_daily_candidate"("p_id" "uuid", "p_decision" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."review_daily_candidate"("p_id" "uuid", "p_decision" "text") TO "service_role";
 
 
 
@@ -3782,9 +3927,9 @@ GRANT ALL ON FUNCTION "public"."set_username"("p_username" "text") TO "service_r
 
 
 
-GRANT ALL ON FUNCTION "public"."set_voting_cursor"("p_game_id" "text", "p_host_id" "text", "p_round_index" integer, "p_active_sub_id" "uuid") TO "anon";
-GRANT ALL ON FUNCTION "public"."set_voting_cursor"("p_game_id" "text", "p_host_id" "text", "p_round_index" integer, "p_active_sub_id" "uuid") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."set_voting_cursor"("p_game_id" "text", "p_host_id" "text", "p_round_index" integer, "p_active_sub_id" "uuid") TO "service_role";
+GRANT ALL ON FUNCTION "public"."set_voting_cursor"("p_game_id" "text", "p_host_id" "text", "p_round_index" integer, "p_active_sub_id" "uuid", "p_line_complete" boolean) TO "anon";
+GRANT ALL ON FUNCTION "public"."set_voting_cursor"("p_game_id" "text", "p_host_id" "text", "p_round_index" integer, "p_active_sub_id" "uuid", "p_line_complete" boolean) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."set_voting_cursor"("p_game_id" "text", "p_host_id" "text", "p_round_index" integer, "p_active_sub_id" "uuid", "p_line_complete" boolean) TO "service_role";
 
 
 

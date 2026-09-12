@@ -245,7 +245,6 @@ Read `DESIGN.md` before writing any UI. The short version:
 
 ## Git conventions
 
-- Work on the branch you were assigned; never push to `main`.
 - Conventional-commit subjects, matching existing history:
   `feat:`, `fix:`, `fix(db):`, `perf:`, `docs:`, `chore:`, `i18n:`.
 - Never commit `.env*`, `node_modules/`, `.next/`, or `data/`.
