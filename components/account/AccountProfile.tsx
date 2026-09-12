@@ -52,7 +52,9 @@ export default function AccountProfile() {
     const [stats, setStats] = useState<AccountStats | null>(null);
     const [history, setHistory] = useState<GameHistoryEntry[] | null>(null);
     const [friendsRefresh, setFriendsRefresh] = useState(0);
-    const [twitchLogin, setTwitchLogin] = useState<string | null>(null);
+    // undefined until resolved, so the rename button never flashes open for a
+    // Twitch-linked account (its name is managed by the Twitch handle).
+    const [twitchLogin, setTwitchLogin] = useState<string | null | undefined>(FEATURES.twitchAuth ? undefined : null);
     const [twitchBusy, setTwitchBusy] = useState(false);
     const processedAddRef = useRef<string | null>(null);
     const syncedTwitchNameRef = useRef<string | null>(null);
@@ -80,6 +82,7 @@ export default function AccountProfile() {
             const code = e instanceof Error ? e.message : '';
             if (code === 'TAKEN') toast.error(t('account.usernameTaken'));
             else if (code === 'INVALID') toast.error(t('account.usernameInvalid'));
+            else if (code === 'TWITCH_MANAGED') toast.error(t('twitch.nameManaged'));
             else toast.error(t('community.nameUpdateError'));
         } finally {
             setBusy(false);
@@ -256,7 +259,7 @@ export default function AccountProfile() {
                                 </div>
                             ) : (
                                 <div className="flex flex-wrap items-center gap-2">
-                                    {!twitchLogin && (
+                                    {twitchLogin === null && (
                                         <button type="button" onClick={openRename} className="inline-flex items-center gap-2 rounded-xl glass px-4 py-2 text-sm font-bold text-white transition-colors hover:border-indigo-500">
                                             <FaPen size={12} /> {t('account.changeUsername')}
                                         </button>

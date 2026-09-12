@@ -12,16 +12,18 @@ Used everywhere the player's profile appears (home, daily hub, community).
 ================================================================================
 */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import toast from 'react-hot-toast';
-import { FaPen, FaUserCircle } from 'react-icons/fa';
+import { FaPen, FaTwitch, FaUserCircle } from 'react-icons/fa';
 
 import AuthGate from '@/components/community/AuthGate';
 import { useUser, displayNameFor } from '@/components/community/useUser';
 import { deleteAccount, renameAuthor } from '@/lib/community';
+import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { supabase } from '@/lib/supabase';
+import { getTwitchLogin } from '@/lib/twitch';
 
 export default function AccountButton({ className = '', onRenamed }: { className?: string; onRenamed?: () => void }) {
     const { t } = useT();
@@ -31,6 +33,21 @@ export default function AccountButton({ className = '', onRenamed }: { className
     const [deleting, setDeleting] = useState(false);
     const [name, setName] = useState('');
     const [busy, setBusy] = useState(false);
+    // undefined until resolved, so the rename control renders neither way while we
+    // don't know — otherwise it flashes open for a Twitch-linked account and can be
+    // clicked in that window. null means "resolved: not linked".
+    const [twitchLogin, setTwitchLogin] = useState<string | null | undefined>(FEATURES.twitchAuth ? undefined : null);
+
+    useEffect(() => {
+        if (!user || !FEATURES.twitchAuth) return;
+        let alive = true;
+        getTwitchLogin()
+            .then((l) => alive && setTwitchLogin(l))
+            .catch(() => alive && setTwitchLogin(null));
+        return () => {
+            alive = false;
+        };
+    }, [user]);
 
     if (loading) return null;
 
@@ -72,8 +89,9 @@ export default function AccountButton({ className = '', onRenamed }: { className
             setRenaming(false);
             toast.success(t('community.nameUpdated'));
             onRenamed?.();
-        } catch {
-            toast.error(t('community.nameUpdateError'));
+        } catch (e) {
+            const code = e instanceof Error ? e.message : '';
+            toast.error(code === 'TWITCH_MANAGED' ? t('twitch.nameManaged') : t('community.nameUpdateError'));
         } finally {
             setBusy(false);
         }
@@ -127,9 +145,19 @@ export default function AccountButton({ className = '', onRenamed }: { className
                                             <h2 className="text-xl font-bold text-indigo-400">{displayNameFor(user)}</h2>
                                             {user.email && <p className="mt-1 text-sm text-slate-400">{user.email}</p>}
                                         </div>
-                                        <button type="button" onClick={openRename} className="flex items-center justify-center gap-2 rounded-xl glass-inset px-4 py-2.5 text-sm font-bold text-white transition-colors hover:border-indigo-500">
-                                            <FaPen size={12} /> {t('community.renameName')}
-                                        </button>
+                                        {/* A linked Twitch account owns the display name — it is
+                                            re-synced to the Twitch handle on every visit, so a manual
+                                            rename here would only be undone. set_username rejects it
+                                            server-side too; this just doesn't offer it. */}
+                                        {twitchLogin ? (
+                                            <p className="flex items-center justify-center gap-2 rounded-xl glass-inset px-4 py-2.5 text-sm font-medium text-slate-400">
+                                                <FaTwitch className="text-[#9146ff]" size={12} /> {t('twitch.nameManaged')}
+                                            </p>
+                                        ) : twitchLogin === null ? (
+                                            <button type="button" onClick={openRename} className="flex items-center justify-center gap-2 rounded-xl glass-inset px-4 py-2.5 text-sm font-bold text-white transition-colors hover:border-indigo-500">
+                                                <FaPen size={12} /> {t('community.renameName')}
+                                            </button>
+                                        ) : null}
                                         <div className="flex justify-end gap-2">
                                             <button type="button" onClick={close} className="rounded-xl bg-slate-700 px-4 py-2 text-sm font-bold uppercase text-white hover:bg-slate-600">
                                                 {t('community.done')}
