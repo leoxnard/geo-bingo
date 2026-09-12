@@ -14,15 +14,14 @@ blow past the free tier's per-minute limit. See app/api/gemini/route.ts.
 Model fallback: `withModelFallback` tries the last known-good model first, then
 the full list from the top, until one succeeds — and remembers the winner so we
 don't keep hammering a rate-limited ("full") model on every call. The remembered
-model is kept per-tier (free/paid have separate keys and quotas). This list must
-stay a subset of the proxy's ALLOWED_MODELS or calls will 400.
+model is kept per-tier (free/paid have separate keys and quotas). The model list
+itself lives in lib/geminiModels.ts — see that file to add/remove/reorder models.
 ================================================================================
 */
 
-export type GeminiTier = 'free' | 'paid';
+import { GEMINI_MODELS } from '@/lib/geminiModels';
 
-// Strongest first. Must match the proxy allowlist in app/api/gemini/route.ts.
-export const GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+export type GeminiTier = 'free' | 'paid';
 
 export async function callGemini(model: string, payload: unknown, tier: GeminiTier = 'free'): Promise<Response> {
     return fetch('/api/gemini', {

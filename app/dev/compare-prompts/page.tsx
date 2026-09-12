@@ -25,14 +25,13 @@ import { checkAiKeysAvailable } from '@/app/game/actions';
 import { getPromptForStreetViewCategories } from '@/components/lobby/prompts/StreetViewPrompts';
 import { callGemini } from '@/components/utils/geminiClient';
 import { GOOGLE_MAPS_LIBRARIES } from '@/components/utils/mapUtils';
+import { GEMINI_MODELS } from '@/lib/geminiModels';
 
 type Difficulty = 'easy' | 'default' | 'hard';
 const DIFFICULTIES: Difficulty[] = ['easy', 'default', 'hard'];
 
 type ResultItem = { categoryName: string; imageId: string; score: number };
 type PromptResult = { status: 'loading' | 'done' | 'error'; items: ResultItem[]; ms: number; error?: string };
-
-const GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
 
 // A spot with rich, varied Street View coverage to start from.
 const DEFAULT_START = { lat: 48.137154, lng: 11.576124 }; // Munich, Marienplatz

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { GEMINI_MODELS } from '@/lib/geminiModels';
+
 /*
 ================================================================================
 GEMINI PROXY
@@ -20,7 +22,9 @@ existing one-key deployment keeps working unchanged.
 ================================================================================
 */
 
-const ALLOWED_MODELS = new Set(['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite']);
+// Sourced from lib/geminiModels.ts so this allowlist can never drift out of sync
+// with the client's fallback list — the same array now backs both.
+const ALLOWED_MODELS = new Set(GEMINI_MODELS);
 
 const MAX_BODY_BYTES = 8 * 1024 * 1024; // generous: one Street View image as base64
 
