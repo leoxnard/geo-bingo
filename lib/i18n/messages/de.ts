@@ -487,6 +487,8 @@ export const de: Messages = {
     'admin.words.desc': 'Den aus Spielen gesammelten Community-Wortpool prüfen und bearbeiten.',
     'admin.presets.title': 'Grenz-Vorlagen',
     'admin.presets.desc': 'Grenzgebiete zeichnen und als JSON exportieren.',
+    'admin.promptTest.title': 'Prompt-Vergleich',
+    'admin.promptTest.desc': 'Durch Street View laufen und Gemini-Kategorie-Prompts direkt nebeneinander vergleichen.',
 
     // ---- word pool admin ----
     'words.admin.title': 'Wortpool — Admin',

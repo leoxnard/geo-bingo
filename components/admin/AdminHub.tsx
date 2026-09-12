@@ -16,7 +16,7 @@ boundary.
 import { useEffect, useState } from 'react';
 
 import Link from 'next/link';
-import { FaBook, FaCalendarDay, FaChevronRight, FaDrawPolygon } from 'react-icons/fa';
+import { FaBook, FaCalendarDay, FaChevronRight, FaDrawPolygon, FaFlask } from 'react-icons/fa';
 
 import AccountButton from '@/components/account/AccountButton';
 import AuthGate from '@/components/community/AuthGate';
@@ -74,6 +74,7 @@ export default function AdminHub() {
         { href: '/admin/daily', icon: <FaCalendarDay />, titleKey: 'admin.daily.title', descKey: 'admin.daily.desc', enabled: FEATURES.dailyChallenge },
         { href: '/admin/words', icon: <FaBook />, titleKey: 'admin.words.title', descKey: 'admin.words.desc', enabled: FEATURES.exploreWords },
         { href: '/admin/presets', icon: <FaDrawPolygon />, titleKey: 'admin.presets.title', descKey: 'admin.presets.desc', enabled: FEATURES.presetExport },
+        { href: '/dev/compare-prompts', icon: <FaFlask />, titleKey: 'admin.promptTest.title', descKey: 'admin.promptTest.desc', enabled: true },
     ];
     const active = tools.filter((tool) => tool.enabled);
 

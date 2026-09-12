@@ -487,6 +487,8 @@ export const en = {
     'admin.words.desc': 'Review and edit the community word pool harvested from games.',
     'admin.presets.title': 'Boundary Presets',
     'admin.presets.desc': 'Draw boundary areas and export them as JSON.',
+    'admin.promptTest.title': 'Prompt Comparison',
+    'admin.promptTest.desc': 'Walk through Street View and compare Gemini category prompts side by side.',
 
     // ---- word pool admin ----
     'words.admin.title': 'Word Pool — Admin',

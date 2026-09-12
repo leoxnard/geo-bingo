@@ -487,6 +487,8 @@ export const fr: Messages = {
     'admin.words.desc': 'Vérifier et modifier la réserve de mots de la communauté collectée dans les parties.',
     'admin.presets.title': 'Modèles de zones',
     'admin.presets.desc': 'Dessiner des zones et les exporter en JSON.',
+    'admin.promptTest.title': 'Comparaison de prompts',
+    'admin.promptTest.desc': 'Parcourez Street View et comparez les prompts de catégories Gemini côte à côte.',
 
     // ---- word pool admin ----
     'words.admin.title': 'Réserve de mots — Admin',

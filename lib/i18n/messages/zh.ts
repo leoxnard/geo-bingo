@@ -487,6 +487,8 @@ export const zh: Messages = {
     'admin.words.desc': '审核并编辑从对局中收集的社区词库。',
     'admin.presets.title': '边界预设',
     'admin.presets.desc': '绘制边界区域并导出为 JSON。',
+    'admin.promptTest.title': '提示词对比',
+    'admin.promptTest.desc': '在街景中漫游，并排比较 Gemini 分类提示词的效果。',
 
     // ---- word pool admin ----
     'words.admin.title': '词库 — 管理',

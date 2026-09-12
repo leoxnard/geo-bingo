@@ -487,6 +487,8 @@ export const es: Messages = {
     'admin.words.desc': 'Revisa y edita el fondo de palabras de la comunidad recogido de las partidas.',
     'admin.presets.title': 'Plantillas de límites',
     'admin.presets.desc': 'Dibuja áreas de límites y expórtalas como JSON.',
+    'admin.promptTest.title': 'Comparación de prompts',
+    'admin.promptTest.desc': 'Recorre Street View y compara los prompts de categorías de Gemini uno al lado del otro.',
 
     // ---- word pool admin ----
     'words.admin.title': 'Fondo de palabras — Admin',
