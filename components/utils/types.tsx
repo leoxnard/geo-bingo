@@ -28,6 +28,11 @@ export interface Submission {
     heading: number;
     pitch: number;
     zoom: number;
+    // The exact Google panorama the shot was taken in. Everything that redraws a
+    // submission (voting replay, thumbnails, AI verification) must prefer this over
+    // lat/lng, which only resolves to the NEAREST pano and can land somewhere else.
+    // Null on submissions captured before the column existed.
+    pano_id?: string | null;
     // yes/no votes are booleans; scale-voting ratings (0–10) are numbers; hype keys
     // (`hype:<id>`) are booleans. All keyed off the voter id.
     votes: Record<string, boolean | number>;

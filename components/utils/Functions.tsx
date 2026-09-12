@@ -196,3 +196,11 @@ export const getDistance = (lat1: number, lng1: number, lat2: number, lng2: numb
 
     return R * c; // Distanz in Metern
 };
+
+// Street View zoom -> Static API field of view. The Static API only accepts an
+// fov between 10 and 120, and the raw formula leaves that range at both ends
+// (zoom 0 -> 180, zoom >= 4.2 -> under 10), which silently reframes the shot.
+export const fovForZoom = (zoom: number | null | undefined): number => {
+    const z = typeof zoom === 'number' && Number.isFinite(zoom) ? zoom : 1;
+    return Math.min(120, Math.max(10, 180 / Math.pow(2, z)));
+};

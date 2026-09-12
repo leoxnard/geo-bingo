@@ -11,6 +11,7 @@ building logic across the presentational components.
 
 import { geoGuessrMeta } from '../../lib/categories';
 import { Locale } from '../../lib/i18n/locales';
+import { fovForZoom } from '../utils/Functions';
 import { Submission } from '../utils/types';
 
 export type HintMap = Record<string, string>;
@@ -71,10 +72,13 @@ export const getAiVerdictState = (submission?: Submission | null) => {
 
 // Builds the static Street View image URL for a saved camera angle. Accepts any
 // object carrying a viewpoint (a game Submission or a community CommunityCategory).
-export const getStreetViewImageUrl = (sub: { lat: number; lng: number; heading: number; pitch: number; zoom: number }, size = 600) => {
+export const getStreetViewImageUrl = (sub: { lat: number; lng: number; heading: number; pitch: number; zoom: number; pano_id?: string | null }, size = 600) => {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
-    const fov = sub.zoom ? 180 / Math.pow(2, sub.zoom) : 90;
     let safeHeading = sub.heading % 360;
     if (safeHeading < 0) safeHeading += 360;
-    return `https://maps.googleapis.com/maps/api/streetview?size=${size}x${size}&location=${sub.lat},${sub.lng}&heading=${safeHeading}&pitch=${sub.pitch}&fov=${fov}&key=${apiKey}`;
+    // `pano=` pins the exact panorama; `location=` only asks for the nearest one,
+    // which can be a different picture entirely. Coordinates stay as the fallback
+    // for submissions captured before pano_id was recorded.
+    const locationParam = sub.pano_id ? `pano=${encodeURIComponent(sub.pano_id)}` : `location=${sub.lat},${sub.lng}`;
+    return `https://maps.googleapis.com/maps/api/streetview?size=${size}x${size}&${locationParam}&heading=${safeHeading}&pitch=${sub.pitch}&fov=${fovForZoom(sub.zoom)}&key=${apiKey}`;
 };

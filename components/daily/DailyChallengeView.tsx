@@ -220,14 +220,16 @@ export default function DailyChallengeView({ date }: { date: string }) {
     };
 
     // Read the live panorama view — null when the player is still on the map (hasn't
-    // dropped the Pegman into Street View yet).
-    const readViewpoint = (): DailyViewpoint | null => {
+    // dropped the Pegman into Street View yet). pano_id rides along for the AI check
+    // so it grades the exact panorama rather than the nearest one to these
+    // coordinates; it is not part of DailyViewpoint and is not persisted.
+    const readViewpoint = (): (DailyViewpoint & { pano_id: string | null }) | null => {
         const pano = panoRef.current;
         if (!pano || !pano.getVisible()) return null;
         const pos = pano.getPosition();
         if (!pos) return null;
         const pov = pano.getPov();
-        return { lat: pos.lat(), lng: pos.lng(), heading: pov.heading ?? 0, pitch: pov.pitch ?? 0, zoom: pano.getZoom() ?? 1 };
+        return { lat: pos.lat(), lng: pos.lng(), heading: pov.heading ?? 0, pitch: pov.pitch ?? 0, zoom: pano.getZoom() ?? 1, pano_id: pano.getPano() || null };
     };
 
     const onFound = async () => {

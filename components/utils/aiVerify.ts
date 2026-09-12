@@ -9,11 +9,15 @@ submissions are not re-verified on subsequent runs.
 ================================================================================
 */
 
+import { fovForZoom } from './Functions';
 import { callGemini, withModelFallback } from './geminiClient';
 import { Submission } from './types';
 
-export const computeSubmissionHash = (sub: Pick<Submission, 'lat' | 'lng' | 'heading' | 'pitch' | 'zoom'>): string => {
-    return `${sub.lat.toFixed(6)}|${sub.lng.toFixed(6)}|${sub.heading.toFixed(2)}|${sub.pitch.toFixed(2)}|${sub.zoom.toFixed(2)}`;
+// pano_id is part of the hash: a retake that lands on a different panorama at
+// effectively the same coordinates is a different picture, and must not reuse the
+// cached verdict from the previous one.
+export const computeSubmissionHash = (sub: Pick<Submission, 'lat' | 'lng' | 'heading' | 'pitch' | 'zoom' | 'pano_id'>): string => {
+    return `${sub.lat.toFixed(6)}|${sub.lng.toFixed(6)}|${sub.heading.toFixed(2)}|${sub.pitch.toFixed(2)}|${sub.zoom.toFixed(2)}|${sub.pano_id ?? ''}`;
 };
 
 export const isSubmissionVerified = (sub: Submission): boolean => {
@@ -101,15 +105,19 @@ export interface ViewToVerify {
     heading: number;
     pitch: number;
     zoom: number;
+    // The exact panorama, when known. Without it the image is resolved from
+    // coordinates alone and the AI can end up judging a different picture than
+    // the player framed.
+    pano_id?: string | null;
 }
 
 // Verify one Street View camera angle against its claimed category. Shared by the
 // in-game voting auto-verify (verifySubmissions) and the Daily Challenge play view.
 export async function verifySingleView(view: ViewToVerify, mapsKey: string): Promise<{ passed: boolean; reason: string }> {
-    const fov = view.zoom ? 180 / Math.pow(2, view.zoom) : 90;
     let safeHeading = view.heading % 360;
     if (safeHeading < 0) safeHeading += 360;
-    const imageUrl = `https://maps.googleapis.com/maps/api/streetview?size=640x640&location=${view.lat},${view.lng}&heading=${safeHeading}&pitch=${view.pitch}&fov=${fov}&key=${mapsKey}`;
+    const locationParam = view.pano_id ? `pano=${encodeURIComponent(view.pano_id)}` : `location=${view.lat},${view.lng}`;
+    const imageUrl = `https://maps.googleapis.com/maps/api/streetview?size=640x640&${locationParam}&heading=${safeHeading}&pitch=${view.pitch}&fov=${fovForZoom(view.zoom)}&key=${mapsKey}`;
 
     const [{ mime, data }, location] = await Promise.all([fetchImageAsBase64(imageUrl), reverseGeocodeCoarse(view.lat, view.lng, mapsKey)]);
 

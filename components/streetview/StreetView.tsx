@@ -513,7 +513,14 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
             lng: position.lng(),
             heading: pov.heading,
             pitch: pov.pitch,
-            zoom: streetViewRef.current.getZoom() || 3,
+            // `?? 3`, not `|| 3`: zoom 0 (fully zoomed out) is legal and reachable
+            // by scroll/pinch, and `||` would silently persist it as 3.
+            zoom: streetViewRef.current.getZoom() ?? 3,
+            // The exact panorama, not just its coordinates. Replaying from lat/lng
+            // alone asks Google for the NEAREST pano, which is not always this one
+            // (photospheres, indoor tours, junctions, refreshed coverage) — and a
+            // different pano means the claimed object is not in frame during voting.
+            pano_id: streetViewRef.current.getPano() || null,
         };
 
         // optimistic update
@@ -550,6 +557,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                 p_pitch: submissionData.pitch,
                 p_zoom: submissionData.zoom,
                 p_captured_at: capturedAt,
+                p_pano_id: submissionData.pano_id,
             });
 
             if (data && data.success === false && data.error === 'ALREADY_CLAIMED') {
@@ -583,6 +591,7 @@ export default function StreetView({ myBoard, gameId, playerId, gameMode = 'list
                 p_pitch: submissionData.pitch,
                 p_zoom: submissionData.zoom,
                 p_captured_at: capturedAt,
+                p_pano_id: submissionData.pano_id,
             });
 
             if (error || (data && data.success === false)) {
