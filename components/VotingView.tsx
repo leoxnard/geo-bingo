@@ -14,7 +14,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, Fragment } from 'rea
 
 import { GoogleMap, useJsApiLoader, Polyline, MarkerF, StreetViewPanorama, Circle, OverlayViewF, OverlayView } from '@react-google-maps/api';
 import toast from 'react-hot-toast';
-import { FaInfoCircle, FaUsers } from 'react-icons/fa';
+import { FaInfoCircle, FaUndoAlt, FaUsers } from 'react-icons/fa';
 
 import { getHostToken } from '@/lib/hostToken';
 import { useT } from '@/lib/i18n/I18nProvider';
@@ -106,6 +106,12 @@ interface BingoCategory {
 // carry null pov fields). Coerce to a safe finite value before touching the pano.
 const finiteOr = (v: number | null | undefined, fallback: number) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
 
+// How to open a submission's panorama: by its exact pano id where we recorded one,
+// otherwise by coordinates (submissions predating pano_id). `pano` and `position`
+// are mutually exclusive in StreetViewPanoramaOptions — passing both lets the
+// coordinate lookup win, which is exactly the nearest-pano guess we're avoiding.
+const panoTarget = (sub: Submission): google.maps.StreetViewPanoramaOptions => (sub.pano_id ? { pano: sub.pano_id } : { position: { lat: sub.lat, lng: sub.lng } });
+
 const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => {
     let dLng = Math.abs(lng1 - lng2);
     if (dLng > 180) dLng = 360 - dLng;
@@ -145,7 +151,16 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     // Non-hosts render whatever this names; the host publishes it as its own
     // replay animation reaches each card. This is what keeps every device on the
     // same submission and lets a reloading player resume mid-round.
+    // `voting_line_complete` distinguishes the two states that both look like
+    // "no active card": the host animating between two submissions, and the host
+    // having finished the round. Without it a non-host could not tell whether to
+    // keep replaying or to show the finished board.
     const [cursorSubId, setCursorSubId] = useState<string | null>(null);
+    const [cursorLineComplete, setCursorLineComplete] = useState(false);
+    // Last cursor value this device has acted on — see the non-host follow effect.
+    // missingSubFetchRef dedupes the catch-up refetch for a card we don't have.
+    const lastCursorRef = useRef<{ sub: string | null; complete: boolean } | null>(null);
+    const missingSubFetchRef = useRef<string | null>(null);
     const hostRestoredRef = useRef(false);
     const [showPlayers, setShowPlayers] = useState(false);
     // Skip-to-podium needs a confirm step: it ends voting for everyone and jumps
@@ -309,6 +324,21 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
     const displaySub = activeSubLatest || lastActiveSub;
 
+    // Point the panorama at exactly what the player framed when they submitted.
+    // setPano over setPosition wherever the pano id was recorded: coordinates only
+    // resolve to the NEAREST panorama, which is not always the one they stood in
+    // (photospheres and indoor tours metres off the road, junctions, coverage
+    // refreshed since the game), and landing on a neighbour applies the stored
+    // heading from the wrong vantage point — the claimed thing simply isn't there.
+    const applySubmissionView = useCallback((sub: Submission | null | undefined) => {
+        const pano = streetViewPanoramaRef.current;
+        if (!pano || !sub) return;
+        if (sub.pano_id) pano.setPano(sub.pano_id);
+        else pano.setPosition({ lat: sub.lat, lng: sub.lng });
+        pano.setPov({ heading: finiteOr(sub.heading, 0), pitch: finiteOr(sub.pitch, 0) });
+        pano.setZoom(finiteOr(sub.zoom, 3));
+    }, []);
+
     // Re-apply the active submission's exact viewpoint each time a NEW one surfaces,
     // instead of keeping the previous submission's manual pan/zoom. Keyed on the
     // submission id (not the object) so an incoming vote — which produces a fresh
@@ -316,14 +346,27 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     // while the local user is looking around.
     useEffect(() => {
         if (selectedSubmission || selectedFinalMarker) return;
-        const pano = streetViewPanoramaRef.current;
-        if (pano && displaySub) {
-            pano.setPosition({ lat: displaySub.lat, lng: displaySub.lng });
-            pano.setPov({ heading: finiteOr(displaySub.heading, 0), pitch: finiteOr(displaySub.pitch, 0) });
-            pano.setZoom(finiteOr(displaySub.zoom, 3));
-        }
+        applySubmissionView(displaySub);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [displaySub?.id, selectedSubmission, selectedFinalMarker]);
+
+    // The submission currently framed in the Street View panel, whichever way it
+    // got there — the voting card, or a marker clicked on the finished board.
+    const viewedSub = selectedSubmission ?? (selectedFinalMarker ? null : displaySub);
+
+    const handleResetView = useCallback(() => {
+        if (viewedSub) {
+            applySubmissionView(viewedSub);
+            return;
+        }
+        // A target marker has no submitted viewpoint — its "original" is the
+        // metadata heading the overlay preview was framed with.
+        const pano = streetViewPanoramaRef.current;
+        if (!pano || !selectedFinalMarker) return;
+        pano.setPosition({ lat: selectedFinalMarker.lat, lng: selectedFinalMarker.lng });
+        pano.setPov({ heading: optimalHeading ?? 0, pitch: 0 });
+        pano.setZoom(3);
+    }, [viewedSub, selectedFinalMarker, optimalHeading, applySubmissionView]);
 
     const currentBoard = useMemo(() => {
         const board = roundPlayers[0]?.bingo_board;
@@ -390,6 +433,9 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         setSelectedFinalMarker(null);
         setIsPaused(false);
         setIsLineComplete(false);
+        // The new round republishes its cursor from scratch; forget what we acted
+        // on in the old one so an identical value still registers as a change.
+        lastCursorRef.current = null;
         shownSubIdsRef.current.clear();
         setShownSubIds(new Set());
         animationProgressRef.current = 0;
@@ -407,7 +453,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     // Data Fetching
     useEffect(() => {
         const fetchData = async () => {
-            const { data: gData } = await supabase.from('games').select('categories, grid_size, game_mode, category_details, generation_radius, starting_point, category_source, preset_categories, voting_round_index, voting_active_sub_id').eq('id', gameId).single();
+            const { data: gData } = await supabase.from('games').select('categories, grid_size, game_mode, category_details, generation_radius, starting_point, category_source, preset_categories, voting_round_index, voting_active_sub_id, voting_line_complete').eq('id', gameId).single();
 
             if (gData) {
                 setGameCategories(gData.categories || []);
@@ -424,6 +470,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                 // reload lands on the current round without wiping the restored card.
                 setCurrentRoundIndex(gData.voting_round_index ?? 0);
                 setCursorSubId(gData.voting_active_sub_id ?? null);
+                setCursorLineComplete(gData.voting_line_complete === true);
             }
 
             const { data: subData } = await supabase.from('submissions').select('*').eq('game_id', gameId);
@@ -446,11 +493,12 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         // host is the cursor's sole writer, so it only refreshes votes here and
         // keeps driving its own replay; non-hosts re-adopt the published cursor.
         const resyncVotingState = async () => {
-            const [{ data: gData }, { data: subData }] = await Promise.all([supabase.from('games').select('voting_round_index, voting_active_sub_id').eq('id', gameId).single(), supabase.from('submissions').select('*').eq('game_id', gameId)]);
+            const [{ data: gData }, { data: subData }] = await Promise.all([supabase.from('games').select('voting_round_index, voting_active_sub_id, voting_line_complete').eq('id', gameId).single(), supabase.from('submissions').select('*').eq('game_id', gameId)]);
             if (subData) setSubmissions(subData);
             if (gData && !isHostRef.current) {
                 if (typeof gData.voting_round_index === 'number') applyRoundRef.current(gData.voting_round_index);
                 setCursorSubId(gData.voting_active_sub_id ?? null);
+                setCursorLineComplete(gData.voting_line_complete === true);
             }
         };
 
@@ -482,9 +530,10 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                     // active card. Round changes are picked up here (replacing the
                     // old 'next_player' broadcast) and reset the replay via
                     // applyRoundIndex (a subscription callback, so setState is fine).
-                    const g = payload.new as { voting_round_index?: number; voting_active_sub_id?: string | null };
+                    const g = payload.new as { voting_round_index?: number; voting_active_sub_id?: string | null; voting_line_complete?: boolean };
                     if (typeof g.voting_round_index === 'number') applyRoundRef.current(g.voting_round_index);
                     setCursorSubId(g.voting_active_sub_id ?? null);
+                    setCursorLineComplete(g.voting_line_complete === true);
                 },
             )
             .subscribe((channelStatus) => {
@@ -581,11 +630,21 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
     // Host-only: publish the authoritative cursor. p_host_id carries the host
     // capability token (see set_voting_cursor), read straight from localStorage.
+    // Retried once. This write is the only thing that moves everyone else along, so
+    // dropping it to a transient network blip strands every other device on the
+    // previous card until the host happens to reach the next one.
     const writeCursor = useCallback(
-        (roundIndex: number, subId: string | null) => {
+        (roundIndex: number, subId: string | null, lineComplete = false) => {
             if (!isHost) return;
-            supabase.rpc('set_voting_cursor', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_round_index: roundIndex, p_active_sub_id: subId }).then(({ error }) => {
-                if (error) console.error(error);
+            const publish = () => supabase.rpc('set_voting_cursor', { p_game_id: gameId, p_host_id: getHostToken(gameId), p_round_index: roundIndex, p_active_sub_id: subId, p_line_complete: lineComplete });
+            publish().then(({ data, error }) => {
+                if (!error && data?.success !== false) return;
+                console.error('set_voting_cursor failed, retrying:', error || data?.error);
+                setTimeout(() => {
+                    publish().then(({ data: retryData, error: retryError }) => {
+                        if (retryError || retryData?.success === false) console.error('set_voting_cursor retry failed:', retryError || retryData?.error);
+                    });
+                }, 1000);
             });
         },
         [isHost, gameId],
@@ -662,11 +721,15 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
     // Animation Loop — drives every teammate's path off one shared, normalized
     // progress. The map is framed to the whole round up front (no per-frame recenter).
-    // Only the host runs the replay: as it reaches each card it publishes the cursor,
-    // and every other device follows that cursor (see the non-host effect below).
-    // This is what stops one device from racing ahead to the next submission.
+    //
+    // EVERY device runs this, not just the host. It used to be host-only, so a
+    // non-host's route never actually moved: it was redrawn only in the instant a
+    // cursor jump landed, which looked frozen (and stayed frozen for good if the
+    // jump beat the polylines' onLoad). The host is still the sole authority — it
+    // is the only one that publishes the cursor, and the only one that may RESUME
+    // off its own vote tally. A non-host pauses at each card exactly like the host
+    // and waits for the published cursor to release it, so nobody can race ahead.
     useEffect(() => {
-        if (!isHost) return;
         if (!mapInstance || isPaused || isLineComplete || roundData.length === 0) return;
         if (!roundData.some((pd) => pd.rawPath.length > 0)) return;
 
@@ -702,7 +765,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                 progress = crossedSub.progress;
                 hitSub = true;
                 // Publish this card so every other device votes on it too.
-                writeCursor(currentRoundIndex, crossedSub.sub.id);
+                writeCursor(currentRoundIndex, crossedSub.sub.id, false);
             }
 
             animationProgressRef.current = progress;
@@ -723,6 +786,9 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
             if (progress >= 1 && !hitSub) {
                 setIsLineComplete(true);
+                // Publish the finished round: a null card alone would read as
+                // "still animating" and leave everyone else replaying.
+                writeCursor(currentRoundIndex, null, true);
             } else if (!hitSub) {
                 rAFRef.current = requestAnimationFrame(animate);
             }
@@ -730,7 +796,16 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
 
         rAFRef.current = requestAnimationFrame(animate);
         return () => cancelAnimationFrame(rAFRef.current);
-    }, [isHost, isPaused, isLineComplete, mapInstance, roundData, allSubProgressions, calculatedDuration, isNarrow, writeCursor, currentRoundIndex]);
+    }, [isPaused, isLineComplete, mapInstance, roundData, allSubProgressions, calculatedDuration, isNarrow, writeCursor, currentRoundIndex]);
+
+    // Repaint the route whenever the polylines and markers (re)mount. drawAtProgress
+    // writes straight onto the Google objects, so a draw issued before their onLoad
+    // registered them — a cursor jump landing while the map was still mounting —
+    // vanished, leaving the route frozen at the start until the next card.
+    useEffect(() => {
+        if (!mapInstance || roundData.length === 0) return;
+        drawAtProgress(animationProgressRef.current);
+    }, [mapInstance, roundData, drawAtProgress]);
 
     // On completion, re-fit so all teammate paths are framed together.
     useEffect(() => {
@@ -741,6 +816,19 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         }
     }, [isLineComplete, mapInstance, allRoundPoints]);
 
+    // Leave the current card and let the replay run on to the next one. Host-only:
+    // it publishes the release so every other device resumes in the same beat,
+    // which is what keeps the between-cards category grid in sync.
+    const resumeReplay = useCallback(() => {
+        setActiveSubmission(null);
+        setIsPaused(false);
+        writeCursor(currentRoundIndex, null, false);
+    }, [writeCursor, currentRoundIndex]);
+    const resumeReplayRef = useRef(resumeReplay);
+    useEffect(() => {
+        resumeReplayRef.current = resumeReplay;
+    });
+
     // Host-only auto-advance: once everyone present has voted, resume the replay,
     // which surfaces (and publishes) the next card. Non-hosts never advance on
     // their own tally — they follow the published cursor instead.
@@ -749,35 +837,79 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         let timeoutId: ReturnType<typeof setTimeout>;
 
         if (votingStats.isComplete && activeSubLatest && isPaused) {
-            timeoutId = setTimeout(() => {
-                setActiveSubmission(null);
-                setIsPaused(false);
-            }, 100);
+            timeoutId = setTimeout(() => resumeReplayRef.current(), 100);
         }
         return () => clearTimeout(timeoutId);
     }, [isHost, votingStats.isComplete, activeSubLatest, isPaused]);
 
-    // Non-host follow: render whatever submission the host's cursor names. A null
-    // cursor means the round just started (host still animating toward the first
-    // card) — nothing to show yet. Also restores a reloaded non-host onto the
-    // current card. The host takes its cursor from its own replay, so it skips this.
+    // Non-host follow: mirror the host's published state.
+    //   • a card id  -> vote on that card (and snap the replay onto it)
+    //   • null       -> the host moved on; drop the card so the category grid
+    //                   shows here too, and let the local replay carry on
+    //   • complete   -> the host finished the round; jump to the finished board
+    // Also restores a reloaded non-host onto whatever is current. The host takes
+    // its cursor from its own replay, so it skips this entirely.
+    //
+    // Edge-triggered on the published value, not level-triggered. A null cursor is
+    // the host saying "I moved on" once; as a standing state it would also cancel a
+    // pause this device entered on its own — its replay reaching the next card a
+    // beat before the host published it — and the device would skip cards from
+    // there on. The ref is only advanced once the value has actually been acted on,
+    // so a cursor naming a submission we haven't received yet is retried.
     useEffect(() => {
-        if (isHost || !isDataLoaded || !cursorSubId) return;
-        if (activeSubmission?.id === cursorSubId) return;
-        const sub = submissions.find((s) => s.id === cursorSubId);
-        if (!sub || !roundPlayerIds.has(sub.player_id)) return;
-        snapToSub(sub);
-    }, [isHost, isDataLoaded, cursorSubId, submissions, roundPlayerIds, activeSubmission, snapToSub]);
+        if (isHost || !isDataLoaded) return;
+        const prev = lastCursorRef.current;
+        if (prev && prev.sub === cursorSubId && prev.complete === cursorLineComplete) return;
+
+        if (cursorSubId && !cursorLineComplete) {
+            const sub = submissions.find((s) => s.id === cursorSubId);
+            if (!sub) {
+                // The host is on a card we never received — a submission INSERT is
+                // not replayed on this channel, and a dropped socket loses the rest.
+                // Refetch once per unknown id rather than stalling on this card.
+                if (missingSubFetchRef.current !== cursorSubId) {
+                    missingSubFetchRef.current = cursorSubId;
+                    supabase
+                        .from('submissions')
+                        .select('*')
+                        .eq('game_id', gameId)
+                        .then(({ data }) => data && setSubmissions(data));
+                }
+                return;
+            }
+            if (!roundPlayerIds.has(sub.player_id)) return;
+            lastCursorRef.current = { sub: cursorSubId, complete: cursorLineComplete };
+            if (activeSubmission?.id !== cursorSubId) snapToSub(sub);
+            return;
+        }
+
+        lastCursorRef.current = { sub: cursorSubId, complete: cursorLineComplete };
+        setActiveSubmission(null);
+        setIsPaused(false);
+        if (cursorLineComplete) {
+            drawAtProgress(1);
+            setIsLineComplete(true);
+        } else {
+            setIsLineComplete(false);
+        }
+    }, [isHost, isDataLoaded, gameId, cursorSubId, cursorLineComplete, submissions, roundPlayerIds, activeSubmission, snapToSub, drawAtProgress]);
 
     // Host restore-on-reload (once): if the host reloads mid-voting, jump its
     // replay to the persisted card instead of replaying from the round's start.
     useEffect(() => {
         if (!isHost || hostRestoredRef.current || !isDataLoaded) return;
         hostRestoredRef.current = true;
+        if (cursorLineComplete) {
+            // The round was already finished — don't replay it (and re-publish
+            // every card) just because the host reloaded.
+            drawAtProgress(1);
+            setIsLineComplete(true);
+            return;
+        }
         if (!cursorSubId) return;
         const sub = submissions.find((s) => s.id === cursorSubId);
         if (sub && roundPlayerIds.has(sub.player_id)) snapToSub(sub);
-    }, [isHost, isDataLoaded, cursorSubId, submissions, roundPlayerIds, snapToSub]);
+    }, [isHost, isDataLoaded, cursorSubId, cursorLineComplete, submissions, roundPlayerIds, snapToSub, drawAtProgress]);
 
     const handleVote = async (sub: Submission, voteIsYes: boolean) => {
         const newVotes = { ...sub.votes, [playerId]: voteIsYes };
@@ -836,7 +968,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
             // Reset + advance locally so the host doesn't wait on the round-trip, then
             // publish so every other device advances via the games subscription.
             applyRoundIndex(nextIndex);
-            writeCursor(nextIndex, null);
+            writeCursor(nextIndex, null, false);
         } else {
             onFinishGame();
         }
@@ -846,8 +978,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     // without waiting for everyone. Resuming surfaces + publishes the next card,
     // exactly like the auto-advance path.
     const handleAcceptVotes = () => {
-        setActiveSubmission(null);
-        setIsPaused(false);
+        resumeReplay();
     };
 
     const handleSkipToPodium = () => {
@@ -1129,7 +1260,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
     const panoramaOptions = useMemo(() => {
         if (selectedSubmission) {
             return {
-                position: { lat: selectedSubmission.lat, lng: selectedSubmission.lng },
+                ...panoTarget(selectedSubmission),
                 pov: {
                     heading: finiteOr(selectedSubmission.heading, 0),
                     pitch: finiteOr(selectedSubmission.pitch, 0),
@@ -1171,7 +1302,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
         }
         if (displaySub) {
             return {
-                position: { lat: displaySub.lat, lng: displaySub.lng },
+                ...panoTarget(displaySub),
                 pov: { heading: finiteOr(displaySub.heading, 0), pitch: finiteOr(displaySub.pitch, 0) },
                 zoom: finiteOr(displaySub.zoom, 3),
                 visible: true,
@@ -1496,6 +1627,17 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                                 />
                             )}
                         </GoogleMap>
+
+                        {/* Recentre on the submitted viewpoint. Panning and zooming
+                            around a card is encouraged — you often have to look
+                            behind a pole to judge it — but there was no way back to
+                            what the player actually claimed. */}
+                        {(viewedSub || selectedFinalMarker) && (
+                            <button type="button" onClick={handleResetView} title={t('voting.resetView')} aria-label={t('voting.resetView')} className="glass-dark press absolute right-4 top-4 z-10 flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-bold text-white hover:brightness-125">
+                                <FaUndoAlt size={13} />
+                                <span className="hidden sm:inline">{t('voting.resetView')}</span>
+                            </button>
+                        )}
                     </div>
 
                     <div className="glass-dark w-full !border-x-0 !border-b-0 border-t !border-t-indigo-400/40 rounded-none p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-20">

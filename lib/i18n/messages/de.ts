@@ -336,6 +336,7 @@ export const de: Messages = {
     'voting.yesLabel': 'Ja: {count}',
     'voting.noLabel': 'Nein: {count}',
     'voting.bonusLabel': 'Bonus: {count}',
+    'voting.resetView': 'Ansicht zurücksetzen',
     'voting.avgLabel': 'Ø: {value}',
     'voting.scaleSumLabel': 'Gesamt: {sum}',
     'voting.backToBoard': 'Zurück zum Board',

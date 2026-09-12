@@ -336,6 +336,7 @@ export const zh: Messages = {
     'voting.yesLabel': '赞成：{count}',
     'voting.noLabel': '反对：{count}',
     'voting.bonusLabel': '加分：{count}',
+    'voting.resetView': '重置视角',
     'voting.avgLabel': '平均：{value}',
     'voting.scaleSumLabel': '总计：{sum}',
     'voting.backToBoard': '返回游戏板',

@@ -337,6 +337,7 @@ export const en = {
     'voting.yesLabel': 'Yes: {count}',
     'voting.noLabel': 'No: {count}',
     'voting.bonusLabel': 'Bonus: {count}',
+    'voting.resetView': 'Reset view',
     'voting.avgLabel': 'Avg: {value}',
     'voting.scaleSumLabel': 'Total: {sum}',
     'voting.backToBoard': 'Back to Board',
