@@ -26,6 +26,7 @@ import { shuffle } from '@/components/utils/Functions';
 import { Player } from '@/components/utils/types';
 import type { CategoryVoteModes, VotingMode } from '@/components/utils/votes';
 import { track } from '@/lib/analytics';
+import { getDeviceId } from '@/lib/deviceId';
 import { FEATURES } from '@/lib/featureFlags';
 import { useT } from '@/lib/i18n/I18nProvider';
 import { categoryLanguageForLocale, CategoryLanguage, defaultCategoryLanguage, isLocale, Locale, normalizeLocale, storeCategoryLanguage } from '@/lib/i18n/locales';
@@ -51,6 +52,11 @@ const VotingView = dynamic(() => import('@/components/VotingView').then((m) => m
 const PodiumView = dynamic(() => import('@/components/PodiumView'), { ssr: false, loading: phaseLoading });
 
 type GameStatus = 'lobby' | 'playing' | 'voting' | 'finished';
+
+// Where this browser remembers which players row it owns in a given game. One key
+// per game so a returning player resumes their row and a new game never inherits
+// (and thereby steals) the row from the last one.
+const playerIdKey = (gameId: string) => `geoBingoPlayerId_${gameId}`;
 
 type GameRow = {
     banned_players?: string[];
@@ -171,7 +177,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
     // as a self-heal when a host RPC unexpectedly reports NOT_HOST. The local token is
     // the source of truth, so we reuse it when present and only mint one if missing.
     const ensureHostSecret = useCallback(async (): Promise<string | null> => {
-        const selfId = typeof window !== 'undefined' ? sessionStorage.getItem('geoBingoSessionUUID') : null;
+        const selfId = typeof window !== 'undefined' ? localStorage.getItem(playerIdKey(gameId)) : null;
         if (!selfId || gameHostIdRef.current !== selfId) return null;
         const token = getHostToken(gameId) ?? newHostToken(gameId);
         const { data, error } = await supabase.rpc('register_host_secret', { p_game_id: gameId, p_player_id: selfId, p_token: token });
@@ -401,10 +407,19 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
             setApiStatus(status);
             apiStatusRef.current = status;
         });
-        let localId = sessionStorage.getItem('geoBingoSessionUUID');
+        // players.id owns this player's board, path, team and submissions, so the id
+        // has to outlive the tab: it used to live in sessionStorage, which dies on
+        // tab close, so anyone who came back was registered as a brand new row —
+        // a duplicate entrant with their stats gone.
+        //
+        // Keyed per game, not globally. players.id is unique across all games and
+        // join_game upserts on it, so one shared id means joining a new room MOVES
+        // the row out of the old one (erasing that player from its podium). The
+        // sessionStorage read is a one-time migration for games already in flight.
+        let localId = localStorage.getItem(playerIdKey(gameId));
         if (!localId) {
-            localId = crypto.randomUUID();
-            sessionStorage.setItem('geoBingoSessionUUID', localId);
+            localId = sessionStorage.getItem('geoBingoSessionUUID') || crypto.randomUUID();
+            localStorage.setItem(playerIdKey(gameId), localId);
         }
 
         setPlayerId(localId);
@@ -621,6 +636,9 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                 // on refresh, and treats a finished game as spectate-only.
                 // account_id attributes the player so their profile can record this
                 // game's outcome at the finished phase.
+                // p_device_id lets the RPC recognise a returning player whose stored
+                // id is gone (other browser, cleared storage, private window) and
+                // hand back the row they already own instead of minting a second one.
                 const accountId = FEATURES.playerProfiles ? (await supabase.auth.getUser()).data.user?.id : undefined;
                 const { data: joinRes, error: joinErr } = await supabase.rpc('join_game', {
                     p_game_id: gameId,
@@ -628,6 +646,7 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     p_name: playerName,
                     p_account_id: accountId ?? null,
                     p_bingo_board: bingoBoardToAssign ?? null,
+                    p_device_id: getDeviceId(),
                 });
                 if (joinErr) {
                     console.error('CRITICAL: Failed to join game.', joinErr);
@@ -635,6 +654,14 @@ export default function GameRoom({ params }: { params: Promise<{ id: string }> }
                     if (joinRes.error === 'BANNED') toast(t('game.banned'));
                     else toast(t('game.couldNotJoin'));
                     setTimeout(() => router.push('/'), 1500);
+                    return;
+                } else if (joinRes?.player_id && joinRes.player_id !== currentPlayerId) {
+                    // The RPC matched us to an existing row by account or device.
+                    // currentPlayerId is closed over by presence, realtime and the
+                    // host checks below, so adopt the canonical id by persisting it
+                    // and re-running init from the top rather than patching it in.
+                    localStorage.setItem(playerIdKey(gameId), joinRes.player_id);
+                    window.location.reload();
                     return;
                 }
             } else {
