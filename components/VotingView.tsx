@@ -1520,7 +1520,7 @@ export function VotingView({ gameId, isHost, playerId, players, teamMode, onFini
                                             <>
                                                 <div className="text-green-400 font-bold">{t('voting.yesLabel', { count: tallyVotes(selectedSubmission.votes).yes })}</div>
                                                 <div className="text-red-400 font-bold">{t('voting.noLabel', { count: tallyVotes(selectedSubmission.votes).no })}</div>
-                                                {tallyVotes(selectedSubmission.votes).hype > 0 && <div className="text-amber-400 font-bold">{t('voting.hypeLabel', { count: tallyVotes(selectedSubmission.votes).hype })}</div>}
+                                                {tallyVotes(selectedSubmission.votes).hype > 0 && <div className="text-amber-400 font-bold">{t('voting.bonusLabel', { count: tallyVotes(selectedSubmission.votes).hype })}</div>}
                                             </>
                                         )}
                                     </div>

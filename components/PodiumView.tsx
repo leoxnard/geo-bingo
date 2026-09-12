@@ -662,7 +662,7 @@ export default function PodiumView({ gameId, isHost, teamMode, playerId }: Podiu
 
                                                 {/* Hype */}
                                                 <div className="bg-white/5 p-3 rounded-xl flex flex-col items-center h-full">
-                                                    <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">{t('podium.hype')}</span>
+                                                    <span className="text-[10px] text-slate-400 uppercase font-bold text-center leading-tight shrink-0">{t('podium.bonus')}</span>
                                                     <div className="flex-1 flex items-center justify-center w-full">
                                                         <span className="text-xl font-medium text-amber-400 leading-none">{player.totalHype || 0}</span>
                                                     </div>
